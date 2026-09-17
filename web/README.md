@@ -1,0 +1,1 @@
+Currently we focus on mobile app development. We still need to decide whether we choose react or flutter for web app.
