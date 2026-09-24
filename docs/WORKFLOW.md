@@ -1,45 +1,45 @@
 # docs/WORKFLOW.md
 
-## Cykl życia kodu i wdrażanie (Workflow)
+## Code Lifecycle and Deployment (Workflow)
 
-Nasz zespół pracuje w oparciu o jedną główną, chronioną gałąź `main` oraz krótkotrwałe gałęzie zadaniowe i Pull Requesty. Proces nie przewiduje utrzymywania osobnej gałęzi `dev` w celu ograniczenia kosztów pracy zespołu.
+Our team works based on a single protected main branch (`main`), short-lived task branches, and Pull Requests. The process does not involve maintaining a separate `dev` branch in order to minimize team overhead and operational costs.
 
-### Krok 1: Pobranie zadania i start prac
-* Rozpoczynamy od przypisania się do zadania (Issue) na GitHubie.
-* Zawsze tworzymy nową gałąź z aktualnej gałęzi `main`:
+### Step 1: Picking up a task and starting work
+* Start by assigning yourself to the issue on GitHub.
+* Always create a new branch from the up-to-date `main` branch:
   ```bash
   git fetch --all
   git checkout main
   git pull origin main
-  git checkout -b feature/12-rejestracja-klienta
+  git checkout -b feature/12-customer-registration
   ```
-* Na etapie developmentu używamy środowiska `local` (lokalna baza PostgreSQL w Docker Compose, mocki integracji). Uruchamiamy je komendą w głównym katalogu:
+* During development, use the `local` environment (local PostgreSQL database via Docker Compose, third-party mocks). Run it using the command in the root directory:
   ```bash
   docker-compose up -d --build
   ```
 
-### Krok 2: Zgłoszenie zmian (Pull Request)
-* Zapisujemy zmiany w kodzie zgodnie z konwencją, a następnie wypychamy gałąź do zdalnego repozytorium:
+### Step 2: Submitting changes (Pull Request)
+* Commit your changes adhering to naming conventions, then push the branch to the remote repository:
   ```bash
   git add .
-  git commit -m "feat(backend): dodaj endpoint rejestracji (#12)"
-  git push -u origin feature/12-rejestracja-klienta
+  git commit -m "feat(backend): add registration endpoint (#12)"
+  git push -u origin feature/12-customer-registration
   ```
-* Po wypchnięciu otwieramy Pull Request (PR) celujący w `main` poprzez interfejs GitHuba.
-* Narzędzie CI (GitHub Actions) automatycznie uruchamia proces budowania, lintowanie oraz testy (w tym testy architektury modułów).
-* Oczekujemy na weryfikację kodu (Code Review) przez minimum jednego członka zespołu.
-* Jeśli testy na CI wykazują błędy, wprowadzamy poprawki, tworzymy nowe commity i wypychamy je (`git push`) do tej samej gałęzi – pod żadnym pozorem nie łączymy nieprzetestowanego kodu.
+* Once pushed, open a Pull Request (PR) targeting `main` via the GitHub interface.
+* The CI pipeline (GitHub Actions) automatically triggers the build process, linting, and tests (including modular architecture tests).
+* Wait for code review approval from at least one team member.
+* If CI tests fail, apply fixes, create new commits, and push them (`git push`) to the same branch — under no circumstances should untested or failing code be merged.
 
-### Krok 3: Integracja (Merge do main)
-* Po uzyskaniu akceptacji i zaliczeniu testów CI, zamykamy PR korzystając wyłącznie z opcji **Squash and merge** na stronie GitHuba.
-* Weryfikujemy, czy tytuł i opis finalnego commita są zgodne z konwencją projektową (zawierają m.in. `Closes #12`).
-* Po zmergowaniu usuwamy gałąź zadaniową na GitHubie oraz czyścimy lokalne repozytorium:
+### Step 3: Integration (Merge to main)
+* After obtaining approval and passing all CI checks, merge the PR using exclusively the **Squash and merge** option on GitHub.
+* Verify that the title and description of the final squash commit follow project naming conventions (including `Closes #12`).
+* After merging, delete the task branch on GitHub and clean up your local repository:
   ```bash
   git checkout main
   git pull origin main
-  git branch -d feature/12-rejestracja-klienta
+  git branch -d feature/12-customer-registration
   ```
 
-### Krok 4: Wdrożenia (Staging i Produkcja)
-* **Staging:** Deployment staging po merge do main następuje automatycznie. Środowisko to służy do integracji całego systemu i testów manualnych przez właścicieli z użyciem danych testowych.
-* **Produkcja:** Wdrożenie produkcyjne do realnego studia wykonujemy po testach na środowisku stagingowym. Tag/release do produkcji jest tworzony w interfejsie GitHuba po akceptacji.
+### Step 4: Deployments (Staging and Production)
+* **Staging:** Deployment to staging happens automatically after merging into `main`. This environment is used for end-to-end system integration and manual acceptance testing by stakeholders using test data.
+* **Production:** Production deployment to the live studio is performed after verification on the staging environment. A release/tag for production is created via the GitHub interface once approved.

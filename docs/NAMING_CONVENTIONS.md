@@ -1,25 +1,27 @@
 # docs/NAMING_CONVENTIONS.md
 
-## 1. Gałęzie (Branches)
-Stosujemy krótkotrwale żyjące gałęzie zadaniowe (feature branches). Nazwa musi zawierać typ, numer zadania z GitHuba oraz krótki opis.
+> **Note:** All project documentation, commit messages, and PR descriptions must be written in English.
 
-**Format:** `<typ>/<numer-issue>-<krotki-opis>`
-* `feature/12-user-registration` – dla nowych funkcjonalności.
-* `fix/34-payment-crash` – dla naprawy błędów.
-* `refactor/45-booking-module` – dla zmian w strukturze.
-* `chore/55-github-actions` – dla zadań technicznych.
+## 1. Branches
+We use short-lived task branches (feature branches). Branch names must include the type, the GitHub issue number, and a brief description.
 
-## 2. Commity
-Pracujemy w repozytorium typu monorepo, dlatego w commitach obowiązkowo określamy zakres (scope). Używamy trybu rozkazującego.
+**Format:** `<type>/<issue-number>-<short-description>`
+* `feature/12-user-registration` – for new features.
+* `fix/34-payment-crash` – for bug fixes.
+* `refactor/45-booking-module` – for structural changes and refactoring.
+* `chore/55-github-actions` – for technical tasks and maintenance.
 
-**Format:** `<typ>(<zakres-monorepo>): <opis> (#<numer-issue>)`
-* `feat(backend): dodaj walidację zniżek karnetu (#12)`
-* `fix(mobile): napraw błąd parsowania daty w kalendarzu (#34)`
-* `infra(terraform): dodaj bucket na zdjęcia profilowe`
+## 2. Commits
+We operate in a monorepo, so specifying the `scope` in commit messages is mandatory. Use the imperative mood.
 
-## 3. Pull Requesty (PR)
-Tytuł PR będzie stanowić treść głównego commita na gałęzi docelowej po wykonaniu operacji "Squash and merge".
+**Format:** `<type>(<monorepo-scope>): <description> (#<issue-number>)`
+* `feat(backend): add pass discount validation (#12)`
+* `fix(mobile): fix calendar date parsing error (#34)`
+* `infra(terraform): add bucket for profile pictures`
 
-**Format:** `[#<numer-issue>] <Biznesowy opis zmiany>`
-* `[#12] Rejestracja nowego klienta z weryfikacją e-mail`
-* **Ważne:** W opisie PR zawsze umieszczamy frazę `Closes #<numer-issue>`, aby w momencie łączenia gałęzi automatycznie zamknąć powiązane zadanie na tablicy.
+## 3. Pull Requests (PR)
+The PR title will become the main commit message on the target branch after a "Squash and merge" operation.
+
+**Format:** `[#<issue-number>] <Business-oriented description of the change>`
+* `[#12] New customer registration with email verification`
+* **Important:** Always include `Closes #<issue-number>` in the PR description to automatically close the associated issue on the project board once merged.
