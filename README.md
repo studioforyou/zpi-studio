@@ -1,44 +1,33 @@
-# zpi-studio
+# ZPI Studio
 
-## Baza danych (PostgreSQL w Docker Compose)
+A team project for a studio management application, with planned workflows for clients, trainers, and administrators. Product scope and domain terminology are being refined in the [backlog](https://github.com/studioforyou/zpi-studio/issues).
 
-### Konfiguracja i uruchomienie
+## Start here
 
-Wymagany zainstalowany i uruchomiony Docker (Docker Desktop na Windows/macOS).
+**[Open the documentation map](docs/README.md)** for a visual overview, directory links, and reading paths.
 
-1. Skopiuj plik z przykładowymi zmiennymi środowiskowymi:
-   
-```
-cp .env.example .env
-```
-   i w razie potrzeby zmień w nim `LOCAL_DB_USER` / `LOCAL_DB_PASSWORD`.
+| I want to... | Start with |
+| --- | --- |
+| Understand the current project stage | [Current state](#current-state) |
+| Find a directory or project document | [Documentation map](docs/README.md) |
+| Work on an issue or prepare a PR | [Workflow](docs/WORKFLOW.md) and [naming conventions](docs/NAMING_CONVENTIONS.md) |
+| Check local setup and known limitations | [Local development](docs/LOCAL_DEVELOPMENT.md) |
+| Use Codex or Claude with this repository | [AI context guide](docs/AI_CONTEXT.md) |
+| Find an unresolved decision | [Open questions](docs/OPEN_QUESTIONS.md) |
 
-2. Uruchom lokalną bazę danych jedną komendą:
+## Current state
 
-```
-docker compose up -d postgres
-```
+Repository inspection baseline: `f1d152d`, reviewed on 2026-09-25. This documentation draft is tracked in [#42](https://github.com/studioforyou/zpi-studio/issues/42).
 
-Baza wystartuje na porcie `5432` (baza `zpi_studio`),  Dane są trzymane w wolumenie `postgres_data`; przetrwają restart kontenera.
+- **Present:** a Spring Boot backend with a single ping endpoint, a Flutter connection-check screen, and Docker Compose configuration for PostgreSQL and the backend.
+- **Not implemented in the repository:** business features, a domain data model, Spring Modulith, GitHub Actions workflows, and staging deployment configuration.
+- **Current work:** documentation and preparation. Application implementation is deferred to the course sprints; their detailed rules still await guidance from the instructors.
+- **Planned separately:** a repository workflow assistant. [#43](https://github.com/studioforyou/zpi-studio/issues/43) covers its specification, not a running agent.
 
-Zatrzymanie bazy:
-```
-docker compose down
-```
+Configuration being present does not mean that the application has passed end-to-end verification. See [known setup and test limitations](docs/LOCAL_DEVELOPMENT.md#verification-status).
 
-### Nawiązanie połączenia
+Requirements, the domain glossary, and architecture decision records are still pending as repository documents. Their [backlog links](docs/README.md#pending-knowledge) are the entry points until those documents exist. English is the agreed language for repository content; legacy application strings and comments have not been translated as part of this documentation task.
 
-Połączenie z bazą danych może być nawiązane na dwa sposoby:
+## Maintaining this entry point
 
-1. z poziomu kontenera
-```
-docker exec -it zpi_postgres psql -U zpi_user -d zpi_studio
-```
-
-2. z poziomu hosta
-```bash/
-psql -h localhost -p 5432 -U zpi_user -d zpi_studio
-# (hasło jak w .env (LOCAL_DB_PASSWORD))
-```
-
-Ewntualnie, 3. poprzez GUI - DBeaver, pgAdmin itd...
+Update this summary when a change affects the project stage or capabilities. Keep task status and assignments in GitHub; follow the [documentation maintenance rules](docs/README.md#keeping-documentation-current) for changes to project knowledge.

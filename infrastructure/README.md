@@ -1,1 +1,5 @@
-Currently we don't have cloud infra. It is planned for M1.
+# Infrastructure
+
+This directory is a placeholder; cloud infrastructure is not implemented. Terraform and staging deployment are tracked in [#34](https://github.com/studioforyou/zpi-studio/issues/34) and [#35](https://github.com/studioforyou/zpi-studio/issues/35). Their issue assignments and milestones remain the planning source.
+
+Local PostgreSQL and backend configuration live in the root [docker-compose.yml](../docker-compose.yml). See [local development](../docs/LOCAL_DEVELOPMENT.md) for its verification status, and the [documentation map](../docs/README.md) for architecture and workflow sources.
