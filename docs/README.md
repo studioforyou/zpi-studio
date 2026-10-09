@@ -19,15 +19,15 @@ flowchart TB
     ai --> agents["Shared instructions<br/>AGENTS.md"]
     ai --> claude["Claude entry point<br/>CLAUDE.md imports AGENTS.md"]
     context --> questions["Unresolved decisions<br/>OPEN_QUESTIONS.md"]
+    context --> architecture["Architecture decisions<br/>ARCHITECTURE_DECISIONS.md"]
     knowledge -.-> requirements["Requirements<br/>Issue #20"]
     knowledge -.-> glossary["Domain glossary<br/>Issue #21"]
-    knowledge -.-> architecture["Architecture decisions<br/>Issues #4 and #25"]
     classDef entry fill:#dbeafe,stroke:#1d4ed8,color:#172554;
     classDef guide fill:#ecfdf5,stroke:#047857,color:#064e3b;
     classDef pending fill:#fff7ed,stroke:#c2410c,color:#7c2d12,stroke-dasharray:5 5;
     class root,map entry;
-    class work,context,workflow,areas,local,ai,agents,claude,questions guide;
-    class knowledge,requirements,glossary,architecture pending;
+    class work,context,workflow,areas,local,ai,agents,claude,questions,architecture guide;
+    class knowledge,requirements,glossary pending;
 ```
 
 GitHub renders Mermaid in Markdown files. Editors without Mermaid support can use the text and links on this page. See [GitHub's diagram documentation](https://docs.github.com/en/get-started/writing-on-github/working-with-advanced-formatting/creating-diagrams).
@@ -42,6 +42,7 @@ GitHub renders Mermaid in Markdown files. Editors without Mermaid support can us
 | How do I inspect or run the existing skeleton? | [Local development](LOCAL_DEVELOPMENT.md) -> [backend](../backend/README.md) or [mobile](../mobile/README.md) |
 | How should an AI assistant begin? | [Shared instructions](../AGENTS.md) -> this map -> [AI context guide](AI_CONTEXT.md) -> task-specific sources |
 | What is blocking an agreement? | [Open questions](OPEN_QUESTIONS.md) -> the linked issue or decision source |
+| What architecture choices are confirmed or proposed? | [Architecture decisions](ARCHITECTURE_DECISIONS.md) -> decision table -> confirmation source and implementation status |
 
 ## Repository areas
 
@@ -49,10 +50,16 @@ GitHub renders Mermaid in Markdown files. Editors without Mermaid support can us
 | --- | --- |
 | [`backend/`](../backend/README.md) | Spring Boot API skeleton; no business modules yet. |
 | [`mobile/`](../mobile/README.md) | Flutter application skeleton with a connection-check screen. |
-| [`web/`](../web/README.md) | Placeholder for the web application; technology choice remains open. |
+| [`web/`](../web/README.md) | Placeholder for the selected React web application; implementation absent. |
 | [`infrastructure/`](../infrastructure/README.md) | Placeholder for cloud infrastructure. Local Compose configuration is at the repository root. |
 | [`scripts/`](../scripts/README.md) | Reserved for future helper scripts; no executable helpers are present. |
 | [`docs/`](.) | Project knowledge, working agreements, setup notes, and open questions. |
+
+## Architecture decisions
+
+The [architecture decisions](ARCHITECTURE_DECISIONS.md) contain eleven ADRs for [#4](https://github.com/studioforyou/zpi-studio/issues/4) in one document with their status, rationale, consequences, and implementation context. The [scope and status](ARCHITECTURE_DECISIONS.md#scope-and-status) distinguish confirmed choices from proposals.
+
+The original twelve-record issue scope and the title of #32 require backlog alignment; see [Q-007](OPEN_QUESTIONS.md#q-007--architecture-backlog-alignment).
 
 ## Pending knowledge
 
@@ -63,7 +70,6 @@ These documents have not yet been established in the repository. An issue title 
 | Owner requirements and scope priorities | [#20](https://github.com/studioforyou/zpi-studio/issues/20) |
 | Agreed domain terminology | [#21](https://github.com/studioforyou/zpi-studio/issues/21) |
 | Domain model and module boundaries | [#24](https://github.com/studioforyou/zpi-studio/issues/24) and [#31](https://github.com/studioforyou/zpi-studio/issues/31) |
-| Architecture decision records | [#4](https://github.com/studioforyou/zpi-studio/issues/4) and [#25](https://github.com/studioforyou/zpi-studio/issues/25) |
 | Repository workflow assistant specification | [#43](https://github.com/studioforyou/zpi-studio/issues/43); builds on this documentation work |
 
 ## Sources of truth
@@ -77,7 +83,8 @@ These documents have not yet been established in the repository. An issue title 
 | Language and naming rules | [NAMING_CONVENTIONS.md](NAMING_CONVENTIONS.md) |
 | Instructions shared by AI tools | [AGENTS.md](../AGENTS.md); [AI_CONTEXT.md](AI_CONTEXT.md) explains loading and verification |
 | Unresolved cross-cutting questions | [OPEN_QUESTIONS.md](OPEN_QUESTIONS.md), with links to the owning issues |
-| Requirements, domain definitions, and architectural rationale | Their dedicated documents once accepted; until then use the tasks above and preserve their pending status |
+| Architectural rationale and decision status | [Architecture decisions](ARCHITECTURE_DECISIONS.md), including their confirmation source and implementation status |
+| Requirements and domain definitions | Their dedicated documents once accepted; until then use the tasks above and preserve their pending status |
 
 If sources disagree, describe the conflict with links and avoid silently treating a proposal as an accepted decision. An issue marked complete is evidence of task status; it does not replace checking the relevant implementation or document.
 

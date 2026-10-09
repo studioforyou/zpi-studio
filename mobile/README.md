@@ -12,4 +12,6 @@ Current state: a Flutter skeleton for Android and iOS. The [application entry po
 
 The backend URL is hardcoded in the app. Its current loopback address does not work for every device or emulator. The widget test still expects the original counter UI and does not match the ping screen.
 
+The client technology choices and push scope are documented in the [architecture decisions](../docs/ARCHITECTURE_DECISIONS.md). Push integration and authentication are not implemented in the mobile app.
+
 The application skeleton is tracked in [#27](https://github.com/studioforyou/zpi-studio/issues/27), and UX work in [#33](https://github.com/studioforyou/zpi-studio/issues/33). See [local development and verification limitations](../docs/LOCAL_DEVELOPMENT.md) before treating setup or test commands as verified. Return to the [documentation map](../docs/README.md) for project context.

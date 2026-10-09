@@ -6,7 +6,7 @@ Status: documentation draft for [#42](https://github.com/studioforyou/zpi-studio
 
 [AGENTS.md](../AGENTS.md) is the shared instruction source. It links to the project overview, documentation map, and team agreements. [CLAUDE.md](../CLAUDE.md) imports that file rather than copying its contents. Keep tool-specific setup details here; keep team rules in their owning documents.
 
-Read only the additional documents relevant to the task. Requirements and ADRs remain pending until the corresponding documents are accepted. Personal chat history and machine-local agent memory are not team sources of truth.
+Read only the additional documents relevant to the task. Requirements and domain terminology remain pending. The [architecture decisions](ARCHITECTURE_DECISIONS.md) collect ADR status, confirmation source, and implementation context in one document. Personal chat history and machine-local agent memory are not team sources of truth.
 
 ## Codex
 
@@ -36,7 +36,7 @@ Run this check when introducing or changing shared or local instructions. It doe
 | Check | Expected source / interpretation |
 | --- | --- |
 | Current phase | [Root README](../README.md): documentation preparation; detailed sprint rules pending. |
-| Domain and architecture knowledge | [Pending knowledge](README.md#pending-knowledge): follow #20, #21, #4/#25; do not invent accepted documents. |
+| Domain and architecture knowledge | [Pending knowledge](README.md#pending-knowledge): follow #20/#21 for requirements and terminology. Read the [architecture decisions](ARCHITECTURE_DECISIONS.md) for #4 and distinguish confirmed choices, proposals, and implementation evidence. |
 | CI and staging | [Workflow](WORKFLOW.md) and current repository files: planned capabilities, not established automated services. |
 | Branch and commit naming | [Naming conventions](NAMING_CONVENTIONS.md); tool-prefix uncertainty remains in [open questions](OPEN_QUESTIONS.md). |
 | Backend context | Root instructions -> [backend README](../backend/README.md) -> relevant issue and linked setup notes; inspect for any nested instructions before work. |

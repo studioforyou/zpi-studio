@@ -13,6 +13,7 @@ A team project for a studio management application, with planned workflows for c
 | Work on an issue or prepare a PR | [Workflow](docs/WORKFLOW.md) and [naming conventions](docs/NAMING_CONVENTIONS.md) |
 | Check local setup and known limitations | [Local development](docs/LOCAL_DEVELOPMENT.md) |
 | Use Codex or Claude with this repository | [AI context guide](docs/AI_CONTEXT.md) |
+| Review architecture decisions | [Architecture decisions](docs/ARCHITECTURE_DECISIONS.md) |
 | Find an unresolved decision | [Open questions](docs/OPEN_QUESTIONS.md) |
 
 ## Current state
@@ -26,7 +27,9 @@ Repository inspection baseline: `f1d152d`, reviewed on 2026-09-25. This document
 
 Configuration being present does not mean that the application has passed end-to-end verification. See [known setup and test limitations](docs/LOCAL_DEVELOPMENT.md#verification-status).
 
-Requirements, the domain glossary, and architecture decision records are still pending as repository documents. Their [backlog links](docs/README.md#pending-knowledge) are the entry points until those documents exist. English is the agreed language for repository content; legacy application strings and comments have not been translated as part of this documentation task.
+The [architecture decisions](docs/ARCHITECTURE_DECISIONS.md) collect the eleven ADRs for [#4](https://github.com/studioforyou/zpi-studio/issues/4) in one document, distinguishing confirmed choices and proposals from implementation. Backlog alignment and review remain open.
+
+Requirements and the domain glossary are still pending as repository documents. Their [backlog links](docs/README.md#pending-knowledge) remain the entry points. English is the agreed language for repository content; legacy application strings and comments have not been translated as part of this documentation task.
 
 ## Maintaining this entry point
 
