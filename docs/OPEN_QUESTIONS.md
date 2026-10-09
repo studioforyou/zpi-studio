@@ -29,7 +29,7 @@ When resolving an entry, record the answer, date, and source decision here; upda
 
 ## Q-004 — Architecture decision acceptance
 
-- **Question/source:** The [architecture document](ARCHITECTURE_DECISIONS.md) contains ADRs for [#4](https://github.com/studioforyou/zpi-studio/issues/4), including [requester-confirmed choices](ARCHITECTURE_DECISIONS.md#scope-and-status). A complete team agreement on architecture acceptance and supersession remains open.
+- **Question/source:** The [architecture table](ARCHITECTURE_DECISIONS.md) contains ADRs for [#4](https://github.com/studioforyou/zpi-studio/issues/4). During this task on 2026-10-09, the requester confirmed React for web, Firebase only for push with application-owned authentication, and the existing Google Cloud Storage choice. The remaining entries await team review. A complete team agreement on architecture acceptance and supersession remains open.
 - **Impact:** Requester confirmation, team review, and implementation evidence need to remain distinguishable. Proposed records must not be treated as accepted merely because a skeleton uses the technology.
 - **Responsible role:** The owner of #4 and the team members reviewing architecture.
 - **Next step:** Agree on acceptance and supersession responsibilities using the existing review workflow. Record the review source and date for each resulting status change, retaining the requester's confirmation as provenance for existing choices.
@@ -45,14 +45,14 @@ When resolving an entry, record the answer, date, and source decision here; upda
 
 - **Status:** Resolved on 2026-10-09 by requester confirmation of the team's existing React selection.
 - **Original question:** The [web README](../web/README.md) previously left the choice between React and Flutter open within the scope of [#4](https://github.com/studioforyou/zpi-studio/issues/4).
-- **Answer/source:** ADR-005 in the [decision table](ARCHITECTURE_DECISIONS.md#decision-table), supported by the [requester confirmation](ARCHITECTURE_DECISIONS.md#scope-and-status).
-- **Impact:** The web choice is documented; the web application is still not implemented. Detailed client tooling remains open in ADR-005.
+- **Answer/source:** ADR-005 in the [decision table](ARCHITECTURE_DECISIONS.md); confirmation is recorded in Q-004 above.
+- **Impact:** The web choice is documented; the web application and its detailed tooling remain implementation work.
 - **Responsible role:** The team members defining the web requirements and architecture.
 - **Follow-up:** Select implementation tooling and hosting in the scoped frontend work, keeping the web README consistent with ADR-005.
 
 ## Q-007 — Architecture backlog alignment
 
-- **Question/source:** [#4](https://github.com/studioforyou/zpi-studio/issues/4) still requests ADR-001 through ADR-012, while the [confirmed scope](ARCHITECTURE_DECISIONS.md#scope-and-status) omits ADR-012. [#32](https://github.com/studioforyou/zpi-studio/issues/32) still has the title `Firebase Auth`, while ADR-006 in the [decision table](ARCHITECTURE_DECISIONS.md#decision-table) limits Firebase to push notifications and confirms the application's own authentication system.
+- **Question/source:** [#4](https://github.com/studioforyou/zpi-studio/issues/4) still requests ADR-001 through ADR-012, while the requester-approved [decision table](ARCHITECTURE_DECISIONS.md) covers ADR-001 through ADR-011. [#32](https://github.com/studioforyou/zpi-studio/issues/32) still has the title `Firebase Auth`, while ADR-006 limits Firebase to push notifications and keeps authentication in the application's own system.
 - **Impact:** The backlog and the prepared architecture documents describe different scope. This documentation change does not establish completion of #4 or redefine #32 remotely.
 - **Responsible role:** The owners of #4 and #32, with the team reviewing architecture.
 - **Next step:** Align #4's checklist with the eleven-record scope and revise the authentication/push implementation tasks to match the confirmed decision. Record the agreement through team review.

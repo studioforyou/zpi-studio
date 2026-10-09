@@ -42,7 +42,7 @@ GitHub renders Mermaid in Markdown files. Editors without Mermaid support can us
 | How do I inspect or run the existing skeleton? | [Local development](LOCAL_DEVELOPMENT.md) -> [backend](../backend/README.md) or [mobile](../mobile/README.md) |
 | How should an AI assistant begin? | [Shared instructions](../AGENTS.md) -> this map -> [AI context guide](AI_CONTEXT.md) -> task-specific sources |
 | What is blocking an agreement? | [Open questions](OPEN_QUESTIONS.md) -> the linked issue or decision source |
-| What architecture choices are confirmed or proposed? | [Architecture decisions](ARCHITECTURE_DECISIONS.md) -> decision table -> confirmation source and implementation status |
+| What architecture choices are recorded? | [Architecture decisions](ARCHITECTURE_DECISIONS.md) -> [open questions](OPEN_QUESTIONS.md) for review and remaining agreements |
 
 ## Repository areas
 
@@ -57,7 +57,7 @@ GitHub renders Mermaid in Markdown files. Editors without Mermaid support can us
 
 ## Architecture decisions
 
-The [architecture decisions](ARCHITECTURE_DECISIONS.md) contain eleven ADRs for [#4](https://github.com/studioforyou/zpi-studio/issues/4) in one document with their status, rationale, consequences, and implementation context. The [scope and status](ARCHITECTURE_DECISIONS.md#scope-and-status) distinguish confirmed choices from proposals.
+The [architecture decisions](ARCHITECTURE_DECISIONS.md) contain one table of eleven ADRs for [#4](https://github.com/studioforyou/zpi-studio/issues/4), with their numbers, topics, decisions, and rationale. Architecture confirmation and review remain tracked in [Q-004](OPEN_QUESTIONS.md#q-004--architecture-decision-acceptance).
 
 The original twelve-record issue scope and the title of #32 require backlog alignment; see [Q-007](OPEN_QUESTIONS.md#q-007--architecture-backlog-alignment).
 
@@ -83,7 +83,7 @@ These documents have not yet been established in the repository. An issue title 
 | Language and naming rules | [NAMING_CONVENTIONS.md](NAMING_CONVENTIONS.md) |
 | Instructions shared by AI tools | [AGENTS.md](../AGENTS.md); [AI_CONTEXT.md](AI_CONTEXT.md) explains loading and verification |
 | Unresolved cross-cutting questions | [OPEN_QUESTIONS.md](OPEN_QUESTIONS.md), with links to the owning issues |
-| Architectural rationale and decision status | [Architecture decisions](ARCHITECTURE_DECISIONS.md), including their confirmation source and implementation status |
+| Architecture choices and rationale | [Architecture decisions](ARCHITECTURE_DECISIONS.md) |
 | Requirements and domain definitions | Their dedicated documents once accepted; until then use the tasks above and preserve their pending status |
 
 If sources disagree, describe the conflict with links and avoid silently treating a proposal as an accepted decision. An issue marked complete is evidence of task status; it does not replace checking the relevant implementation or document.
