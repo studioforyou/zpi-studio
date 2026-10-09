@@ -2,7 +2,7 @@
 
 [Documentation map](README.md) · [Workflow](WORKFLOW.md)
 
-This register records decisions that affect repository documentation or workflow. GitHub Issues remain the source of task status and assignment. A responsible role below identifies who can resolve a question; it does not create an assignment. Entries are open unless explicitly marked resolved.
+This register records unresolved decisions that affect repository documentation or workflow. GitHub Issues remain the source of task status and assignment. A responsible role below identifies who can resolve a question; it does not create an assignment. All entries below are **open**.
 
 When resolving an entry, record the answer, date, and source decision here; update the authoritative document in the same change. Keep the stable question ID and link to any replacement decision. An unanswered question is not an accepted default.
 
@@ -15,7 +15,7 @@ When resolving an entry, record the answer, date, and source decision here; upda
 
 ## Q-002 — Sprint rules
 
-- **Question/source:** The current documentation preparation phase is described in the [project overview](../README.md#current-state); instructor guidance on implementation sprints is pending.
+- **Question/source:** The current documentation preparation phase is described in [WORKFLOW.md](WORKFLOW.md#current-phase-and-status); instructor guidance on implementation sprints is pending.
 - **Impact:** Sprint cadence, planning, deliverables, and assessment rules must not be invented or presented as agreed. Documentation preparation can continue.
 - **Responsible role:** Instructors provide the rules; the team records their application to this repository.
 - **Next step:** After the semester briefing, link the authoritative guidance and update the workflow. Assign implementation work to sprints using those rules.
@@ -29,10 +29,10 @@ When resolving an entry, record the answer, date, and source decision here; upda
 
 ## Q-004 — Architecture decision acceptance
 
-- **Question/source:** The [architecture table](ARCHITECTURE_DECISIONS.md) contains ADRs for [#4](https://github.com/studioforyou/zpi-studio/issues/4). During this task on 2026-10-09, the requester confirmed React for web, Firebase only for push with application-owned authentication, and the existing Google Cloud Storage choice. The remaining entries await team review. A complete team agreement on architecture acceptance and supersession remains open.
-- **Impact:** Requester confirmation, team review, and implementation evidence need to remain distinguishable. Proposed records must not be treated as accepted merely because a skeleton uses the technology.
-- **Responsible role:** The owner of #4 and the team members reviewing architecture.
-- **Next step:** Agree on acceptance and supersession responsibilities using the existing review workflow. Record the review source and date for each resulting status change, retaining the requester's confirmation as provenance for existing choices.
+- **Question/source:** Architecture decisions are covered by [#4](https://github.com/studioforyou/zpi-studio/issues/4) and [#25](https://github.com/studioforyou/zpi-studio/issues/25); a documented acceptance procedure and accepted ADR artifacts are not yet available in the repository.
+- **Impact:** A proposed architecture could be mistaken for an accepted decision or an implemented capability.
+- **Responsible role:** The owner of #25 and the team members reviewing architecture.
+- **Next step:** Define how an ADR is accepted and superseded, record the decision and reviewers, and distinguish acceptance from implementation. Publish and index ADRs through #25.
 
 ## Q-005 — AI-tool branch prefixes
 
@@ -43,16 +43,7 @@ When resolving an entry, record the answer, date, and source decision here; upda
 
 ## Q-006 — Web application technology
 
-- **Status:** Resolved on 2026-10-09 by requester confirmation of the team's existing React selection.
-- **Original question:** The [web README](../web/README.md) previously left the choice between React and Flutter open within the scope of [#4](https://github.com/studioforyou/zpi-studio/issues/4).
-- **Answer/source:** ADR-005 in the [decision table](ARCHITECTURE_DECISIONS.md); confirmation is recorded in Q-004 above.
-- **Impact:** The web choice is documented; the web application and its detailed tooling remain implementation work.
+- **Question/source:** [web/README.md](../web/README.md) leaves the choice between React and Flutter for the web application open. This relates to the architecture scope of [#4](https://github.com/studioforyou/zpi-studio/issues/4).
+- **Impact:** Documentation and models must not assume that a web framework has been selected or implemented.
 - **Responsible role:** The team members defining the web requirements and architecture.
-- **Follow-up:** Select implementation tooling and hosting in the scoped frontend work, keeping the web README consistent with ADR-005.
-
-## Q-007 — Architecture backlog alignment
-
-- **Question/source:** [#4](https://github.com/studioforyou/zpi-studio/issues/4) still requests ADR-001 through ADR-012, while the requester-approved [decision table](ARCHITECTURE_DECISIONS.md) covers ADR-001 through ADR-011. [#32](https://github.com/studioforyou/zpi-studio/issues/32) still has the title `Firebase Auth`, while ADR-006 limits Firebase to push notifications and keeps authentication in the application's own system.
-- **Impact:** The backlog and the prepared architecture documents describe different scope. This documentation change does not establish completion of #4 or redefine #32 remotely.
-- **Responsible role:** The owners of #4 and #32, with the team reviewing architecture.
-- **Next step:** Align #4's checklist with the eleven-record scope and revise the authentication/push implementation tasks to match the confirmed decision. Record the agreement through team review.
+- **Next step:** Establish the web requirements, compare the options, and record the accepted choice and rationale in an ADR. Update the web README and documentation index to reference it.

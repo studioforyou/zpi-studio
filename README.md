@@ -27,7 +27,7 @@ Repository inspection baseline: `f1d152d`, reviewed on 2026-09-25. This document
 
 Configuration being present does not mean that the application has passed end-to-end verification. See [known setup and test limitations](docs/LOCAL_DEVELOPMENT.md#verification-status).
 
-The [architecture decisions](docs/ARCHITECTURE_DECISIONS.md) collect the eleven ADRs for [#4](https://github.com/studioforyou/zpi-studio/issues/4) in a table of topics, decisions, and rationale. Backlog alignment and architecture review remain tracked in the [open questions](docs/OPEN_QUESTIONS.md).
+The [architecture decisions](docs/ARCHITECTURE_DECISIONS.md) collect the eleven ADRs for [#4](https://github.com/studioforyou/zpi-studio/issues/4) in a table of topics, decisions, and rationale. Architecture review remains tracked in the [open questions](docs/OPEN_QUESTIONS.md).
 
 Requirements and the domain glossary are still pending as repository documents. Their [backlog links](docs/README.md#pending-knowledge) remain the entry points. English is the agreed language for repository content; legacy application strings and comments have not been translated as part of this documentation task.
 

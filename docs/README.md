@@ -57,9 +57,7 @@ GitHub renders Mermaid in Markdown files. Editors without Mermaid support can us
 
 ## Architecture decisions
 
-The [architecture decisions](ARCHITECTURE_DECISIONS.md) contain one table of eleven ADRs for [#4](https://github.com/studioforyou/zpi-studio/issues/4), with their numbers, topics, decisions, and rationale. Architecture confirmation and review remain tracked in [Q-004](OPEN_QUESTIONS.md#q-004--architecture-decision-acceptance).
-
-The original twelve-record issue scope and the title of #32 require backlog alignment; see [Q-007](OPEN_QUESTIONS.md#q-007--architecture-backlog-alignment).
+The [architecture decisions](ARCHITECTURE_DECISIONS.md) contain one table of eleven ADRs for [#4](https://github.com/studioforyou/zpi-studio/issues/4), with their numbers, topics, decisions, and rationale. The architecture acceptance procedure remains tracked in [Q-004](OPEN_QUESTIONS.md#q-004--architecture-decision-acceptance).
 
 ## Pending knowledge
 
