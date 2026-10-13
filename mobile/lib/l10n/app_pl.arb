@@ -1,0 +1,21 @@
+{
+  "@@locale": "pl",
+  "appTitle": "studio4U",
+  "loginTitle": "Logowanie",
+  "loginEmailLabel": "E-mail",
+  "loginPasswordLabel": "Hasło",
+  "loginButton": "Zaloguj się",
+  "navSchedule": "Grafik",
+  "navPasses": "Karnety",
+  "navTrainings": "Treningi",
+  "navReservations": "Zapisy",
+  "navMessages": "Wiadomości",
+  "navAvailability": "Dyspozycyjność",
+  "navProfile": "Profil",
+  "roleClient": "Klient",
+  "roleTrainer": "Trener",
+  "profileRoleSection": "Rola",
+  "profileActiveProfileSection": "Aktywny profil",
+  "logoutButton": "Wyloguj się",
+  "placeholderComingSoon": "Wkrótce"
+}
