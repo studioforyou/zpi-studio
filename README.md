@@ -35,7 +35,7 @@ docker compose up -d postgres
 
 The database starts on port `5432` (database `zpi_studio`). Data is kept in the `postgres_data` volume, so it survives container restarts.
 
-Stopping the database:
+Stopping the database **and removing containers, networks, volumes, and images created by 'up'**:
 
 ```
 docker compose down
