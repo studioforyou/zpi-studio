@@ -17,5 +17,33 @@
   "profileRoleSection": "Rola",
   "profileActiveProfileSection": "Aktywny profil",
   "logoutButton": "Wyloguj się",
-  "placeholderComingSoon": "Wkrótce"
+  "placeholderComingSoon": "Wkrótce",
+  "pingTitle": "Test połączenia",
+  "pingButton": "Wyślij ping",
+  "pingIdle": "Naciśnij przycisk, aby połączyć z backendem",
+  "pingConnecting": "Łączenie z serwerem…",
+  "pingSuccess": "Sukces!\n\nOdpowiedź serwera:\n{response}",
+  "@pingSuccess": {
+    "placeholders": {
+      "response": {
+        "type": "String"
+      }
+    }
+  },
+  "pingServerError": "Błąd serwera. Status HTTP: {statusCode}",
+  "@pingServerError": {
+    "placeholders": {
+      "statusCode": {
+        "type": "int"
+      }
+    }
+  },
+  "pingConnectionError": "Błąd połączenia (sprawdź adres serwera):\n{error}",
+  "@pingConnectionError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  }
 }

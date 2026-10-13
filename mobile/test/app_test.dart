@@ -3,12 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile/app/app.dart';
 import 'package:mobile/app/config/app_config.dart';
-import 'package:mobile/core/network/health_api.dart';
 
 void main() {
   testWidgets('login leads to the client shell', (tester) async {
-    // The health check is overridden, so Dio (and with it secure storage)
-    // is never created; login uses FakeAuthRepository.
+    // Nothing here creates Dio or secure storage; login uses
+    // FakeAuthRepository.
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
@@ -18,7 +17,6 @@ void main() {
               apiBaseUrl: 'http://localhost',
             ),
           ),
-          backendHealthProvider.overrideWith((ref) async => true),
         ],
         child: const App(),
       ),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:mobile/app/ping/ping_screen.dart';
 import 'package:mobile/app/shell/role_shell.dart';
 import 'package:mobile/core/auth/auth_controller.dart';
 import 'package:mobile/core/auth/auth_state.dart';
@@ -15,6 +16,7 @@ import 'package:mobile/features/trainings/presentation/trainings_screen.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
 
 const loginPath = '/login';
+const pingPath = '/ping';
 
 const clientSchedulePath = '/client/schedule';
 const clientPassesPath = '/client/passes';
@@ -137,7 +139,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final location = state.matchedLocation;
       switch (ref.read(authControllerProvider)) {
         case Unauthenticated():
-          return location == loginPath ? null : loginPath;
+          return location == loginPath || location == pingPath
+              ? null
+              : loginPath;
         case Authenticated(:final session):
           final role = session.activeRole.name;
           if (location == loginPath || !location.startsWith('/$role/')) {
@@ -148,6 +152,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     },
     routes: [
       GoRoute(path: loginPath, builder: (_, _) => const LoginScreen()),
+      GoRoute(path: pingPath, builder: (_, _) => const PingScreen()),
       _clientShell(),
       _trainerShell(),
     ],

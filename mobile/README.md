@@ -48,6 +48,8 @@ flutter run -t lib/main.dart --dart-define=API_BASE_URL=http://192.168.1.10:8080
 flutter run -t lib/main_staging.dart --dart-define=API_BASE_URL=https://...
 ```
 
+To check the connection to the backend, tap the ping icon on the login
+screen (`GET /api/ping` against the configured `API_BASE_URL`).
 
 ## Structure
 
