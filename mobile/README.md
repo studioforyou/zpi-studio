@@ -42,13 +42,14 @@ There are two environments: **dev** (local backend on your machine) and
 Both run from the single entry point `lib/main.dart`; the environment comes
 from a JSON file in `env/` passed with `--dart-define-from-file`:
 
-- `env/dev.json`: `API_BASE_URL` holds an example IP
-  (`http://192.168.1.10:8080`); change it to your computer's address for a
-  physical device. Set it to an empty string to use the default
-  (`http://10.0.2.2:8080` on the Android emulator, `http://localhost:8080`
-  elsewhere).
-- `env/staging.json`: `APP_FLAVOR` is `staging`, and
-  `API_BASE_URL` is required.
+`env/dev.json` and `env/staging.json` are git-ignored. Create them once from
+the committed templates and adjust them locally:
+
+
+- `env/dev.json`: set `API_BASE_URL` to your computer's IP for a physical
+  device, or to an empty string to use the default (`http://10.0.2.2:8080`
+  on the Android emulator, `http://localhost:8080` elsewhere).
+- `env/staging.json`: `APP_FLAVOR` is `staging`; `API_BASE_URL` is required.
 
 ```sh
 flutter run --dart-define-from-file=env/dev.json
