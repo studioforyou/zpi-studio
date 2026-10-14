@@ -1,0 +1,49 @@
+{
+  "@@locale": "pl",
+  "appTitle": "studio4U",
+  "loginTitle": "Logowanie",
+  "loginEmailLabel": "E-mail",
+  "loginPasswordLabel": "Hasło",
+  "loginButton": "Zaloguj się",
+  "navSchedule": "Grafik",
+  "navPasses": "Karnety",
+  "navTrainings": "Treningi",
+  "navReservations": "Zapisy",
+  "navMessages": "Wiadomości",
+  "navAvailability": "Dyspozycyjność",
+  "navProfile": "Profil",
+  "roleClient": "Klient",
+  "roleTrainer": "Trener",
+  "profileRoleSection": "Rola",
+  "profileActiveProfileSection": "Aktywny profil",
+  "logoutButton": "Wyloguj się",
+  "placeholderComingSoon": "Wkrótce",
+  "pingTitle": "Test połączenia",
+  "pingButton": "Wyślij ping",
+  "pingIdle": "Naciśnij przycisk, aby połączyć z backendem",
+  "pingConnecting": "Łączenie z serwerem…",
+  "pingSuccess": "Sukces!\n\nOdpowiedź serwera:\n{response}",
+  "@pingSuccess": {
+    "placeholders": {
+      "response": {
+        "type": "String"
+      }
+    }
+  },
+  "pingServerError": "Błąd serwera. Status HTTP: {statusCode}",
+  "@pingServerError": {
+    "placeholders": {
+      "statusCode": {
+        "type": "int"
+      }
+    }
+  },
+  "pingConnectionError": "Błąd połączenia (sprawdź adres serwera):\n{error}",
+  "@pingConnectionError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  }
+}
