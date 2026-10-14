@@ -22,7 +22,7 @@ class AppConfig {
     );
   }
 
-  /// Staging. `API_BASE_URL` must be passed with `--dart-define`.
+  /// Staging. `API_BASE_URL` must be set (see `env/staging.json`).
   factory AppConfig.staging() {
     const fromEnv = String.fromEnvironment('API_BASE_URL');
     if (fromEnv.isEmpty) {

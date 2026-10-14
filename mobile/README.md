@@ -39,13 +39,20 @@ Localizations are generated from `lib/l10n/app_pl.arb` into
 There are two environments: **dev** (local backend on your machine) and
 **staging**. 
 
-Dev defaults to `http://10.0.2.2:8080` on the Android emulator and
-`http://localhost:8080` elsewhere; staging requires `API_BASE_URL`:
+Both run from the single entry point `lib/main.dart`; the environment comes
+from a JSON file in `env/` passed with `--dart-define-from-file`:
+
+- `env/dev.json`: `API_BASE_URL` holds an example IP
+  (`http://192.168.1.10:8080`); change it to your computer's address for a
+  physical device. Set it to an empty string to use the default
+  (`http://10.0.2.2:8080` on the Android emulator, `http://localhost:8080`
+  elsewhere).
+- `env/staging.json`: `APP_FLAVOR` is `staging`, and
+  `API_BASE_URL` is required.
 
 ```sh
-flutter run -t lib/main.dart
-flutter run -t lib/main.dart --dart-define=API_BASE_URL=http://192.168.1.10:8080
-flutter run -t lib/main_staging.dart --dart-define=API_BASE_URL=https://...
+flutter run --dart-define-from-file=env/dev.json
+flutter run --dart-define-from-file=env/staging.json
 ```
 
 To check the connection to the backend, tap the ping icon on the login
