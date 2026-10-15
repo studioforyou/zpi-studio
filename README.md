@@ -18,7 +18,7 @@ Studio management application with a shared backend API, a mobile client, and an
 
 - [Database setup, connections, and migrations](https://github.com/studioforyou/zpi-studio/wiki/Database-instructions)
 - [Backend setup](backend/README.md#local-development)
-- [Mobile setup](mobile/README.md#local-development)
+- [Mobile setup](mobile/README.md#running)
 - [Contribution agreements](docs/README.md)
 - [Shared working rules](https://github.com/studioforyou/zpi-studio/wiki/Shared-context)
 - [Assistant context guide](https://github.com/studioforyou/zpi-studio/wiki/AI-context)

@@ -1,7 +1,6 @@
 # Backend
 
-Java 21 and Spring Boot API using PostgreSQL and Flyway. See the [architecture decisions](https://github.com/studioforyou/zpi-studio/wiki/ADR-decisions) and [API conventions](https://github.com/studioforyou/zpi-studio/wiki/API-Convention).
-
+Java 21 and Spring Boot API using PostgreSQL and Flyway. See the [architecture decisions](https://github.com/studioforyou/zpi-studio/wiki/ADR-Decisions) and [API conventions](https://github.com/studioforyou/zpi-studio/wiki/API-Convention).
 
 ## Source map
 
@@ -12,32 +11,12 @@ Java 21 and Spring Boot API using PostgreSQL and Flyway. See the [architecture d
 
 ## Local development
 
-Requires Docker with its engine running. Run the following commands from the repository root in PowerShell.
+Follow [Database instructions](https://github.com/studioforyou/zpi-studio/wiki/Database-instructions) for database setup, connection details, and migration rules.
 
-Create `.env` if it does not exist:
+The [Docker Compose configuration](../docker-compose.yml) defines the local backend and database services.
 
-```powershell
-if (-not (Test-Path .env)) { Copy-Item .env.example .env }
-```
-
-Set `LOCAL_DB_USER` and `LOCAL_DB_PASSWORD` in `.env`, then start the services:
-
-```powershell
-docker compose up -d --build
-```
-
-- API: `http://localhost:8080`; connection check: `GET /api/ping`.
-- PostgreSQL: `localhost:5432`, database `zpi_studio`; credentials come from `.env`.
-- Database only: `docker compose up -d postgres`.
-- Stop the services: `docker compose down`.
-
-## Database migrations
-
-- Manage schema changes only through SQL files in `src/main/resources/db/migration/`.
-- Use `V<version>__<description>.sql` with consecutive version numbers. Check `main` and active branches before choosing the next number.
-- Never edit a migration already applied to a shared environment, including its comments. Add a new migration for corrections.
-- Flyway applies pending migrations at backend startup; Hibernate validates the schema.
-- All migrations require review by the database owner, @krzysieknosek.
+- API address: `http://localhost:8080`.
+- Connection check: `GET /api/ping`.
 
 ## Tests
 
