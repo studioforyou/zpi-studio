@@ -42,7 +42,7 @@ The backend receives `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME` and `
 
 ## Prerequisites
 
-- [Terraform](https://developer.hashicorp.com/terraform/install) `>= 1.6`
+- [Terraform](https://developer.hashicorp.com/terraform/install) `>= 1.16`
 - [Google Cloud CLI](https://cloud.google.com/sdk/docs/install)
 - Access to the GCP project with permission to create the resources above, and billing enabled on it
 
