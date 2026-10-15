@@ -32,7 +32,7 @@ Each environment lives in its own directory under `envs/` and has its own state.
 ## What gets created
 
 - VPC with a subnet for Cloud Run (Direct VPC egress) and private service access
-- Cloud SQL for PostgreSQL 17 with a private IP only, daily backups and PITR
+- Cloud SQL for PostgreSQL 18 with a private IP only, daily backups and PITR
 - Secret Manager secret with the generated database password
 - Service account for the backend (read access to that secret only)
 - Artifact Registry repository `zpi-studio`
@@ -45,22 +45,6 @@ The backend receives `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME` and `
 - [Terraform](https://developer.hashicorp.com/terraform/install) `>= 1.6`
 - [Google Cloud CLI](https://cloud.google.com/sdk/docs/install)
 - Access to the GCP project with permission to create the resources above, and billing enabled on it
-
-## First-time setup (once per environment)
-
-Terraform cannot create the bucket that stores its own state, so create it manually. Skip this if the bucket already exists.
-
-```bash
-gcloud storage buckets create gs://studioforyou-tfstate-stage \
-  --project=<project_id> \
-  --location=europe-central2 \
-  --uniform-bucket-level-access \
-  --public-access-prevention
-
-gcloud storage buckets update gs://studioforyou-tfstate-stage --versioning
-```
-
-The bucket name must match `backend.tf` in `envs/stage`.
 
 ## Usage
 
