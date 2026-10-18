@@ -1,0 +1,4 @@
+# Prettier formatting rules.
+singleQuote: true
+trailingComma: all
+printWidth: 100

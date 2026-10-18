@@ -1,1 +1,84 @@
-Currently we focus on mobile app development. We still need to decide whether we choose react or flutter for web app.
+# studio4U web panel
+
+Administrator web panel of studio4U, built with React, TypeScript, Vite and Mantine.
+
+## Requirements
+
+Node.js 24 (see `.nvmrc`; Vite needs `^20.19.0 || >=22.12.0`) and npm.
+
+## Commands
+
+```sh
+npm install
+npm run dev         # dev environment
+npm run dev:staging # staging environment,
+npm run lint        # oxlint
+npm run typecheck
+npm test            # Vitest
+npm run build       # production bundle for staging 
+npm run format      # Prettier (format:check in CI)
+```
+
+## Environments
+
+There are two environments, selected by the Vite mode
+**dev** (backend on your machine) and **staging** (backend in the cloud). Each reads its own
+git-ignored file; create them once from the committed templates:
+
+```sh
+cp .env.example.dev .env.dev.local
+cp .env.example.staging .env.staging.local
+```
+
+- `VITE_API_BASE_URL`: backend address. Empty means the same origin as the panel.
+- `DEV_API_PROXY_TARGET`: development only; where the Vite dev server forwards requests.
+
+The code reads the environment name as `env.appFlavor` (`dev` or `staging`); the "Status systemu"
+page shows it. `VITE_*` values are built into the bundle, so a staging build needs the staging
+values at build time.
+
+In development the browser only talks to the Vite server, which forwards `/api` and `/actuator` to
+the backend.
+
+## Checking the backend connection
+
+1. Start the backend (port 8080).
+2. Run `npm run dev` and open http://localhost:5173.
+3. Log in with any e-mail and password.
+4. Open "Status systemu" and click "Sprawdź połączenie". It calls `GET /api/ping` for now and
+   will switch to `GET /actuator/health` once the backend exposes it.
+
+## Structure
+
+```
+src/
+  app/        composition: providers, router, layout, navigation
+  features/   one folder per module (pages and module-specific code)
+  shared/     code used by many modules: API client, config, Polish texts, UI
+  test/       test setup and tests
+```
+
+| Feature         | Backend modules                                       |
+| --------------- | ----------------------------------------------------- |
+| `schedule`      | scheduling, group_training, personal_training (rooms) |
+| `accounts`      | identity, customer, staff                             |
+| `passes`        | membership, payments                                  |
+| `trainings`     | personal_training, group_training                     |
+| `communication` | communication                                         |
+| `statistics`    | statistics                                            |
+| `auth`          | identity                                              |
+
+## Conventions
+
+- Modules in `features/` never import from each other; only `app/` composes them. Shared code goes
+  to `shared/`.
+- All user-visible text lives in `src/shared/i18n/pl.ts` (the panel is Polish only).
+- All backend access goes through `src/shared/api`. The panel never talks to the database or
+  storage directly.
+- The API contract is described in `API_CONVENTIONS.md` and `ERROR_CODES.md` (project Wiki).
+
+## Known placeholders
+
+- Login is simulated (`FakeAuthService`): any e-mail and password work.
+- Tokens are kept in memory only; reloading the page logs you out.
+- No token refresh: a `401` response logs you out.
