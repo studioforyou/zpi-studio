@@ -1,8 +1,7 @@
 package studioforyou.pl.backend.shared.api;
 
 /**
- * Exception turned into a Problem Details response with the status and code of its
- * {@link ErrorCode}. The message is the English {@code detail} sent to the client.
+ * Exception that is returned to the client as an error response with the given code.
  */
 public class ApiException extends RuntimeException {
 

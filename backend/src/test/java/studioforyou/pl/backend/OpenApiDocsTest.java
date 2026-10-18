@@ -19,7 +19,10 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-@SpringBootTest(properties = "springdoc.api-docs.enabled=true")
+/**
+ * Checks that the generated OpenAPI document contains the expected paths, security and error responses.
+ */
+@SpringBootTest
 @AutoConfigureMockMvc
 @Import({ TestcontainersConfiguration.class, OpenApiDocsTest.PublicTestController.class })
 class OpenApiDocsTest {

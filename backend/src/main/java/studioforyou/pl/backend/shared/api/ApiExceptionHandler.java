@@ -50,8 +50,7 @@ import org.springframework.web.method.annotation.HandlerMethodValidationExceptio
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
 /**
- * Turns every error into an {@code application/problem+json} response with a stable
- * {@code code} property (.
+ * Turns every error into an {@code application/problem+json} response with a stable code.
  */
 @RestControllerAdvice
 public class ApiExceptionHandler extends ResponseEntityExceptionHandler {

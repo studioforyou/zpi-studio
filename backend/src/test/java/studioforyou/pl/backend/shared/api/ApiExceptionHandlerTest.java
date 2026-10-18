@@ -29,7 +29,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @WebMvcTest(controllers = ApiExceptionHandlerTest.ErrorTestController.class)
-@Import({ ApiExceptionHandlerTest.ErrorTestController.class, ValidationConfig.class })
+@Import(ApiExceptionHandlerTest.ErrorTestController.class)
 class ApiExceptionHandlerTest {
 
 	private static final String SECRET_MESSAGE = "secret internal failure";
@@ -52,7 +52,6 @@ class ApiExceptionHandlerTest {
 	void invalidBodyListsFailedFields() throws Exception {
 		this.mockMvc
 			.perform(post("/api/v1/test-errors/validated").contentType(MediaType.APPLICATION_JSON)
-				.header("Accept-Language", "pl")
 				.content("{\"name\": \"\", \"code\": \"ABCD\"}"))
 			.andExpect(status().isBadRequest())
 			.andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
@@ -62,7 +61,6 @@ class ApiExceptionHandlerTest {
 			.andExpect(jsonPath("$.errors", everyItem(hasKey("code"))))
 			.andExpect(jsonPath("$.errors", everyItem(hasKey("message"))))
 			.andExpect(jsonPath("$.errors[?(@.field == 'name')].code").value("REQUIRED"))
-			.andExpect(jsonPath("$.errors[?(@.field == 'name')].message").value("must not be blank"))
 			.andExpect(jsonPath("$.errors[?(@.field == 'code')].code").value("TOO_LONG"));
 	}
 

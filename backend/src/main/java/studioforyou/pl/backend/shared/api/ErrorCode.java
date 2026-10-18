@@ -3,8 +3,7 @@ package studioforyou.pl.backend.shared.api;
 import org.springframework.http.HttpStatus;
 
 /**
- * Generic API error codes (see ERROR_CODES.md). Domain codes are added together with the
- * endpoints that return them.
+ * Generic API error codes, each with the HTTP status it is returned with.
  */
 public enum ErrorCode {
 

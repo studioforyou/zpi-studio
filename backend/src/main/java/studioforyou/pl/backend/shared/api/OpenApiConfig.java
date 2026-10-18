@@ -20,16 +20,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * OpenAPI document of the API: metadata, the global bearer security requirement and the
- * error responses shared by every operation.
- *
- * <p>
- * Every operation requires a bearer token unless it declares an empty security list. Public
- * and token operations (login, refresh, register, invitation accept, password reset request
- * and confirm, the payment provider webhook and the iCal feed) are called before the person
- * has an access token: annotate them with an empty
- * {@code @io.swagger.v3.oas.annotations.security.SecurityRequirements}. They are documented
- * with {@code security: []} and get no 401/403 responses.
+ * Configures the OpenAPI documentation and adds the common error responses to every operation.
  */
 @Configuration(proxyBeanMethods = false)
 public class OpenApiConfig {
@@ -79,6 +70,9 @@ public class OpenApiConfig {
 		addIfAbsent(responses, "500", "Unexpected server error.");
 	}
 
+	// Public and token operations (login, refresh, register, invitation accept, password
+	// reset, payment webhook, iCal feed) are annotated with an empty @SecurityRequirements:
+	// they are documented with security: [] and get no 401/403 responses.
 	private static boolean isPublic(Operation operation) {
 		List<SecurityRequirement> security = operation.getSecurity();
 		return security != null && security.isEmpty();

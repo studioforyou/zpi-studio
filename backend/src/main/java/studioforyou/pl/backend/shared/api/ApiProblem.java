@@ -4,7 +4,9 @@ import java.util.List;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
-
+/**
+ * Shape of an error response, used by the OpenAPI documentation.
+ */
 @Schema(name = "ApiProblem", description = "Error response: RFC 9457 Problem Details with a stable code.")
 public record ApiProblem(
 		@Schema(example = "about:blank") String type,
