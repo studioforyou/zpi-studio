@@ -2,7 +2,7 @@ import 'package:mobile/core/auth/app_role.dart';
 import 'package:mobile/core/auth/auth_repository.dart';
 import 'package:mobile/core/auth/session.dart';
 
-/// Development-only fake: accepts any credentials and returns a fixed demo
+/// Test fake: accepts any credentials and returns a fixed demo
 /// session (both roles, two child profiles).
 class FakeAuthRepository implements AuthRepository {
   @override

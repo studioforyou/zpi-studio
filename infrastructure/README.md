@@ -38,7 +38,7 @@ Each environment lives in its own directory under `envs/` and has its own state.
 - Artifact Registry repository `zpi-studio`
 - Cloud Run service `zpi-backend-<env>` connected to the database through the VPC
 
-The backend receives `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME` and `SPRING_DATASOURCE_PASSWORD` (the last one from Secret Manager). Flyway migrations run when the application starts.
+The backend receives `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME` and `SPRING_DATASOURCE_PASSWORD` (the last one from Secret Manager), and `FIREBASE_PROJECT_ID` set to the GCP project ID, because Firebase Authentication runs in the same project. Flyway migrations run when the application starts.
 
 ## Prerequisites
 
