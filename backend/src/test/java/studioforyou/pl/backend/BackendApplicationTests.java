@@ -8,7 +8,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 
-@SpringBootTest
+@SpringBootTest(properties = "FIREBASE_PROJECT_ID=test-project")
 @Import(TestcontainersConfiguration.class)
 class BackendApplicationTests {
 
