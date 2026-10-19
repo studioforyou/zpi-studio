@@ -6,6 +6,9 @@ resource "google_project_service" "required" {
     "servicenetworking.googleapis.com",
     "secretmanager.googleapis.com",
     "artifactregistry.googleapis.com",
+    "iam.googleapis.com",
+    "iamcredentials.googleapis.com",
+    "sts.googleapis.com",
   ])
 
   project            = var.project_id
