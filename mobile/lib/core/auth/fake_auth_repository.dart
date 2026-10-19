@@ -15,10 +15,11 @@ class FakeAuthRepository implements AuthRepository {
       displayName: 'Anna Kowalska',
       roles: [AppRole.client, AppRole.trainer],
       activeRole: AppRole.client,
+      staffProfileId: 'demo-staff',
       profiles: [
-        Profile('self', 'Anna Kowalska'),
-        Profile('child-1', 'Jan Kowalski'),
-        Profile('child-2', 'Maria Kowalska'),
+        Profile(id: 'self', displayName: 'Anna Kowalska', isChild: false),
+        Profile(id: 'child-1', displayName: 'Jan Kowalski', isChild: true),
+        Profile(id: 'child-2', displayName: 'Maria Kowalska', isChild: true),
       ],
       activeProfileId: 'self',
     );
