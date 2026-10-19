@@ -15,7 +15,7 @@ npm run dev:staging # staging environment,
 npm run lint        # oxlint
 npm run typecheck
 npm test            # Vitest
-npm run build       # production bundle for staging 
+npm run build       # production bundle for staging
 npm run format      # Prettier (format:check in CI)
 ```
 
