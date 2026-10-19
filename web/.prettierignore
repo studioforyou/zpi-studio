@@ -1,0 +1,3 @@
+# Paths Prettier does not format.
+dist
+node_modules
