@@ -8,6 +8,10 @@ abstract interface class AuthRepository {
   /// the app.
   Future<Session> login({required String email, required String password});
 
+  /// Returns the session of the user still signed in from an earlier run, or
+  /// `null` when there is none or the account can no longer use the app.
+  Future<Session?> restore();
+
   Future<void> logout();
 }
 

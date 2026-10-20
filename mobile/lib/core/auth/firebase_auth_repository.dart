@@ -43,6 +43,26 @@ class FirebaseAuthRepository implements AuthRepository {
   }
 
   @override
+  Future<Session?> restore() async {
+    // Firebase keeps the user signed in between app starts; the first event
+    // comes once it has read the saved user.
+    final user = await _auth.authStateChanges().first;
+    if (user == null) {
+      return null;
+    }
+    try {
+      return _toSession(await _meApi.fetchMe());
+    } on AuthFailure catch (e) {
+      // Without a connection the user stays signed in for the next start;
+      // otherwise the account cannot use the app any more.
+      if (e.reason != AuthFailureReason.network) {
+        await _auth.signOut();
+      }
+      return null;
+    }
+  }
+
+  @override
   Future<void> logout() => _auth.signOut();
 
   static Session _toSession(MeResponse me) {

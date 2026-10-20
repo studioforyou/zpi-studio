@@ -7,13 +7,21 @@ import 'package:mobile/core/auth/me_api.dart';
 
 class _FakeUserCredential extends Fake implements UserCredential {}
 
+class _FakeUser extends Fake implements User {}
+
 /// Accepts one e-mail/password pair and records sign-outs.
 class _FakeFirebaseAuth extends Fake implements FirebaseAuth {
-  _FakeFirebaseAuth({this.errorCode});
+  _FakeFirebaseAuth({this.errorCode, this.signedIn = false});
 
   /// When set, signing in fails with this Firebase error code.
   final String? errorCode;
-  bool signedIn = false;
+
+  /// Whether a user is signed in, e.g. from an earlier app start.
+  bool signedIn;
+
+  @override
+  Stream<User?> authStateChanges() =>
+      Stream.value(signedIn ? _FakeUser() : null);
 
   @override
   Future<UserCredential> signInWithEmailAndPassword({
@@ -165,5 +173,61 @@ void main() {
       AuthFailureReason.accountNotFound,
     );
     expect(auth.signedIn, isFalse);
+  });
+
+  group('restore', () {
+    test('without a saved user there is no session', () async {
+      var asked = false;
+      final repository = FirebaseAuthRepository(
+        _FakeFirebaseAuth(),
+        _FakeMeApi(() async {
+          asked = true;
+          return _me();
+        }),
+      );
+
+      expect(await repository.restore(), isNull);
+      expect(asked, isFalse);
+    });
+
+    test('a saved user with an active account gets a session', () async {
+      final auth = _FakeFirebaseAuth(signedIn: true);
+      final repository = FirebaseAuthRepository(
+        auth,
+        _FakeMeApi(() async => _me()),
+      );
+
+      final session = await repository.restore();
+
+      expect(session?.accountId, 'account-1');
+      expect(auth.signedIn, isTrue);
+    });
+
+    test(
+      'a saved user whose account is no longer active is signed out',
+      () async {
+        final auth = _FakeFirebaseAuth(signedIn: true);
+        final repository = FirebaseAuthRepository(
+          auth,
+          _FakeMeApi(() async => _me(status: 'SUSPENDED')),
+        );
+
+        expect(await repository.restore(), isNull);
+        expect(auth.signedIn, isFalse);
+      },
+    );
+
+    test('without a connection the saved user stays signed in', () async {
+      final auth = _FakeFirebaseAuth(signedIn: true);
+      final repository = FirebaseAuthRepository(
+        auth,
+        _FakeMeApi(
+          () async => throw const AuthFailure(AuthFailureReason.network),
+        ),
+      );
+
+      expect(await repository.restore(), isNull);
+      expect(auth.signedIn, isTrue);
+    });
   });
 }

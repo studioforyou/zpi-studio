@@ -4,6 +4,12 @@ sealed class AuthState {
   const AuthState();
 }
 
+/// The app has just started and is checking whether a user is still signed in
+/// from an earlier run.
+final class AuthRestoring extends AuthState {
+  const AuthRestoring();
+}
+
 final class Unauthenticated extends AuthState {
   const Unauthenticated();
 }

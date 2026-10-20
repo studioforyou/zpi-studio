@@ -19,6 +19,9 @@ class _FailingAuthRepository implements AuthRepository {
   }) async => throw AuthFailure(reason);
 
   @override
+  Future<Session?> restore() async => null;
+
+  @override
   Future<void> logout() async {}
 }
 

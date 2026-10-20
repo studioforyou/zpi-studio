@@ -24,6 +24,10 @@ class FakeAuthRepository implements AuthRepository {
     );
   }
 
+  /// Starts signed out, like a fresh install.
+  @override
+  Future<Session?> restore() async => null;
+
   @override
   Future<void> logout() async {}
 }

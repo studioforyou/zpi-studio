@@ -7,6 +7,16 @@ import 'package:mobile/core/auth/auth_state.dart';
 import 'package:mobile/core/auth/fake_auth_repository.dart';
 import 'package:mobile/core/auth/session.dart';
 
+/// Restores [session] at start, or throws when it is `null`.
+class _RestoringAuthRepository extends FakeAuthRepository {
+  _RestoringAuthRepository(this.session);
+
+  final Session? session;
+
+  @override
+  Future<Session?> restore() async => session ?? (throw Exception('offline'));
+}
+
 /// Returns a client-only session.
 class _ClientOnlyAuthRepository implements AuthRepository {
   @override
@@ -23,6 +33,9 @@ class _ClientOnlyAuthRepository implements AuthRepository {
       activeProfileId: 'self',
     );
   }
+
+  @override
+  Future<Session?> restore() async => null;
 
   @override
   Future<void> logout() async {}
@@ -44,6 +57,9 @@ class _TrainerOnlyAuthRepository implements AuthRepository {
       activeProfileId: null,
     );
   }
+
+  @override
+  Future<Session?> restore() async => null;
 
   @override
   Future<void> logout() async {}
@@ -68,7 +84,45 @@ void main() {
 
   tearDown(() => container.dispose());
 
-  test('initial state is Unauthenticated', () {
+  test(
+    'starts restoring, then is Unauthenticated without a saved session',
+    () async {
+      expect(container.read(authControllerProvider), isA<AuthRestoring>());
+
+      await pumpEventQueue();
+
+      expect(container.read(authControllerProvider), isA<Unauthenticated>());
+    },
+  );
+
+  test('a saved session is restored at start', () async {
+    container.dispose();
+    container = createContainer(
+      _RestoringAuthRepository(
+        const Session(
+          accountId: 'saved-user',
+          displayName: 'Saved',
+          roles: [AppRole.trainer],
+          activeRole: AppRole.trainer,
+          profiles: [],
+          activeProfileId: null,
+        ),
+      ),
+    );
+    container.read(authControllerProvider);
+
+    await pumpEventQueue();
+
+    expect(session().accountId, 'saved-user');
+  });
+
+  test('a failing restore ends Unauthenticated', () async {
+    container.dispose();
+    container = createContainer(_RestoringAuthRepository(null));
+    container.read(authControllerProvider);
+
+    await pumpEventQueue();
+
     expect(container.read(authControllerProvider), isA<Unauthenticated>());
   });
 
