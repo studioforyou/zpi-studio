@@ -7,7 +7,7 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
-  const proxyTarget = env.DEV_API_PROXY_TARGET || 'http://localhost:8080';
+  const proxyTarget = env.API_PROXY_TARGET || 'http://localhost:8080';
 
   return {
     plugins: [react()],
