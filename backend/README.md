@@ -20,8 +20,26 @@ The [Docker Compose configuration](../docker-compose.yml) defines the local back
 
 ## Tests
 
-Requires JDK 21 and a running Docker engine for the PostgreSQL Testcontainers database. From `backend/`, run:
+Requires JDK 21. From `backend/`, run only the module architecture test without a Spring context, database, or Docker:
 
 ```powershell
-.\mvnw.cmd test
+.\mvnw.cmd -B -Dtest=ModuleArchitectureTest test
 ```
+
+Run the full backend verification with a running Docker engine. Integration tests use separate, disposable PostgreSQL databases managed by Testcontainers:
+
+```powershell
+.\mvnw.cmd -B clean verify
+```
+
+On Linux or macOS, use `./mvnw` instead of `.\mvnw.cmd`. The existing Backend CI runs `./mvnw -B verify`, including the architecture test, and checks the Docker image build.
+
+## Application modules
+
+Spring Modulith 2.1.1 uses default module detection: direct subpackages of `studioforyou.pl.backend`, the package containing `BackendApplication`, are modules. Currently these are `configuration`, `shared`, and `system`; the business module boundaries will be decided separately.
+
+The technical `system` module is declared with `@ApplicationModule`. Its `internal` package contains `PingController`, preserving `GET /api/ping` and its existing response.
+
+Public types in a module's base package form its default API. Subpackages are internal unless explicitly exposed with `@NamedInterface`. The `shared.api` package declares `@NamedInterface("api")`, exposing the existing common API types to `configuration` without opening the whole `shared` module.
+
+`ModuleArchitectureTest` checks that `system` is discovered and calls `ApplicationModules.of(BackendApplication.class).verify()` to check module boundaries and cycles.
