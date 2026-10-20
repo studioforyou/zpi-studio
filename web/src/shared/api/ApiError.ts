@@ -1,7 +1,10 @@
 import type { ProblemDetails } from './problem';
 
-/** Client-side code for requests that never got a response; not part of the server's error catalog. */
+// Client-side codes, not part of the server's error catalog.
+/** The request never got a response. */
 export const NETWORK_ERROR = 'NETWORK_ERROR';
+/** A successful response whose body could not be read in the expected format. */
+export const INVALID_RESPONSE = 'INVALID_RESPONSE';
 
 export class ApiError extends Error {
   readonly status: number | null;

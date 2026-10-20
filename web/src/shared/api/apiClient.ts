@@ -1,5 +1,4 @@
-import { env } from '@/shared/config/env';
-import { ApiError, NETWORK_ERROR } from './ApiError';
+import { ApiError, INVALID_RESPONSE, NETWORK_ERROR } from './ApiError';
 import type { ProblemDetails } from './problem';
 
 type ApiClientConfig = {
@@ -11,6 +10,8 @@ type ApiFetchInit = {
   method?: string;
   body?: unknown;
   signal?: AbortSignal;
+  /** `text` asks for and returns a plain-text body; `json` (default) a parsed JSON body. */
+  responseType?: 'json' | 'text';
 };
 
 let config: ApiClientConfig = {
@@ -23,7 +24,10 @@ export function configureApiClient(next: ApiClientConfig): void {
 }
 
 export async function apiFetch<T>(path: string, init: ApiFetchInit = {}): Promise<T> {
-  const headers: Record<string, string> = { Accept: 'application/json' };
+  const responseType = init.responseType ?? 'json';
+  const headers: Record<string, string> = {
+    Accept: responseType === 'text' ? 'text/plain' : 'application/json',
+  };
   if (init.body !== undefined) {
     headers['Content-Type'] = 'application/json';
   }
@@ -34,7 +38,8 @@ export async function apiFetch<T>(path: string, init: ApiFetchInit = {}): Promis
 
   let response: Response;
   try {
-    response = await fetch(env.apiBaseUrl + path, {
+    // Paths are relative: the panel and the API share one origin (the Vite proxy in development).
+    response = await fetch(path, {
       method: init.method ?? 'GET',
       headers,
       body: init.body === undefined ? undefined : JSON.stringify(init.body),
@@ -49,10 +54,7 @@ export async function apiFetch<T>(path: string, init: ApiFetchInit = {}): Promis
   }
 
   if (response.ok) {
-    if (response.status === 204) {
-      return undefined as T;
-    }
-    return (isJson(response) ? await response.json() : await response.text()) as T;
+    return readBody<T>(response, responseType);
   }
 
   if (response.status === 401) {
@@ -61,6 +63,21 @@ export async function apiFetch<T>(path: string, init: ApiFetchInit = {}): Promis
   }
   const problem = await readProblem(response);
   throw new ApiError(response.status, problem?.code ?? null, problem);
+}
+
+async function readBody<T>(response: Response, responseType: 'json' | 'text'): Promise<T> {
+  const text = await response.text();
+  if (responseType === 'text') {
+    return text as T;
+  }
+  if (response.status === 204 || text === '') {
+    return undefined as T;
+  }
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    throw new ApiError(response.status, INVALID_RESPONSE, null);
+  }
 }
 
 function isJson(response: Response): boolean {
