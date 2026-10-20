@@ -49,7 +49,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final failure = _failure;
+    final errorStyle = TextStyle(color: Theme.of(context).colorScheme.error);
 
     return Scaffold(
       appBar: AppBar(
@@ -91,13 +91,24 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       labelText: l10n.loginPasswordLabel,
                     ),
                   ),
-                  if (failure != null)
-                    Text(
-                      _failureMessage(l10n, failure),
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.error,
-                      ),
-                    ),
+                  // Every message is laid out, only the current one is shown:
+                  // the slot is as tall as the longest message, so the form
+                  // does not move when one appears.
+                  Stack(
+                    children: [
+                      for (final reason in AuthFailureReason.values)
+                        Visibility(
+                          visible: reason == _failure,
+                          maintainState: true,
+                          maintainAnimation: true,
+                          maintainSize: true,
+                          child: Text(
+                            _failureMessage(l10n, reason),
+                            style: errorStyle,
+                          ),
+                        ),
+                    ],
+                  ),
                   FilledButton(
                     onPressed: _submitting ? null : _login,
                     child: _submitting

@@ -59,6 +59,30 @@ void main() {
     expect(find.byType(NavigationBar), findsNothing);
   });
 
+  testWidgets('the form does not move when a message appears', (tester) async {
+    await pumpApp(
+      tester,
+      const _FailingAuthRepository(AuthFailureReason.accountNotFound),
+    );
+    final button = find.byType(FilledButton);
+    final email = find.byType(TextField).first;
+    final buttonBefore = tester.getTopLeft(button);
+    final emailBefore = tester.getTopLeft(email);
+
+    await tester.tap(button);
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text(
+        'To konto nie jest zarejestrowane w studiu. '
+        'Skontaktuj się z obsługą studia.',
+      ),
+      findsOneWidget,
+    );
+    expect(tester.getTopLeft(button), buttonBefore);
+    expect(tester.getTopLeft(email), emailBefore);
+  });
+
   testWidgets('an account waiting for approval is told so', (tester) async {
     await pumpApp(
       tester,
