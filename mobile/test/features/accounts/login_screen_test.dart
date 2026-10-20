@@ -97,4 +97,19 @@ void main() {
       findsOneWidget,
     );
   });
+  testWidgets('the login screen also works in the dark system theme', (
+    tester,
+  ) async {
+    tester.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
+    addTearDown(tester.platformDispatcher.clearPlatformBrightnessTestValue);
+    await pumpApp(
+      tester,
+      const _FailingAuthRepository(AuthFailureReason.invalidCredentials),
+    );
+
+    await tester.tap(find.text('Zaloguj się'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Nieprawidłowy e-mail lub hasło.'), findsOneWidget);
+  });
 }
