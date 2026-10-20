@@ -10,7 +10,10 @@ class ModuleArchitectureTest {
 	@Test
 	void verifiesModuleBoundaries() {
 		ApplicationModules modules = ApplicationModules.of(BackendApplication.class);
-		assertThat(modules.getModuleByName("system")).isPresent();
+		assertThat(modules.stream().map(module -> module.getIdentifier().toString()))
+			.containsExactlyInAnyOrder("identity", "customer", "staff", "offering", "trainings", "scheduling",
+					"booking", "membership", "documents", "communication", "payments", "reporting", "integrations",
+					"configuration", "files", "audit", "shared", "system");
 		modules.verify();
 	}
 

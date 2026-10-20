@@ -23,7 +23,7 @@ The [Docker Compose configuration](../docker-compose.yml) defines the local back
 Requires JDK 21. From `backend/`, run only the module architecture test without a Spring context, database, or Docker:
 
 ```powershell
-.\mvnw.cmd -B -Dtest=ModuleArchitectureTest test
+.\mvnw.cmd -B '-Dtest=ModuleArchitectureTest' test
 ```
 
 Run the full backend verification with a running Docker engine. Integration tests use separate, disposable PostgreSQL databases managed by Testcontainers:
@@ -36,10 +36,18 @@ On Linux or macOS, use `./mvnw` instead of `.\mvnw.cmd`. The existing Backend CI
 
 ## Application modules
 
-Spring Modulith 2.1.1 uses default module detection: direct subpackages of `studioforyou.pl.backend`, the package containing `BackendApplication`, are modules. Currently these are `configuration`, `shared`, and `system`; the business module boundaries will be decided separately.
+Spring Modulith 2.1.1 uses default module detection: direct subpackages of `studioforyou.pl.backend`, the package containing `BackendApplication`, are modules. All 18 modules have a `package-info.java` declaration with `@ApplicationModule` and a short responsibility description:
 
-The technical `system` module is declared with `@ApplicationModule`. Its `internal` package contains `PingController`, preserving `GET /api/ping` and its existing response.
+- `identity`, `customer`, `staff`, `offering`, `trainings`, `scheduling`, `booking`, `membership`, `documents`, `communication`, `payments`, `reporting`, `integrations`, `configuration`, `files`, `audit`, `shared`, and `system`.
 
-Public types in a module's base package form its default API. Subpackages are internal unless explicitly exposed with `@NamedInterface`. The `shared.api` package declares `@NamedInterface("api")`, exposing the existing common API types to `configuration` without opening the whole `shared` module.
+Annotated package declarations are sufficient for detection, including modules without implementation classes. Group and personal training share `trainings`. The declarations establish module boundaries; future business functionality is not implemented by this skeleton.
 
-`ModuleArchitectureTest` checks that `system` is discovered and calls `ApplicationModules.of(BackendApplication.class).verify()` to check module boundaries and cycles.
+Before implementing a backend use case or changing persistence, read [Backend modules](https://github.com/studioforyou/zpi-studio/wiki/Backend-modules) and its [instructions for using and maintaining the map](https://github.com/studioforyou/zpi-studio/wiki/Backend-modules#5-how-to-use-and-maintain-this-map). It is the working map of module responsibilities, table ownership, and expected collaboration for the full functional scope. Add concrete operations, data types, events, and dependencies with the use case that requires them; document detailed contracts and business rules on the relevant module or use-case Wiki pages.
+
+When responsibilities, table ownership, or collaboration change, update the map as part of the same work, adjust the affected code and architecture checks where applicable, and link the relevant Wiki pages or revisions in the pull request. Include any affected contract and rule documentation in that same work. Each module accesses only its own tables; other modules use its public operations or events.
+
+The existing `configuration`, `shared`, and `system` implementations remain in place. The `system.internal` package contains `PingController`, preserving `GET /api/ping` and its existing response; `configuration` still provides `GET /api/v1/studio`.
+
+Modules retain their default closed boundaries. Public types in a module's base package form its default API. Subpackages are internal unless explicitly exposed with `@NamedInterface`. The `shared.api` package declares `@NamedInterface("api")`, exposing the existing common API types to `configuration` without opening the whole `shared` module.
+
+`ModuleArchitectureTest` checks that `ApplicationModules.of(BackendApplication.class)` discovers exactly the 18 modules listed above, including those containing only package declarations, and calls `verify()` to check module boundaries and dependency cycles. It runs without starting a Spring context, database, or Docker.
