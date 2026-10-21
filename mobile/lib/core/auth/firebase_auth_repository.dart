@@ -65,6 +65,29 @@ class FirebaseAuthRepository implements AuthRepository {
   @override
   Future<void> logout() => _auth.signOut();
 
+  @override
+  Future<void> sendPasswordReset(String email) async {
+    try {
+      await _auth.sendPasswordResetEmail(email: email.trim());
+    } on FirebaseAuthException catch (e) {
+      // An unknown address looks like a success, as it does with Firebase's
+      // enumeration protection enabled.
+      if (e.code != 'user-not-found') {
+        throw PasswordResetFailure(_resetReasonFor(e));
+      }
+    }
+  }
+
+  static PasswordResetFailureReason _resetReasonFor(FirebaseAuthException e) {
+    return switch (e.code) {
+      'invalid-email' ||
+      'missing-email' => PasswordResetFailureReason.invalidEmail,
+      'too-many-requests' => PasswordResetFailureReason.tooManyAttempts,
+      'network-request-failed' => PasswordResetFailureReason.network,
+      _ => PasswordResetFailureReason.unknown,
+    };
+  }
+
   static Session _toSession(MeResponse me) {
     if (me.status != _activeStatus) {
       throw AuthFailure(
