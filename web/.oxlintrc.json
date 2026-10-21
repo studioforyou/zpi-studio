@@ -1,0 +1,9 @@
+// Linter rules (oxlint) that catch bugs in the code, e.g. wrong use of React hooks.
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["react", "typescript", "oxc"],
+  "rules": {
+    "react/rules-of-hooks": "error",
+    "react/only-export-components": ["warn", { "allowConstantExport": true }]
+  }
+}

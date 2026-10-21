@@ -29,7 +29,8 @@ class _ClientOnlyAuthRepository implements AuthRepository {
       displayName: 'Client',
       roles: [AppRole.client],
       activeRole: AppRole.client,
-      profiles: [Profile('self', 'Client')],
+      staffProfileId: null,
+      profiles: [Profile(id: 'self', displayName: 'Client', isChild: false)],
       activeProfileId: 'self',
     );
   }
@@ -53,6 +54,7 @@ class _TrainerOnlyAuthRepository implements AuthRepository {
       displayName: 'Trainer',
       roles: [AppRole.trainer],
       activeRole: AppRole.trainer,
+      staffProfileId: 'trainer-staff',
       profiles: [],
       activeProfileId: null,
     );

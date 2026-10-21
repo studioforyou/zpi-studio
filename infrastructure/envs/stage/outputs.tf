@@ -13,3 +13,11 @@ output "db_private_ip" {
 output "backend_service_account" {
   value = module.app.backend_service_account
 }
+
+output "cicd_service_account" {
+  value = module.app.cicd_service_account
+}
+
+output "github_workload_identity_provider" {
+  value = module.app.github_workload_identity_provider
+}

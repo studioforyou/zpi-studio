@@ -62,3 +62,9 @@ variable "db_deletion_protection" {
   type        = bool
   default     = true
 }
+
+variable "github_repository" {
+  description = "Repozytorium GitHub (owner/nazwa), które może uwierzytelniać się jako service account CI/CD."
+  type        = string
+  default     = "studioforyou/zpi-studio"
+}
