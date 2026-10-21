@@ -45,15 +45,15 @@ VALUES ('01000000-0000-0000-0000-000000000001', 'Studio For You (seed)', 'Europe
 ON CONFLICT DO NOTHING;
 
 INSERT INTO account (id, email, status, created_by, activated_at, last_login_at, created_at) VALUES
-    ('03000000-0000-0000-0000-000000000001', 'anna.kowalska@seed.studioforyou.test',     'ACTIVE',           NULL,                                   now() - interval '180 days', now() - interval '1 day',  now() - interval '180 days'),
-    ('03000000-0000-0000-0000-000000000002', 'marek.nowak@seed.studioforyou.test',       'ACTIVE',           '03000000-0000-0000-0000-000000000001', now() - interval '150 days', now() - interval '2 days', now() - interval '150 days'),
-    ('03000000-0000-0000-0000-000000000003', 'ewa.wisniewska@seed.studioforyou.test',    'ACTIVE',           '03000000-0000-0000-0000-000000000001', now() - interval '120 days', now() - interval '3 days', now() - interval '120 days'),
-    ('03000000-0000-0000-0000-000000000004', 'katarzyna.zielinska@seed.studioforyou.test','ACTIVE',          NULL,                                   now() - interval '100 days', now() - interval '1 day',  now() - interval '101 days'),
-    ('03000000-0000-0000-0000-000000000005', 'tomasz.lewandowski@seed.studioforyou.test','ACTIVE',           NULL,                                   now() - interval '90 days',  now() - interval '5 days', now() - interval '91 days'),
-    ('03000000-0000-0000-0000-000000000006', 'monika.dabrowska@seed.studioforyou.test',  'ACTIVE',           '03000000-0000-0000-0000-000000000001', now() - interval '60 days',  now() - interval '4 days', now() - interval '60 days'),
-    ('03000000-0000-0000-0000-000000000007', 'piotr.wojcik@seed.studioforyou.test',      'PENDING_APPROVAL', NULL,                                   NULL,                        NULL,                      now() - interval '2 days'),
-    ('03000000-0000-0000-0000-000000000008', 'julia.kaminska@seed.studioforyou.test',    'INVITED',          '03000000-0000-0000-0000-000000000001', NULL,                        NULL,                      now() - interval '1 day'),
-    ('03000000-0000-0000-0000-000000000009', 'adam.mazur@seed.studioforyou.test',        'SUSPENDED',        NULL,                                   now() - interval '200 days', now() - interval '30 days', now() - interval '201 days')
+    ('03000000-0000-0000-0000-000000000001', 'anna.kowalska@seed.studioforyou.pl',     'ACTIVE',           NULL,                                   now() - interval '180 days', now() - interval '1 day',  now() - interval '180 days'),
+    ('03000000-0000-0000-0000-000000000002', 'marek.nowak@seed.studioforyou.pl',       'ACTIVE',           '03000000-0000-0000-0000-000000000001', now() - interval '150 days', now() - interval '2 days', now() - interval '150 days'),
+    ('03000000-0000-0000-0000-000000000003', 'ewa.wisniewska@seed.studioforyou.pl',    'ACTIVE',           '03000000-0000-0000-0000-000000000001', now() - interval '120 days', now() - interval '3 days', now() - interval '120 days'),
+    ('03000000-0000-0000-0000-000000000004', 'katarzyna.zielinska@seed.studioforyou.pl','ACTIVE',          NULL,                                   now() - interval '100 days', now() - interval '1 day',  now() - interval '101 days'),
+    ('03000000-0000-0000-0000-000000000005', 'tomasz.lewandowski@seed.studioforyou.pl','ACTIVE',           NULL,                                   now() - interval '90 days',  now() - interval '5 days', now() - interval '91 days'),
+    ('03000000-0000-0000-0000-000000000006', 'monika.dabrowska@seed.studioforyou.pl',  'ACTIVE',           '03000000-0000-0000-0000-000000000001', now() - interval '60 days',  now() - interval '4 days', now() - interval '60 days'),
+    ('03000000-0000-0000-0000-000000000007', 'piotr.wojcik@seed.studioforyou.pl',      'PENDING_APPROVAL', NULL,                                   NULL,                        NULL,                      now() - interval '2 days'),
+    ('03000000-0000-0000-0000-000000000008', 'julia.kaminska@seed.studioforyou.pl',    'INVITED',          '03000000-0000-0000-0000-000000000001', NULL,                        NULL,                      now() - interval '1 day'),
+    ('03000000-0000-0000-0000-000000000009', 'adam.mazur@seed.studioforyou.pl',        'SUSPENDED',        NULL,                                   now() - interval '200 days', now() - interval '30 days', now() - interval '201 days')
 ON CONFLICT DO NOTHING;
 
 INSERT INTO identity_link (id, account_id, provider, external_uid) VALUES
