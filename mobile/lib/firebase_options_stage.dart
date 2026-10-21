@@ -63,7 +63,8 @@ class DefaultFirebaseOptions {
     messagingSenderId: '694274887286',
     projectId: 'studioforyou-stage',
     storageBucket: 'studioforyou-stage.firebasestorage.app',
-    iosClientId: '694274887286-30t26totkjh8b1kitl6savvd3tss4111.apps.googleusercontent.com',
+    iosClientId:
+        '694274887286-30t26totkjh8b1kitl6savvd3tss4111.apps.googleusercontent.com',
     iosBundleId: 'pl.studioforyou.mobile',
   );
 }
