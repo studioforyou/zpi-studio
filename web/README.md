@@ -82,3 +82,6 @@ src/
 - Login is simulated (`FakeAuthService`): any e-mail and password work.
 - Tokens are kept in memory only; reloading the page logs you out.
 - No token refresh: a `401` response logs you out.
+- The panel does not check the ADMIN role; every signed-in user can manage rooms ("Sale").
+- Service types cannot be created yet, so a room's allowed services can only be chosen once the
+  database has service types.

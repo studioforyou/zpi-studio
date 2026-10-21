@@ -3,7 +3,7 @@ package studioforyou.pl.backend.shared.api;
 import org.springframework.http.HttpStatus;
 
 /**
- * Generic API error codes, each with the HTTP status it is returned with.
+ * API error codes, each with the HTTP status it is returned with.
  */
 public enum ErrorCode {
 
@@ -15,7 +15,12 @@ public enum ErrorCode {
 	METHOD_NOT_ALLOWED(HttpStatus.METHOD_NOT_ALLOWED),
 	VERSION_CONFLICT(HttpStatus.CONFLICT),
 	UNSUPPORTED_MEDIA_TYPE(HttpStatus.UNSUPPORTED_MEDIA_TYPE),
-	INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR);
+	INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR),
+
+	// scheduling: rooms and the service types allowed in them
+	RESOURCE_NAME_ALREADY_USED(HttpStatus.CONFLICT),
+	RESOURCE_PARENT_INVALID(HttpStatus.UNPROCESSABLE_CONTENT),
+	SERVICE_TYPE_NOT_AVAILABLE(HttpStatus.UNPROCESSABLE_CONTENT);
 
 	private final HttpStatus status;
 

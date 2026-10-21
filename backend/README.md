@@ -48,6 +48,8 @@ When responsibilities, table ownership, or collaboration change, update the map 
 
 The existing `configuration`, `shared`, and `system` implementations remain in place. The `system.internal` package contains `PingController`, preserving `GET /api/ping` and its existing response; `configuration` still provides `GET /api/v1/studio`.
 
+`scheduling` manages rooms, their capacity and the service types allowed in them under `/api/v1/resources` (#133). `offering` exposes the read-only `ServiceTypes` query to other modules and a minimal `GET /api/v1/service-types`; managing the service catalogue is a separate task. Neither checks roles yet (`TODO(auth)`).
+
 Modules retain their default closed boundaries. Public types in a module's base package form its default API. Subpackages are internal unless explicitly exposed with `@NamedInterface`. The `shared.api` package declares `@NamedInterface("api")`, exposing the existing common API types to `configuration` without opening the whole `shared` module.
 
 `ModuleArchitectureTest` checks that `ApplicationModules.of(BackendApplication.class)` discovers exactly the 18 modules listed above, including those containing only package declarations, and calls `verify()` to check module boundaries and dependency cycles. It runs without starting a Spring context, database, or Docker.
