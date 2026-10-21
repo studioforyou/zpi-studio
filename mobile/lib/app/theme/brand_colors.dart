@@ -8,4 +8,7 @@ abstract final class BrandColors {
   static const teal500 = Color(0xFF438F95);
   static const teal700 = Color(0xFF235B68);
   static const teal900 = Color(0xFF193A43);
+
+  /// Background of the light logo.
+  static const paper = Color(0xFFFCFCFA);
 }

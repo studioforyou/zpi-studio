@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:mobile/app/intro/login_intro.dart';
 import 'package:mobile/app/ping/ping_screen.dart';
 import 'package:mobile/app/shell/role_shell.dart';
 import 'package:mobile/app/splash/splash_screen.dart';
@@ -133,6 +134,7 @@ class _RouterRefreshNotifier extends ChangeNotifier {
 final appRouterProvider = Provider<GoRouter>((ref) {
   final notifier = _RouterRefreshNotifier();
   ref.listen(authControllerProvider, (_, _) => notifier.refresh());
+  ref.listen(loginCoveredProvider, (_, _) => notifier.refresh());
 
   final router = GoRouter(
     initialLocation: splashPath,
@@ -147,6 +149,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               ? null
               : loginPath;
         case Authenticated(:final session):
+          // Just logged in: stay until the intro covers the login screen.
+          if (location == loginPath && !ref.read(loginCoveredProvider)) {
+            return null;
+          }
           final role = session.activeRole.name;
           if (location == loginPath || !location.startsWith('/$role/')) {
             return '/$role/schedule';
