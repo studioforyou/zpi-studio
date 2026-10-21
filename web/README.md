@@ -30,12 +30,12 @@ cp .env.example.dev .env.dev.local
 cp .env.example.staging .env.staging.local
 ```
 
-- `VITE_API_BASE_URL`: backend address. Empty means the same origin as the panel.
-- `DEV_API_PROXY_TARGET`: development only; where the Vite dev server forwards requests.
+- `API_PROXY_TARGET`: where the local Vite dev server (`npm run dev`, `npm run dev:staging`)
+  forwards `/api` and `/actuator`. Not used by `npm run build`.
 
 The code reads the environment name as `env.appFlavor` (`dev` or `staging`); the "Status systemu"
-page shows it. `VITE_*` values are built into the bundle, so a staging build needs the staging
-values at build time.
+page shows it. Requests always go to relative paths (`/api/...`) on the panel's own address, so a
+deployed panel needs `/api` routed to the backend on the same domain.
 
 In development the browser only talks to the Vite server, which forwards `/api` and `/actuator` to
 the backend.

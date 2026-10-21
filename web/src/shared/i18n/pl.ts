@@ -28,13 +28,13 @@ export const pl = {
   system: {
     title: 'Status systemu',
     environment: 'Środowisko',
-    apiAddress: 'Adres API',
-    sameOrigin: 'ten sam adres (proxy)',
     checkButton: 'Sprawdź połączenie',
     idle: 'Połączenie nie zostało jeszcze sprawdzone.',
     checking: 'Sprawdzanie…',
     ok: 'Połączono z backendem.',
     networkError: 'Nie można połączyć się z backendem.',
     httpError: (status: number) => `Backend odpowiedział błędem (HTTP ${status}).`,
+    invalidResponse: 'Backend odpowiedział, ale odpowiedź ma nieprawidłowy format.',
+    unexpectedError: 'Wystąpił nieoczekiwany błąd.',
   },
 } as const;
