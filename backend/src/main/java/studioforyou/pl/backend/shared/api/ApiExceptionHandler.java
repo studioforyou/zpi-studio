@@ -35,6 +35,8 @@ import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.validation.Errors;
 import org.springframework.validation.FieldError;
 import org.springframework.validation.ObjectError;
@@ -59,6 +61,10 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 
 	private static final String VALIDATION_FAILED_DETAIL = "Request validation failed.";
 
+	private static final String UNAUTHENTICATED_DETAIL = "Missing, expired or invalid access token.";
+
+	private static final String ACCESS_DENIED_DETAIL = "The caller is not permitted to perform this operation.";
+
 	private static final String VERSION_CONFLICT_DETAIL = "The resource was modified by another request. Reload it and try again.";
 
 	private static final Set<Class<? extends Annotation>> REQUIRED_CONSTRAINTS = Set.of(NotNull.class,
@@ -75,6 +81,16 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 	ResponseEntity<Object> handleApiException(ApiException ex, WebRequest request) {
 		ErrorCode code = ex.getErrorCode();
 		return problem(ex, code, ex.getMessage(), new HttpHeaders(), request);
+	}
+
+	@ExceptionHandler(AuthenticationException.class)
+	ResponseEntity<Object> handleAuthentication(AuthenticationException ex, WebRequest request) {
+		return problem(ex, ErrorCode.UNAUTHENTICATED, UNAUTHENTICATED_DETAIL, new HttpHeaders(), request);
+	}
+
+	@ExceptionHandler(AccessDeniedException.class)
+	ResponseEntity<Object> handleAccessDenied(AccessDeniedException ex, WebRequest request) {
+		return problem(ex, ErrorCode.ACCESS_DENIED, ACCESS_DENIED_DETAIL, new HttpHeaders(), request);
 	}
 
 	@ExceptionHandler(ObjectOptimisticLockingFailureException.class)

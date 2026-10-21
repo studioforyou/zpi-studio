@@ -20,6 +20,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithMockUser;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -28,9 +30,18 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import studioforyou.pl.backend.identity.AccountLookup;
+import studioforyou.pl.backend.identity.security.FirebaseJwtAuthenticationConverter;
+import studioforyou.pl.backend.identity.security.SecurityConfig;
+
 @WebMvcTest(controllers = ApiExceptionHandlerTest.ErrorTestController.class)
-@Import(ApiExceptionHandlerTest.ErrorTestController.class)
+@Import({ ApiExceptionHandlerTest.ErrorTestController.class, SecurityConfig.class })
+@WithMockUser(authorities = FirebaseJwtAuthenticationConverter.ACTIVE_ACCOUNT)
 class ApiExceptionHandlerTest {
+
+	// Needed by the security configuration; the user itself is mocked above.
+	@MockitoBean
+	private AccountLookup accountLookup;
 
 	private static final String SECRET_MESSAGE = "secret internal failure";
 

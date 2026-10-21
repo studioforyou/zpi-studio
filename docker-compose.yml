@@ -10,6 +10,7 @@ services:
     ports:
       - "5432:5432"
     volumes:
+      # PostgreSQL 18+ images keep data under /var/lib/postgresql/<version>/docker
       - postgres_data:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${LOCAL_DB_USER} -d zpi_studio"]
@@ -30,6 +31,8 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/zpi_studio 
       SPRING_DATASOURCE_USERNAME: ${LOCAL_DB_USER}
       SPRING_DATASOURCE_PASSWORD: ${LOCAL_DB_PASSWORD}
+      # Firebase project whose ID tokens the backend accepts
+      FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID}
     depends_on:
       postgres:
         condition: service_healthy

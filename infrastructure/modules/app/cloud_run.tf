@@ -41,6 +41,11 @@ resource "google_cloud_run_v2_service" "backend" {
         value = google_sql_user.app.name
       }
       env {
+        # Firebase Authentication runs in the same GCP project
+        name  = "FIREBASE_PROJECT_ID"
+        value = var.project_id
+      }
+      env {
         name = "SPRING_DATASOURCE_PASSWORD"
         value_source {
           secret_key_ref {
