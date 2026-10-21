@@ -3,18 +3,19 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mobile/core/auth/auth_failure.dart';
 import 'package:mobile/core/network/dio_provider.dart';
 
-const mePath = '/api/me';
+const mePath = '/api/v1/me';
 
 /// `ACCOUNT_NOT_FOUND` in the backend's 403 response.
 const _accountNotFoundCode = 'ACCOUNT_NOT_FOUND';
 
-/// The signed-in account as returned by `GET /api/me`.
+/// The signed-in account as returned by `GET /api/v1/me`.
 class MeResponse {
   const MeResponse({
     required this.accountId,
     required this.status,
     required this.displayName,
     required this.roles,
+    required this.staffProfileId,
     required this.profiles,
     required this.activeProfileId,
   });
@@ -25,11 +26,13 @@ class MeResponse {
       status: json['status'] as String,
       displayName: json['displayName'] as String,
       roles: [for (final role in json['roles'] as List) role as String],
+      staffProfileId: json['staffProfileId'] as String?,
       profiles: [
         for (final profile in json['profiles'] as List)
           (
             id: (profile as Map<String, dynamic>)['id'] as String,
             displayName: profile['displayName'] as String,
+            isChild: profile['isChild'] as bool,
           ),
       ],
       activeProfileId: json['activeProfileId'] as String?,
@@ -44,7 +47,8 @@ class MeResponse {
 
   /// Backend role codes, e.g. `CLIENT`, `TRAINER`.
   final List<String> roles;
-  final List<({String id, String displayName})> profiles;
+  final String? staffProfileId;
+  final List<({String id, String displayName, bool isChild})> profiles;
   final String? activeProfileId;
 }
 

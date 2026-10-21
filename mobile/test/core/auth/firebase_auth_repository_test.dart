@@ -59,9 +59,10 @@ MeResponse _me({
     'status': status,
     'displayName': 'Anna Kowalska',
     'roles': roles,
+    'staffProfileId': 'staff-1',
     'profiles': [
-      {'id': 'profile-1', 'displayName': 'Anna Kowalska'},
-      {'id': 'child-1', 'displayName': 'Jan Kowalski'},
+      {'id': 'profile-1', 'displayName': 'Anna Kowalska', 'isChild': false},
+      {'id': 'child-1', 'displayName': 'Jan Kowalski', 'isChild': true},
     ],
     'activeProfileId': 'profile-1',
   });
@@ -96,7 +97,9 @@ void main() {
       expect(session.displayName, 'Anna Kowalska');
       expect(session.roles, [AppRole.client, AppRole.trainer]);
       expect(session.activeRole, AppRole.client);
+      expect(session.staffProfileId, 'staff-1');
       expect(session.profiles.map((p) => p.id), ['profile-1', 'child-1']);
+      expect(session.profiles.map((p) => p.isChild), [false, true]);
       expect(session.activeProfileId, 'profile-1');
       expect(auth.signedIn, isTrue);
     },

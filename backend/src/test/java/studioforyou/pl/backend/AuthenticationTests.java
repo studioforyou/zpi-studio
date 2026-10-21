@@ -27,7 +27,7 @@ import org.springframework.web.bind.annotation.RestController;
  * Firebase ID tokens are mocked at the {@link JwtDecoder}: each test token decodes to
  * a fixed Firebase UID. Everything after token verification runs for real.
  */
-@SpringBootTest(properties = "FIREBASE_PROJECT_ID=test-project")
+@SpringBootTest
 @AutoConfigureMockMvc
 @Import({ TestcontainersConfiguration.class, AuthenticationTests.ProtectedController.class })
 @Transactional
@@ -50,6 +50,8 @@ class AuthenticationTests {
 
 	private UUID activeAccountId;
 
+	private UUID staffProfileId;
+
 	private UUID ownProfileId;
 
 	private UUID childProfileId;
@@ -59,6 +61,11 @@ class AuthenticationTests {
 		activeAccountId = insertAccount("anna@example.com", "ACTIVE", "uid-active");
 		addRole(activeAccountId, "CLIENT");
 		addRole(activeAccountId, "TRAINER");
+		staffProfileId = jdbc
+			.sql("INSERT INTO staff_profile (account_id, first_name, last_name) VALUES (:id, 'Anna', 'Kowalska') RETURNING id")
+			.param("id", activeAccountId)
+			.query(UUID.class)
+			.single();
 		ownProfileId = insertCustomerProfile(activeAccountId, "ADULT", "Anna", "Kowalska");
 		childProfileId = insertCustomerProfile(null, "CHILD", "Jan", "Kowalski");
 		jdbc.sql("INSERT INTO guardianship (guardian_id, child_id) VALUES (:guardian, :child)")
@@ -81,19 +88,28 @@ class AuthenticationTests {
 	}
 
 	@Test
+	void apiDocsAndHealthArePublic() throws Exception {
+		mvc.perform(get("/v3/api-docs")).andExpect(status().isOk());
+		mvc.perform(get("/actuator/health")).andExpect(status().isOk());
+	}
+
+	@Test
 	void meWithoutTokenIsUnauthorized() throws Exception {
-		mvc.perform(get("/api/me")).andExpect(status().isUnauthorized());
+		mvc.perform(get("/api/v1/me"))
+			.andExpect(status().isUnauthorized())
+			.andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
 	}
 
 	@Test
 	void meWithInvalidTokenIsUnauthorized() throws Exception {
-		mvc.perform(get("/api/me").header("Authorization", "Bearer bad-token"))
-			.andExpect(status().isUnauthorized());
+		mvc.perform(get("/api/v1/me").header("Authorization", "Bearer bad-token"))
+			.andExpect(status().isUnauthorized())
+			.andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
 	}
 
 	@Test
 	void meReturnsTheActiveAccountWithItsProfiles() throws Exception {
-		mvc.perform(get("/api/me").header("Authorization", "Bearer " + ACTIVE_TOKEN))
+		mvc.perform(get("/api/v1/me").header("Authorization", "Bearer " + ACTIVE_TOKEN))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.accountId").value(activeAccountId.toString()))
 			.andExpect(jsonPath("$.email").value("anna@example.com"))
@@ -101,24 +117,28 @@ class AuthenticationTests {
 			.andExpect(jsonPath("$.displayName").value("Anna Kowalska"))
 			.andExpect(jsonPath("$.roles[0]").value("CLIENT"))
 			.andExpect(jsonPath("$.roles[1]").value("TRAINER"))
+			.andExpect(jsonPath("$.staffProfileId").value(staffProfileId.toString()))
 			.andExpect(jsonPath("$.profiles[0].id").value(ownProfileId.toString()))
+			.andExpect(jsonPath("$.profiles[0].isChild").value(false))
 			.andExpect(jsonPath("$.profiles[1].id").value(childProfileId.toString()))
 			.andExpect(jsonPath("$.profiles[1].displayName").value("Jan Kowalski"))
+			.andExpect(jsonPath("$.profiles[1].isChild").value(true))
 			.andExpect(jsonPath("$.activeProfileId").value(ownProfileId.toString()));
 	}
 
 	@Test
 	void meReturnsAPendingAccountSoTheAppCanShowItsStatus() throws Exception {
-		mvc.perform(get("/api/me").header("Authorization", "Bearer " + PENDING_TOKEN))
+		mvc.perform(get("/api/v1/me").header("Authorization", "Bearer " + PENDING_TOKEN))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.status").value("PENDING_APPROVAL"))
 			.andExpect(jsonPath("$.displayName").value("piotr@example.com"))
+			.andExpect(jsonPath("$.staffProfileId").isEmpty())
 			.andExpect(jsonPath("$.profiles").isEmpty());
 	}
 
 	@Test
 	void meForAFirebaseUserWithoutAnAccountIsForbidden() throws Exception {
-		mvc.perform(get("/api/me").header("Authorization", "Bearer " + UNLINKED_TOKEN))
+		mvc.perform(get("/api/v1/me").header("Authorization", "Bearer " + UNLINKED_TOKEN))
 			.andExpect(status().isForbidden())
 			.andExpect(jsonPath("$.code").value("ACCOUNT_NOT_FOUND"));
 	}
@@ -127,7 +147,8 @@ class AuthenticationTests {
 	void otherEndpointsNeedAnActiveAccount() throws Exception {
 		mvc.perform(get("/api/test/protected")).andExpect(status().isUnauthorized());
 		mvc.perform(get("/api/test/protected").header("Authorization", "Bearer " + UNLINKED_TOKEN))
-			.andExpect(status().isForbidden());
+			.andExpect(status().isForbidden())
+			.andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
 		mvc.perform(get("/api/test/protected").header("Authorization", "Bearer " + PENDING_TOKEN))
 			.andExpect(status().isForbidden());
 		mvc.perform(get("/api/test/protected").header("Authorization", "Bearer " + ACTIVE_TOKEN))
@@ -173,7 +194,7 @@ class AuthenticationTests {
 			.single();
 	}
 
-	/** Stands in for any endpoint other than the public ones and {@code /api/me}. */
+	/** Stands in for any endpoint other than the public ones and {@code /api/v1/me}. */
 	@RestController
 	static class ProtectedController {
 

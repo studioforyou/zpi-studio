@@ -11,7 +11,7 @@ const _activeStatus = 'ACTIVE';
 
 /// Signs in with Firebase Authentication, then asks the backend who the user
 /// is. Firebase only proves the identity; status, roles and profiles come from
-/// `GET /api/me`.
+/// `GET /api/v1/me`.
 class FirebaseAuthRepository implements AuthRepository {
   const FirebaseAuthRepository(this._auth, this._meApi);
 
@@ -74,7 +74,7 @@ class FirebaseAuthRepository implements AuthRepository {
       );
     }
 
-    final roles = me.roles.map(AppRole.fromCode).nonNulls.toList();
+    final roles = me.roles.map(AppRole.fromApi).nonNulls.toList();
     if (roles.isEmpty) {
       throw const AuthFailure(AuthFailureReason.noSupportedRole);
     }
@@ -84,7 +84,11 @@ class FirebaseAuthRepository implements AuthRepository {
       displayName: me.displayName,
       roles: roles,
       activeRole: roles.contains(AppRole.client) ? AppRole.client : roles.first,
-      profiles: [for (final p in me.profiles) Profile(p.id, p.displayName)],
+      staffProfileId: me.staffProfileId,
+      profiles: [
+        for (final p in me.profiles)
+          Profile(id: p.id, displayName: p.displayName, isChild: p.isChild),
+      ],
       activeProfileId: me.activeProfileId,
     );
   }

@@ -106,6 +106,7 @@ void main() {
           displayName: 'Saved',
           roles: [AppRole.trainer],
           activeRole: AppRole.trainer,
+          staffProfileId: 'staff-1',
           profiles: [],
           activeProfileId: null,
         ),

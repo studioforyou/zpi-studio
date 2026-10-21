@@ -18,16 +18,20 @@ public class StaffProfiles {
 		this.jdbc = jdbc;
 	}
 
-	/** First and last name of the account's staff profile, if it has one. */
-	public Optional<String> findDisplayName(UUID accountId) {
+	/** The account's staff profile, if it has one. */
+	public Optional<StaffSummary> findByAccount(UUID accountId) {
 		return jdbc.sql("""
-				SELECT first_name || ' ' || last_name
+				SELECT id, first_name || ' ' || last_name AS display_name
 				FROM staff_profile
 				WHERE account_id = :accountId
 				""")
 			.param("accountId", accountId)
-			.query(String.class)
+			.query(StaffSummary.class)
 			.optional();
+	}
+
+	public record StaffSummary(UUID id, String displayName) {
+
 	}
 
 }
