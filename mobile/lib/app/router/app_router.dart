@@ -9,6 +9,7 @@ import 'package:mobile/core/auth/auth_controller.dart';
 import 'package:mobile/core/auth/auth_state.dart';
 import 'package:mobile/features/accounts/presentation/login_screen.dart';
 import 'package:mobile/features/accounts/presentation/profile_screen.dart';
+import 'package:mobile/features/accounts/presentation/reset_password_screen.dart';
 import 'package:mobile/features/communication/presentation/messages_screen.dart';
 import 'package:mobile/features/passes/presentation/passes_screen.dart';
 import 'package:mobile/features/schedule/presentation/availability_screen.dart';
@@ -20,6 +21,7 @@ import 'package:mobile/l10n/generated/app_localizations.dart';
 const splashPath = '/splash';
 const loginPath = '/login';
 const pingPath = '/ping';
+const resetPasswordPath = '/reset-password';
 
 const clientSchedulePath = '/client/schedule';
 const clientPassesPath = '/client/passes';
@@ -145,7 +147,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         case AuthRestoring():
           return location == splashPath ? null : splashPath;
         case Unauthenticated():
-          return location == loginPath || location == pingPath
+          return location == loginPath ||
+                  location == resetPasswordPath ||
+                  location == pingPath
               ? null
               : loginPath;
         case Authenticated(:final session):
@@ -163,6 +167,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     routes: [
       GoRoute(path: splashPath, builder: (_, _) => const SplashScreen()),
       GoRoute(path: loginPath, builder: (_, _) => const LoginScreen()),
+      GoRoute(
+        path: resetPasswordPath,
+        builder: (_, state) =>
+            ResetPasswordScreen(initialEmail: state.extra as String? ?? ''),
+      ),
       GoRoute(path: pingPath, builder: (_, _) => const PingScreen()),
       _clientShell(),
       _trainerShell(),
