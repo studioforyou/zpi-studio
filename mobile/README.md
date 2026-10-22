@@ -50,6 +50,9 @@ the committed templates and adjust them locally:
   device, or to an empty string to use the default (`http://10.0.2.2:8080`
   on the Android emulator, `http://localhost:8080` elsewhere).
 - `env/staging.json`: `APP_FLAVOR` is `staging`; `API_BASE_URL` is required.
+- `FIREBASE_*` keys (both files): the Firebase config of that environment's
+  project, read by `lib/firebase_options_<env>.dart`. Copy the values from
+  the Firebase console (Project settings → Your apps).
 
 ```sh
 flutter run --dart-define-from-file=env/dev.json
