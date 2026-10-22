@@ -13,6 +13,7 @@ Test accounts created by the seed in this directory. Loaded on dev and stage onl
 | `piotr.wojcik@seed.studioforyou.pl` | Piotr Wójcik | CLIENT | PENDING_APPROVAL | yes* | Self-registration waiting for approval, unpaid order |
 | `julia.kaminska@seed.studioforyou.pl` | Julia Kamińska | CLIENT | INVITED | no | Invited by the studio, has not logged in yet (no Firebase user) |
 | `adam.mazur@seed.studioforyou.pl` | Adam Mazur | CLIENT | SUSPENDED | yes* | Suspended for an overdue payment |
+| `beata.lis@seed.studioforyou.pl` | Beata Lis | ADMIN | ACTIVE | yes | Studio administrator, the only seed account that can log in to the web panel |
 
 \* Logs in to Firebase, but the backend gives access to studio features only to ACTIVE accounts.
 
