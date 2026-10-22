@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile/app/app.dart';
 import 'package:mobile/app/config/app_config.dart';
+import 'package:mobile/core/auth/app_role.dart';
 import 'package:mobile/core/auth/auth_repository.dart';
 import 'package:mobile/core/auth/fake_auth_repository.dart';
 import 'package:mobile/core/auth/session.dart';
@@ -11,6 +12,26 @@ import 'package:mobile/core/auth/session.dart';
 class _SignedInAuthRepository extends FakeAuthRepository {
   @override
   Future<Session?> restore() => login(email: '', password: '');
+}
+
+/// Starts signed out; signs in as a client with only their own profile.
+class _ClientOnlyAuthRepository extends FakeAuthRepository {
+  @override
+  Future<Session> login({
+    required String email,
+    required String password,
+  }) async {
+    final session = await super.login(email: email, password: password);
+    return Session(
+      accountId: session.accountId,
+      displayName: session.displayName,
+      roles: const [AppRole.client],
+      activeRole: AppRole.client,
+      staffProfileId: null,
+      profiles: [session.profiles.first],
+      activeProfileId: session.activeProfileId,
+    );
+  }
 }
 
 void main() {
@@ -49,23 +70,71 @@ void main() {
     }
   }
 
-  testWidgets('login leads to the client shell', (tester) async {
-    await pumpApp(tester, FakeAuthRepository());
+  void expectTrainerShell() {
+    final navigationBar = find.byType(NavigationBar);
+    expect(
+      find.descendant(of: navigationBar, matching: find.text('Treningi')),
+      findsOneWidget,
+    );
+  }
 
+  Future<void> logIn(WidgetTester tester) async {
+    await tester.tap(find.text('Zaloguj się'));
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets('login opens the role picker, a pick opens its shell', (
+    tester,
+  ) async {
+    await pumpApp(tester, FakeAuthRepository());
     expect(find.text('Zaloguj się'), findsOneWidget);
 
-    await tester.tap(find.text('Zaloguj się'));
+    await logIn(tester);
+
+    expect(find.text('Kto korzysta?'), findsOneWidget);
+    expect(find.byType(NavigationBar), findsNothing);
+
+    await tester.tap(find.text('Jan Kowalski'));
     await tester.pumpAndSettle();
 
     expectClientShell();
   });
 
-  testWidgets('a saved session opens the client shell without login', (
+  testWidgets('a single-choice account skips the role picker', (tester) async {
+    await pumpApp(tester, _ClientOnlyAuthRepository());
+
+    await logIn(tester);
+
+    expect(find.text('Kto korzysta?'), findsNothing);
+    expectClientShell();
+  });
+
+  testWidgets('the profile tab goes back to the role picker', (tester) async {
+    await pumpApp(tester, FakeAuthRepository());
+    await logIn(tester);
+    await tester.tap(find.text('Anna Kowalska').first);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Profil'));
+    await tester.pumpAndSettle();
+    expect(find.text('Klient · Anna Kowalska'), findsOneWidget);
+    await tester.tap(find.text('Zmień rolę'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Kto korzysta?'), findsOneWidget);
+
+    await tester.tap(find.text('Trener'));
+    await tester.pumpAndSettle();
+
+    expectTrainerShell();
+  });
+
+  testWidgets('a saved session opens the role picker without login', (
     tester,
   ) async {
     await pumpApp(tester, _SignedInAuthRepository());
 
     expect(find.text('Zaloguj się'), findsNothing);
-    expectClientShell();
+    expect(find.text('Kto korzysta?'), findsOneWidget);
   });
 }

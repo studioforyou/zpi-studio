@@ -137,44 +137,96 @@ void main() {
     expect(session().activeProfileId, 'self');
   });
 
-  test('selectRole updates the active role', () async {
+  bool choosingRole() =>
+      (container.read(authControllerProvider) as Authenticated).choosingRole;
+
+  test('login with several choices opens the role picker', () async {
     await controller().login('a@b.c', 'secret');
 
-    controller().selectRole(AppRole.trainer);
-
-    expect(session().activeRole, AppRole.trainer);
+    expect(choosingRole(), isTrue);
   });
 
-  test('selectRole ignores a role the user does not have', () async {
+  test('login with a single choice skips the role picker', () async {
+    container.dispose();
+    container = createContainer(_ClientOnlyAuthRepository());
+
+    await controller().login('a@b.c', 'secret');
+
+    expect(choosingRole(), isFalse);
+  });
+
+  test(
+    'a restored session with several choices opens the role picker',
+    () async {
+      container.dispose();
+      container = createContainer(
+        _RestoringAuthRepository(
+          await FakeAuthRepository().login(email: '', password: ''),
+        ),
+      );
+      container.read(authControllerProvider);
+
+      await pumpEventQueue();
+
+      expect(choosingRole(), isTrue);
+    },
+  );
+
+  test('choose a child sets the client role and that profile', () async {
+    await controller().login('a@b.c', 'secret');
+    final child = session().choices.firstWhere(
+      (choice) => choice.profile?.id == 'child-1',
+    );
+
+    controller().choose(child);
+
+    expect(choosingRole(), isFalse);
+    expect(session().activeRole, AppRole.client);
+    expect(session().activeProfileId, 'child-1');
+    expect(session().activeChoice, child);
+  });
+
+  test('choose the trainer keeps the last client profile', () async {
+    await controller().login('a@b.c', 'secret');
+
+    controller().choose(const SessionChoice(role: AppRole.trainer));
+
+    expect(choosingRole(), isFalse);
+    expect(session().activeRole, AppRole.trainer);
+    expect(session().activeProfileId, 'self');
+    expect(session().activeChoice, const SessionChoice(role: AppRole.trainer));
+  });
+
+  test('choose ignores a choice the account does not have', () async {
     container.dispose();
     container = createContainer(_ClientOnlyAuthRepository());
     await controller().login('a@b.c', 'secret');
+    final before = container.read(authControllerProvider);
 
-    controller().selectRole(AppRole.trainer);
+    controller().choose(const SessionChoice(role: AppRole.trainer));
 
-    expect(session().activeRole, AppRole.client);
+    expect(container.read(authControllerProvider), same(before));
   });
 
-  test('selectProfile updates the profile and ignores unknown ids', () async {
+  test('openRolePicker shows the picker again', () async {
     await controller().login('a@b.c', 'secret');
+    controller().choose(session().choices.first);
 
-    controller().selectProfile('child-1');
-    expect(session().activeProfileId, 'child-1');
+    controller().openRolePicker();
 
-    controller().selectProfile('unknown');
-    expect(session().activeProfileId, 'child-1');
+    expect(choosingRole(), isTrue);
+    expect(session().activeProfileId, 'self');
   });
 
-  test('selectProfile is ignored without a customer profile', () async {
+  test('openRolePicker is ignored with a single choice', () async {
     container.dispose();
     container = createContainer(_TrainerOnlyAuthRepository());
     await controller().login('a@b.c', 'secret');
     final before = container.read(authControllerProvider);
 
-    controller().selectProfile('anything');
+    controller().openRolePicker();
 
     expect(container.read(authControllerProvider), same(before));
-    expect(session().activeProfileId, isNull);
   });
 
   test('logout returns to Unauthenticated', () async {

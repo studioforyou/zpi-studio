@@ -9,6 +9,7 @@ import 'package:mobile/core/auth/auth_controller.dart';
 import 'package:mobile/core/auth/auth_state.dart';
 import 'package:mobile/features/accounts/presentation/login_screen.dart';
 import 'package:mobile/features/accounts/presentation/profile_screen.dart';
+import 'package:mobile/features/accounts/presentation/role_picker_screen.dart';
 import 'package:mobile/features/communication/presentation/messages_screen.dart';
 import 'package:mobile/features/passes/presentation/passes_screen.dart';
 import 'package:mobile/features/schedule/presentation/availability_screen.dart';
@@ -20,6 +21,7 @@ import 'package:mobile/l10n/generated/app_localizations.dart';
 const splashPath = '/splash';
 const loginPath = '/login';
 const pingPath = '/ping';
+const rolePickerPath = '/choose-role';
 
 const clientSchedulePath = '/client/schedule';
 const clientPassesPath = '/client/passes';
@@ -148,10 +150,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           return location == loginPath || location == pingPath
               ? null
               : loginPath;
-        case Authenticated(:final session):
+        case Authenticated(:final session, :final choosingRole):
           // Just logged in: stay until the intro covers the login screen.
           if (location == loginPath && !ref.read(loginCoveredProvider)) {
             return null;
+          }
+          if (choosingRole) {
+            return location == rolePickerPath ? null : rolePickerPath;
           }
           final role = session.activeRole.name;
           if (location == loginPath || !location.startsWith('/$role/')) {
@@ -164,6 +169,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: splashPath, builder: (_, _) => const SplashScreen()),
       GoRoute(path: loginPath, builder: (_, _) => const LoginScreen()),
       GoRoute(path: pingPath, builder: (_, _) => const PingScreen()),
+      GoRoute(
+        path: rolePickerPath,
+        builder: (_, _) => const RolePickerScreen(),
+      ),
       _clientShell(),
       _trainerShell(),
     ],

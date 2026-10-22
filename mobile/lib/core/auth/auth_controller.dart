@@ -1,5 +1,4 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:mobile/core/auth/app_role.dart';
 import 'package:mobile/core/auth/auth_repository.dart';
 import 'package:mobile/core/auth/auth_state.dart';
 import 'package:mobile/core/auth/session.dart';
@@ -22,14 +21,14 @@ class AuthController extends Notifier<AuthState> {
     if (!ref.mounted || state is! AuthRestoring) {
       return;
     }
-    state = session == null ? const Unauthenticated() : Authenticated(session);
+    state = session == null ? const Unauthenticated() : _signedIn(session);
   }
 
   Future<void> login(String email, String password) async {
     final session = await ref
         .read(authRepositoryProvider)
         .login(email: email, password: password);
-    state = Authenticated(session);
+    state = _signedIn(session);
   }
 
   Future<void> logout() async {
@@ -37,21 +36,35 @@ class AuthController extends Notifier<AuthState> {
     state = const Unauthenticated();
   }
 
-  void selectRole(AppRole role) {
+  /// Shows the role picker again, e.g. from the profile tab. Ignored when
+  /// there is nothing to choose.
+  void openRolePicker() {
     if (state case Authenticated(
       :final session,
-    ) when session.roles.contains(role)) {
-      state = Authenticated(session.copyWith(activeRole: role));
+    ) when session.choices.length > 1) {
+      state = Authenticated(session, choosingRole: true);
     }
   }
 
-  void selectProfile(String profileId) {
+  /// Uses the app as [choice], one of [Session.choices], and closes the role
+  /// picker.
+  void choose(SessionChoice choice) {
     if (state case Authenticated(
       :final session,
-    ) when session.profiles.any((p) => p.id == profileId)) {
-      state = Authenticated(session.copyWith(activeProfileId: profileId));
+    ) when session.choices.contains(choice)) {
+      state = Authenticated(
+        session.copyWith(
+          activeRole: choice.role,
+          activeProfileId: choice.profile?.id,
+        ),
+      );
     }
   }
+
+  /// A fresh sign-in starts on the role picker unless there is only one
+  /// choice.
+  static Authenticated _signedIn(Session session) =>
+      Authenticated(session, choosingRole: session.choices.length > 1);
 }
 
 final authControllerProvider = NotifierProvider<AuthController, AuthState>(

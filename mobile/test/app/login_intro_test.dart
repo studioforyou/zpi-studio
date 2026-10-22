@@ -9,6 +9,7 @@ import 'package:mobile/core/auth/auth_repository.dart';
 import 'package:mobile/core/auth/fake_auth_repository.dart';
 import 'package:mobile/core/auth/session.dart';
 import 'package:mobile/features/accounts/presentation/login_screen.dart';
+import 'package:mobile/features/accounts/presentation/role_picker_screen.dart';
 
 /// Starts with the demo user still signed in from an earlier run.
 class _SignedInAuthRepository extends FakeAuthRepository {
@@ -16,6 +17,8 @@ class _SignedInAuthRepository extends FakeAuthRepository {
   Future<Session?> restore() => login(email: '', password: '');
 }
 
+// The demo account has several choices, so the intro uncovers the role
+// picker.
 void main() {
   const timings = LoginIntroTimings();
   Duration seconds(double s) => Duration(milliseconds: (s * 1000).round());
@@ -53,13 +56,13 @@ void main() {
 
     expect(intro, findsOneWidget);
     expect(find.byType(LoginScreen), findsOneWidget);
-    expect(find.byType(NavigationBar), findsNothing);
+    expect(find.byType(RolePickerScreen), findsNothing);
 
     await tester.pump(seconds(timings.curtains));
     await tester.pump();
 
     expect(find.byType(LoginScreen), findsNothing);
-    expect(find.byType(NavigationBar), findsOneWidget);
+    expect(find.byType(RolePickerScreen), findsOneWidget);
     expect(intro, findsOneWidget);
 
     await tester.pumpAndSettle();
@@ -78,7 +81,7 @@ void main() {
     await tester.pump();
 
     expect(intro, findsNothing);
-    expect(find.byType(NavigationBar), findsOneWidget);
+    expect(find.byType(RolePickerScreen), findsOneWidget);
   });
 
   testWidgets('no intro with reduced motion', (tester) async {
@@ -92,7 +95,7 @@ void main() {
 
     expect(intro, findsNothing);
     await tester.pumpAndSettle();
-    expect(find.byType(NavigationBar), findsOneWidget);
+    expect(find.byType(RolePickerScreen), findsOneWidget);
   });
 
   testWidgets('no intro when a saved session is restored', (tester) async {
@@ -115,6 +118,6 @@ void main() {
 
     expect(intro, findsNothing);
     await tester.pumpAndSettle();
-    expect(find.byType(NavigationBar), findsOneWidget);
+    expect(find.byType(RolePickerScreen), findsOneWidget);
   });
 }

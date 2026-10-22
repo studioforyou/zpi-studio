@@ -15,7 +15,11 @@ final class Unauthenticated extends AuthState {
 }
 
 final class Authenticated extends AuthState {
-  const Authenticated(this.session);
+  const Authenticated(this.session, {this.choosingRole = false});
 
   final Session session;
+
+  /// Whether the user has yet to pick how to use the app (see
+  /// [Session.choices]); the router shows the role picker until they do.
+  final bool choosingRole;
 }

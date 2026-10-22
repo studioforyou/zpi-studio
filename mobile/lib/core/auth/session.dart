@@ -16,6 +16,27 @@ class Profile {
   final bool isChild;
 }
 
+/// One tile of the role picker: a role and, for the client role, the customer
+/// profile the app acts for.
+class SessionChoice {
+  const SessionChoice({required this.role, this.profile});
+
+  final AppRole role;
+
+  /// `null` for the trainer role, and for a client without a customer
+  /// profile.
+  final Profile? profile;
+
+  @override
+  bool operator ==(Object other) =>
+      other is SessionChoice &&
+      other.role == role &&
+      other.profile?.id == profile?.id;
+
+  @override
+  int get hashCode => Object.hash(role, profile?.id);
+}
+
 /// The signed-in account's session.
 ///
 /// An account is a login ([accountId]) and can have several roles. A
@@ -54,6 +75,28 @@ class Session {
   /// The backend decides the initial value (the account's own customer
   /// profile). Ids are backend UUIDs kept as `String`.
   final String? activeProfileId;
+
+  /// What the account can use the app as: each customer profile as a client
+  /// (own profile first, as the backend sends them), then the trainer role.
+  /// One entry means there is nothing to choose.
+  List<SessionChoice> get choices => [
+    if (roles.contains(AppRole.client))
+      if (profiles.isEmpty)
+        const SessionChoice(role: AppRole.client)
+      else
+        for (final profile in profiles)
+          SessionChoice(role: AppRole.client, profile: profile),
+    if (roles.contains(AppRole.trainer))
+      const SessionChoice(role: AppRole.trainer),
+  ];
+
+  /// The choice matching [activeRole] and, for a client, [activeProfileId].
+  SessionChoice get activeChoice => choices.firstWhere(
+    (choice) =>
+        choice.role == activeRole &&
+        (choice.profile == null || choice.profile!.id == activeProfileId),
+    orElse: () => SessionChoice(role: activeRole),
+  );
 
   Session copyWith({AppRole? activeRole, String? activeProfileId}) {
     return Session(
