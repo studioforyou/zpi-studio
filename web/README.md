@@ -35,8 +35,7 @@ cp .env.example.staging .env.staging.local
   forwards `/api` and `/actuator`. Not used by `npm run build`.
 - `VITE_FIREBASE_*` (in `.env.dev` and `.env.staging`): the Firebase web app of the environment's
   project, `studioforyou-dev` or `studioforyou-stage`. It must be the project whose tokens the
-  backend accepts (`FIREBASE_PROJECT_ID`). The values are public, so they are committed, like the
-  mobile app's `firebase_options_<env>.dart`.
+  backend accepts (`FIREBASE_PROJECT_ID`). 
 
 The code reads the environment name as `env.appFlavor` (`dev` or `staging`); the "Status systemu"
 page shows it. Requests always go to relative paths (`/api/...`) on the panel's own address, so a
