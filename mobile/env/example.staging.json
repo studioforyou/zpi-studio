@@ -1,4 +1,12 @@
 {
   "APP_FLAVOR": "staging",
-  "API_BASE_URL": "https://staging.example.com"
+  "API_BASE_URL": "https://staging.example.com",
+  "FIREBASE_PROJECT_ID": "your-staging-project-id",
+  "FIREBASE_MESSAGING_SENDER_ID": "your-sender-id",
+  "FIREBASE_STORAGE_BUCKET": "your-staging-project-id.firebasestorage.app",
+  "FIREBASE_ANDROID_API_KEY": "your-android-api-key",
+  "FIREBASE_ANDROID_APP_ID": "your-android-app-id",
+  "FIREBASE_IOS_API_KEY": "your-ios-api-key",
+  "FIREBASE_IOS_APP_ID": "your-ios-app-id",
+  "FIREBASE_IOS_CLIENT_ID": "your-ios-client-id.apps.googleusercontent.com"
 }
