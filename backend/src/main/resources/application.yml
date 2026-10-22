@@ -1,4 +1,9 @@
 spring:
+  profiles:
+    group:
+      # Test data (db/seed) is loaded on dev and stage only; any other profile, e.g. prod, gets none.
+      dev: seed
+      stage: seed
   datasource:
     url: ${SPRING_DATASOURCE_URL}
     username: ${SPRING_DATASOURCE_USERNAME}
