@@ -7,6 +7,7 @@ import 'package:mobile/core/auth/auth_failure.dart';
 import 'package:mobile/core/auth/auth_repository.dart';
 import 'package:mobile/core/auth/session.dart';
 import 'package:mobile/features/accounts/presentation/reset_password_screen.dart';
+import 'package:mobile/features/accounts/presentation/widgets/login_page.dart';
 
 class _ResetAuthRepository implements AuthRepository {
   _ResetAuthRepository({this.failure});
@@ -145,10 +146,38 @@ void main() {
     await openReset(tester, email: 'anna@example.com');
 
     final button = tester.getRect(find.byType(FilledButton));
-    final link = tester.getRect(find.text('Wróć do logowania'));
+    final link = tester.getRect(find.text('Powrót do logowania'));
 
     expect(link.top, greaterThan(button.bottom));
     expect(link.center.dx, closeTo(button.center.dx, 1));
+  });
+
+  testWidgets('the reset screen keeps the grid of the login screen', (
+    tester,
+  ) async {
+    await pumpApp(tester, _ResetAuthRepository());
+    final password = tester.getTopLeft(find.byType(TextField).at(1));
+    final loginButton = tester.getTopLeft(find.byType(FilledButton));
+
+    await openReset(tester, email: 'anna@example.com');
+
+    expect(tester.getTopLeft(find.byType(TextField)), password);
+    expect(tester.getTopLeft(find.byType(FilledButton)), loginButton);
+  });
+
+  testWidgets('the links sit close to the buttons above them', (tester) async {
+    await pumpApp(tester, _ResetAuthRepository());
+    final loginGap =
+        tester.getTopLeft(find.text('Nie pamiętam hasła')).dy -
+        tester.getBottomLeft(find.byType(FilledButton)).dy;
+
+    await openReset(tester, email: 'anna@example.com');
+    final resetGap =
+        tester.getTopLeft(find.text('Powrót do logowania')).dy -
+        tester.getBottomLeft(find.byType(FilledButton)).dy;
+
+    expect(loginGap, lessThan(loginLinkGap + 12));
+    expect(resetGap, lessThan(loginLinkGap + 12));
   });
 
   testWidgets('an empty e-mail is rejected without a request', (tester) async {
@@ -198,7 +227,7 @@ void main() {
     await pumpApp(tester, _ResetAuthRepository());
     await openReset(tester);
 
-    await tester.tap(find.text('Wróć do logowania'));
+    await tester.tap(find.text('Powrót do logowania'));
     await tester.pumpAndSettle();
 
     expect(find.text('Zaloguj się'), findsOneWidget);

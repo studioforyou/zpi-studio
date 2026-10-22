@@ -91,7 +91,73 @@ class LoginButton extends StatelessWidget {
   }
 }
 
-/// A centred text link under the main button.
+/// Height of a text field of the login-style screens. The reset screen
+/// reserves it for its heading so both screens share one grid.
+const loginFieldHeight = 56.0;
+
+/// Room for one message under the fields. It is as tall as the longest
+/// message, so nothing moves when a message appears and the button keeps the
+/// same place on every login-style screen.
+const loginMessageSlotHeight = 48.0;
+
+class LoginMessageSlot extends StatelessWidget {
+  const LoginMessageSlot({super.key, this.message});
+
+  final Widget? message;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: loginMessageSlotHeight,
+      child: Align(alignment: Alignment.topLeft, child: message),
+    );
+  }
+}
+
+/// An error, or with [success] a confirmation, shown in a [LoginMessageSlot].
+class LoginMessage extends StatelessWidget {
+  const LoginMessage({
+    super.key,
+    required this.palette,
+    required this.text,
+    this.success = false,
+  });
+
+  final LoginPalette palette;
+  final String text;
+  final bool success;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = success ? palette.accent : palette.error;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      spacing: 8,
+      children: [
+        Icon(
+          success ? Icons.check_circle_outline : Icons.error_outline,
+          size: 18,
+          color: color,
+        ),
+        Expanded(
+          child: Text(
+            text,
+            style: TextStyle(
+              color: color,
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Space between the main button and the link under it.
+const loginLinkGap = 12.0;
+
+/// A centred text link right under the main button.
 class LoginLink extends StatelessWidget {
   const LoginLink({
     super.key,
@@ -106,14 +172,23 @@ class LoginLink extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: TextButton(
-        onPressed: onPressed,
-        style: TextButton.styleFrom(
-          foregroundColor: palette.accent,
-          textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+    return Padding(
+      padding: const EdgeInsets.only(top: loginLinkGap),
+      child: Center(
+        child: TextButton(
+          onPressed: onPressed,
+          style: TextButton.styleFrom(
+            foregroundColor: palette.accent,
+            minimumSize: Size.zero,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            textStyle: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          child: Text(label),
         ),
-        child: Text(label),
       ),
     );
   }

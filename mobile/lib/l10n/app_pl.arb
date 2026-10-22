@@ -15,7 +15,7 @@
   "loginErrorUnknown": "Nie udało się zalogować. Spróbuj ponownie.",
   "loginForgotPassword": "Nie pamiętam hasła",
   "resetTitle": "Reset hasła",
-  "resetIntro": "Podaj e-mail konta. Wyślemy na niego link do ustawienia nowego hasła.",
+  "resetIntro": "Zdarza się najlepszym. Podaj adres e-mail, na który możemy wysłać link do ustawnienia nowego hasła.",
   "resetSendButton": "Wyślij link",
   "resetResendButton": "Wyślij ponownie",
   "resetResendCountdown": "Wyślij ponownie ({seconds} s)",
@@ -26,8 +26,8 @@
       }
     }
   },
-  "resetBackToLogin": "Wróć do logowania",
-  "resetSent": "Jeśli konto o tym adresie istnieje, wysłaliśmy na nie link do zmiany hasła. Sprawdź skrzynkę (także spam).",
+  "resetBackToLogin": "Powrót do logowania",
+  "resetSent": "Jeśli konto o tym adresie istnieje, wysłaliśmy na nie link do zmiany hasła. Sprawdź skrzynkę.",
   "resetErrorInvalidEmail": "Podaj poprawny adres e-mail.",
   "resetErrorTooManyAttempts": "Zbyt wiele prób. Spróbuj ponownie za chwilę.",
   "resetErrorNetwork": "Brak połączenia z serwerem. Sprawdź internet i spróbuj ponownie.",

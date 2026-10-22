@@ -79,12 +79,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   Widget _form(AppLocalizations l10n, LoginPalette palette) {
-    final errorStyle = TextStyle(
-      color: palette.error,
-      fontSize: 14,
-      fontWeight: FontWeight.w500,
-    );
-
     return AutofillGroup(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -111,53 +105,38 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               prefixIcon: const Icon(Icons.lock_outline),
             ),
           ),
-          // Every message is laid out, only the current one is shown:
-          // the slot is as tall as the longest message, so the form
-          // does not move when one appears.
-          Stack(
-            children: [
-              for (final reason in AuthFailureReason.values)
-                Visibility(
-                  visible: reason == _failure,
-                  maintainState: true,
-                  maintainAnimation: true,
-                  maintainSize: true,
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    spacing: 8,
-                    children: [
-                      Icon(Icons.error_outline, size: 18, color: palette.error),
-                      Expanded(
-                        child: Text(
-                          _failureMessage(l10n, reason),
-                          style: errorStyle,
-                        ),
-                      ),
-                    ],
+          LoginMessageSlot(
+            message: _failure == null
+                ? null
+                : LoginMessage(
+                    palette: palette,
+                    text: _failureMessage(l10n, _failure!),
                   ),
+          ),
+          Column(
+            children: [
+              LoginButton(
+                palette: palette,
+                onPressed: _submitting ? null : _login,
+                child: _submitting
+                    ? SizedBox.square(
+                        dimension: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: palette.onButton,
+                        ),
+                      )
+                    : Text(l10n.loginButton),
+              ),
+              LoginLink(
+                palette: palette,
+                label: l10n.loginForgotPassword,
+                onPressed: () => context.push(
+                  resetPasswordPath,
+                  extra: _emailController.text.trim(),
                 ),
+              ),
             ],
-          ),
-          LoginButton(
-            palette: palette,
-            onPressed: _submitting ? null : _login,
-            child: _submitting
-                ? SizedBox.square(
-                    dimension: 20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: palette.onButton,
-                    ),
-                  )
-                : Text(l10n.loginButton),
-          ),
-          LoginLink(
-            palette: palette,
-            label: l10n.loginForgotPassword,
-            onPressed: () => context.push(
-              resetPasswordPath,
-              extra: _emailController.text.trim(),
-            ),
           ),
         ],
       ),

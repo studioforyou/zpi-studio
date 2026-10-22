@@ -13,6 +13,9 @@ import 'package:mobile/l10n/generated/app_localizations.dart';
 /// How long the user has to wait before asking for the reset e-mail again.
 const passwordResetCooldown = Duration(seconds: 30);
 
+/// Lifts the heading and the intro above the e-mail field.
+const resetHeadingBottomGap = 12.0;
+
 /// What the message slot under the e-mail field can say.
 enum _Notice { sent, invalidEmail, tooManyAttempts, network, unknown }
 
@@ -108,22 +111,14 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return LoginPage(
-      builder: (context, palette) => Stack(
-        children: [
-          Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 400),
-                child: _form(l10n, palette),
-              ),
-            ),
+      builder: (context, palette) => Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 400),
+            child: _form(l10n, palette),
           ),
-          Align(
-            alignment: Alignment.topLeft,
-            child: BackButton(color: palette.accent, onPressed: _backToLogin),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -132,18 +127,40 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
     final theme = Theme.of(context);
     final waiting = _secondsLeft > 0;
 
+    // Same rows as the login form (field, field, message, button, link), so
+    // the e-mail field and the button stay where the password field and the
+    // login button were. The heading takes the place of the first field and
+    // grows upwards.
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       spacing: 16,
       children: [
-        Text(
-          l10n.resetTitle,
-          style: theme.textTheme.headlineMedium?.copyWith(
-            fontWeight: FontWeight.w700,
+        SizedBox(
+          height: loginFieldHeight,
+          child: OverflowBox(
+            alignment: Alignment.bottomLeft,
+            minHeight: 0,
+            maxHeight: double.infinity,
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: resetHeadingBottomGap),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                spacing: 8,
+                children: [
+                  Text(
+                    l10n.resetTitle,
+                    style: theme.textTheme.headlineMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  Text(l10n.resetIntro, style: theme.textTheme.bodyMedium),
+                ],
+              ),
+            ),
           ),
         ),
-        Text(l10n.resetIntro, style: theme.textTheme.bodyMedium),
         TextField(
           controller: _emailController,
           keyboardType: TextInputType.emailAddress,
@@ -155,83 +172,55 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
             prefixIcon: const Icon(Icons.mail_outline),
           ),
         ),
-        // Every message is laid out, only the current one is shown: the slot
-        // is as tall as the longest message, so nothing moves when one
-        // appears.
-        Stack(
-          children: [
-            for (final notice in _Notice.values)
-              Visibility(
-                visible: notice == _notice,
-                maintainState: true,
-                maintainAnimation: true,
-                maintainSize: true,
-                child: _noticeRow(l10n, palette, notice),
-              ),
-          ],
-        ),
-        LoginButton(
-          palette: palette,
-          dimmed: waiting,
-          onPressed: _submitting || waiting ? null : _send,
-          child: _submitting
-              ? SizedBox.square(
-                  dimension: 20,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: palette.onButton,
-                  ),
-                )
-              : Text(
-                  !_requested
-                      ? l10n.resetSendButton
-                      : waiting
-                      ? l10n.resetResendCountdown(_secondsLeft)
-                      : l10n.resetResendButton,
+        LoginMessageSlot(
+          message: _notice == null
+              ? null
+              : LoginMessage(
+                  palette: palette,
+                  text: _noticeText(l10n, _notice!),
+                  success: _notice == _Notice.sent,
                 ),
         ),
-        LoginLink(
-          palette: palette,
-          label: l10n.resetBackToLogin,
-          onPressed: _backToLogin,
+        Column(
+          children: [
+            LoginButton(
+              palette: palette,
+              dimmed: waiting,
+              onPressed: _submitting || waiting ? null : _send,
+              child: _submitting
+                  ? SizedBox.square(
+                      dimension: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: palette.onButton,
+                      ),
+                    )
+                  : Text(
+                      !_requested
+                          ? l10n.resetSendButton
+                          : waiting
+                          ? l10n.resetResendCountdown(_secondsLeft)
+                          : l10n.resetResendButton,
+                    ),
+            ),
+            LoginLink(
+              palette: palette,
+              label: l10n.resetBackToLogin,
+              onPressed: _backToLogin,
+            ),
+          ],
         ),
       ],
     );
   }
 
-  Widget _noticeRow(
-    AppLocalizations l10n,
-    LoginPalette palette,
-    _Notice notice,
-  ) {
-    final success = notice == _Notice.sent;
-    final color = success ? palette.accent : palette.error;
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      spacing: 8,
-      children: [
-        Icon(
-          success ? Icons.check_circle_outline : Icons.error_outline,
-          size: 18,
-          color: color,
-        ),
-        Expanded(
-          child: Text(
-            switch (notice) {
-              _Notice.sent => l10n.resetSent,
-              _Notice.invalidEmail => l10n.resetErrorInvalidEmail,
-              _Notice.tooManyAttempts => l10n.resetErrorTooManyAttempts,
-              _Notice.network => l10n.resetErrorNetwork,
-              _Notice.unknown => l10n.resetErrorUnknown,
-            },
-            style: TextStyle(
-              color: color,
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ),
-      ],
-    );
+  static String _noticeText(AppLocalizations l10n, _Notice notice) {
+    return switch (notice) {
+      _Notice.sent => l10n.resetSent,
+      _Notice.invalidEmail => l10n.resetErrorInvalidEmail,
+      _Notice.tooManyAttempts => l10n.resetErrorTooManyAttempts,
+      _Notice.network => l10n.resetErrorNetwork,
+      _Notice.unknown => l10n.resetErrorUnknown,
+    };
   }
 }
