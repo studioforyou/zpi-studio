@@ -1,11 +1,4 @@
 {
   "APP_FLAVOR": "dev",
-  "API_BASE_URL": "http://localhost:8080",
-  "FIREBASE_PROJECT_ID": "your-dev-project-id",
-  "FIREBASE_MESSAGING_SENDER_ID": "your-sender-id",
-  "FIREBASE_STORAGE_BUCKET": "your-dev-project-id.firebasestorage.app",
-  "FIREBASE_ANDROID_API_KEY": "your-android-api-key",
-  "FIREBASE_ANDROID_APP_ID": "your-android-app-id",
-  "FIREBASE_IOS_API_KEY": "your-ios-api-key",
-  "FIREBASE_IOS_APP_ID": "your-ios-app-id"
+  "API_BASE_URL": "http://192.168.1.10:8080"
 }
