@@ -49,22 +49,22 @@ class DefaultFirebaseOptions {
     }
   }
 
-  // Values come from env/staging.json, passed with `--dart-define-from-file`.
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: String.fromEnvironment('FIREBASE_ANDROID_API_KEY'),
-    appId: String.fromEnvironment('FIREBASE_ANDROID_APP_ID'),
-    messagingSenderId: String.fromEnvironment('FIREBASE_MESSAGING_SENDER_ID'),
-    projectId: String.fromEnvironment('FIREBASE_PROJECT_ID'),
-    storageBucket: String.fromEnvironment('FIREBASE_STORAGE_BUCKET'),
+    apiKey: 'AIzaSyBHE7nyH5Md2xOB2gdsbnOkbBo4u5ldjDo',
+    appId: '1:694274887286:android:7365b016f2ce0c1eb1d957',
+    messagingSenderId: '694274887286',
+    projectId: 'studioforyou-stage',
+    storageBucket: 'studioforyou-stage.firebasestorage.app',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: String.fromEnvironment('FIREBASE_IOS_API_KEY'),
-    appId: String.fromEnvironment('FIREBASE_IOS_APP_ID'),
-    messagingSenderId: String.fromEnvironment('FIREBASE_MESSAGING_SENDER_ID'),
-    projectId: String.fromEnvironment('FIREBASE_PROJECT_ID'),
-    storageBucket: String.fromEnvironment('FIREBASE_STORAGE_BUCKET'),
-    iosClientId: String.fromEnvironment('FIREBASE_IOS_CLIENT_ID'),
+    apiKey: 'AIzaSyBMvYgyhk_PK6cCQ5uVoVeFgWJ4luxg2jE',
+    appId: '1:694274887286:ios:911e76c5245d7d2eb1d957',
+    messagingSenderId: '694274887286',
+    projectId: 'studioforyou-stage',
+    storageBucket: 'studioforyou-stage.firebasestorage.app',
+    iosClientId:
+        '694274887286-30t26totkjh8b1kitl6savvd3tss4111.apps.googleusercontent.com',
     iosBundleId: 'pl.studioforyou.mobile',
   );
 }
