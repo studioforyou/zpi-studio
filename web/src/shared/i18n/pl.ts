@@ -28,6 +28,16 @@ export const pl = {
       notAdmin: 'Panel jest dostępny tylko dla administratorów studia.',
       unknown: 'Nie udało się zalogować. Spróbuj ponownie.',
     },
+    errors: {
+      invalidCredentials: 'Nieprawidłowy adres e-mail lub hasło.',
+      tooManyAttempts: 'Zbyt wiele prób logowania. Spróbuj ponownie za chwilę.',
+      network: 'Brak połączenia. Sprawdź internet i spróbuj ponownie.',
+      accountNotFound: 'To konto nie jest zarejestrowane w studiu.',
+      pendingApproval: 'Konto czeka na akceptację przez studio.',
+      accountInactive: 'Konto jest nieaktywne. Skontaktuj się ze studiem.',
+      notAdmin: 'Panel jest dostępny tylko dla administratorów studia.',
+      unknown: 'Nie udało się zalogować. Spróbuj ponownie.',
+    },
   },
   common: {
     placeholder: 'Ta sekcja zostanie zaimplementowana w kolejnych zadaniach.',

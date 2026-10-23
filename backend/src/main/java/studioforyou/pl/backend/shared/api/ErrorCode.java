@@ -4,6 +4,7 @@ import org.springframework.http.HttpStatus;
 
 /**
  * API error codes, each with the HTTP status it is returned with.
+ * API error codes, each with the HTTP status it is returned with.
  */
 public enum ErrorCode {
 
