@@ -30,7 +30,7 @@
 --   12 makeup_policy       24 customer_order         36 trainer_note
 --
 -- Accounts (03...NN):
---   01 Anna Kowalska      owner + trainer   ACTIVE
+--   01 Anna Kowalska      owner (admin) + trainer   ACTIVE
 --   02 Marek Nowak        trainer           ACTIVE
 --   03 Ewa Wiśniewska     trainer           ACTIVE
 --   04 Katarzyna Zielińska client           ACTIVE
@@ -101,6 +101,7 @@ ON CONFLICT DO NOTHING;
 
 INSERT INTO account_role (account_id, role_id, granted_by, granted_at) VALUES
     ('03000000-0000-0000-0000-000000000001', 2, NULL,                                   now() - interval '180 days'),
+    ('03000000-0000-0000-0000-000000000001', 3, NULL,                                   now() - interval '180 days'),
     ('03000000-0000-0000-0000-000000000002', 2, '03000000-0000-0000-0000-000000000001', now() - interval '150 days'),
     ('03000000-0000-0000-0000-000000000003', 2, '03000000-0000-0000-0000-000000000001', now() - interval '120 days'),
     ('03000000-0000-0000-0000-000000000004', 1, '03000000-0000-0000-0000-000000000001', now() - interval '100 days'),

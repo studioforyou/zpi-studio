@@ -4,7 +4,7 @@ Test accounts created by the seed in this directory. Loaded on dev and stage onl
 
 | E-mail | Name | Role | Account status | Can log in | Notes |
 | --- | --- | --- | --- | --- | --- |
-| `anna.kowalska@seed.studioforyou.pl` | Anna Kowalska | TRAINER | ACTIVE | yes | Studio owner, extra permissions (manage schedule, health data, pass adjustments) |
+| `anna.kowalska@seed.studioforyou.pl` | Anna Kowalska | TRAINER, ADMIN | ACTIVE | yes | Studio owner, can send invitations (ADMIN), extra permissions (manage schedule, health data, pass adjustments) |
 | `marek.nowak@seed.studioforyou.pl` | Marek Nowak | TRAINER | ACTIVE | yes | Calisthenics + personal trainer of Tomasz |
 | `ewa.wisniewska@seed.studioforyou.pl` | Ewa Wiśniewska | TRAINER | ACTIVE | yes | Pole dance and stretching, personal trainer of Katarzyna |
 | `katarzyna.zielinska@seed.studioforyou.pl` | Katarzyna Zielińska | CLIENT | ACTIVE | yes | Richest data: pole dance pass, bookings, make-up credit, personal training |
