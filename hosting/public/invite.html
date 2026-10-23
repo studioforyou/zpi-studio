@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="pl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>Zaproszenie do studioforyou</title>
+    <style>
+      :root {
+        --bg-top: #e6f0f0;
+        --bg-mid: #bfdddc;
+        --bg-bottom: #95c8c7;
+        --text: #10272c;
+        --muted: #3e5a5f;
+        --button-from: #3e8a8f;
+        --button-to: #245a66;
+        --on-button: #ffffff;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg-top: #2f7584;
+          --bg-mid: #193a43;
+          --bg-bottom: #0a1d21;
+          --text: #e7f2f2;
+          --muted: #a9c7c8;
+          --button-from: #85c5c3;
+          --button-to: #85c5c3;
+          --on-button: #0d2328;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+        font-family: Roboto, system-ui, -apple-system, 'Segoe UI', sans-serif;
+        color: var(--text);
+        background: linear-gradient(170deg, var(--bg-top), var(--bg-mid) 55%, var(--bg-bottom));
+      }
+      main {
+        width: 100%;
+        max-width: 400px;
+      }
+      h1 {
+        font-size: 28px;
+        margin: 0 0 8px;
+      }
+      p {
+        font-size: 14px;
+        line-height: 1.5;
+        margin: 0 0 36px;
+        color: var(--muted);
+      }
+      .button {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 54px;
+        border-radius: 27px;
+        background: linear-gradient(90deg, var(--button-from), var(--button-to));
+        color: var(--on-button);
+        font-size: 16px;
+        font-weight: 600;
+        text-decoration: none;
+      }
+      .hint {
+        margin: 28px 0 0;
+      }
+      [hidden] {
+        display: none !important;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section id="valid">
+        <h1>Aktywuj konto w aplikacji</h1>
+        <p>Otwórz ten link na telefonie z zainstalowaną aplikacją studioforyou i ustaw tam hasło.</p>
+        <a id="open" class="button" href="#">Otwórz w aplikacji</a>
+        <p class="hint">Nie masz jeszcze aplikacji? Poproś studio o link do jej pobrania.</p>
+      </section>
+      <section id="invalid" hidden>
+        <h1>Nieprawidłowy link</h1>
+        <p>Otwórz link z e-maila jeszcze raz albo poproś studio o nowe zaproszenie.</p>
+      </section>
+    </main>
+    <script>
+      // Android opens the app straight from the e-mail link (App Links), so this page is
+      // mostly seen on iOS and on computers: the button hands the token to the app.
+      const token = new URLSearchParams(location.search).get('token');
+      if (token) {
+        document.getElementById('open').href =
+          'studioforyou://app/invite?token=' + encodeURIComponent(token);
+      } else {
+        document.getElementById('valid').hidden = true;
+        document.getElementById('invalid').hidden = false;
+      }
+    </script>
+  </body>
+</html>

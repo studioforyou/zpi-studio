@@ -68,5 +68,5 @@ app:
       base-url: https://api.brevo.com
   invitations:
     # Page that opens an invitation (the token is added as ?token=...); differs per environment.
-    link-base-url: ${INVITATION_LINK_BASE_URL:http://localhost:5173/invite}
+    link-base-url: ${INVITATION_LINK_BASE_URL:https://studioforyou-dev.web.app/invite}
     valid-for: ${INVITATION_VALID_FOR:7d}
