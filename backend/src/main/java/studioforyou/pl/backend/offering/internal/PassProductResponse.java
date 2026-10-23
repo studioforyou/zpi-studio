@@ -1,4 +1,4 @@
-package studioforyou.pl.backend.offering.web;
+package studioforyou.pl.backend.offering.internal;
 
 import java.time.Instant;
 import java.util.List;
@@ -9,7 +9,6 @@ import io.swagger.v3.oas.annotations.media.Schema;
 
 import studioforyou.pl.backend.offering.PassProductAudience;
 import studioforyou.pl.backend.offering.PassProductKind;
-import studioforyou.pl.backend.offering.internal.PassProduct;
 
 /**
  * A pass product with its variants and the services it pays for.

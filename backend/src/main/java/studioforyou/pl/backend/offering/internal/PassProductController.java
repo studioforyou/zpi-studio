@@ -1,4 +1,4 @@
-package studioforyou.pl.backend.offering.web;
+package studioforyou.pl.backend.offering.internal;
 
 import java.net.URI;
 import java.util.UUID;
@@ -23,9 +23,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import studioforyou.pl.backend.offering.internal.PassProduct;
-import studioforyou.pl.backend.offering.internal.PassProductCatalog;
-import studioforyou.pl.backend.offering.internal.PassProductVariant;
 import studioforyou.pl.backend.shared.api.ApiException;
 import studioforyou.pl.backend.shared.api.ApiProblem;
 import studioforyou.pl.backend.shared.api.ErrorCode;
