@@ -11,7 +11,6 @@ import org.springframework.stereotype.Repository;
 
 import studioforyou.pl.backend.shared.api.PageResponse;
 
-import studioforyou.pl.backend.shared.api.PageResponse;
 
 /**
  * Read access to customer profiles for other modules.
