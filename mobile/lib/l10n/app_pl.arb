@@ -32,6 +32,56 @@
   "resetErrorTooManyAttempts": "Zbyt wiele prób. Spróbuj ponownie za chwilę.",
   "resetErrorNetwork": "Brak połączenia z serwerem. Sprawdź internet i spróbuj ponownie.",
   "resetErrorUnknown": "Nie udało się wysłać wiadomości. Spróbuj ponownie.",
+  "inviteTitle": "Aktywuj konto",
+  "inviteIntro": "Cześć {firstName}! Studio zaprasza Cię jako {role}. Ustaw hasło do konta {email}.",
+  "@inviteIntro": {
+    "placeholders": {
+      "firstName": {
+        "type": "String"
+      },
+      "role": {
+        "type": "String"
+      },
+      "email": {
+        "type": "String"
+      }
+    }
+  },
+  "inviteRoleClient": "klienta",
+  "inviteRoleTrainer": "trenera",
+  "inviteRepeatPasswordLabel": "Powtórz hasło",
+  "inviteActivateButton": "Aktywuj konto",
+  "inviteHaveAccount": "Mam już konto",
+  "invitePasswordTooShort": "Hasło musi mieć co najmniej {min} znaków.",
+  "@invitePasswordTooShort": {
+    "placeholders": {
+      "min": {
+        "type": "int"
+      }
+    }
+  },
+  "invitePasswordTooLong": "Hasło może mieć najwyżej {max} znaków.",
+  "@invitePasswordTooLong": {
+    "placeholders": {
+      "max": {
+        "type": "int"
+      }
+    }
+  },
+  "invitePasswordMismatch": "Hasła nie są takie same.",
+  "inviteActivateFailed": "Nie udało się aktywować konta. Spróbuj ponownie.",
+  "inviteActivatedTitle": "Konto aktywne",
+  "inviteActivatedText": "Konto jest gotowe, ale nie udało się Cię zalogować. Zaloguj się nowym hasłem.",
+  "inviteGoToLogin": "Przejdź do logowania",
+  "inviteExpiredTitle": "Zaproszenie wygasło",
+  "inviteExpiredText": "Link był ważny 7 dni. Poproś studio o wysłanie nowego zaproszenia.",
+  "inviteUsedTitle": "Zaproszenie zostało już użyte",
+  "inviteUsedText": "To konto jest już aktywne. Zaloguj się, a jeśli nie pamiętasz hasła, użyj opcji „Nie pamiętam hasła”.",
+  "inviteNotFoundTitle": "Nieprawidłowy link",
+  "inviteNotFoundText": "Nie znaleźliśmy tego zaproszenia. Otwórz link z e-maila jeszcze raz albo poproś studio o nowe.",
+  "inviteLoadFailedTitle": "Nie udało się wczytać zaproszenia",
+  "inviteLoadFailedText": "Spróbuj ponownie za chwilę.",
+  "inviteRetry": "Spróbuj ponownie",
   "navSchedule": "Grafik",
   "navPasses": "Karnety",
   "navTrainings": "Treningi",
