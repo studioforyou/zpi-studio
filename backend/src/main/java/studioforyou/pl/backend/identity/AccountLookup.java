@@ -3,7 +3,6 @@ package studioforyou.pl.backend.identity;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
@@ -32,16 +31,17 @@ public class AccountLookup {
 				""")
 			.param("provider", FIREBASE_PROVIDER)
 			.param("uid", uid)
-			.query((rs, rowNum) -> {
-				UUID id = rs.getObject("id", UUID.class);
-				return new AuthenticatedAccount(id, rs.getString("email"),
-						AccountStatus.valueOf(rs.getString("status")), findRoleCodes(id));
-			})
-			.optional();
+			.query((rs, rowNum) -> new AuthenticatedAccount(rs.getObject("id", UUID.class), rs.getString("email"),
+					AccountStatus.valueOf(rs.getString("status")), Set.of()))
+			.optional()
+			// Roles are read after the account query has given its connection back.
+			.map(account -> new AuthenticatedAccount(account.id(), account.email(), account.status(),
+					findRoleCodes(account.id())));
 	}
 
 	private Set<String> findRoleCodes(UUID accountId) {
-		return jdbc.sql("""
+		// list()/set() close the result set; an unclosed stream() would keep the connection.
+		return Set.copyOf(jdbc.sql("""
 				SELECT r.code
 				FROM account_role ar
 				JOIN role r ON r.id = ar.role_id
@@ -49,8 +49,7 @@ public class AccountLookup {
 				""")
 			.param("accountId", accountId)
 			.query(String.class)
-			.stream()
-			.collect(Collectors.toUnmodifiableSet());
+			.set());
 	}
 
 }

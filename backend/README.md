@@ -46,7 +46,7 @@ Before implementing a backend use case or changing persistence, read [Backend mo
 
 When responsibilities, table ownership, or collaboration change, update the map as part of the same work, adjust the affected code and architecture checks where applicable, and link the relevant Wiki pages or revisions in the pull request. Include any affected contract and rule documentation in that same work. Each module accesses only its own tables; other modules use its public operations or events.
 
-The existing `configuration`, `shared`, and `system` implementations remain in place. The `system.internal` package contains `PingController`, preserving `GET /api/ping` and its existing response; `configuration` still provides `GET /api/v1/studio`.
+The existing `configuration`, `shared`, and `system` implementations remain in place. The `system.internal` package contains `PingController`, preserving `GET /api/ping` and its existing response; `configuration` still provides `GET /api/v1/studio`. `offering` provides the pass product catalogue (`/api/v1/pass-products`, changed only by `ADMIN` accounts) and a read-only list of service types (`GET /api/v1/service-types`).
 
 Modules retain their default closed boundaries. Public types in a module's base package form its default API. Subpackages are internal unless explicitly exposed with `@NamedInterface`. The `shared.api` package declares `@NamedInterface("api")`, exposing the existing common API types to `configuration` without opening the whole `shared` module.
 
