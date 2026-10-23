@@ -22,6 +22,9 @@ public enum ErrorCode {
 	// customer
 	CUSTOMER_NOT_ACTIVE(HttpStatus.UNPROCESSABLE_CONTENT),
 
+	// customer
+	CUSTOMER_NOT_ACTIVE(HttpStatus.UNPROCESSABLE_CONTENT),
+
 	// offering
 	PASS_VARIANT_ALREADY_EXISTS(HttpStatus.CONFLICT),
 	PASS_PRODUCT_ARCHIVED(HttpStatus.UNPROCESSABLE_CONTENT),
@@ -29,7 +32,11 @@ public enum ErrorCode {
 	SERVICE_TYPE_UNAVAILABLE(HttpStatus.UNPROCESSABLE_CONTENT),
 
 	// membership
-	PASS_AUDIENCE_MISMATCH(HttpStatus.UNPROCESSABLE_CONTENT);
+	PASS_AUDIENCE_MISMATCH(HttpStatus.UNPROCESSABLE_CONTENT),
+
+	// scheduling: rooms and the service types allowed in them
+	RESOURCE_NAME_ALREADY_USED(HttpStatus.CONFLICT),
+	RESOURCE_PARENT_INVALID(HttpStatus.UNPROCESSABLE_CONTENT);
 
 	private final HttpStatus status;
 
