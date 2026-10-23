@@ -4,7 +4,7 @@
 -- Customer profiles (07...NN):
 --   01 Katarzyna Zielińska   02 Tomasz Lewandowski   03 Monika Dąbrowska   04 Zosia Dąbrowska (child of 03)
 --   05 Piotr Wójcik          06 Adam Mazur           07 Krzysztof Wrona (no account)   08 Julia Kamińska
--- Staff profiles (08...NN): 01 Anna Kowalska, 02 Marek Nowak, 03 Ewa Wiśniewska
+-- Staff profiles (08...NN): 01 Anna Kowalska, 02 Marek Nowak, 03 Ewa Wiśniewska, 04 Beata Lis (admin)
 -- Service types (10...NN):
 --   01 Pole dance beginners   02 Pole dance intermediate   03 Calisthenics
 --   04 Personal training      05 Pole dance kids           06 Stretching workshop
@@ -27,7 +27,8 @@ ON CONFLICT DO NOTHING;
 INSERT INTO staff_profile (id, account_id, first_name, last_name, phone, bio, photo_file_id, calendar_color, status) VALUES
     ('08000000-0000-0000-0000-000000000001', '03000000-0000-0000-0000-000000000001', 'Anna', 'Kowalska',   '+48600200201', 'Właścicielka studia, instruktorka pole dance od 10 lat.', '02000000-0000-0000-0000-000000000001', '#E91E63', 'ACTIVE'),
     ('08000000-0000-0000-0000-000000000002', '03000000-0000-0000-0000-000000000002', 'Marek', 'Nowak',     '+48600200202', 'Trener personalny i calisthenics.',                      NULL,                                   '#2196F3', 'ACTIVE'),
-    ('08000000-0000-0000-0000-000000000003', '03000000-0000-0000-0000-000000000003', 'Ewa',   'Wiśniewska','+48600200203', 'Instruktorka pole dance i stretchingu.',                 NULL,                                   '#4CAF50', 'ACTIVE')
+    ('08000000-0000-0000-0000-000000000003', '03000000-0000-0000-0000-000000000003', 'Ewa',   'Wiśniewska','+48600200203', 'Instruktorka pole dance i stretchingu.',                 NULL,                                   '#4CAF50', 'ACTIVE'),
+    ('08000000-0000-0000-0000-000000000004', '03000000-0000-0000-0000-000000000010', 'Beata', 'Lis',       '+48600200204', 'Administratorka studia: grafik, karnety i konta klientów.', NULL,                                 NULL,      'ACTIVE')
 ON CONFLICT DO NOTHING;
 
 INSERT INTO service_type (id, name, description, category, level, min_age, max_age, default_duration_minutes, min_participants, max_participants, calendar_color, is_active) VALUES

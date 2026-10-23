@@ -1,4 +1,4 @@
-/** Subset of the login response (API_CONVENTIONS.md, section 5) that the panel needs. */
+/** The signed-in administrator, built from `GET /api/v1/me`. */
 export type Session = {
   accountId: string;
   email: string;
@@ -6,8 +6,11 @@ export type Session = {
   roles: string[];
 };
 
-export type LoginResponse = {
-  accessToken: string;
-  refreshToken: string;
-  account: Session;
+/** Subset of the `GET /api/v1/me` response that the panel needs. */
+export type MeResponse = {
+  accountId: string;
+  email: string;
+  status: string;
+  displayName: string;
+  roles: string[];
 };

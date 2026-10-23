@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { configureApiClient } from '@/shared/api/apiClient';
 import { authService } from './authService';
 import type { Session } from './types';
@@ -6,6 +6,8 @@ import type { Session } from './types';
 type AuthContextValue = {
   session: Session | null;
   isAuthenticated: boolean;
+  /** True until the session saved by Firebase from an earlier visit has been checked. */
+  isRestoring: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
 };
@@ -14,30 +16,44 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
-  // TODO(auth): token storage decision pending; the token lives in memory only.
-  const accessToken = useRef<string | null>(null);
+  const [isRestoring, setIsRestoring] = useState(true);
 
   useEffect(() => {
     configureApiClient({
-      getAccessToken: () => accessToken.current,
+      getAccessToken: () => authService.getIdToken(),
       onUnauthorized: () => {
-        accessToken.current = null;
         setSession(null);
+        void authService.logout();
       },
     });
+
+    let active = true;
+    authService
+      .restore()
+      .then((restored) => {
+        if (active) {
+          setSession(restored);
+        }
+      })
+      .finally(() => {
+        if (active) {
+          setIsRestoring(false);
+        }
+      });
+    return () => {
+      active = false;
+    };
   }, []);
 
   const value: AuthContextValue = {
     session,
     isAuthenticated: session !== null,
+    isRestoring,
     login: async (email, password) => {
-      const response = await authService.login(email, password);
-      accessToken.current = response.accessToken;
-      setSession(response.account);
+      setSession(await authService.login(email, password));
     },
     logout: async () => {
       await authService.logout();
-      accessToken.current = null;
       setSession(null);
     },
   };

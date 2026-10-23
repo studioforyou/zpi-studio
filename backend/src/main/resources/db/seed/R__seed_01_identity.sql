@@ -30,7 +30,7 @@
 --   12 makeup_policy       24 customer_order         36 trainer_note
 --
 -- Accounts (03...NN):
---   01 Anna Kowalska      owner (admin) + trainer   ACTIVE
+--   01 Anna Kowalska      owner + trainer   ACTIVE
 --   02 Marek Nowak        trainer           ACTIVE
 --   03 Ewa Wiśniewska     trainer           ACTIVE
 --   04 Katarzyna Zielińska client           ACTIVE
@@ -39,6 +39,7 @@
 --   07 Piotr Wójcik       client            PENDING_APPROVAL
 --   08 Julia Kamińska     client            INVITED
 --   09 Adam Mazur         client            SUSPENDED
+--   10 Beata Lis          admin             ACTIVE
 
 INSERT INTO studio (id, name, time_zone, currency, group_auto_book_weeks, pt_dispute_window_hours, substitution_needs_approval)
 VALUES ('01000000-0000-0000-0000-000000000001', 'Studio For You (seed)', 'Europe/Warsaw', 'PLN', 4, 24, TRUE)
@@ -53,7 +54,8 @@ INSERT INTO account (id, email, status, created_by, activated_at, last_login_at,
     ('03000000-0000-0000-0000-000000000006', 'monika.dabrowska@seed.studioforyou.pl',  'ACTIVE',           '03000000-0000-0000-0000-000000000001', now() - interval '60 days',  now() - interval '4 days', now() - interval '60 days'),
     ('03000000-0000-0000-0000-000000000007', 'piotr.wojcik@seed.studioforyou.pl',      'PENDING_APPROVAL', NULL,                                   NULL,                        NULL,                      now() - interval '2 days'),
     ('03000000-0000-0000-0000-000000000008', 'julia.kaminska@seed.studioforyou.pl',    'INVITED',          '03000000-0000-0000-0000-000000000001', NULL,                        NULL,                      now() - interval '1 day'),
-    ('03000000-0000-0000-0000-000000000009', 'adam.mazur@seed.studioforyou.pl',        'SUSPENDED',        NULL,                                   now() - interval '200 days', now() - interval '30 days', now() - interval '201 days')
+    ('03000000-0000-0000-0000-000000000009', 'adam.mazur@seed.studioforyou.pl',        'SUSPENDED',        NULL,                                   now() - interval '200 days', now() - interval '30 days', now() - interval '201 days'),
+    ('03000000-0000-0000-0000-000000000010', 'beata.lis@seed.studioforyou.pl',         'ACTIVE',           '03000000-0000-0000-0000-000000000001', now() - interval '170 days', now() - interval '1 day',  now() - interval '170 days')
 ON CONFLICT DO NOTHING;
 
 INSERT INTO identity_link (id, account_id, provider, external_uid) VALUES
@@ -64,7 +66,8 @@ INSERT INTO identity_link (id, account_id, provider, external_uid) VALUES
     ('04000000-0000-0000-0000-000000000005', '03000000-0000-0000-0000-000000000005', 'FIREBASE', 'seed-uid-tomasz-lewandowski'),
     ('04000000-0000-0000-0000-000000000006', '03000000-0000-0000-0000-000000000006', 'FIREBASE', 'seed-uid-monika-dabrowska'),
     ('04000000-0000-0000-0000-000000000007', '03000000-0000-0000-0000-000000000007', 'FIREBASE', 'seed-uid-piotr-wojcik'),
-    ('04000000-0000-0000-0000-000000000009', '03000000-0000-0000-0000-000000000009', 'FIREBASE', 'seed-uid-adam-mazur')
+    ('04000000-0000-0000-0000-000000000009', '03000000-0000-0000-0000-000000000009', 'FIREBASE', 'seed-uid-adam-mazur'),
+    ('04000000-0000-0000-0000-000000000010', '03000000-0000-0000-0000-000000000010', 'FIREBASE', 'seed-uid-beata-lis')
 ON CONFLICT DO NOTHING;
 
 -- Only used if the app gets its own login; {noop} = plain text in Spring's DelegatingPasswordEncoder.
@@ -101,7 +104,6 @@ ON CONFLICT DO NOTHING;
 
 INSERT INTO account_role (account_id, role_id, granted_by, granted_at) VALUES
     ('03000000-0000-0000-0000-000000000001', 2, NULL,                                   now() - interval '180 days'),
-    ('03000000-0000-0000-0000-000000000001', 3, NULL,                                   now() - interval '180 days'),
     ('03000000-0000-0000-0000-000000000002', 2, '03000000-0000-0000-0000-000000000001', now() - interval '150 days'),
     ('03000000-0000-0000-0000-000000000003', 2, '03000000-0000-0000-0000-000000000001', now() - interval '120 days'),
     ('03000000-0000-0000-0000-000000000004', 1, '03000000-0000-0000-0000-000000000001', now() - interval '100 days'),
@@ -109,7 +111,8 @@ INSERT INTO account_role (account_id, role_id, granted_by, granted_at) VALUES
     ('03000000-0000-0000-0000-000000000006', 1, '03000000-0000-0000-0000-000000000001', now() - interval '60 days'),
     ('03000000-0000-0000-0000-000000000007', 1, NULL,                                   now() - interval '2 days'),
     ('03000000-0000-0000-0000-000000000008', 1, '03000000-0000-0000-0000-000000000001', now() - interval '1 day'),
-    ('03000000-0000-0000-0000-000000000009', 1, '03000000-0000-0000-0000-000000000001', now() - interval '200 days')
+    ('03000000-0000-0000-0000-000000000009', 1, '03000000-0000-0000-0000-000000000001', now() - interval '200 days'),
+    ('03000000-0000-0000-0000-000000000010', 3, '03000000-0000-0000-0000-000000000001', now() - interval '170 days')
 ON CONFLICT DO NOTHING;
 
 INSERT INTO account_permission_override (account_id, permission_id, effect, granted_by, granted_at) VALUES
