@@ -1,7 +1,6 @@
 package studioforyou.pl.backend.customer;
 
 import java.time.LocalDate;
-import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -135,69 +134,6 @@ public class CustomerProfiles {
 			.param("profileId", profileId)
 			.query(Boolean.class)
 			.single();
-	}
-
-	/** Any participant profile, whatever its status. */
-	public Optional<ProfileDetails> findById(UUID profileId) {
-		return jdbc.sql("""
-				SELECT id, kind, first_name, last_name, birth_date, status = 'ACTIVE' AS active
-				FROM customer_profile
-				WHERE id = :id
-				""")
-			.param("id", profileId)
-			.query(ProfileDetails.class)
-			.optional();
-	}
-
-	/**
-	 * Active participants, adults and children, sorted by last and first name.
-	 *
-	 * @param query part of the first and/or last name, in any order, or of the phone number;
-	 * all active participants when blank
-	 */
-	public PageResponse<ProfileDetails> searchActive(String query, int page, int size) {
-		String where = "status = 'ACTIVE'";
-		String pattern = null;
-		if (query != null && !query.isBlank()) {
-			where += """
-					 AND (first_name || ' ' || last_name ILIKE :pattern
-					   OR last_name || ' ' || first_name ILIKE :pattern
-					   OR phone ILIKE :pattern)""";
-			pattern = "%" + escapeLike(query.strip()) + "%";
-		}
-		var count = jdbc.sql("SELECT count(*) FROM customer_profile WHERE " + where);
-		var select = jdbc.sql("""
-				SELECT id, kind, first_name, last_name, birth_date, TRUE AS active
-				FROM customer_profile
-				WHERE %s
-				ORDER BY last_name, first_name, id
-				LIMIT :limit OFFSET :offset
-				""".formatted(where))
-			.param("limit", size)
-			.param("offset", (long) page * size);
-		if (pattern != null) {
-			count = count.param("pattern", pattern);
-			select = select.param("pattern", pattern);
-		}
-		long total = count.query(Long.class).single();
-		return PageResponse.of(select.query(ProfileDetails.class).list(), page, size, total);
-	}
-
-	private static String escapeLike(String text) {
-		return text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
-	}
-
-	/**
-	 * @param birthDate the date of birth, or {@code null} if unknown
-	 * @param active whether the profile has status {@code ACTIVE}
-	 */
-	public record ProfileDetails(UUID id, CustomerKind kind, String firstName, String lastName, LocalDate birthDate,
-			boolean active) {
-
-		public String displayName() {
-			return firstName + " " + lastName;
-		}
-
 	}
 
 	public record ProfileSummary(UUID id, String firstName, String lastName) {
