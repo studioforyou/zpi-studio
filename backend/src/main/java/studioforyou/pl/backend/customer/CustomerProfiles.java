@@ -8,7 +8,7 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
 /**
- * Read access to customer profiles for other modules.
+ * Access to customer profiles for other modules.
  */
 @Repository
 public class CustomerProfiles {
@@ -29,6 +29,21 @@ public class CustomerProfiles {
 			.param("accountId", accountId)
 			.query(ProfileSummary.class)
 			.optional();
+	}
+
+	/** Creates the own (adult) customer profile of a new account. */
+	public UUID createOwnProfile(UUID accountId, String firstName, String lastName, UUID createdBy) {
+		return jdbc.sql("""
+				INSERT INTO customer_profile (account_id, first_name, last_name, created_by)
+				VALUES (:accountId, :firstName, :lastName, :createdBy)
+				RETURNING id
+				""")
+			.param("accountId", accountId)
+			.param("firstName", firstName)
+			.param("lastName", lastName)
+			.param("createdBy", createdBy)
+			.query(UUID.class)
+			.single();
 	}
 
 	/** Active child profiles the given profile is a current guardian of. */

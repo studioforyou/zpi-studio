@@ -13,14 +13,14 @@ import org.springframework.web.client.RestClient;
 class MailConfiguration {
 
 	@Bean
-	EmailSender emailSender(MailProperties properties, RestClient.Builder restClientBuilder) {
+	EmailSender emailSender(MailProperties properties) {
 		return switch (properties.provider()) {
 			case BREVO -> {
 				if (properties.brevo() == null || properties.brevo().apiKey() == null
 						|| properties.brevo().apiKey().isBlank()) {
 					throw new IllegalStateException("app.mail.provider=BREVO needs app.mail.brevo.api-key (BREVO_API_KEY)");
 				}
-				yield new BrevoEmailSender(restClientBuilder, properties);
+				yield new BrevoEmailSender(RestClient.builder(), properties);
 			}
 			case LOG -> new LogEmailSender();
 		};

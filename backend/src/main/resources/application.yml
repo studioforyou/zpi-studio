@@ -66,3 +66,7 @@ app:
     brevo:
       api-key: ${BREVO_API_KEY:}
       base-url: https://api.brevo.com
+  invitations:
+    # Page that opens an invitation (the token is added as ?token=...); differs per environment.
+    link-base-url: ${INVITATION_LINK_BASE_URL:http://localhost:5173/invite}
+    valid-for: ${INVITATION_VALID_FOR:7d}
