@@ -4,6 +4,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -20,8 +21,12 @@ import org.springframework.web.servlet.HandlerExceptionResolver;
  * <p>
  * 401 and 403 responses are passed to the MVC exception handling, so they get the same
  * {@code application/problem+json} body with a {@code code} as every other error.
+ * <p>
+ * Role checks live next to the endpoints, e.g. {@code @PreAuthorize("hasRole('ADMIN')")}
+ * on a controller; account roles are granted as {@code ROLE_<code>} authorities.
  */
 @Configuration
+@EnableMethodSecurity
 public class SecurityConfig {
 
 	@Bean

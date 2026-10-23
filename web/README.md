@@ -97,9 +97,3 @@ src/
 - All backend access goes through `src/shared/api`. The panel never talks to the database or
   storage directly.
 - The API contract is described in `API_CONVENTIONS.md` and `ERROR_CODES.md` (project Wiki).
-
-## Known placeholders
-
-- The panel does not check the ADMIN role; every signed-in user can manage rooms ("Sale").
-- Service types cannot be created yet, so a room's allowed services can only be chosen once the
-  database has service types.

@@ -31,9 +31,6 @@ final class ResourceDtos {
 			@NotBlank @Size(max = MAX_NAME_LENGTH) @Schema(example = "Sala pole dance") String name,
 			@NotNull ResourceKind kind,
 			@Schema(description = "Room this one is a part of; null for a top-level room.") UUID parentResourceId,
-			@NotNull @Min(1) @Max(Short.MAX_VALUE)
-			@Schema(description = "How many events (e.g. personal trainings) can use the room at the same time.", example = "3")
-			Integer capacityUnits,
 			@Min(1) @Max(Short.MAX_VALUE)
 			@Schema(description = "Maximum number of people in group classes in this room.", example = "12")
 			Integer maxPeople,
@@ -55,10 +52,6 @@ final class ResourceDtos {
 
 		@Schema(description = "null makes the room top-level.", types = { "string", "null" }, format = "uuid")
 		private Optional<UUID> parentResourceId;
-
-		@Min(1)
-		@Max(Short.MAX_VALUE)
-		private Integer capacityUnits;
 
 		@Schema(description = "null removes the limit.", types = { "integer", "null" })
 		private Optional<@Min(1) @Max(Short.MAX_VALUE) Integer> maxPeople;
@@ -96,14 +89,6 @@ final class ResourceDtos {
 			this.parentResourceId = parentResourceId;
 		}
 
-		public Integer getCapacityUnits() {
-			return this.capacityUnits;
-		}
-
-		public void setCapacityUnits(Integer capacityUnits) {
-			this.capacityUnits = capacityUnits;
-		}
-
 		public Optional<Integer> getMaxPeople() {
 			return this.maxPeople;
 		}
@@ -138,13 +123,12 @@ final class ResourceDtos {
 
 	}
 
-	@Schema(name = "Resource", description = "A room with its capacity.")
+	@Schema(name = "Resource", description = "A room that events take place in.")
 	record ResourceResponse(
 			UUID id,
 			@Schema(example = "Sala pole dance") String name,
 			ResourceKind kind,
 			UUID parentResourceId,
-			@Schema(example = "3") int capacityUnits,
 			@Schema(example = "12") Integer maxPeople,
 			String description,
 			boolean isActive) {
@@ -152,9 +136,8 @@ final class ResourceDtos {
 		static ResourceResponse from(Resource resource) {
 			Short maxPeople = resource.getMaxPeople();
 			return new ResourceResponse(resource.getId(), resource.getName(), resource.getKind(),
-					resource.getParentResourceId(), resource.getCapacityUnits(),
-					(maxPeople != null) ? Integer.valueOf(maxPeople) : null, resource.getDescription(),
-					resource.isActive());
+					resource.getParentResourceId(), (maxPeople != null) ? Integer.valueOf(maxPeople) : null,
+					resource.getDescription(), resource.isActive());
 		}
 
 	}

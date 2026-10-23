@@ -9,12 +9,14 @@ import studioforyou.pl.backend.offering.ServiceTypeSummary;
 import studioforyou.pl.backend.offering.ServiceTypes;
 import studioforyou.pl.backend.shared.api.ListResponse;
 
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/v1/service-types")
+@PreAuthorize("hasRole('ADMIN')")
 @Tag(name = "offering")
 class ServiceTypeController {
 
@@ -24,7 +26,6 @@ class ServiceTypeController {
 		this.serviceTypes = serviceTypes;
 	}
 
-	// TODO(auth): requires authentication once authentication is implemented
 	// TODO(offering): minimal read-only list; the full service catalogue API belongs to the offering task
 	@GetMapping
 	@Operation(summary = "List active service types", operationId = "listServiceTypes")

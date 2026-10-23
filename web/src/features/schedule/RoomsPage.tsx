@@ -7,7 +7,6 @@ import { RoomFormModal } from './RoomFormModal';
 
 type OpenDialog = { type: 'create' } | { type: 'edit'; room: Resource };
 
-// TODO(auth): only administrators may manage rooms; the panel does not check roles yet.
 export function RoomsPage() {
   const texts = pl.rooms;
   const [showInactive, setShowInactive] = useState(false);
@@ -47,7 +46,6 @@ export function RoomsPage() {
               <Table.Th>{texts.columns.name}</Table.Th>
               <Table.Th>{texts.columns.kind}</Table.Th>
               <Table.Th>{texts.columns.parent}</Table.Th>
-              <Table.Th>{texts.columns.capacityUnits}</Table.Th>
               <Table.Th>{texts.columns.maxPeople}</Table.Th>
               <Table.Th>{texts.columns.status}</Table.Th>
               <Table.Th>{texts.columns.actions}</Table.Th>
@@ -68,7 +66,6 @@ export function RoomsPage() {
                 <Table.Td>
                   {room.parentResourceId ? roomNames.get(room.parentResourceId) : '—'}
                 </Table.Td>
-                <Table.Td>{room.capacityUnits}</Table.Td>
                 <Table.Td>{room.maxPeople ?? texts.noLimit}</Table.Td>
                 <Table.Td>
                   <Badge color={room.isActive ? 'green' : 'gray'} variant="light">

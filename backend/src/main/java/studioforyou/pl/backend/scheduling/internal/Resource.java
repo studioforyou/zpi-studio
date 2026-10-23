@@ -15,7 +15,8 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 /**
- * A room that events take place in, with its capacity.
+ * A room that events take place in. Whether an event takes the whole room is decided for each
+ * event, so the room itself has no capacity in parallel events.
  */
 @Entity
 @Table(name = "resource")
@@ -32,9 +33,6 @@ class Resource {
 
 	@Column(name = "parent_resource_id")
 	private UUID parentResourceId;
-
-	@Column(name = "capacity_units")
-	private short capacityUnits;
 
 	@Column(name = "max_people")
 	private Short maxPeople;
@@ -56,10 +54,9 @@ class Resource {
 	protected Resource() {
 	}
 
-	Resource(String name, ResourceKind kind, short capacityUnits) {
+	Resource(String name, ResourceKind kind) {
 		this.name = name;
 		this.kind = kind;
-		this.capacityUnits = capacityUnits;
 		this.active = true;
 	}
 
@@ -89,14 +86,6 @@ class Resource {
 
 	void setParentResourceId(UUID parentResourceId) {
 		this.parentResourceId = parentResourceId;
-	}
-
-	short getCapacityUnits() {
-		return this.capacityUnits;
-	}
-
-	void setCapacityUnits(short capacityUnits) {
-		this.capacityUnits = capacityUnits;
 	}
 
 	Short getMaxPeople() {

@@ -52,7 +52,6 @@ export function RoomFormModal({ opened, onClose, room, rooms }: RoomFormModalPro
   const [parentResourceId, setParentResourceId] = useState<string | null>(
     room?.parentResourceId ?? null,
   );
-  const [capacityUnits, setCapacityUnits] = useState<number | string>(room?.capacityUnits ?? 1);
   const [maxPeople, setMaxPeople] = useState<number | string>(room?.maxPeople ?? '');
   const [description, setDescription] = useState(room?.description ?? '');
   const [isActive, setIsActive] = useState(room?.isActive ?? true);
@@ -82,7 +81,6 @@ export function RoomFormModal({ opened, onClose, room, rooms }: RoomFormModalPro
         name: name.trim(),
         kind,
         parentResourceId,
-        capacityUnits: Number(capacityUnits),
         maxPeople: maxPeople === '' ? null : Number(maxPeople),
         description: description.trim() === '' ? null : description.trim(),
         serviceTypes: assignments ?? [],
@@ -97,8 +95,6 @@ export function RoomFormModal({ opened, onClose, room, rooms }: RoomFormModalPro
   });
 
   const nameError = submitted && name.trim() === '' ? texts.nameRequired : undefined;
-  const capacityError =
-    submitted && !isPositiveInteger(capacityUnits) ? texts.capacityRequired : undefined;
   const maxPeopleError =
     submitted && maxPeople !== '' && !isPositiveInteger(maxPeople)
       ? texts.positiveNumber
@@ -107,11 +103,7 @@ export function RoomFormModal({ opened, onClose, room, rooms }: RoomFormModalPro
   function handleNext(event: FormEvent) {
     event.preventDefault();
     setSubmitted(true);
-    if (
-      name.trim() === '' ||
-      !isPositiveInteger(capacityUnits) ||
-      (maxPeople !== '' && !isPositiveInteger(maxPeople))
-    ) {
+    if (name.trim() === '' || (maxPeople !== '' && !isPositiveInteger(maxPeople))) {
       return;
     }
     setStep('serviceTypes');
@@ -190,17 +182,6 @@ export function RoomFormModal({ opened, onClose, room, rooms }: RoomFormModalPro
               data={parentOptions}
               value={parentResourceId}
               onChange={setParentResourceId}
-            />
-            <NumberInput
-              label={texts.capacityUnits}
-              description={texts.capacityUnitsDescription}
-              required
-              min={1}
-              max={32767}
-              allowDecimal={false}
-              value={capacityUnits}
-              onChange={setCapacityUnits}
-              error={capacityError}
             />
             <NumberInput
               label={texts.maxPeople}

@@ -25,7 +25,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Defines rooms, their capacity and which service types may take place in them.
+ * Defines rooms and which service types may take place in them.
  */
 @Service
 @Transactional
@@ -64,7 +64,7 @@ class ResourceManagement {
 		if (request.parentResourceId() != null) {
 			requireParentExists(request.parentResourceId());
 		}
-		Resource resource = new Resource(name, request.kind(), request.capacityUnits().shortValue());
+		Resource resource = new Resource(name, request.kind());
 		resource.setParentResourceId(request.parentResourceId());
 		resource.setMaxPeople(toShort(request.maxPeople()));
 		resource.setDescription(normalizeDescription(request.description()));
@@ -93,9 +93,6 @@ class ResourceManagement {
 				requireValidParent(id, parentId);
 			}
 			resource.setParentResourceId(parentId);
-		}
-		if (request.getCapacityUnits() != null) {
-			resource.setCapacityUnits(request.getCapacityUnits().shortValue());
 		}
 		if (request.getMaxPeople() != null) {
 			resource.setMaxPeople(toShort(request.getMaxPeople().orElse(null)));

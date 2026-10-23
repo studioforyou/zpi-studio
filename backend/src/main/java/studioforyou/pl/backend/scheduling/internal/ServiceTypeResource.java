@@ -15,12 +15,8 @@ import jakarta.persistence.Transient;
 import org.springframework.data.domain.Persistable;
 
 /**
- * Sharing rule of a room: a service type that may take place in the room.
- *
- * <p>TODO(scheduling): the table also has {@code units_required} (capacity units the service takes,
- * NULL = the whole room), which is deliberately not mapped and stays NULL. How much of a room an
- * event takes is chosen when the event is planned ({@code event_resource.units_used}, #131). Decide
- * whether the column should become a default for that choice or be dropped in a migration.
+ * A service type that may take place in the room. Whether a given event blocks the whole room is
+ * decided for that event ({@code event_resource.blocks_whole_room}).
  */
 @Entity
 @Table(name = "service_type_resource")

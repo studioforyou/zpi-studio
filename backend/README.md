@@ -48,7 +48,7 @@ When responsibilities, table ownership, or collaboration change, update the map 
 
 The existing `configuration`, `shared`, and `system` implementations remain in place. The `system.internal` package contains `PingController`, preserving `GET /api/ping` and its existing response; `configuration` still provides `GET /api/v1/studio`.
 
-`scheduling` manages rooms, their capacity and the service types allowed in them under `/api/v1/resources` (#133). `offering` exposes the read-only `ServiceTypes` query to other modules and a minimal `GET /api/v1/service-types`; managing the service catalogue is a separate task. Neither checks roles yet (`TODO(auth)`).
+`scheduling` manages rooms and the service types allowed in them under `/api/v1/resources` (#133). `offering` exposes the read-only `ServiceTypes` query to other modules and a minimal `GET /api/v1/service-types`; managing the service catalogue is a separate task. Both are for the `ADMIN` role only (`@PreAuthorize`).
 
 Modules retain their default closed boundaries. Public types in a module's base package form its default API. Subpackages are internal unless explicitly exposed with `@NamedInterface`. The `shared.api` package declares `@NamedInterface("api")`, exposing the existing common API types to `configuration` without opening the whole `shared` module.
 

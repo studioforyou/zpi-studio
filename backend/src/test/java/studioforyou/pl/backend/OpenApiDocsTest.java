@@ -50,8 +50,8 @@ class OpenApiDocsTest {
 				"/api/v1/resources/{resourceId}/service-types", "/api/v1/service-types");
 		Map<String, Object> updateProperties = JsonPath.read(json,
 				"$.components.schemas.UpdateResourceRequest.properties");
-		assertThat(updateProperties).containsOnlyKeys("name", "kind", "parentResourceId", "capacityUnits",
-				"maxPeople", "description", "isActive", "serviceTypes");
+		assertThat(updateProperties).containsOnlyKeys("name", "kind", "parentResourceId", "maxPeople",
+				"description", "isActive", "serviceTypes");
 	}
 
 	@Test

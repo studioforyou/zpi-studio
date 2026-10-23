@@ -37,7 +37,7 @@ export const pl = {
   rooms: {
     title: 'Sale',
     intro:
-      'Pojemność sali określa, ile wydarzeń może odbywać się w niej jednocześnie (np. 3 treningi personalne). Dla każdej sali wybierasz też usługi, które mogą się w niej odbywać.',
+      'Dla każdej sali wybierasz usługi, które mogą się w niej odbywać. Czy dany trening zajmuje całą salę, ustawia się przy jego planowaniu.',
     add: 'Dodaj salę',
     showInactive: 'Pokaż nieaktywne',
     empty: 'Nie zdefiniowano jeszcze żadnej sali.',
@@ -47,7 +47,6 @@ export const pl = {
       name: 'Nazwa',
       kind: 'Typ',
       parent: 'Część sali',
-      capacityUnits: 'Pojemność (jednocześnie)',
       maxPeople: 'Maks. osób',
       status: 'Status',
       actions: 'Akcje',
@@ -64,9 +63,6 @@ export const pl = {
       kind: 'Typ zasobu',
       parent: 'Należy do sali',
       parentPlaceholder: 'Brak (samodzielna sala)',
-      capacityUnits: 'Pojemność',
-      capacityUnitsDescription:
-        'Ile wydarzeń może odbywać się w sali jednocześnie, np. 3 treningi personalne.',
       maxPeople: 'Maksymalna liczba osób',
       maxPeopleDescription: 'Limit uczestników zajęć grupowych w tej sali. Puste = bez limitu.',
       description: 'Opis',
@@ -77,7 +73,7 @@ export const pl = {
       stepServiceTypes: 'usługi',
       serviceTypes: 'Dozwolone usługi',
       serviceTypesDescription:
-        'Usługi, które mogą odbywać się w tej sali. Ile miejsca zajmuje dany trening, ustawia się przy jego planowaniu.',
+        'Usługi, które mogą odbywać się w tej sali. Czy dany trening zajmuje całą salę, ustawia się przy jego planowaniu.',
       serviceTypesPlaceholder: 'Wybierz usługi',
       noServiceTypes: 'Brak usług do wyboru.',
       serviceTypesLoadError: 'Nie udało się wczytać listy usług.',
@@ -92,7 +88,6 @@ export const pl = {
       save: 'Zapisz',
       cancel: 'Anuluj',
       nameRequired: 'Podaj nazwę sali.',
-      capacityRequired: 'Podaj pojemność (co najmniej 1).',
       positiveNumber: 'Podaj liczbę co najmniej 1.',
     },
     errors: {
@@ -101,6 +96,7 @@ export const pl = {
         'Nieprawidłowa sala nadrzędna: nie istnieje albo powstałoby zapętlenie.',
       SERVICE_TYPE_NOT_AVAILABLE: 'Wybrana usługa nie istnieje albo jest nieaktywna.',
       NOT_FOUND: 'Nie znaleziono sali. Odśwież stronę.',
+      ACCESS_DENIED: 'Nie masz uprawnień do zarządzania salami.',
       VALIDATION_FAILED: 'Sprawdź poprawność wprowadzonych danych.',
       network: 'Nie można połączyć się z backendem.',
       unexpected: 'Wystąpił nieoczekiwany błąd.',

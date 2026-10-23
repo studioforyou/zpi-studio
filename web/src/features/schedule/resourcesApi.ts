@@ -9,8 +9,6 @@ export type Resource = {
   name: string;
   kind: ResourceKind;
   parentResourceId: string | null;
-  /** How many events (e.g. personal trainings) can use the room at the same time. */
-  capacityUnits: number;
   /** Maximum number of people in group classes; null = no limit. */
   maxPeople: number | null;
   description: string | null;
@@ -27,7 +25,6 @@ export type ResourceInput = {
   name: string;
   kind: ResourceKind;
   parentResourceId: string | null;
-  capacityUnits: number;
   maxPeople: number | null;
   description: string | null;
   serviceTypes: ServiceTypeAssignment[];

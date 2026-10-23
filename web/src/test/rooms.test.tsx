@@ -9,7 +9,6 @@ const workoutRoom = {
   name: 'Siłownia',
   kind: 'ROOM',
   parentResourceId: null,
-  capacityUnits: 3,
   maxPeople: 12,
   description: null,
   isActive: true,
@@ -58,12 +57,11 @@ function requestBody(fetchMock: ReturnType<typeof stubApi>, method: string, url:
   return call ? JSON.parse(call[1].body as string) : undefined;
 }
 
-test('lists active rooms with their capacity and hides inactive ones', async () => {
+test('lists active rooms and hides inactive ones', async () => {
   stubApi(listRooms);
   renderWithProviders(<RoomsPage />);
 
   const row = (await screen.findByText('Siłownia')).closest('tr')!;
-  expect(within(row).getByText('3')).toBeInTheDocument();
   expect(within(row).getByText('12')).toBeInTheDocument();
   expect(screen.queryByText('Stara sala')).not.toBeInTheDocument();
 
@@ -92,9 +90,6 @@ test('creates a room in two steps: details, then allowed services', async () => 
   await userEvent.click(screen.getByRole('button', { name: 'Dodaj salę' }));
   const dialog = await screen.findByRole('dialog');
   await userEvent.type(within(dialog).getByLabelText(/Nazwa/), 'Sala pole dance');
-  const capacity = within(dialog).getByLabelText(/^Pojemność/);
-  await userEvent.clear(capacity);
-  await userEvent.type(capacity, '2');
   await userEvent.type(within(dialog).getByLabelText(/Maksymalna liczba osób/), '8');
   expect(within(dialog).queryByRole('button', { name: 'Zapisz' })).not.toBeInTheDocument();
   await userEvent.click(within(dialog).getByRole('button', { name: 'Dalej' }));
@@ -112,7 +107,6 @@ test('creates a room in two steps: details, then allowed services', async () => 
       name: 'Sala pole dance',
       kind: 'ROOM',
       parentResourceId: null,
-      capacityUnits: 2,
       maxPeople: 8,
       description: null,
       serviceTypes: [{ serviceTypeId: 'personal', isDefault: true }],
