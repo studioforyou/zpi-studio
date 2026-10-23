@@ -64,7 +64,7 @@ class ResourceController {
 	@ApiResponse(responseCode = "201", description = "The created room.")
 	@ApiResponse(responseCode = "409", description = "RESOURCE_NAME_ALREADY_USED", content = @Content(
 			mediaType = "application/problem+json", schema = @Schema(implementation = ApiProblem.class)))
-	@ApiResponse(responseCode = "422", description = "RESOURCE_PARENT_INVALID or SERVICE_TYPE_NOT_AVAILABLE",
+	@ApiResponse(responseCode = "422", description = "RESOURCE_PARENT_INVALID or SERVICE_TYPE_UNAVAILABLE",
 			content = @Content(mediaType = "application/problem+json",
 					schema = @Schema(implementation = ApiProblem.class)))
 	ResponseEntity<ResourceResponse> createResource(@Valid @RequestBody CreateResourceRequest request) {
@@ -83,7 +83,7 @@ class ResourceController {
 			mediaType = "application/problem+json", schema = @Schema(implementation = ApiProblem.class)))
 	@ApiResponse(responseCode = "409", description = "RESOURCE_NAME_ALREADY_USED", content = @Content(
 			mediaType = "application/problem+json", schema = @Schema(implementation = ApiProblem.class)))
-	@ApiResponse(responseCode = "422", description = "RESOURCE_PARENT_INVALID or SERVICE_TYPE_NOT_AVAILABLE",
+	@ApiResponse(responseCode = "422", description = "RESOURCE_PARENT_INVALID or SERVICE_TYPE_UNAVAILABLE",
 			content = @Content(mediaType = "application/problem+json",
 					schema = @Schema(implementation = ApiProblem.class)))
 	ResourceResponse updateResource(@PathVariable UUID resourceId,

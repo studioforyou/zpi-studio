@@ -151,7 +151,7 @@ class ResourceManagement {
 			.map(ServiceTypeSummary::id)
 			.collect(Collectors.toSet());
 		if (!activeAdded.containsAll(added)) {
-			throw new ApiException(ErrorCode.SERVICE_TYPE_NOT_AVAILABLE,
+			throw new ApiException(ErrorCode.SERVICE_TYPE_UNAVAILABLE,
 					"A service type does not exist or is not active.");
 		}
 

@@ -71,7 +71,7 @@ test('lists active rooms and hides inactive ones', async () => {
 });
 
 const listServiceTypes: Route = (url) =>
-  url === '/api/v1/service-types'
+  url === '/api/v1/service-types?active=true'
     ? json({
         items: [
           { id: 'group', name: 'Kalistenika – grupa' },

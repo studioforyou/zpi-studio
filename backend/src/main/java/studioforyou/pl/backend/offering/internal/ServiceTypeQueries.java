@@ -23,7 +23,7 @@ class ServiceTypeQueries implements ServiceTypes {
 
 	@Override
 	public Optional<ServiceTypeSummary> findById(UUID id) {
-		return this.serviceTypeRepository.findById(id).map(ServiceType::toSummary);
+		return this.serviceTypeRepository.findById(id).map(ServiceTypeQueries::toSummary);
 	}
 
 	@Override
@@ -31,15 +31,19 @@ class ServiceTypeQueries implements ServiceTypes {
 		if (ids.isEmpty()) {
 			return List.of();
 		}
-		return this.serviceTypeRepository.findAllByIdIn(ids).stream().map(ServiceType::toSummary).toList();
+		return this.serviceTypeRepository.findAllByIdIn(ids).stream().map(ServiceTypeQueries::toSummary).toList();
 	}
 
 	@Override
 	public List<ServiceTypeSummary> findActive() {
-		return this.serviceTypeRepository.findAllByActiveTrueOrderByNameAsc()
+		return this.serviceTypeRepository.findByActiveOrderByName(true)
 			.stream()
-			.map(ServiceType::toSummary)
+			.map(ServiceTypeQueries::toSummary)
 			.toList();
+	}
+
+	private static ServiceTypeSummary toSummary(ServiceType serviceType) {
+		return new ServiceTypeSummary(serviceType.getId(), serviceType.getName(), serviceType.isActive());
 	}
 
 }

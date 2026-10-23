@@ -7,18 +7,23 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import org.hibernate.annotations.Immutable;
-import studioforyou.pl.backend.offering.ServiceTypeSummary;
 
-// Read-only for now: managing the service catalogue belongs to a separate offering task.
+/**
+ * Read-only view of a service type. Managing service types is a separate feature.
+ */
 @Entity
 @Immutable
 @Table(name = "service_type")
-class ServiceType {
+public class ServiceType {
 
 	@Id
 	private UUID id;
 
 	private String name;
+
+	private String category;
+
+	private String level;
 
 	@Column(name = "is_active")
 	private boolean active;
@@ -26,8 +31,24 @@ class ServiceType {
 	protected ServiceType() {
 	}
 
-	ServiceTypeSummary toSummary() {
-		return new ServiceTypeSummary(this.id, this.name, this.active);
+	public UUID getId() {
+		return this.id;
+	}
+
+	public String getName() {
+		return this.name;
+	}
+
+	public String getCategory() {
+		return this.category;
+	}
+
+	public String getLevel() {
+		return this.level;
+	}
+
+	public boolean isActive() {
+		return this.active;
 	}
 
 }

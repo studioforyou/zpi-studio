@@ -292,12 +292,12 @@ class ResourceControllerTest {
 				{"name": "Room", "kind": "ROOM", "serviceTypes": [{"serviceTypeId": "%s"}]}
 				""".formatted(ARCHIVED_SERVICE))
 			.andExpect(status().isUnprocessableContent())
-			.andExpect(jsonPath("$.code").value("SERVICE_TYPE_NOT_AVAILABLE"));
+			.andExpect(jsonPath("$.code").value("SERVICE_TYPE_UNAVAILABLE"));
 		post("/api/v1/resources", """
 				{"name": "Room", "kind": "ROOM", "serviceTypes": [{"serviceTypeId": "%s"}]}
 				""".formatted(UUID.randomUUID()))
 			.andExpect(status().isUnprocessableContent())
-			.andExpect(jsonPath("$.code").value("SERVICE_TYPE_NOT_AVAILABLE"));
+			.andExpect(jsonPath("$.code").value("SERVICE_TYPE_UNAVAILABLE"));
 		post("/api/v1/resources", """
 				{"name": "Room", "kind": "ROOM", "serviceTypes": [
 				  {"serviceTypeId": "%1$s"}, {"serviceTypeId": "%1$s"}]}
@@ -348,8 +348,6 @@ class ResourceControllerTest {
 		this.anonymous.perform(MockMvcRequestBuilders.get("/api/v1/resources"))
 			.andExpect(status().isUnauthorized())
 			.andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
-		this.anonymous.perform(MockMvcRequestBuilders.get("/api/v1/service-types"))
-			.andExpect(status().isUnauthorized());
 	}
 
 	@Test
@@ -373,21 +371,10 @@ class ResourceControllerTest {
 					{"isActive": false}
 					""")))
 			.andExpect(status().isForbidden());
-		this.mockMvc.perform(asTrainer(MockMvcRequestBuilders.get("/api/v1/service-types")))
-			.andExpect(status().isForbidden());
 
 		this.mockMvc.perform(get("/api/v1/resources"))
 			.andExpect(jsonPath("$.items.length()").value(1))
 			.andExpect(jsonPath("$.items[0].isActive").value(true));
-	}
-
-	@Test
-	void listsOnlyActiveServiceTypes() throws Exception {
-		this.mockMvc.perform(get("/api/v1/service-types"))
-			.andExpect(status().isOk())
-			.andExpect(jsonPath("$.items.length()").value(2))
-			.andExpect(jsonPath("$.items[0].name").value("Calisthenics group"))
-			.andExpect(jsonPath("$.items[1].name").value("Personal training"));
 	}
 
 	private String createRoom(String name) throws Exception {

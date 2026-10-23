@@ -51,7 +51,8 @@ export const resourceKeys = {
   all: ['resources'] as const,
   list: () => [...resourceKeys.all, 'list'] as const,
   rules: (resourceId: string) => [...resourceKeys.all, resourceId, 'service-types'] as const,
-  serviceTypes: ['service-types'] as const,
+  // Not just ['service-types']: the passes page caches all service types under that key.
+  serviceTypes: ['service-types', 'active'] as const,
 };
 
 export async function listResources(): Promise<Resource[]> {
@@ -75,6 +76,6 @@ export async function listServiceTypeRules(resourceId: string): Promise<ServiceT
 }
 
 export async function listServiceTypes(): Promise<ServiceType[]> {
-  const response = await apiFetch<ListResponse<ServiceType>>('/api/v1/service-types');
+  const response = await apiFetch<ListResponse<ServiceType>>('/api/v1/service-types?active=true');
   return response.items;
 }
