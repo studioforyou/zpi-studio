@@ -58,7 +58,8 @@ public class MeController {
 			.orElse(account.email());
 
 		List<String> roles = account.roles().stream().sorted().toList();
-		return new MeResponse(account.id(), account.email(), account.status(), displayName, roles,
+		List<String> permissions = account.permissions().stream().sorted().toList();
+		return new MeResponse(account.id(), account.email(), account.status(), displayName, roles, permissions,
 				staffProfile.map(StaffSummary::id).orElse(null), profiles,
 				ownProfile.map(ProfileSummary::id).orElse(null));
 	}

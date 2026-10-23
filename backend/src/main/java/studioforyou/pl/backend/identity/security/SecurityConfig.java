@@ -24,6 +24,10 @@ import org.springframework.web.servlet.HandlerExceptionResolver;
  * Role checks are declared on the endpoints with {@code @PreAuthorize}, e.g.
  * {@code @PreAuthorize("hasRole('ADMIN')")}; roles come from the account's {@code account_role} rows.
  * <p>
+ * Roles and permissions are checked on the endpoints with {@code @PreAuthorize}, e.g.
+ * {@code hasRole('ADMIN')} or {@code hasAuthority('SCHEDULE_MANAGE_ALL')}; see
+ * {@link FirebaseJwtAuthenticationConverter} for the authorities an account gets.
+ * <p>
  * 401 and 403 responses are passed to the MVC exception handling, so they get the same
  * {@code application/problem+json} body with a {@code code} as every other error.
  */
