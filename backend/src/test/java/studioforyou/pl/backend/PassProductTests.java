@@ -15,6 +15,7 @@ import java.math.BigDecimal;
 import java.util.UUID;
 
 import com.jayway.jsonpath.JsonPath;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -30,16 +31,17 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
-import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Pass products: administrators define them, everyone else only reads the active offer.
  * Firebase ID tokens are mocked at the {@link JwtDecoder}, as in the authentication tests.
+ * <p>
+ * The tests are not transactional, so requests run as in production (no open session while
+ * the response is written); the data is removed after each test.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
 @Import(TestcontainersConfiguration.class)
-@Transactional
 class PassProductTests {
 
 	private static final String ADMIN_TOKEN = "admin-token";
@@ -68,6 +70,19 @@ class PassProductTests {
 		poleDance = insertServiceType("Pole dance", true);
 		calisthenics = insertServiceType("Calisthenics", true);
 		inactiveService = insertServiceType("Yoga", false);
+	}
+
+	@AfterEach
+	void tearDown() {
+		jdbc.sql("DELETE FROM pass_product_service").update();
+		jdbc.sql("DELETE FROM pass_product_variant").update();
+		jdbc.sql("DELETE FROM pass_product").update();
+		jdbc.sql("DELETE FROM service_type").update();
+		jdbc.sql("DELETE FROM account_role WHERE account_id IN (SELECT id FROM account WHERE email LIKE '%@example.com')")
+			.update();
+		jdbc.sql("DELETE FROM identity_link WHERE account_id IN (SELECT id FROM account WHERE email LIKE '%@example.com')")
+			.update();
+		jdbc.sql("DELETE FROM account WHERE email LIKE '%@example.com'").update();
 	}
 
 	@Test

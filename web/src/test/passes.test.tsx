@@ -119,3 +119,16 @@ test('shows why the server rejected a new variant', async () => {
     ),
   ).toBeInTheDocument();
 });
+
+test('marks the missing variant fields instead of sending an incomplete variant', async () => {
+  const onPost = vi.fn(() => json(product, 201));
+  mockApi(onPost);
+  renderWithProviders(<PassesPage />);
+  await userEvent.click(await screen.findByText('Karnet Pole Dance'));
+  const dialog = await screen.findByRole('dialog');
+
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Dodaj wariant' }));
+
+  expect(within(dialog).getAllByText('To pole jest wymagane.')).toHaveLength(2);
+  expect(onPost).not.toHaveBeenCalled();
+});

@@ -8,6 +8,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
+import org.hibernate.Hibernate;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -41,13 +43,18 @@ public class PassProductCatalog {
 	 */
 	@Transactional(readOnly = true)
 	public List<PassProduct> list(Boolean active) {
-		return (active != null) ? products.findByActiveOrderByName(active) : products.findAllByOrderByName();
+		List<PassProduct> result = (active != null) ? products.findByActiveOrderByName(active)
+				: products.findAllByOrderByName();
+		result.forEach(PassProductCatalog::loadCollections);
+		return result;
 	}
 
 	@Transactional(readOnly = true)
 	public PassProduct get(UUID productId) {
-		return products.findById(productId)
+		PassProduct product = products.findById(productId)
 			.orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "Pass product not found."));
+		loadCollections(product);
+		return product;
 	}
 
 	public PassProduct create(NewProduct command) {
@@ -167,6 +174,15 @@ public class PassProductCatalog {
 				command.price(), command.currency(), now);
 		product.addVariant(variant);
 		return variant;
+	}
+
+	/**
+	 * Loads the lazy collections while the transaction is open: responses are built after it
+	 * ends ({@code spring.jpa.open-in-view} is off).
+	 */
+	private static void loadCollections(PassProduct product) {
+		Hibernate.initialize(product.getVariants());
+		Hibernate.initialize(product.getServiceTypeIds());
 	}
 
 	private static void requireActive(PassProduct product) {

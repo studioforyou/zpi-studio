@@ -76,6 +76,7 @@ function PassProductDetails({
   const queryClient = useQueryClient();
   const [values, setValues] = useState(() => toFormValues(product));
   const [newVariant, setNewVariant] = useState<VariantFormValues>(emptyVariant);
+  const [variantSubmitted, setVariantSubmitted] = useState(false);
   const [showInactive, setShowInactive] = useState(false);
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['pass-products'] });
 
@@ -109,9 +110,17 @@ function PassProductDetails({
       }),
     onSuccess: async () => {
       setNewVariant(emptyVariant);
+      setVariantSubmitted(false);
       await refresh();
     },
   });
+
+  function submitVariant() {
+    setVariantSubmitted(true);
+    if (isVariantComplete(newVariant)) {
+      addVariant.mutate();
+    }
+  }
 
   const variants = product.variants.filter((variant) => showInactive || variant.isActive);
   const error = save.error ?? toggleArchive.error ?? addVariant.error;
@@ -178,14 +187,13 @@ function PassProductDetails({
 
       {product.isActive && (
         <Stack gap="xs">
-          <VariantFields values={newVariant} onChange={setNewVariant} />
+          <VariantFields
+            values={newVariant}
+            onChange={setNewVariant}
+            showErrors={variantSubmitted}
+          />
           <Group justify="flex-end">
-            <Button
-              variant="light"
-              onClick={() => addVariant.mutate()}
-              loading={addVariant.isPending}
-              disabled={!isVariantComplete(newVariant)}
-            >
+            <Button variant="light" onClick={submitVariant} loading={addVariant.isPending}>
               {pl.passes.variants.add}
             </Button>
           </Group>

@@ -22,6 +22,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
+import org.hibernate.annotations.BatchSize;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
@@ -70,9 +71,11 @@ public class PassProduct {
 
 	@OneToMany(mappedBy = "product", cascade = CascadeType.ALL)
 	@OrderBy("validFrom, entriesCount, validityDays")
+	@BatchSize(size = 50)
 	private List<PassProductVariant> variants = new ArrayList<>();
 
 	@ElementCollection
+	@BatchSize(size = 50)
 	@CollectionTable(name = "pass_product_service", joinColumns = @JoinColumn(name = "product_id"))
 	@Column(name = "service_type_id")
 	private Set<UUID> serviceTypeIds = new HashSet<>();

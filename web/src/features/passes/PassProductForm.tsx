@@ -1,5 +1,6 @@
 import {
   Checkbox,
+  Flex,
   Group,
   MultiSelect,
   NumberInput,
@@ -88,11 +89,14 @@ export function ProductFields({
         clearable
       />
       <Group align="flex-end">
-        <Switch
-          label={pl.passes.form.suspensionAllowed}
-          checked={values.suspensionAllowed}
-          onChange={(event) => set('suspensionAllowed', event.currentTarget.checked)}
-        />
+        {/* Same height as the input, so the switch sits level with its box, not its label. */}
+        <Flex h="var(--input-height-sm)" align="center">
+          <Switch
+            label={pl.passes.form.suspensionAllowed}
+            checked={values.suspensionAllowed}
+            onChange={(event) => set('suspensionAllowed', event.currentTarget.checked)}
+          />
+        </Flex>
         {values.suspensionAllowed && (
           <NumberInput
             label={pl.passes.form.maxSuspensionDays}
@@ -110,16 +114,20 @@ export function ProductFields({
 type VariantFieldsProps = {
   values: VariantFormValues;
   onChange: (values: VariantFormValues) => void;
+  showErrors?: boolean;
 };
 
-export function VariantFields({ values, onChange }: VariantFieldsProps) {
+export function VariantFields({ values, onChange, showErrors = false }: VariantFieldsProps) {
   const set = <K extends keyof VariantFormValues>(key: K, value: VariantFormValues[K]) =>
     onChange({ ...values, [key]: value });
   const toNumber = (value: string | number) => (typeof value === 'number' ? value : null);
+  const required = (missing: boolean) =>
+    showErrors && missing ? pl.passes.form.required : undefined;
 
   return (
-    <Group align="flex-end" grow>
-      <Stack gap={4}>
+    <Stack gap="xs">
+      {/* Top alignment keeps the three boxes level, also when one of them shows an error. */}
+      <Group align="flex-start" grow>
         <NumberInput
           label={pl.passes.variants.entries}
           min={1}
@@ -127,28 +135,31 @@ export function VariantFields({ values, onChange }: VariantFieldsProps) {
           disabled={values.unlimitedEntries}
           value={values.unlimitedEntries ? '' : (values.entriesCount ?? '')}
           onChange={(count) => set('entriesCount', toNumber(count))}
+          error={required(!values.unlimitedEntries && (values.entriesCount ?? 0) <= 0)}
         />
-        <Checkbox
-          label={pl.passes.variants.unlimitedEntries}
-          checked={values.unlimitedEntries}
-          onChange={(event) => set('unlimitedEntries', event.currentTarget.checked)}
+        <NumberInput
+          label={pl.passes.variants.validityDays}
+          min={1}
+          allowDecimal={false}
+          value={values.validityDays ?? ''}
+          onChange={(days) => set('validityDays', toNumber(days))}
+          error={required((values.validityDays ?? 0) <= 0)}
         />
-      </Stack>
-      <NumberInput
-        label={pl.passes.variants.validityDays}
-        min={1}
-        allowDecimal={false}
-        value={values.validityDays ?? ''}
-        onChange={(days) => set('validityDays', toNumber(days))}
+        <NumberInput
+          label={pl.passes.variants.price}
+          min={0}
+          decimalScale={2}
+          decimalSeparator=","
+          value={values.price ?? ''}
+          onChange={(price) => set('price', toNumber(price))}
+          error={required(values.price === null || values.price < 0)}
+        />
+      </Group>
+      <Checkbox
+        label={pl.passes.variants.unlimitedEntries}
+        checked={values.unlimitedEntries}
+        onChange={(event) => set('unlimitedEntries', event.currentTarget.checked)}
       />
-      <NumberInput
-        label={pl.passes.variants.price}
-        min={0}
-        decimalScale={2}
-        decimalSeparator=","
-        value={values.price ?? ''}
-        onChange={(price) => set('price', toNumber(price))}
-      />
-    </Group>
+    </Stack>
   );
 }

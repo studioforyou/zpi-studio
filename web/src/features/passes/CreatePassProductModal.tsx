@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Alert, Button, Divider, Group, Modal, Stack, Text } from '@mantine/core';
+import { Alert, Button, Divider, Group, Modal, Stack } from '@mantine/core';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { pl } from '@/shared/i18n/pl';
 import { passErrorMessage, toMinorUnits } from './passFormat';
@@ -83,12 +83,7 @@ export function CreatePassProductModal({ opened, onClose, serviceTypes }: Props)
           showErrors={submitted}
         />
         <Divider label={pl.passes.form.firstVariant} labelPosition="left" />
-        <VariantFields values={variant} onChange={setVariant} />
-        {submitted && !isVariantComplete(variant) && (
-          <Text c="red" size="sm">
-            {pl.passes.form.required}
-          </Text>
-        )}
+        <VariantFields values={variant} onChange={setVariant} showErrors={submitted} />
         {create.isError && <Alert color="red">{passErrorMessage(create.error)}</Alert>}
         <Group justify="flex-end">
           <Button variant="default" onClick={close}>
