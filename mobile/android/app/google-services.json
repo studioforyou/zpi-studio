@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "694274887286",
+    "project_id": "studioforyou-stage",
+    "storage_bucket": "studioforyou-stage.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:694274887286:android:7365b016f2ce0c1eb1d957",
+        "android_client_info": {
+          "package_name": "pl.studioforyou.mobile"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "694274887286-2op16m12lffp5eo3sc8j5qhohnj77orm.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBHE7nyH5Md2xOB2gdsbnOkbBo4u5ldjDo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "694274887286-2op16m12lffp5eo3sc8j5qhohnj77orm.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

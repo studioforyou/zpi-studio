@@ -45,3 +45,5 @@ jobs:
           service: zpi-backend-${{ vars.GCP_ENV }}
           region: ${{ vars.GCP_REGION }}
           image: ${{ env.IMAGE }}:${{ github.sha }}
+          # Firebase Authentication runs in the same GCP project; must match FIREBASE_PROJECT_ID in Terraform (cloud_run.tf).
+          env_vars: FIREBASE_PROJECT_ID=${{ vars.GCP_PROJECT_ID }}

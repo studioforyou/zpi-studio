@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:mobile/app/intro/login_intro.dart';
 import 'package:mobile/app/ping/ping_screen.dart';
 import 'package:mobile/app/shell/role_shell.dart';
+import 'package:mobile/app/splash/splash_screen.dart';
 import 'package:mobile/core/auth/auth_controller.dart';
 import 'package:mobile/core/auth/auth_state.dart';
 import 'package:mobile/features/accounts/presentation/login_screen.dart';
@@ -15,6 +17,7 @@ import 'package:mobile/features/trainings/presentation/reservations_screen.dart'
 import 'package:mobile/features/trainings/presentation/trainings_screen.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
 
+const splashPath = '/splash';
 const loginPath = '/login';
 const pingPath = '/ping';
 
@@ -131,18 +134,25 @@ class _RouterRefreshNotifier extends ChangeNotifier {
 final appRouterProvider = Provider<GoRouter>((ref) {
   final notifier = _RouterRefreshNotifier();
   ref.listen(authControllerProvider, (_, _) => notifier.refresh());
+  ref.listen(loginCoveredProvider, (_, _) => notifier.refresh());
 
   final router = GoRouter(
-    initialLocation: loginPath,
+    initialLocation: splashPath,
     refreshListenable: notifier,
     redirect: (context, state) {
       final location = state.matchedLocation;
       switch (ref.read(authControllerProvider)) {
+        case AuthRestoring():
+          return location == splashPath ? null : splashPath;
         case Unauthenticated():
           return location == loginPath || location == pingPath
               ? null
               : loginPath;
         case Authenticated(:final session):
+          // Just logged in: stay until the intro covers the login screen.
+          if (location == loginPath && !ref.read(loginCoveredProvider)) {
+            return null;
+          }
           final role = session.activeRole.name;
           if (location == loginPath || !location.startsWith('/$role/')) {
             return '/$role/schedule';
@@ -151,6 +161,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       }
     },
     routes: [
+      GoRoute(path: splashPath, builder: (_, _) => const SplashScreen()),
       GoRoute(path: loginPath, builder: (_, _) => const LoginScreen()),
       GoRoute(path: pingPath, builder: (_, _) => const PingScreen()),
       _clientShell(),

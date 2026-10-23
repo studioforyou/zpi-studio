@@ -18,7 +18,7 @@ class ProfileScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(title: Text(l10n.navProfile)),
       body: switch (ref.watch(authControllerProvider)) {
-        Unauthenticated() => const SizedBox(),
+        AuthRestoring() || Unauthenticated() => const SizedBox(),
         Authenticated(:final session) => ListView(
           padding: const EdgeInsets.all(16),
           children: [

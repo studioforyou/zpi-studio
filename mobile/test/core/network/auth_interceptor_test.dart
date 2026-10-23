@@ -1,45 +1,16 @@
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mobile/core/auth/token_storage.dart';
 import 'package:mobile/core/network/auth_interceptor.dart';
 
-/// Keeps tokens in memory instead of the platform secure storage.
-class _MemoryTokenStorage implements TokenStorage {
-  _MemoryTokenStorage({this.accessToken});
-
-  String? accessToken;
-  String? refreshToken;
-
-  @override
-  Future<String?> readAccessToken() async => accessToken;
-
-  @override
-  Future<String?> readRefreshToken() async => refreshToken;
-
-  @override
-  Future<void> saveTokens({
-    required String accessToken,
-    required String refreshToken,
-  }) async {
-    this.accessToken = accessToken;
-    this.refreshToken = refreshToken;
-  }
-
-  @override
-  Future<void> clear() async {
-    accessToken = null;
-    refreshToken = null;
-  }
-}
-
-/// Answers 200 only to requests carrying the valid token, 401 otherwise.
+/// Answers every request with [statusCode] and remembers its headers.
 class _FakeAdapter implements HttpClientAdapter {
-  _FakeAdapter(this.validToken);
+  _FakeAdapter(this.statusCode);
 
-  final String validToken;
-  final List<String?> sentAuthHeaders = [];
+  final int statusCode;
+  Map<String, dynamic>? lastHeaders;
 
   @override
   Future<ResponseBody> fetch(
@@ -47,11 +18,14 @@ class _FakeAdapter implements HttpClientAdapter {
     Stream<Uint8List>? requestStream,
     Future<void>? cancelFuture,
   ) async {
-    final header = options.headers['Authorization'] as String?;
-    sentAuthHeaders.add(header);
-    return header == 'Bearer $validToken'
-        ? ResponseBody.fromString('ok', 200)
-        : ResponseBody.fromString('', 401);
+    lastHeaders = options.headers;
+    return ResponseBody.fromString(
+      jsonEncode({}),
+      statusCode,
+      headers: {
+        Headers.contentTypeHeader: [Headers.jsonContentType],
+      },
+    );
   }
 
   @override
@@ -59,95 +33,45 @@ class _FakeAdapter implements HttpClientAdapter {
 }
 
 void main() {
-  late _MemoryTokenStorage storage;
   late _FakeAdapter adapter;
-  late Dio dio;
-  late int refreshCalls;
-  late int logoutCalls;
+  late int unauthorizedCalls;
 
-  void setUpDio({required Future<bool> Function() refresh}) {
-    dio = Dio(BaseOptions(baseUrl: 'http://test'))..httpClientAdapter = adapter;
-    dio.interceptors.add(
-      AuthInterceptor(
-        dio,
-        storage,
-        refreshTokens: () {
-          refreshCalls++;
-          return refresh();
-        },
-        onUnauthorized: () => logoutCalls++,
-      ),
-    );
+  Dio dio({required int statusCode, String? token}) {
+    adapter = _FakeAdapter(statusCode);
+    unauthorizedCalls = 0;
+    return Dio()
+      ..httpClientAdapter = adapter
+      ..interceptors.add(
+        AuthInterceptor(
+          () async => token,
+          onUnauthorized: () => unauthorizedCalls++,
+        ),
+      );
   }
 
-  setUp(() {
-    storage = _MemoryTokenStorage(accessToken: 'expired');
-    adapter = _FakeAdapter('fresh');
-    refreshCalls = 0;
-    logoutCalls = 0;
+  test('the ID token is sent as a bearer token', () async {
+    await dio(statusCode: 200, token: 'id-token').get<Object?>('/x');
+
+    expect(adapter.lastHeaders?['Authorization'], 'Bearer id-token');
   });
 
-  test('refreshes once and retries the request', () async {
-    setUpDio(
-      refresh: () async {
-        storage.accessToken = 'fresh';
-        return true;
-      },
-    );
+  test('without a signed-in user no token is sent', () async {
+    await dio(statusCode: 200).get<Object?>('/x');
 
-    final response = await dio.get<String>('/data');
-
-    expect(response.statusCode, 200);
-    expect(adapter.sentAuthHeaders, ['Bearer expired', 'Bearer fresh']);
-    expect(refreshCalls, 1);
-    expect(logoutCalls, 0);
+    expect(adapter.lastHeaders, isNot(contains('Authorization')));
   });
 
-  test('concurrent 401s share one refresh', () async {
-    setUpDio(
-      refresh: () async {
-        await Future<void>.delayed(const Duration(milliseconds: 10));
-        storage.accessToken = 'fresh';
-        return true;
-      },
-    );
+  test('a 401 logs the user out', () async {
+    final client = dio(statusCode: 401, token: 'expired');
 
-    await Future.wait([dio.get<String>('/a'), dio.get<String>('/b')]);
-
-    expect(refreshCalls, 1);
-    expect(logoutCalls, 0);
+    await expectLater(client.get<Object?>('/x'), throwsA(isA<DioException>()));
+    expect(unauthorizedCalls, 1);
   });
 
-  test('logs out when the refresh fails', () async {
-    setUpDio(refresh: () async => false);
+  test('other errors do not log the user out', () async {
+    final client = dio(statusCode: 403, token: 'id-token');
 
-    await expectLater(dio.get<String>('/data'), throwsA(isA<DioException>()));
-
-    expect(refreshCalls, 1);
-    expect(logoutCalls, 1);
-  });
-
-  test('logs out when the retried request is rejected again', () async {
-    setUpDio(
-      refresh: () async {
-        storage.accessToken = 'still-wrong';
-        return true;
-      },
-    );
-
-    await expectLater(dio.get<String>('/data'), throwsA(isA<DioException>()));
-
-    expect(refreshCalls, 1);
-    expect(logoutCalls, 1);
-  });
-
-  test('does not refresh requests sent without a token', () async {
-    storage.accessToken = null;
-    setUpDio(refresh: () async => true);
-
-    await expectLater(dio.get<String>('/login'), throwsA(isA<DioException>()));
-
-    expect(refreshCalls, 0);
-    expect(logoutCalls, 0);
+    await expectLater(client.get<Object?>('/x'), throwsA(isA<DioException>()));
+    expect(unauthorizedCalls, 0);
   });
 }

@@ -2,10 +2,28 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mobile/core/auth/app_role.dart';
 import 'package:mobile/core/auth/auth_repository.dart';
 import 'package:mobile/core/auth/auth_state.dart';
+import 'package:mobile/core/auth/session.dart';
 
 class AuthController extends Notifier<AuthState> {
   @override
-  AuthState build() => const Unauthenticated();
+  AuthState build() {
+    _restore();
+    return const AuthRestoring();
+  }
+
+  Future<void> _restore() async {
+    Session? session;
+    try {
+      session = await ref.read(authRepositoryProvider).restore();
+    } catch (_) {
+      session = null;
+    }
+    // A login or logout in the meantime wins.
+    if (!ref.mounted || state is! AuthRestoring) {
+      return;
+    }
+    state = session == null ? const Unauthenticated() : Authenticated(session);
+  }
 
   Future<void> login(String email, String password) async {
     final session = await ref
