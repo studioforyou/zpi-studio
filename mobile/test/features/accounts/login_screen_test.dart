@@ -23,6 +23,9 @@ class _FailingAuthRepository implements AuthRepository {
 
   @override
   Future<void> logout() async {}
+
+  @override
+  Future<void> sendPasswordReset(String email) async {}
 }
 
 void main() {

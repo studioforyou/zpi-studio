@@ -13,6 +13,25 @@
   "loginErrorAccountInactive": "Twoje konto jest nieaktywne. Skontaktuj się z obsługą studia.",
   "loginErrorNoSupportedRole": "Twoje konto nie ma dostępu do aplikacji mobilnej.",
   "loginErrorUnknown": "Nie udało się zalogować. Spróbuj ponownie.",
+  "loginForgotPassword": "Nie pamiętam hasła",
+  "resetTitle": "Reset hasła",
+  "resetIntro": "Zdarza się najlepszym. Podaj adres e-mail, na który możemy wysłać link do ustawnienia nowego hasła.",
+  "resetSendButton": "Wyślij link",
+  "resetResendButton": "Wyślij ponownie",
+  "resetResendCountdown": "Wyślij ponownie ({seconds} s)",
+  "@resetResendCountdown": {
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
+  "resetBackToLogin": "Powrót do logowania",
+  "resetSent": "Jeśli konto o tym adresie istnieje, wysłaliśmy na nie link do zmiany hasła. Sprawdź skrzynkę.",
+  "resetErrorInvalidEmail": "Podaj poprawny adres e-mail.",
+  "resetErrorTooManyAttempts": "Zbyt wiele prób. Spróbuj ponownie za chwilę.",
+  "resetErrorNetwork": "Brak połączenia z serwerem. Sprawdź internet i spróbuj ponownie.",
+  "resetErrorUnknown": "Nie udało się wysłać wiadomości. Spróbuj ponownie.",
   "navSchedule": "Grafik",
   "navPasses": "Karnety",
   "navTrainings": "Treningi",
