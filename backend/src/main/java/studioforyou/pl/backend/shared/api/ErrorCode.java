@@ -4,6 +4,7 @@ import org.springframework.http.HttpStatus;
 
 /**
  * API error codes, each with the HTTP status it is returned with.
+ * API error codes, each with the HTTP status it is returned with.
  */
 public enum ErrorCode {
 
@@ -18,11 +19,17 @@ public enum ErrorCode {
 	UNSUPPORTED_MEDIA_TYPE(HttpStatus.UNSUPPORTED_MEDIA_TYPE),
 	INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR),
 
+	// customer
+	CUSTOMER_NOT_ACTIVE(HttpStatus.UNPROCESSABLE_CONTENT),
+
 	// offering
 	PASS_VARIANT_ALREADY_EXISTS(HttpStatus.CONFLICT),
 	PASS_PRODUCT_ARCHIVED(HttpStatus.UNPROCESSABLE_CONTENT),
 	PASS_VARIANT_INACTIVE(HttpStatus.UNPROCESSABLE_CONTENT),
-	SERVICE_TYPE_UNAVAILABLE(HttpStatus.UNPROCESSABLE_CONTENT);
+	SERVICE_TYPE_UNAVAILABLE(HttpStatus.UNPROCESSABLE_CONTENT),
+
+	// membership
+	PASS_AUDIENCE_MISMATCH(HttpStatus.UNPROCESSABLE_CONTENT);
 
 	private final HttpStatus status;
 

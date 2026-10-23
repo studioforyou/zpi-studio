@@ -8,12 +8,14 @@ import {
   SegmentedControl,
   Stack,
   Table,
+  Tabs,
   Text,
   Title,
 } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
 import { pl } from '@/shared/i18n/pl';
 import { CreatePassProductModal } from './CreatePassProductModal';
+import { CustomerPassesPanel } from './CustomerPassesPanel';
 import { PassProductModal } from './PassProductModal';
 import { listPassProducts, listServiceTypes } from './passesApi';
 
@@ -26,6 +28,26 @@ const filterToActive: Record<Filter, boolean | undefined> = {
 };
 
 export function PassesPage() {
+  return (
+    <Stack>
+      <Title order={2}>{pl.passes.title}</Title>
+      <Tabs defaultValue="offer">
+        <Tabs.List>
+          <Tabs.Tab value="offer">{pl.customerPasses.tabs.offer}</Tabs.Tab>
+          <Tabs.Tab value="assigned">{pl.customerPasses.tabs.assigned}</Tabs.Tab>
+        </Tabs.List>
+        <Tabs.Panel value="offer" pt="md">
+          <PassProductsPanel />
+        </Tabs.Panel>
+        <Tabs.Panel value="assigned" pt="md">
+          <CustomerPassesPanel />
+        </Tabs.Panel>
+      </Tabs>
+    </Stack>
+  );
+}
+
+function PassProductsPanel() {
   const [filter, setFilter] = useState<Filter>('active');
   const [creating, setCreating] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -42,19 +64,17 @@ export function PassesPage() {
   return (
     <Stack>
       <Group justify="space-between">
-        <Title order={2}>{pl.passes.title}</Title>
+        <SegmentedControl
+          value={filter}
+          onChange={(value) => setFilter(value as Filter)}
+          data={[
+            { value: 'active', label: pl.passes.filter.active },
+            { value: 'archived', label: pl.passes.filter.archived },
+            { value: 'all', label: pl.passes.filter.all },
+          ]}
+        />
         <Button onClick={() => setCreating(true)}>{pl.passes.add}</Button>
       </Group>
-      <SegmentedControl
-        w="fit-content"
-        value={filter}
-        onChange={(value) => setFilter(value as Filter)}
-        data={[
-          { value: 'active', label: pl.passes.filter.active },
-          { value: 'archived', label: pl.passes.filter.archived },
-          { value: 'all', label: pl.passes.filter.all },
-        ]}
-      />
       {products.isPending ? (
         <Loader />
       ) : products.isError ? (
