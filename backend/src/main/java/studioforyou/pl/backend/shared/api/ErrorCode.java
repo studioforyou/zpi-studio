@@ -4,7 +4,6 @@ import org.springframework.http.HttpStatus;
 
 /**
  * API error codes, each with the HTTP status it is returned with.
- * API error codes, each with the HTTP status it is returned with.
  */
 public enum ErrorCode {
 
@@ -29,7 +28,11 @@ public enum ErrorCode {
 	SERVICE_TYPE_UNAVAILABLE(HttpStatus.UNPROCESSABLE_CONTENT),
 
 	// membership
-	PASS_AUDIENCE_MISMATCH(HttpStatus.UNPROCESSABLE_CONTENT);
+	PASS_AUDIENCE_MISMATCH(HttpStatus.UNPROCESSABLE_CONTENT),
+
+	// scheduling: rooms and the service types allowed in them
+	RESOURCE_NAME_ALREADY_USED(HttpStatus.CONFLICT),
+	RESOURCE_PARENT_INVALID(HttpStatus.UNPROCESSABLE_CONTENT);
 
 	private final HttpStatus status;
 

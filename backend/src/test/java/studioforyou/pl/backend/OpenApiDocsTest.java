@@ -42,6 +42,19 @@ class OpenApiDocsTest {
 	}
 
 	@Test
+	void documentsRoomEndpoints() throws Exception {
+		String json = apiDocs();
+
+		Map<String, Object> paths = JsonPath.read(json, "$.paths");
+		assertThat(paths).containsKeys("/api/v1/resources", "/api/v1/resources/{resourceId}",
+				"/api/v1/resources/{resourceId}/service-types", "/api/v1/service-types");
+		Map<String, Object> updateProperties = JsonPath.read(json,
+				"$.components.schemas.UpdateResourceRequest.properties");
+		assertThat(updateProperties).containsOnlyKeys("name", "kind", "parentResourceId", "maxPeople",
+				"description", "isActive", "serviceTypes");
+	}
+
+	@Test
 	void sessionOperationsGetAuthErrors() throws Exception {
 		Map<String, Object> responses = JsonPath.read(apiDocs(), "$.paths['/api/v1/studio'].get.responses");
 
