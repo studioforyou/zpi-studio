@@ -1,4 +1,4 @@
-package studioforyou.pl.backend.membership.web;
+package studioforyou.pl.backend.membership.internal;
 
 import java.net.URI;
 import java.util.UUID;
@@ -22,8 +22,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 import studioforyou.pl.backend.configuration.StudioSettings;
 import studioforyou.pl.backend.identity.CurrentAccount;
-import studioforyou.pl.backend.membership.internal.CustomerPass;
-import studioforyou.pl.backend.membership.internal.CustomerPassService;
 import studioforyou.pl.backend.shared.api.ApiProblem;
 
 /**

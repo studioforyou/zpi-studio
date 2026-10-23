@@ -1,4 +1,4 @@
-package studioforyou.pl.backend.offering.web;
+package studioforyou.pl.backend.offering.internal;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;

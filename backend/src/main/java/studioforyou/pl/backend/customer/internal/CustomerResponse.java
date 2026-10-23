@@ -1,4 +1,4 @@
-package studioforyou.pl.backend.customer.web;
+package studioforyou.pl.backend.customer.internal;
 
 import java.time.LocalDate;
 import java.util.UUID;

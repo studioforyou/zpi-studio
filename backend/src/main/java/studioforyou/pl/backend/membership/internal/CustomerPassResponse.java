@@ -1,4 +1,4 @@
-package studioforyou.pl.backend.membership.web;
+package studioforyou.pl.backend.membership.internal;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -7,7 +7,6 @@ import java.util.UUID;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 import studioforyou.pl.backend.membership.CustomerPassStatus;
-import studioforyou.pl.backend.membership.internal.CustomerPass;
 import studioforyou.pl.backend.shared.api.Money;
 
 /**

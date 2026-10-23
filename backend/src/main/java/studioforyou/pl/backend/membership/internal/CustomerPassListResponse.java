@@ -1,4 +1,4 @@
-package studioforyou.pl.backend.membership.web;
+package studioforyou.pl.backend.membership.internal;
 
 import java.util.List;
 
