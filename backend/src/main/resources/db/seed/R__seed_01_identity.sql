@@ -1,4 +1,4 @@
--- Seed 01: studio, accounts, roles/permissions, files
+-- Seed 01: studio, accounts, role assignments and default permissions, files
 --
 -- DEV/STAGE TEST DATA ONLY. Loaded by the "seed" Spring profile (application-seed.yml),
 -- which the dev and stage profiles switch on. Never part of production.
@@ -10,7 +10,7 @@
 --    or recreate the local database (docker compose down -v).
 --  * Fixed ids, readable by table: 'TT000000-0000-0000-0000-0000000000NN',
 --    TT = table number (see the list below), NN = row number.
---  * Dictionaries that will come from real migrations (permission, notification_type) use
+--  * Dictionaries that will come from real migrations (notification_type) use
 --    ids >= 900 and a SEED_ code prefix, so a later V__ migration cannot collide with them.
 --  * Accounts log in through Firebase only if a Firebase user with the given UID exists;
 --    to log in as yourself use scripts/db/create_dev_account.sql.
@@ -87,22 +87,19 @@ INSERT INTO account_invitation (id, account_id, token_hash, sent_by, sent_at, ex
      '03000000-0000-0000-0000-000000000001', now() - interval '62 days', now() - interval '55 days', NULL, now() - interval '61 days')
 ON CONFLICT DO NOTHING;
 
--- Placeholder permissions until the permission model migration exists.
-INSERT INTO permission (id, code, category, description) VALUES
-    (901, 'SEED_SCHEDULE_MANAGE_ALL',   'SCHEDULE',     'Edit the whole schedule (seed placeholder)'),
-    (902, 'SEED_SCHEDULE_EDIT_OWN',     'SCHEDULE',     'Edit own classes (seed placeholder)'),
-    (903, 'SEED_AVAILABILITY_EDIT_OWN', 'SCHEDULE',     'Edit own availability (seed placeholder)'),
-    (904, 'SEED_CUSTOMER_HEALTH_READ',  'CUSTOMER',     'Read client health data (seed placeholder)'),
-    (905, 'SEED_PASS_ADJUST',           'MEMBERSHIP',   'Adjust client passes (seed placeholder)'),
-    (906, 'SEED_ATTENDANCE_CORRECT',    'BOOKING',      'Correct attendance (seed placeholder)'),
-    (907, 'SEED_BOOKING_SELF',          'BOOKING',      'Book own classes (seed placeholder)')
-ON CONFLICT DO NOTHING;
+-- The permissions come from a migration. Placeholder permissions loaded by earlier versions
+-- of this seed (ids >= 900, SEED_ prefix) are removed together with their assignments.
+DELETE FROM account_permission_override WHERE permission_id IN (SELECT id FROM permission WHERE id >= 900 AND code LIKE 'SEED\_%');
+DELETE FROM role_permission WHERE permission_id IN (SELECT id FROM permission WHERE id >= 900 AND code LIKE 'SEED\_%');
+DELETE FROM permission WHERE id >= 900 AND code LIKE 'SEED\_%';
 
+-- Default permissions of the roles in this test studio. A real studio sets up its own;
+-- ADMIN always has every permission, so it needs no rows here.
+-- TRAINER: SCHEDULE_EDIT_OWN, AVAILABILITY_EDIT_OWN, ATTENDANCE_CORRECT.
 INSERT INTO role_permission (role_id, permission_id) VALUES
-    (1, 907),
-    (2, 902),
-    (2, 903),
-    (2, 906)
+    (2, 4),
+    (2, 5),
+    (2, 8)
 ON CONFLICT DO NOTHING;
 
 INSERT INTO account_role (account_id, role_id, granted_by, granted_at) VALUES
@@ -121,10 +118,10 @@ INSERT INTO account_role (account_id, role_id, granted_by, granted_at) VALUES
 ON CONFLICT DO NOTHING;
 
 INSERT INTO account_permission_override (account_id, permission_id, effect, granted_by, granted_at) VALUES
-    ('03000000-0000-0000-0000-000000000001', 901, 'GRANT',  '03000000-0000-0000-0000-000000000001', now() - interval '180 days'),
-    ('03000000-0000-0000-0000-000000000001', 904, 'GRANT',  '03000000-0000-0000-0000-000000000001', now() - interval '180 days'),
-    ('03000000-0000-0000-0000-000000000001', 905, 'GRANT',  '03000000-0000-0000-0000-000000000001', now() - interval '180 days'),
-    ('03000000-0000-0000-0000-000000000003', 906, 'REVOKE', '03000000-0000-0000-0000-000000000001', now() - interval '100 days')
+    ('03000000-0000-0000-0000-000000000001', 3,   'GRANT',  '03000000-0000-0000-0000-000000000001', now() - interval '180 days'),
+    ('03000000-0000-0000-0000-000000000001', 6,   'GRANT',  '03000000-0000-0000-0000-000000000001', now() - interval '180 days'),
+    ('03000000-0000-0000-0000-000000000001', 7,   'GRANT',  '03000000-0000-0000-0000-000000000001', now() - interval '180 days'),
+    ('03000000-0000-0000-0000-000000000003', 8,   'REVOKE', '03000000-0000-0000-0000-000000000001', now() - interval '100 days')
 ON CONFLICT DO NOTHING;
 
 INSERT INTO account_status_change (id, account_id, from_status, to_status, changed_by, reason, changed_at) VALUES
