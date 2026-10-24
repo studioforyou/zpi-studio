@@ -311,6 +311,7 @@ export function EventFormModal({
                   type="date"
                   label={texts.endsOn}
                   description={texts.endsOnDescription}
+                  inputWrapperOrder={['label', 'input', 'description', 'error']}
                   required
                   value={endsOn}
                   onChange={(event) => setEndsOn(event.currentTarget.value)}
@@ -365,6 +366,7 @@ export function EventFormModal({
               <NumberInput
                 label={texts.capacity}
                 description={texts.capacityDescription}
+                inputWrapperOrder={['label', 'input', 'description', 'error']}
                 min={1}
                 max={32767}
                 allowDecimal={false}
