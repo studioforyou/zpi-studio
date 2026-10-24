@@ -47,7 +47,12 @@ abstract class ScheduleTestSupport {
 
 	static final String ADMIN_TOKEN = "schedule-admin-token";
 
+	/** A trainer account without a staff profile. */
 	static final String TRAINER_TOKEN = "schedule-trainer-token";
+
+	static final String ANNA_TOKEN = "schedule-anna-token";
+
+	static final String MAREK_TOKEN = "schedule-marek-token";
 
 	static final String TEST_EMAIL_DOMAIN = "@schedule.test";
 
@@ -93,8 +98,8 @@ abstract class ScheduleTestSupport {
 	@BeforeEach
 	void setUpStudio() {
 		cleanUp();
-		UUID annaAccount = insertAccount("anna", "TRAINER", null);
-		UUID marekAccount = insertAccount("marek", "TRAINER", null);
+		UUID annaAccount = insertAccount("anna", "TRAINER", ANNA_TOKEN);
+		UUID marekAccount = insertAccount("marek", "TRAINER", MAREK_TOKEN);
 		UUID formerAccount = insertAccount("former", "TRAINER", null);
 		insertAccount("admin", "ADMIN", ADMIN_TOKEN);
 		insertAccount("trainer", "TRAINER", TRAINER_TOKEN);
@@ -202,7 +207,11 @@ abstract class ScheduleTestSupport {
 	}
 
 	static MockHttpServletRequestBuilder asTrainer(MockHttpServletRequestBuilder request) {
-		return request.header(HttpHeaders.AUTHORIZATION, "Bearer " + TRAINER_TOKEN);
+		return as(TRAINER_TOKEN, request);
+	}
+
+	static MockHttpServletRequestBuilder as(String token, MockHttpServletRequestBuilder request) {
+		return request.header(HttpHeaders.AUTHORIZATION, "Bearer " + token);
 	}
 
 	void setStatus(String eventId, String status) {

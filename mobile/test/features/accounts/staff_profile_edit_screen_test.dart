@@ -14,6 +14,7 @@ import 'package:mobile/core/auth/auth_state.dart';
 import 'package:mobile/core/auth/session.dart';
 import 'package:mobile/core/network/dio_provider.dart';
 import 'package:mobile/features/accounts/presentation/staff_profile_edit_screen.dart';
+import 'package:mobile/features/schedule/data/schedule_api.dart';
 
 const _session = Session(
   accountId: 'account-1',
@@ -73,6 +74,16 @@ class _ProfileAdapter implements HttpClientAdapter {
     Stream<Uint8List>? requestStream,
     Future<void>? cancelFuture,
   ) async {
+    // The trainer shell opens on the schedule tab.
+    if (options.path == ownScheduleEventsPath) {
+      return ResponseBody.fromString(
+        jsonEncode({'items': []}),
+        200,
+        headers: {
+          Headers.contentTypeHeader: [Headers.jsonContentType],
+        },
+      );
+    }
     if (options.method == 'GET') {
       fetchCount++;
       if (pendingFetch != null) {

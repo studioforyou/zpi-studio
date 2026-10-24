@@ -252,5 +252,39 @@
       }
     }
   },
-  "passSuspensionNotAllowed": "Bez możliwości zawieszenia"
+  "passSuspensionNotAllowed": "Bez możliwości zawieszenia",
+  "scheduleViewDay": "Dzień",
+  "scheduleViewWeek": "Tydzień",
+  "scheduleViewMonth": "Miesiąc",
+  "schedulePrevious": "Poprzedni",
+  "scheduleNext": "Następny",
+  "scheduleToday": "Dziś",
+  "scheduleEmptyDay": "Brak zajęć",
+  "scheduleLoadError": "Nie udało się pobrać grafiku.",
+  "scheduleRetryButton": "Spróbuj ponownie",
+  "eventKindClass": "Zajęcia grupowe",
+  "eventKindPersonalTraining": "Trening personalny",
+  "eventKindWorkshop": "Warsztaty",
+  "eventKindConsultation": "Konsultacja",
+  "eventKindBlock": "Blokada",
+  "eventStatusCancelled": "Odwołane",
+  "eventStatusCompleted": "Zakończone",
+  "scheduleFilters": "Filtry",
+  "scheduleFiltersActive": "Filtry ({count})",
+  "@scheduleFiltersActive": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "scheduleFiltersClear": "Wyczyść",
+  "scheduleFilterKind": "Rodzaj",
+  "scheduleFilterRole": "Moja rola",
+  "scheduleFilterRoleAny": "Wszystkie",
+  "scheduleFilterRoleLead": "Prowadzę",
+  "scheduleFilterRoleAssistant": "Asystuję",
+  "scheduleFilterRoom": "Sala",
+  "scheduleFilterNoRooms": "Brak sal w tym okresie",
+  "scheduleFilterShowCancelled": "Pokaż odwołane"
 }

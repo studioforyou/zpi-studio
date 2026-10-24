@@ -16,6 +16,7 @@ import 'package:mobile/features/communication/presentation/messages_screen.dart'
 import 'package:mobile/features/passes/presentation/passes_screen.dart';
 import 'package:mobile/features/schedule/presentation/availability_screen.dart';
 import 'package:mobile/features/schedule/presentation/schedule_screen.dart';
+import 'package:mobile/features/schedule/presentation/trainer_schedule_screen.dart';
 import 'package:mobile/features/trainings/presentation/reservations_screen.dart';
 import 'package:mobile/features/trainings/presentation/trainings_screen.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
@@ -103,7 +104,7 @@ StatefulShellRoute _clientShell() => _roleShell([
 StatefulShellRoute _trainerShell() => _roleShell([
   _tab(
     trainerSchedulePath,
-    const ScheduleScreen(),
+    const TrainerScheduleScreen(),
     Icons.calendar_month,
     (l10n) => l10n.navSchedule,
   ),
