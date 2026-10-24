@@ -2,7 +2,7 @@ import { ApiError, INVALID_RESPONSE, NETWORK_ERROR } from './ApiError';
 import type { ProblemDetails } from './problem';
 
 type ApiClientConfig = {
-  getAccessToken: () => string | null;
+  getAccessToken: () => Promise<string | null>;
   onUnauthorized: () => void;
 };
 
@@ -15,7 +15,7 @@ type ApiFetchInit = {
 };
 
 let config: ApiClientConfig = {
-  getAccessToken: () => null,
+  getAccessToken: async () => null,
   onUnauthorized: () => {},
 };
 
@@ -31,7 +31,7 @@ export async function apiFetch<T>(path: string, init: ApiFetchInit = {}): Promis
   if (init.body !== undefined) {
     headers['Content-Type'] = 'application/json';
   }
-  const token = config.getAccessToken();
+  const token = await config.getAccessToken();
   if (token) {
     headers.Authorization = `Bearer ${token}`;
   }
@@ -58,7 +58,7 @@ export async function apiFetch<T>(path: string, init: ApiFetchInit = {}): Promis
   }
 
   if (response.status === 401) {
-    // TODO(auth): refresh the token once, then log out (API_CONVENTIONS.md, section 5).
+    // Firebase refreshes the ID token on its own, so a 401 means the session is over.
     config.onUnauthorized();
   }
   const problem = await readProblem(response);

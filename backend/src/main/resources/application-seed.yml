@@ -1,0 +1,5 @@
+# Test data for dev and stage (switched on through the profile groups in application.yml).
+# Flyway also runs the repeatable migrations in db/seed, after all versioned migrations.
+spring:
+  flyway:
+    locations: classpath:db/migration,classpath:db/seed
