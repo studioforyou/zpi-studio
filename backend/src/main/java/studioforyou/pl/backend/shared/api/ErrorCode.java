@@ -37,7 +37,17 @@ public enum ErrorCode {
 
 	// scheduling: rooms and the service types allowed in them
 	RESOURCE_NAME_ALREADY_USED(HttpStatus.CONFLICT),
-	RESOURCE_PARENT_INVALID(HttpStatus.UNPROCESSABLE_CONTENT);
+	RESOURCE_PARENT_INVALID(HttpStatus.UNPROCESSABLE_CONTENT),
+
+	// scheduling: events, recurring series and their staff and resources
+	/** A room is already taken at that time. */
+	RESOURCE_CAPACITY_EXCEEDED(HttpStatus.CONFLICT),
+	/** A staff member already runs another event at that time or is on approved leave. */
+	STAFF_SCHEDULE_CONFLICT(HttpStatus.CONFLICT),
+	RESOURCE_UNAVAILABLE(HttpStatus.UNPROCESSABLE_CONTENT),
+	STAFF_UNAVAILABLE(HttpStatus.UNPROCESSABLE_CONTENT),
+	SERVICE_NOT_ALLOWED_IN_ROOM(HttpStatus.UNPROCESSABLE_CONTENT),
+	EVENT_NOT_EDITABLE(HttpStatus.UNPROCESSABLE_CONTENT);
 
 	private final HttpStatus status;
 

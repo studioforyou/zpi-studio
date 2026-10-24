@@ -54,6 +54,8 @@ The `staff` module provides read and update operations for the signed-in trainer
 
 The trainer profile controller and HTTP DTOs live in `staff.internal`, alongside the module's persistence implementation. They obtain the active account ID through `shared.api.AccountAuthentication`, implemented by the verified identity token. The existing `identity` session lookup still uses the public `StaffProfiles` contract, without introducing a reverse `staff` dependency on `identity`.
 
+`scheduling` also holds the studio's schedule (#130, #131): one-off and recurring events with their staff and rooms (`/api/v1/schedule-events`, `/api/v1/recurrence-series`), for `ADMIN` accounts only. It reads staff members, their qualifications, leave and working hours through `staff`'s `StaffProfiles` and `StaffAvailability`, and the studio's time zone through `configuration`'s `StudioSettings`. `staff` lists staff members (`GET /api/v1/staff`) and `trainings` lists training groups (`GET /api/v1/training-groups`) for administrators.
+
 Modules retain their default closed boundaries. Public types in a module's base package form its default API. Subpackages are internal unless explicitly exposed with `@NamedInterface`. The `shared.api` package declares `@NamedInterface("api")`, exposing the existing common API types to `configuration` without opening the whole `shared` module.
 
 `ModuleArchitectureTest` checks that `ApplicationModules.of(BackendApplication.class)` discovers exactly the 18 modules listed above, including those containing only package declarations, and calls `verify()` to check module boundaries and dependency cycles. It runs without starting a Spring context, database, or Docker.

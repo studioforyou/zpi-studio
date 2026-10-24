@@ -1,5 +1,6 @@
 package studioforyou.pl.backend.scheduling.internal;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -24,6 +25,8 @@ interface ResourceRepository extends Repository<Resource, UUID> {
 	Optional<Resource> findByIdForUpdate(@Param("id") UUID id);
 
 	List<Resource> findAllByOrderByNameAsc();
+
+	List<Resource> findAllByIdIn(Collection<UUID> ids);
 
 	List<Resource> findAllByActiveOrderByNameAsc(boolean active);
 
