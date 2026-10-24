@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:mobile/core/auth/app_role.dart';
 import 'package:mobile/core/auth/auth_controller.dart';
 import 'package:mobile/core/auth/auth_state.dart';
+import 'package:mobile/features/accounts/data/staff_profile_provider.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
 
 class ProfileScreen extends ConsumerWidget {
@@ -22,7 +23,16 @@ class ProfileScreen extends ConsumerWidget {
         Authenticated(:final session) => ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            Text(session.displayName),
+            Text(
+              session.activeRole == AppRole.trainer
+                  ? ref
+                            .watch(staffProfileProvider(session.accountId))
+                            .asData
+                            ?.value
+                            .displayName ??
+                        session.displayName
+                  : session.displayName,
+            ),
             if (session.roles.length > 1) ...[
               Text(l10n.profileRoleSection, style: sectionStyle),
               Wrap(
@@ -53,13 +63,20 @@ class ProfileScreen extends ConsumerWidget {
                 ],
               ),
             ],
-            if (session.activeRole == AppRole.trainer)
+            if (session.activeRole == AppRole.trainer) ...[
+              ListTile(
+                leading: const Icon(Icons.edit_outlined),
+                title: Text(l10n.staffProfileEditTitle),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => context.push('/trainer/profile/edit'),
+              ),
               ListTile(
                 leading: const Icon(Icons.schedule),
                 title: Text(l10n.navAvailability),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () => context.push('/trainer/profile/availability'),
               ),
+            ],
             OutlinedButton(
               onPressed: controller.logout,
               child: Text(l10n.logoutButton),
