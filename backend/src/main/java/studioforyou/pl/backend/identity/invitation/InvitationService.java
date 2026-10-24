@@ -6,6 +6,7 @@ import java.util.UUID;
 
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -70,17 +71,24 @@ public class InvitationService {
 			.query(Boolean.class)
 			.single();
 		if (exists) {
-			throw new ApiException(ErrorCode.ACCOUNT_ALREADY_EXISTS, "An account with this e-mail already exists.");
+			throw accountAlreadyExists();
 		}
 
-		UUID accountId = jdbc.sql("""
-				INSERT INTO account (email, status, created_by) VALUES (:email, 'INVITED', :invitedBy)
-				RETURNING id
-				""")
-			.param("email", normalizedEmail)
-			.param("invitedBy", invitedBy)
-			.query(UUID.class)
-			.single();
+		UUID accountId;
+		try {
+			accountId = jdbc.sql("""
+					INSERT INTO account (email, status, created_by) VALUES (:email, 'INVITED', :invitedBy)
+					RETURNING id
+					""")
+				.param("email", normalizedEmail)
+				.param("invitedBy", invitedBy)
+				.query(UUID.class)
+				.single();
+		}
+		catch (DuplicateKeyException ex) {
+			// Someone else invited the same e-mail at the same moment.
+			throw accountAlreadyExists();
+		}
 		jdbc.sql("""
 				INSERT INTO account_role (account_id, role_id, granted_by)
 				SELECT :accountId, id, :invitedBy FROM role WHERE code = :role
@@ -207,6 +215,10 @@ public class InvitationService {
 			throw new ApiException(ErrorCode.INVITATION_EXPIRED, "This invitation has expired.");
 		}
 		return invitation;
+	}
+
+	private static ApiException accountAlreadyExists() {
+		return new ApiException(ErrorCode.ACCOUNT_ALREADY_EXISTS, "An account with this e-mail already exists.");
 	}
 
 	private String link(String token) {

@@ -3,6 +3,7 @@ package studioforyou.pl.backend.identity.web;
 import jakarta.validation.Valid;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -14,10 +15,11 @@ import studioforyou.pl.backend.identity.invitation.NewInvitation;
 import studioforyou.pl.backend.identity.security.AccountAuthenticationToken;
 
 /**
- * Sending e-mail invitations. Only for accounts with the {@code ADMIN} role (see {@code SecurityConfig}).
+ * Sending e-mail invitations. Only for accounts with the {@code ADMIN} role.
  */
 @RestController
 @RequestMapping("/api/v1/invitations")
+@PreAuthorize("hasRole('ADMIN')")
 public class InvitationsController {
 
 	private final InvitationService invitationService;

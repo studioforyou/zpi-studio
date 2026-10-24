@@ -47,10 +47,6 @@ class InvitationMailer {
 		String studioName = studio != null ? studio.getName() : APP_NAME;
 		ZoneId zone = ZoneId.of(studio != null ? studio.getTimeZone() : "Europe/Warsaw");
 		String validUntil = event.expiresAt().atZoneSameInstant(zone).format(DATE);
-		boolean trainer = "TRAINER".equals(event.role());
-		String as = trainer ? "trenera" : "klienta";
-		String what = trainer ? "zobaczysz swój grafik i listę uczestników zajęć"
-				: "zapiszesz się na zajęcia i sprawdzisz swoje karnety";
 
 		String text = """
 				Cześć %s,

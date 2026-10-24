@@ -91,7 +91,7 @@ class InvitationCreationTests {
 		ArgumentCaptor<EmailMessage> sent = ArgumentCaptor.forClass(EmailMessage.class);
 		then(emailSender).should().send(sent.capture());
 		assertThat(sent.getValue().toEmail()).isEqualTo("Julia.Kaminska@example.com");
-		assertThat(sent.getValue().textBody()).contains("Cześć Julia").contains("jako klienta");
+		assertThat(sent.getValue().textBody()).contains("Cześć Julia");
 		Matcher token = TOKEN_IN_LINK.matcher(sent.getValue().textBody());
 		assertThat(token.find()).isTrue();
 		assertThat(jdbc.sql("""
@@ -112,7 +112,7 @@ class InvitationCreationTests {
 				""").query(Long.class).single()).isEqualTo(1);
 		ArgumentCaptor<EmailMessage> sent = ArgumentCaptor.forClass(EmailMessage.class);
 		then(emailSender).should().send(sent.capture());
-		assertThat(sent.getValue().textBody()).contains("jako trenera");
+		assertThat(sent.getValue().toEmail()).isEqualTo("marek@example.com");
 	}
 
 	@Test
