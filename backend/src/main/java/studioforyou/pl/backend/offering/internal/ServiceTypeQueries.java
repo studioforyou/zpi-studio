@@ -43,7 +43,10 @@ class ServiceTypeQueries implements ServiceTypes {
 	}
 
 	private static ServiceTypeSummary toSummary(ServiceType serviceType) {
-		return new ServiceTypeSummary(serviceType.getId(), serviceType.getName(), serviceType.isActive());
+		Short maxParticipants = serviceType.getMaxParticipants();
+		return new ServiceTypeSummary(serviceType.getId(), serviceType.getName(), serviceType.isActive(),
+				serviceType.getCategory(), serviceType.getDefaultDurationMinutes(),
+				(maxParticipants != null) ? Integer.valueOf(maxParticipants) : null);
 	}
 
 }

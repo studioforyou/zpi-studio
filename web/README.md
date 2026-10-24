@@ -79,15 +79,28 @@ src/
   test/       test setup and tests
 ```
 
-| Feature         | Backend modules                                       |
-| --------------- | ----------------------------------------------------- |
-| `schedule`      | scheduling, group_training, personal_training (rooms) |
-| `accounts`      | identity, customer, staff                             |
-| `passes`        | membership, payments                                  |
-| `trainings`     | personal_training, group_training                     |
-| `communication` | communication                                         |
-| `statistics`    | statistics                                            |
-| `auth`          | identity                                              |
+| Feature         | Backend modules                                |
+| --------------- | ---------------------------------------------- |
+| `schedule`      | scheduling (schedule, rooms), staff, trainings |
+| `accounts`      | identity, customer, staff                      |
+| `passes`        | membership, payments                           |
+| `trainings`     | personal_training, group_training              |
+| `communication` | communication                                  |
+| `statistics`    | statistics                                     |
+| `auth`          | identity                                       |
+
+## Schedule
+
+"Grafik" shows every event of the studio (classes, personal training, workshops, consultations and
+blocks) in a day, week, month or list view, always in the studio's time zone from
+`GET /api/v1/studio`. Filters run in the browser on the loaded period: text, kind, staff, room,
+service, category, level, group, status, visibility, recurrence, weekdays, time of day, age group
+and missing staff or room.
+
+"Dodaj wydarzenie" (or a click on an empty slot) plans a one-off or a recurring event with its
+staff and rooms. The second step shows every date with the conflicts and warnings the
+backend found; dates of a recurring event can be left out before saving. An event's details offer
+"Zmień obsadę i salę" for one event or the following ones of its series.
 
 ## Conventions
 

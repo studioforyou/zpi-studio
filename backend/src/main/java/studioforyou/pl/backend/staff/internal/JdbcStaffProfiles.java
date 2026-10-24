@@ -1,11 +1,18 @@
 package studioforyou.pl.backend.staff.internal;
 
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
 import jakarta.validation.ConstraintViolationException;
 import jakarta.validation.Validator;
+import org.jspecify.annotations.Nullable;
 
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
@@ -76,6 +83,58 @@ public class JdbcStaffProfiles implements StaffProfiles {
 			.param("accountId", accountId)
 			.update();
 		return updated;
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public List<StaffMember> findAllById(Collection<UUID> ids) {
+		if (ids.isEmpty()) {
+			return List.of();
+		}
+		return jdbc.sql("""
+				SELECT id, first_name, last_name, calendar_color, status = 'ACTIVE' AS active
+				FROM staff_profile
+				WHERE id IN (:ids)
+				""")
+			.param("ids", ids)
+			.query(StaffMember.class)
+			.list();
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public List<StaffMember> findAll(@Nullable Boolean active) {
+		String where = (active == null) ? "" : "WHERE (status = 'ACTIVE') = :active";
+		var query = jdbc.sql("""
+				SELECT id, first_name, last_name, calendar_color, status = 'ACTIVE' AS active
+				FROM staff_profile
+				%s
+				ORDER BY last_name, first_name, id
+				""".formatted(where));
+		if (active != null) {
+			query = query.param("active", active);
+		}
+		return query.query(StaffMember.class).list();
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public Map<UUID, Set<UUID>> findQualifications(Collection<UUID> staffIds) {
+		Map<UUID, Set<UUID>> result = new HashMap<>();
+		if (staffIds.isEmpty()) {
+			return result;
+		}
+		jdbc.sql("""
+				SELECT staff_id, service_type_id
+				FROM staff_qualification
+				WHERE staff_id IN (:staffIds)
+				""")
+			.param("staffIds", staffIds)
+			.query((rs) -> {
+				result.computeIfAbsent(rs.getObject("staff_id", UUID.class), (id) -> new HashSet<>())
+					.add(rs.getObject("service_type_id", UUID.class));
+			});
+		return result;
 	}
 
 	private StaffProfile findProfile(UUID accountId, boolean lock) {

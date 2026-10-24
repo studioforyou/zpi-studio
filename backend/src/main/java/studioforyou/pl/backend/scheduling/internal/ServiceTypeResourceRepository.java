@@ -12,6 +12,8 @@ interface ServiceTypeResourceRepository extends Repository<ServiceTypeResource, 
 
 	List<ServiceTypeResource> findAllByKeyResourceId(UUID resourceId);
 
+	List<ServiceTypeResource> findAllByKeyServiceTypeId(UUID serviceTypeId);
+
 	/**
 	 * A service type has at most one default room, so making a room the default clears the others.
 	 */
