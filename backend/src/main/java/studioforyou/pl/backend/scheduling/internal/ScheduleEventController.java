@@ -83,6 +83,13 @@ class ScheduleEventController {
 			@RequestParam(required = false) @Nullable List<UUID> resourceId,
 			@RequestParam(required = false) @Nullable List<UUID> trainingGroupId,
 			@RequestParam(required = false) @Nullable List<UUID> seriesId) {
+		requireValidWindow(from, to);
+		return new ListResponse<>(this.queries.findEvents(new TimetableFilter(from, to, kind, status, visibility,
+				serviceTypeId, staffId, resourceId, trainingGroupId, seriesId)));
+	}
+
+	/** Rejects a timetable window that is empty or longer than {@link #MAX_WINDOW}. */
+	static void requireValidWindow(Instant from, Instant to) {
 		if (!to.isAfter(from)) {
 			throw ApiException.invalidField("to", FieldErrorCode.OUT_OF_RANGE, "to must be after from.");
 		}
@@ -90,8 +97,6 @@ class ScheduleEventController {
 			throw ApiException.invalidField("to", FieldErrorCode.OUT_OF_RANGE,
 					"The window may be at most " + MAX_WINDOW.toDays() + " days long.");
 		}
-		return new ListResponse<>(this.queries.findEvents(new TimetableFilter(from, to, kind, status, visibility,
-				serviceTypeId, staffId, resourceId, trainingGroupId, seriesId)));
 	}
 
 	@GetMapping("/{eventId}")

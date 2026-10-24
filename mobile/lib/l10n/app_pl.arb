@@ -202,5 +202,21 @@
       }
     }
   },
-  "passSuspensionNotAllowed": "Bez możliwości zawieszenia"
+  "passSuspensionNotAllowed": "Bez możliwości zawieszenia",
+  "scheduleViewDay": "Dzień",
+  "scheduleViewWeek": "Tydzień",
+  "scheduleViewMonth": "Miesiąc",
+  "schedulePrevious": "Poprzedni",
+  "scheduleNext": "Następny",
+  "scheduleToday": "Dziś",
+  "scheduleEmptyDay": "Brak zajęć",
+  "scheduleLoadError": "Nie udało się pobrać grafiku.",
+  "scheduleRetryButton": "Spróbuj ponownie",
+  "eventKindClass": "Zajęcia grupowe",
+  "eventKindPersonalTraining": "Trening personalny",
+  "eventKindWorkshop": "Warsztaty",
+  "eventKindConsultation": "Konsultacja",
+  "eventKindBlock": "Blokada",
+  "eventStatusCancelled": "Odwołane",
+  "eventStatusCompleted": "Zakończone"
 }
