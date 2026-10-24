@@ -4,6 +4,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -20,10 +21,14 @@ import org.springframework.web.servlet.HandlerExceptionResolver;
  * invitation is public: the secret token in the link is the proof. Sending one needs the
  * {@code ADMIN} role (roles are granted to active accounts only).
  * <p>
+ * Role checks are declared on the endpoints with {@code @PreAuthorize}, e.g.
+ * {@code @PreAuthorize("hasRole('ADMIN')")}; roles come from the account's {@code account_role} rows.
+ * <p>
  * 401 and 403 responses are passed to the MVC exception handling, so they get the same
  * {@code application/problem+json} body with a {@code code} as every other error.
  */
 @Configuration
+@EnableMethodSecurity
 public class SecurityConfig {
 
 	@Bean

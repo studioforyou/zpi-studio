@@ -3,7 +3,7 @@ package studioforyou.pl.backend.shared.api;
 import org.springframework.http.HttpStatus;
 
 /**
- * Generic API error codes, each with the HTTP status it is returned with.
+ * API error codes, each with the HTTP status it is returned with.
  */
 public enum ErrorCode {
 
@@ -21,7 +21,23 @@ public enum ErrorCode {
 	ACCOUNT_ALREADY_EXISTS(HttpStatus.CONFLICT),
 	UNSUPPORTED_MEDIA_TYPE(HttpStatus.UNSUPPORTED_MEDIA_TYPE),
 	INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR),
-	EMAIL_NOT_SENT(HttpStatus.BAD_GATEWAY);
+	EMAIL_NOT_SENT(HttpStatus.BAD_GATEWAY),
+
+	// customer
+	CUSTOMER_NOT_ACTIVE(HttpStatus.UNPROCESSABLE_CONTENT),
+
+	// offering
+	PASS_VARIANT_ALREADY_EXISTS(HttpStatus.CONFLICT),
+	PASS_PRODUCT_ARCHIVED(HttpStatus.UNPROCESSABLE_CONTENT),
+	PASS_VARIANT_INACTIVE(HttpStatus.UNPROCESSABLE_CONTENT),
+	SERVICE_TYPE_UNAVAILABLE(HttpStatus.UNPROCESSABLE_CONTENT),
+
+	// membership
+	PASS_AUDIENCE_MISMATCH(HttpStatus.UNPROCESSABLE_CONTENT),
+
+	// scheduling: rooms and the service types allowed in them
+	RESOURCE_NAME_ALREADY_USED(HttpStatus.CONFLICT),
+	RESOURCE_PARENT_INVALID(HttpStatus.UNPROCESSABLE_CONTENT);
 
 	private final HttpStatus status;
 
