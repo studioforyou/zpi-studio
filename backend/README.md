@@ -48,7 +48,11 @@ When responsibilities, table ownership, or collaboration change, update the map 
 
 The existing `configuration`, `shared`, and `system` implementations remain in place. The `system.internal` package contains `PingController`, preserving `GET /api/ping` and its existing response; `configuration` still provides `GET /api/v1/studio`. `offering` provides the pass product catalogue (`/api/v1/pass-products`, changed only by `ADMIN` accounts) and a read-only list of service types (`GET /api/v1/service-types`). `customer` provides a search of active participants for administrators (`GET /api/v1/customers`). `membership` lets administrators assign passes to participants and list them (`/api/v1/customers/{customerId}/passes`); it reads variant terms through `offering`'s `PassVariantLookup`, participants through `customer`'s `CustomerProfiles`, and today's date and the currency through `configuration`'s `StudioSettings`.
 
+The `staff` module provides read and update operations for the signed-in trainer's personal details through `GET` and `PATCH /api/v1/me/staff-profile`, available to active accounts with the `TRAINER` role.
+
 `scheduling` manages rooms and the service types allowed in them under `/api/v1/resources` (#133), for `ADMIN` accounts only; it reads service types through `offering`'s `ServiceTypes`.
+
+The trainer profile controller and HTTP DTOs live in `staff.internal`, alongside the module's persistence implementation. They obtain the active account ID through `shared.api.AccountAuthentication`, implemented by the verified identity token. The existing `identity` session lookup still uses the public `StaffProfiles` contract, without introducing a reverse `staff` dependency on `identity`.
 
 Modules retain their default closed boundaries. Public types in a module's base package form its default API. Subpackages are internal unless explicitly exposed with `@NamedInterface`. The `shared.api` package declares `@NamedInterface("api")`, exposing the existing common API types to `configuration` without opening the whole `shared` module.
 
