@@ -10,6 +10,7 @@ import org.springframework.stereotype.Repository;
 
 import studioforyou.pl.backend.shared.api.PageResponse;
 
+
 /**
  * Read access to customer profiles for other modules.
  */
@@ -109,6 +110,30 @@ public class CustomerProfiles {
 			return firstName + " " + lastName;
 		}
 
+	}
+
+	/**
+	 * Whether the account may act for the profile: it is the account's own active profile,
+	 * or an active child the account's own profile is a current guardian of.
+	 */
+	public boolean isActingFor(UUID accountId, UUID profileId) {
+		return jdbc.sql("""
+				SELECT EXISTS (
+				  SELECT 1 FROM customer_profile
+				  WHERE id = :profileId AND account_id = :accountId AND status = 'ACTIVE'
+				  UNION ALL
+				  SELECT 1
+				  FROM guardianship g
+				  JOIN customer_profile guardian ON guardian.id = g.guardian_id
+				  JOIN customer_profile c ON c.id = g.child_id
+				  WHERE g.child_id = :profileId AND g.ended_at IS NULL AND c.status = 'ACTIVE'
+				    AND guardian.account_id = :accountId AND guardian.status = 'ACTIVE'
+				)
+				""")
+			.param("accountId", accountId)
+			.param("profileId", profileId)
+			.query(Boolean.class)
+			.single();
 	}
 
 	public record ProfileSummary(UUID id, String firstName, String lastName) {

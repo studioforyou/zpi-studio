@@ -63,6 +63,18 @@ public class CustomerPassService {
 	}
 
 	/**
+	 * Passes of a profile the account acts for, newest first, without cancelled ones. A profile
+	 * the account may not act for is reported as not found, so its existence is not revealed.
+	 */
+	@Transactional(readOnly = true)
+	public List<CustomerPass> listOwn(UUID accountId, UUID profileId) {
+		if (!customers.isActingFor(accountId, profileId)) {
+			throw new ApiException(ErrorCode.NOT_FOUND, "Participant not found.");
+		}
+		return passes.findByCustomerIdAndStatusNotOrderByCreatedAtDesc(profileId, CustomerPassStatus.CANCELLED);
+	}
+
+	/**
 	 * Assigns a pass with the variant's terms to an active participant. It is valid for the
 	 * variant's number of days, counting the start date, and is scheduled when it starts later
 	 * than today in the studio's time zone.
