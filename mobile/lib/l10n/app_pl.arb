@@ -218,5 +218,23 @@
   "eventKindConsultation": "Konsultacja",
   "eventKindBlock": "Blokada",
   "eventStatusCancelled": "Odwołane",
-  "eventStatusCompleted": "Zakończone"
+  "eventStatusCompleted": "Zakończone",
+  "scheduleFilters": "Filtry",
+  "scheduleFiltersActive": "Filtry ({count})",
+  "@scheduleFiltersActive": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "scheduleFiltersClear": "Wyczyść",
+  "scheduleFilterKind": "Rodzaj",
+  "scheduleFilterRole": "Moja rola",
+  "scheduleFilterRoleAny": "Wszystkie",
+  "scheduleFilterRoleLead": "Prowadzę",
+  "scheduleFilterRoleAssistant": "Asystuję",
+  "scheduleFilterRoom": "Sala",
+  "scheduleFilterNoRooms": "Brak sal w tym okresie",
+  "scheduleFilterShowCancelled": "Pokaż odwołane"
 }

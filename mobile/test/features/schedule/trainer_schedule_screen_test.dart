@@ -7,6 +7,7 @@ import 'package:mobile/core/auth/auth_state.dart';
 import 'package:mobile/core/auth/session.dart';
 import 'package:mobile/core/network/api_exception.dart';
 import 'package:mobile/features/schedule/data/schedule_api.dart';
+import 'package:mobile/features/schedule/presentation/trainer_schedule_filter.dart';
 import 'package:mobile/features/schedule/presentation/trainer_schedule_screen.dart';
 import 'package:mobile/features/schedule/presentation/widgets/schedule_calendar.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
@@ -61,6 +62,8 @@ ScheduleEvent _event(
   EventKind kind,
   DateTime startsAt, {
   EventStatus status = EventStatus.scheduled,
+  bool isLead = true,
+  String room = 'Pole room',
 }) {
   return ScheduleEvent(
     id: title,
@@ -71,14 +74,14 @@ ScheduleEvent _event(
     startsAt: startsAt,
     endsAt: startsAt.add(const Duration(hours: 1)),
     capacity: 10,
-    staff: const [
+    staff: [
       EventStaff(
         staffId: 'staff-1',
         displayName: 'Anna Kowalska',
-        isLead: true,
+        isLead: isLead,
       ),
     ],
-    roomNames: const ['Pole room'],
+    roomNames: [room],
   );
 }
 
@@ -90,6 +93,11 @@ void main() {
     WidgetTester tester,
     List<ScheduleEvent> events,
   ) async {
+    // Tall enough for a whole week of events.
+    tester.view.physicalSize = const Size(800, 3000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
     final api = _FakeScheduleApi(events);
     await tester.pumpWidget(
       ProviderScope(
@@ -228,6 +236,93 @@ void main() {
     await tester.tap(find.text('Spróbuj ponownie'));
     await tester.pumpAndSettle();
     expect(find.text('Pole dance'), findsOneWidget);
+  });
+
+  testWidgets('filters by kind, role, room and cancelled events', (
+    tester,
+  ) async {
+    await pumpScreen(tester, [
+      _event(
+        'Pole dance',
+        EventKind.groupClass,
+        today.add(const Duration(hours: 18)),
+      ),
+      _event(
+        'Assisted workshop',
+        EventKind.workshop,
+        today.add(const Duration(hours: 12)),
+        isLead: false,
+        room: 'Gym',
+      ),
+      _event(
+        'PT with Tomasz',
+        EventKind.personalTraining,
+        today.add(const Duration(hours: 8)),
+        status: EventStatus.cancelled,
+        room: 'Gym',
+      ),
+    ]);
+    Future<void> tapInSheet(String text) async {
+      await tester.tap(
+        find.descendant(
+          of: find.byType(BottomSheet),
+          matching: find.text(text),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    await tester.tap(find.text('Filtry'));
+    await tester.pumpAndSettle();
+
+    await tapInSheet('Warsztaty');
+    expect(find.text('Assisted workshop'), findsOneWidget);
+    expect(find.text('Pole dance'), findsNothing);
+    await tapInSheet('Warsztaty');
+
+    await tapInSheet('Asystuję');
+    expect(find.text('Assisted workshop'), findsOneWidget);
+    expect(find.text('Pole dance'), findsNothing);
+    await tapInSheet('Prowadzę');
+    expect(find.text('Assisted workshop'), findsNothing);
+    expect(find.text('Pole dance'), findsOneWidget);
+    expect(find.text('PT with Tomasz'), findsOneWidget);
+    await tapInSheet('Wszystkie');
+
+    await tapInSheet('Gym');
+    expect(find.text('Pole dance'), findsNothing);
+    expect(find.text('PT with Tomasz'), findsOneWidget);
+
+    await tapInSheet('Pokaż odwołane');
+    expect(find.text('PT with Tomasz'), findsNothing);
+    expect(find.text('Assisted workshop'), findsOneWidget);
+
+    Navigator.of(tester.element(find.byType(BottomSheet))).pop();
+    await tester.pumpAndSettle();
+    expect(find.text('Filtry (2)'), findsOneWidget);
+    await tester.tap(find.text('Wyczyść'));
+    await tester.pumpAndSettle();
+    expect(find.text('Filtry'), findsOneWidget);
+    expect(find.text('Pole dance'), findsOneWidget);
+    expect(find.text('PT with Tomasz'), findsOneWidget);
+  });
+
+  test('a role filter needs the trainer among the event staff', () {
+    const filter = TrainerScheduleFilter(role: TrainerRoleFilter.lead);
+    final led = _event('a', EventKind.groupClass, today);
+    final assisted = _event('b', EventKind.groupClass, today, isLead: false);
+
+    expect(filter.matches(led, 'staff-1'), isTrue);
+    expect(filter.matches(assisted, 'staff-1'), isFalse);
+    expect(filter.matches(led, 'someone-else'), isFalse);
+    expect(const TrainerScheduleFilter().activeCount, 0);
+    expect(
+      const TrainerScheduleFilter(
+        kinds: {EventKind.workshop},
+        showCancelled: false,
+      ).activeCount,
+      2,
+    );
   });
 
   test('cancelled events are red and kinds have their own colours', () {

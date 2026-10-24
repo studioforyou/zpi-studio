@@ -11,13 +11,28 @@ enum ScheduleView { day, week, month }
 /// A schedule in a day, week or month view, with navigation between periods.
 ///
 /// The events come from [eventsFor], so the same calendar can show a
-/// trainer's own events or the studio's schedule.
+/// trainer's own events or the studio's schedule. The screen that shows the
+/// calendar decides how its events are filtered.
 class ScheduleCalendar extends ConsumerStatefulWidget {
-  const ScheduleCalendar({super.key, required this.eventsFor, this.today});
+  const ScheduleCalendar({
+    super.key,
+    required this.eventsFor,
+    this.where,
+    this.filtersBuilder,
+    this.today,
+  });
 
   /// Events overlapping a window, earliest first.
   final FutureProvider<List<ScheduleEvent>> Function(ScheduleWindow window)
   eventsFor;
+
+  /// Which of the loaded events are shown; all of them when `null`.
+  final bool Function(ScheduleEvent event)? where;
+
+  /// Filter controls shown above the events. They get every loaded event of
+  /// the period, e.g. to offer its rooms.
+  final Widget Function(BuildContext context, List<ScheduleEvent> events)?
+  filtersBuilder;
 
   /// The day the calendar opens on; the current day when `null`.
   final DateTime? today;
@@ -40,6 +55,9 @@ class _ScheduleCalendarState extends ConsumerState<ScheduleCalendar> {
     final l10n = AppLocalizations.of(context);
     final window = _window(_view, _day);
     final provider = widget.eventsFor(window);
+    final eventsState = ref.watch(provider);
+    final filtersBuilder = widget.filtersBuilder;
+    final where = widget.where;
 
     return Column(
       children: [
@@ -94,9 +112,14 @@ class _ScheduleCalendarState extends ConsumerState<ScheduleCalendar> {
             ],
           ),
         ),
+        if (filtersBuilder != null)
+          filtersBuilder(context, eventsState.value ?? const []),
         Expanded(
-          child: ref
-              .watch(provider)
+          child: eventsState
+              .whenData(
+                (events) =>
+                    where == null ? events : events.where(where).toList(),
+              )
               .when(
                 skipLoadingOnReload: true,
                 loading: () => const Center(child: CircularProgressIndicator()),
@@ -472,10 +495,11 @@ Color scheduleEventColor(ScheduleEvent event, ColorScheme scheme) {
   if (event.status == EventStatus.cancelled) {
     return scheme.error;
   }
-  return _kindColor(event.kind);
+  return eventKindColor(event.kind);
 }
 
-Color _kindColor(EventKind kind) => switch (kind) {
+/// The colour of an event kind in the calendar, its legend and filters.
+Color eventKindColor(EventKind kind) => switch (kind) {
   EventKind.groupClass => BrandColors.teal500,
   EventKind.personalTraining => const Color(0xFF8E5BB5),
   EventKind.workshop => const Color(0xFFE08A2E),
@@ -509,7 +533,7 @@ class _Legend extends StatelessWidget {
         EventKind.workshop,
         EventKind.consultation,
       ])
-        (color: _kindColor(kind), label: eventKindLabel(l10n, kind)),
+        (color: eventKindColor(kind), label: eventKindLabel(l10n, kind)),
       (color: scheme.error, label: l10n.eventStatusCancelled),
     ];
     return Padding(
