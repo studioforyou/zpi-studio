@@ -40,6 +40,9 @@ class _SignedInRepository implements AuthRepository {
 
   @override
   Future<void> logout() async {}
+
+  @override
+  Future<void> sendPasswordReset(String email) async {}
 }
 
 class _ProfileAdapter implements HttpClientAdapter {
