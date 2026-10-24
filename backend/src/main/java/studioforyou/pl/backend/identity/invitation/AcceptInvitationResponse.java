@@ -1,4 +1,4 @@
-package studioforyou.pl.backend.identity.web;
+package studioforyou.pl.backend.identity.invitation;
 
 /**
  * @param email the activated account's e-mail, to sign in with

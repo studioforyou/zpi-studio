@@ -16,5 +16,5 @@ import org.springframework.validation.annotation.Validated;
  */
 @Validated
 @ConfigurationProperties("app.invitations")
-public record InvitationProperties(@NotBlank String linkBaseUrl, @NotNull Duration validFor) {
+record InvitationProperties(@NotBlank String linkBaseUrl, @NotNull Duration validFor) {
 }

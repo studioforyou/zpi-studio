@@ -1,4 +1,4 @@
-package studioforyou.pl.backend.identity.web;
+package studioforyou.pl.backend.identity.invitation;
 
 import io.swagger.v3.oas.annotations.security.SecurityRequirements;
 import jakarta.validation.Valid;
@@ -10,8 +10,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import studioforyou.pl.backend.identity.invitation.InvitationDetails;
-import studioforyou.pl.backend.identity.invitation.InvitationService;
 
 /**
  * E-mail invitations, opened from the link in the invitation e-mail. Both operations are public:

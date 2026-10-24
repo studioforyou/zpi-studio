@@ -1,11 +1,10 @@
-package studioforyou.pl.backend.identity.web;
+package studioforyou.pl.backend.identity.invitation;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
-import studioforyou.pl.backend.identity.invitation.InvitedRole;
 
 /**
  * @param email the invited person's e-mail; the new account's login

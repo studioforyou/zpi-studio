@@ -29,7 +29,7 @@ import studioforyou.pl.backend.staff.StaffProfiles;
  */
 @Service
 @EnableConfigurationProperties(InvitationProperties.class)
-public class InvitationService {
+class InvitationService {
 
 	private final JdbcClient jdbc;
 
@@ -43,7 +43,7 @@ public class InvitationService {
 
 	private final InvitationProperties properties;
 
-	public InvitationService(JdbcClient jdbc, FirebaseUsers firebaseUsers, CustomerProfiles customerProfiles,
+	InvitationService(JdbcClient jdbc, FirebaseUsers firebaseUsers, CustomerProfiles customerProfiles,
 			StaffProfiles staffProfiles, ApplicationEventPublisher events, InvitationProperties properties) {
 		this.jdbc = jdbc;
 		this.firebaseUsers = firebaseUsers;
