@@ -4,7 +4,7 @@
     "target": {
       "namespace": "android_app",
       "package_name": "pl.studioforyou.mobile",
-      "sha256_cert_fingerprints": ["REPLACE_WITH_SHA256_FINGERPRINT"]
+      "sha256_cert_fingerprints": ["39:8E:D1:BE:F0:3D:E0:17:E0:8C:78:61:6B:1A:12:C6:CE:16:C1:7E:2B:C3:2D:A7:38:C3:2F:59:59:6F:7A:66"]
     }
   }
 ]
