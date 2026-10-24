@@ -17,7 +17,9 @@ import org.springframework.web.servlet.HandlerExceptionResolver;
  * Every request except the public ones needs a valid Firebase ID token
  * ({@code Authorization: Bearer <token>}) of an account with status {@code ACTIVE}.
  * {@code GET /api/v1/me} only needs a valid token, so the app can learn the account's
- * status (for example that it still waits for approval).
+ * status (for example that it still waits for approval). Reading and accepting an e-mail
+ * invitation is public: the secret token in the link is the proof. Sending one needs the
+ * {@code ADMIN} role (roles are granted to active accounts only).
  * <p>
  * Role checks are declared on the endpoints with {@code @PreAuthorize}, e.g.
  * {@code @PreAuthorize("hasRole('ADMIN')")}; roles come from the account's {@code account_role} rows.
@@ -43,6 +45,9 @@ public class SecurityConfig {
 				.requestMatchers("/error").permitAll()
 				.requestMatchers(HttpMethod.GET, "/api/ping", "/actuator/health").permitAll()
 				.requestMatchers(HttpMethod.GET, "/v3/api-docs/**", "/swagger-ui.html", "/swagger-ui/**").permitAll()
+				.requestMatchers(HttpMethod.POST, "/api/v1/invitations").hasRole("ADMIN")
+				.requestMatchers(HttpMethod.GET, "/api/v1/invitations/*").permitAll()
+				.requestMatchers(HttpMethod.POST, "/api/v1/invitations/*/accept").permitAll()
 				.requestMatchers(HttpMethod.GET, "/api/v1/me").authenticated()
 				.anyRequest().hasAuthority(FirebaseJwtAuthenticationConverter.ACTIVE_ACCOUNT))
 			.exceptionHandling(errors -> errors.authenticationEntryPoint(unauthenticated)

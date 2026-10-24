@@ -60,6 +60,20 @@ public class JdbcStaffProfiles implements StaffProfiles {
 	}
 
 	@Override
+	public UUID create(UUID accountId, String firstName, String lastName) {
+		return jdbc.sql("""
+				INSERT INTO staff_profile (account_id, first_name, last_name)
+				VALUES (:accountId, :firstName, :lastName)
+				RETURNING id
+				""")
+			.param("accountId", accountId)
+			.param("firstName", firstName)
+			.param("lastName", lastName)
+			.query(UUID.class)
+			.single();
+	}
+
+	@Override
 	public StaffProfile updateByAccount(UUID accountId, ProfileChanges changes) {
 		// Lock while merging a partial update so concurrent edits preserve omitted fields.
 		StaffProfile current = findProfile(accountId, true);

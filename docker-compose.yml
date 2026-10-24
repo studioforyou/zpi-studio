@@ -35,6 +35,16 @@ services:
       SPRING_DATASOURCE_PASSWORD: ${LOCAL_DB_PASSWORD}
       # Firebase project whose ID tokens the backend accepts
       FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID}
+      # E-mail: LOG (default) only logs e-mails, BREVO sends them with BREVO_API_KEY
+      MAIL_PROVIDER: ${MAIL_PROVIDER:-LOG}
+      MAIL_FROM: ${MAIL_FROM:-no-reply@studioforyou.local}
+      BREVO_API_KEY: ${BREVO_API_KEY:-}
+      # Page that opens invitation links (bridge page on Firebase Hosting)
+      INVITATION_LINK_BASE_URL: ${INVITATION_LINK_BASE_URL:-https://studioforyou-dev.web.app/invite}
+      # Firebase Admin SDK key (accepting invitations): put the key file at ./secrets/firebase-admin.json
+      GOOGLE_APPLICATION_CREDENTIALS: /run/secrets/firebase-admin.json
+    volumes:
+      - ./secrets:/run/secrets:ro
     depends_on:
       postgres:
         condition: service_healthy

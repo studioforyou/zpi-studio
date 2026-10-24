@@ -29,6 +29,8 @@ public interface StaffProfiles {
 	 */
 	StaffProfile updateByAccount(UUID accountId, ProfileChanges changes);
 
+	/** Creates the staff profile of a new account and returns its id. */
+	UUID create(UUID accountId, String firstName, String lastName);
 	/** The given staff members, whatever their status; unknown ids are left out. */
 	List<StaffMember> findAllById(Collection<UUID> ids);
 
