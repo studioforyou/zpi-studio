@@ -3,48 +3,42 @@ package studioforyou.pl.backend.staff;
 import java.util.Optional;
 import java.util.UUID;
 
-import org.springframework.jdbc.core.simple.JdbcClient;
-import org.springframework.stereotype.Repository;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 
 /**
- * Access to staff profiles for other modules.
+ * Public staff profile operations for other modules. Callers authorize the account before
+ * requesting its profile; storage and normalization belong to the staff module.
  */
-@Repository
-public class StaffProfiles {
-
-	private final JdbcClient jdbc;
-
-	public StaffProfiles(JdbcClient jdbc) {
-		this.jdbc = jdbc;
-	}
+public interface StaffProfiles {
 
 	/** The account's staff profile, if it has one. */
-	public Optional<StaffSummary> findByAccount(UUID accountId) {
-		return jdbc.sql("""
-				SELECT id, first_name || ' ' || last_name AS display_name
-				FROM staff_profile
-				WHERE account_id = :accountId
-				""")
-			.param("accountId", accountId)
-			.query(StaffSummary.class)
-			.optional();
+	Optional<StaffSummary> findByAccount(UUID accountId);
+
+	/** The account's personal and contact details, or {@code NOT_FOUND} without a profile. */
+	StaffProfile getByAccount(UUID accountId);
+
+	/**
+	 * Changes only supplied fields. Trims surrounding Unicode whitespace before validation.
+	 * Names must remain nonblank and at most 80 characters; a null or blank phone clears it.
+	 */
+	StaffProfile updateByAccount(UUID accountId, ProfileChanges changes);
+
+	/** Creates the staff profile of a new account and returns its id. */
+	UUID create(UUID accountId, String firstName, String lastName);
+
+	record StaffSummary(UUID id, String displayName) {
+
 	}
 
-	/** Creates the staff profile of a new account. */
-	public UUID create(UUID accountId, String firstName, String lastName) {
-		return jdbc.sql("""
-				INSERT INTO staff_profile (account_id, first_name, last_name)
-				VALUES (:accountId, :firstName, :lastName)
-				RETURNING id
-				""")
-			.param("accountId", accountId)
-			.param("firstName", firstName)
-			.param("lastName", lastName)
-			.query(UUID.class)
-			.single();
+	record StaffProfile(UUID id, @NotBlank @Size(max = 80) String firstName,
+			@NotBlank @Size(max = 80) String lastName, @Size(max = 20) String phone) {
+
 	}
 
-	public record StaffSummary(UUID id, String displayName) {
+	/** Presence is separate from value so omitted fields and explicit nulls stay distinct. */
+	record ProfileChanges(boolean firstNamePresent, String firstName, boolean lastNamePresent,
+			String lastName, boolean phonePresent, String phone) {
 
 	}
 

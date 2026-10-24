@@ -15,7 +15,7 @@
   "loginErrorUnknown": "Nie udało się zalogować. Spróbuj ponownie.",
   "loginForgotPassword": "Nie pamiętam hasła",
   "resetTitle": "Reset hasła",
-  "resetIntro": "Zdarza się najlepszym. Podaj adres e-mail, na który możemy wysłać link do ustawnienia nowego hasła.",
+  "resetIntro": "Zdarza się najlepszym. Podaj adres e-mail, na który możemy wysłać link do ustawienia nowego hasła.",
   "resetSendButton": "Wyślij link",
   "resetResendButton": "Wyślij ponownie",
   "resetResendCountdown": "Wyślij ponownie ({seconds} s)",
@@ -27,7 +27,7 @@
     }
   },
   "resetBackToLogin": "Powrót do logowania",
-  "resetSent": "Jeśli konto o tym adresie istnieje, wysłaliśmy na nie link do zmiany hasła. Sprawdź skrzynkę.",
+  "resetSent": "Jeśli konto o tym adresie istnieje, wysłaliśmy na nie link do zmiany hasła. Sprawdź swoją skrzynkę.",
   "resetErrorInvalidEmail": "Podaj poprawny adres e-mail.",
   "resetErrorTooManyAttempts": "Zbyt wiele prób. Spróbuj ponownie za chwilę.",
   "resetErrorNetwork": "Brak połączenia z serwerem. Sprawdź internet i spróbuj ponownie.",
@@ -93,6 +93,23 @@
   "roleTrainer": "Trener",
   "profileRoleSection": "Rola",
   "profileActiveProfileSection": "Aktywny profil",
+  "staffProfileEditTitle": "Dane osobowe",
+  "staffProfileFirstName": "Imię",
+  "staffProfileLastName": "Nazwisko",
+  "staffProfilePhone": "Telefon (opcjonalnie)",
+  "staffProfilePhoneHint": "Pozostaw puste, aby usunąć numer telefonu.",
+  "staffProfileSave": "Zapisz zmiany",
+  "staffProfileSaved": "Zmiany zostały zapisane.",
+  "staffProfileRetry": "Spróbuj ponownie",
+  "staffProfileNameRequired": "To pole jest wymagane.",
+  "staffProfileNameTooLong": "Wpisz maksymalnie 80 znaków.",
+  "staffProfilePhoneTooLong": "Wpisz maksymalnie 20 znaków.",
+  "staffProfileLoadError": "Nie udało się pobrać danych osobowych.",
+  "staffProfileSaveError": "Nie udało się zapisać zmian. Spróbuj ponownie.",
+  "staffProfileNetworkError": "Brak połączenia z serwerem. Sprawdź internet i spróbuj ponownie.",
+  "staffProfileAccessError": "Nie masz dostępu do edycji danych osobowych.",
+  "staffProfileNotFound": "Nie znaleziono profilu. Skontaktuj się z obsługą studia.",
+  "staffProfileValidationError": "Sprawdź wpisane dane i spróbuj ponownie.",
   "logoutButton": "Wyloguj się",
   "placeholderComingSoon": "Wkrótce",
   "pingTitle": "Test połączenia",
@@ -122,5 +139,118 @@
         "type": "String"
       }
     }
-  }
+  },
+  "passesTabMine": "Moje karnety",
+  "passesTabOffer": "Oferta",
+  "passesProfile": "Profil: {name}",
+  "@passesProfile": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "passesNoProfile": "To konto nie ma profilu klienta, więc nie ma karnetów.",
+  "passesEmpty": "Nie masz jeszcze karnetu. Sprawdź ofertę studia.",
+  "passesSectionCurrent": "Aktualne",
+  "passesSectionUpcoming": "Zaplanowane",
+  "passesSectionExpired": "Wygasłe ({count})",
+  "@passesSectionExpired": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "passesLoadError": "Nie udało się pobrać karnetów.",
+  "passesRetryButton": "Spróbuj ponownie",
+  "passStatusPendingPayment": "Czeka na płatność",
+  "passStatusScheduled": "Zaplanowany",
+  "passStatusActive": "Aktywny",
+  "passStatusSuspended": "Zawieszony",
+  "passStatusExpired": "Wygasł",
+  "passStatusCancelled": "Anulowany",
+  "passEntriesLeft": "Pozostało wejść: {remaining} z {total}",
+  "@passEntriesLeft": {
+    "placeholders": {
+      "remaining": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "passEntriesUsedUp": "Wykorzystano wszystkie wejścia",
+  "passEntriesUnlimited": "Bez limitu wejść",
+  "passValidUntil": "Ważny do {date}",
+  "@passValidUntil": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "passValidFromUntil": "Ważny od {from} do {until}",
+  "@passValidFromUntil": {
+    "placeholders": {
+      "from": {
+        "type": "String"
+      },
+      "until": {
+        "type": "String"
+      }
+    }
+  },
+  "passDaysLeft": "{count, plural, =1{Ostatni dzień ważności} few{Zostały {count} dni} many{Zostało {count} dni} other{Zostało {count} dni}}",
+  "@passDaysLeft": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "passesOfferEmpty": "Studio nie ma teraz karnetów w sprzedaży.",
+  "passKindEntryPass": "Karnet na wejścia",
+  "passKindSingleEntry": "Wejście jednorazowe",
+  "passKindPtPackage": "Pakiet treningów personalnych",
+  "passKindTimePass": "Karnet czasowy",
+  "passKindVoucher": "Voucher",
+  "passAudienceAdult": "Dla dorosłych",
+  "passAudienceChild": "Dla dzieci",
+  "passVariantEntries": "{count, plural, =1{1 wejście} few{{count} wejścia} many{{count} wejść} other{{count} wejść}}",
+  "@passVariantEntries": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "passVariantUnlimited": "Bez limitu wejść",
+  "passVariantValidity": "{days, plural, =1{ważny 1 dzień} other{ważny {days} dni}}",
+  "@passVariantValidity": {
+    "placeholders": {
+      "days": {
+        "type": "int"
+      }
+    }
+  },
+  "passServices": "Zajęcia: {names}",
+  "@passServices": {
+    "placeholders": {
+      "names": {
+        "type": "String"
+      }
+    }
+  },
+  "passSuspensionAllowed": "Można zawiesić",
+  "passSuspensionUpTo": "Można zawiesić maksymalnie na {days} dni",
+  "@passSuspensionUpTo": {
+    "placeholders": {
+      "days": {
+        "type": "int"
+      }
+    }
+  },
+  "passSuspensionNotAllowed": "Bez możliwości zawieszenia"
 }

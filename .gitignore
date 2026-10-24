@@ -1,5 +1,6 @@
 .DS_Store
 .env
+/.idea/
 /build/generated-spring-modulith/
 # Local credentials, e.g. the Firebase Admin SDK key
 /secrets/

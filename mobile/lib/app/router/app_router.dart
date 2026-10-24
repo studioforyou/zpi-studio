@@ -11,6 +11,7 @@ import 'package:mobile/features/accounts/presentation/accept_invitation_screen.d
 import 'package:mobile/features/accounts/presentation/login_screen.dart';
 import 'package:mobile/features/accounts/presentation/profile_screen.dart';
 import 'package:mobile/features/accounts/presentation/reset_password_screen.dart';
+import 'package:mobile/features/accounts/presentation/staff_profile_edit_screen.dart';
 import 'package:mobile/features/communication/presentation/messages_screen.dart';
 import 'package:mobile/features/passes/presentation/passes_screen.dart';
 import 'package:mobile/features/schedule/presentation/availability_screen.dart';
@@ -38,6 +39,7 @@ const trainerTrainingsPath = '/trainer/trainings';
 const trainerMessagesPath = '/trainer/messages';
 const trainerProfilePath = '/trainer/profile';
 const trainerAvailabilitySubPath = 'availability';
+const trainerProfileEditSubPath = 'edit';
 
 /// One bottom-navigation tab: its route and its navigation bar entry.
 typedef _Tab = ({GoRoute route, ShellDestination destination});
@@ -123,6 +125,10 @@ StatefulShellRoute _trainerShell() => _roleShell([
     Icons.person,
     (l10n) => l10n.navProfile,
     routes: [
+      GoRoute(
+        path: trainerProfileEditSubPath,
+        builder: (_, _) => const StaffProfileEditScreen(),
+      ),
       // Opened with context.push('/trainer/profile/availability').
       GoRoute(
         path: trainerAvailabilitySubPath,
