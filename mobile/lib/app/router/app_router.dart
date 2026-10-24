@@ -7,6 +7,7 @@ import 'package:mobile/app/shell/role_shell.dart';
 import 'package:mobile/app/splash/splash_screen.dart';
 import 'package:mobile/core/auth/auth_controller.dart';
 import 'package:mobile/core/auth/auth_state.dart';
+import 'package:mobile/features/accounts/presentation/accept_invitation_screen.dart';
 import 'package:mobile/features/accounts/presentation/login_screen.dart';
 import 'package:mobile/features/accounts/presentation/profile_screen.dart';
 import 'package:mobile/features/accounts/presentation/reset_password_screen.dart';
@@ -23,6 +24,9 @@ const splashPath = '/splash';
 const loginPath = '/login';
 const pingPath = '/ping';
 const resetPasswordPath = '/reset-password';
+
+/// Opened from the invitation e-mail link, with the `token` query parameter.
+const invitePath = '/invite';
 
 const clientSchedulePath = '/client/schedule';
 const clientPassesPath = '/client/passes';
@@ -151,10 +155,27 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final location = state.matchedLocation;
       switch (ref.read(authControllerProvider)) {
         case AuthRestoring():
-          return location == splashPath ? null : splashPath;
+          if (location == splashPath) {
+            return null;
+          }
+          // An invitation link opened the app: come back to it once the
+          // session is known.
+          return location == invitePath
+              ? Uri(
+                  path: splashPath,
+                  queryParameters: {'from': state.uri.toString()},
+                ).toString()
+              : splashPath;
         case Unauthenticated():
+          final from = state.uri.queryParameters['from'];
+          if (location == splashPath &&
+              from != null &&
+              Uri.parse(from).path == invitePath) {
+            return from;
+          }
           return location == loginPath ||
                   location == resetPasswordPath ||
+                  location == invitePath ||
                   location == pingPath
               ? null
               : loginPath;
@@ -177,6 +198,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: resetPasswordPath,
         builder: (_, state) =>
             ResetPasswordScreen(initialEmail: state.extra as String? ?? ''),
+      ),
+      GoRoute(
+        path: invitePath,
+        builder: (_, state) => AcceptInvitationScreen(
+          token: state.uri.queryParameters['token'] ?? '',
+        ),
       ),
       GoRoute(path: pingPath, builder: (_, _) => const PingScreen()),
       _clientShell(),

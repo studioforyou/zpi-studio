@@ -29,6 +29,36 @@ export const pl = {
       unknown: 'Nie udało się zalogować. Spróbuj ponownie.',
     },
   },
+  accounts: {
+    inviteButton: 'Zaproś osobę',
+    roles: {
+      CLIENT: 'Klient',
+      TRAINER: 'Trener',
+    },
+    invite: {
+      title: 'Zaproś do studia',
+      role: 'Rola',
+      firstName: 'Imię',
+      lastName: 'Nazwisko',
+      email: 'Adres e-mail',
+      hint: 'Wyślemy na ten adres link do aktywacji konta w aplikacji mobilnej. Link jest ważny 7 dni.',
+      cancel: 'Anuluj',
+      submit: 'Wyślij zaproszenie',
+      close: 'Zamknij',
+      inviteAnother: 'Zaproś kolejną osobę',
+      sentTitle: 'Zaproszenie wysłane',
+      sent: (name: string, email: string, validUntil: string) =>
+        `${name} dostanie e-mail na adres ${email}. Konto będzie aktywne, gdy ta osoba ustawi hasło (link ważny do ${validUntil}).`,
+      invalidEmail: 'Podaj poprawny adres e-mail.',
+      tooLong: (max: number) => `Maksymalnie ${max} znaków.`,
+      errors: {
+        accountExists: 'Ten adres ma już konto w studiu.',
+        emailNotSent:
+          'Nie udało się wysłać e-maila z zaproszeniem. Konto nie zostało utworzone, spróbuj ponownie za chwilę.',
+        unknown: 'Nie udało się wysłać zaproszenia. Spróbuj ponownie.',
+      },
+    },
+  },
   common: {
     placeholder: 'Ta sekcja zostanie zaimplementowana w kolejnych zadaniach.',
     notFoundTitle: 'Nie znaleziono strony',
