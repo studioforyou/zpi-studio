@@ -1,11 +1,21 @@
 package studioforyou.pl.backend;
 
+import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.tngtech.archunit.core.importer.ClassFileImporter;
 import org.junit.jupiter.api.Test;
+
 import org.springframework.modulith.core.ApplicationModules;
 
 class ModuleArchitectureTest {
+
+	@Test
+	void staffDoesNotDependOnIdentity() {
+		noClasses().that().resideInAPackage("..staff..")
+			.should().dependOnClassesThat().resideInAPackage("..identity..")
+			.check(new ClassFileImporter().importPackages("studioforyou.pl.backend"));
+	}
 
 	@Test
 	void verifiesModuleBoundaries() {

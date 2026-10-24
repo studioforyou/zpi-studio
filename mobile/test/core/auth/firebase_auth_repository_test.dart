@@ -38,6 +38,21 @@ class _FakeFirebaseAuth extends Fake implements FirebaseAuth {
 
   @override
   Future<void> signOut() async => signedIn = false;
+
+  /// Addresses a reset e-mail was requested for.
+  final resetRequests = <String>[];
+
+  @override
+  Future<void> sendPasswordResetEmail({
+    required String email,
+    ActionCodeSettings? actionCodeSettings,
+  }) async {
+    final code = errorCode;
+    if (code != null) {
+      throw FirebaseAuthException(code: code);
+    }
+    resetRequests.add(email);
+  }
 }
 
 class _FakeMeApi implements MeApi {
@@ -232,5 +247,47 @@ void main() {
       expect(await repository.restore(), isNull);
       expect(auth.signedIn, isTrue);
     });
+  });
+
+  group('password reset', () {
+    FirebaseAuthRepository repositoryFor(_FakeFirebaseAuth auth) =>
+        FirebaseAuthRepository(auth, _FakeMeApi(() async => _me()));
+
+    test('requests the e-mail for the trimmed address', () async {
+      final auth = _FakeFirebaseAuth();
+
+      await repositoryFor(auth).sendPasswordReset(' anna@example.com ');
+
+      expect(auth.resetRequests, ['anna@example.com']);
+    });
+
+    test('an address without an account looks like a success', () async {
+      final auth = _FakeFirebaseAuth(errorCode: 'user-not-found');
+
+      await repositoryFor(auth).sendPasswordReset('nobody@example.com');
+    });
+
+    for (final (code, reason) in [
+      ('invalid-email', PasswordResetFailureReason.invalidEmail),
+      ('missing-email', PasswordResetFailureReason.invalidEmail),
+      ('too-many-requests', PasswordResetFailureReason.tooManyAttempts),
+      ('network-request-failed', PasswordResetFailureReason.network),
+      ('internal-error', PasswordResetFailureReason.unknown),
+    ]) {
+      test('$code is reported as ${reason.name}', () {
+        expect(
+          repositoryFor(
+            _FakeFirebaseAuth(errorCode: code),
+          ).sendPasswordReset('a@b.pl'),
+          throwsA(
+            isA<PasswordResetFailure>().having(
+              (f) => f.reason,
+              'reason',
+              reason,
+            ),
+          ),
+        );
+      });
+    }
   });
 }

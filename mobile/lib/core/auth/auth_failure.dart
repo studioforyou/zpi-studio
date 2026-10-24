@@ -32,3 +32,26 @@ class AuthFailure implements Exception {
   @override
   String toString() => 'AuthFailure(${reason.name})';
 }
+
+/// Why sending the password reset e-mail failed.
+enum PasswordResetFailureReason {
+  /// The address is empty or not a valid e-mail.
+  invalidEmail,
+
+  /// Firebase blocked further requests for a while.
+  tooManyAttempts,
+
+  /// No connection to Firebase.
+  network,
+
+  unknown,
+}
+
+class PasswordResetFailure implements Exception {
+  const PasswordResetFailure(this.reason);
+
+  final PasswordResetFailureReason reason;
+
+  @override
+  String toString() => 'PasswordResetFailure(${reason.name})';
+}

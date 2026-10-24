@@ -19,3 +19,5 @@ Project design and shared assistant guidance are maintained in the [Wiki](https:
 ## Keeping documentation current
 
 Update affected READMEs in the same pull request as the related project change. Coordinate related Wiki updates and include links to the relevant Wiki revisions in the pull request.
+
+Local review proposal: [Trainer profile HTTP ownership (PR #210)](wiki-proposals/210-trainer-profile-http-ownership.md).

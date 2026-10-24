@@ -1,100 +1,62 @@
 package studioforyou.pl.backend.staff;
 
 import java.util.Collection;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import org.jspecify.annotations.Nullable;
 
-import org.springframework.jdbc.core.simple.JdbcClient;
-import org.springframework.stereotype.Repository;
-
 /**
- * Read access to staff profiles for other modules.
+ * Public staff profile operations for other modules. Callers authorize the account before
+ * requesting its profile; storage and normalization belong to the staff module.
  */
-@Repository
-public class StaffProfiles {
-
-	private final JdbcClient jdbc;
-
-	public StaffProfiles(JdbcClient jdbc) {
-		this.jdbc = jdbc;
-	}
+public interface StaffProfiles {
 
 	/** The account's staff profile, if it has one. */
-	public Optional<StaffSummary> findByAccount(UUID accountId) {
-		return jdbc.sql("""
-				SELECT id, first_name || ' ' || last_name AS display_name
-				FROM staff_profile
-				WHERE account_id = :accountId
-				""")
-			.param("accountId", accountId)
-			.query(StaffSummary.class)
-			.optional();
-	}
+	Optional<StaffSummary> findByAccount(UUID accountId);
+
+	/** The account's personal and contact details, or {@code NOT_FOUND} without a profile. */
+	StaffProfile getByAccount(UUID accountId);
+
+	/**
+	 * Changes only supplied fields. Trims surrounding Unicode whitespace before validation.
+	 * Names must remain nonblank and at most 80 characters; a null or blank phone clears it.
+	 */
+	StaffProfile updateByAccount(UUID accountId, ProfileChanges changes);
 
 	/** The given staff members, whatever their status; unknown ids are left out. */
-	public List<StaffMember> findAllById(Collection<UUID> ids) {
-		if (ids.isEmpty()) {
-			return List.of();
-		}
-		return jdbc.sql("""
-				SELECT id, first_name, last_name, calendar_color, status = 'ACTIVE' AS active
-				FROM staff_profile
-				WHERE id IN (:ids)
-				""")
-			.param("ids", ids)
-			.query(StaffMember.class)
-			.list();
-	}
+	List<StaffMember> findAllById(Collection<UUID> ids);
 
 	/**
 	 * Staff members sorted by last and first name.
 	 *
 	 * @param active {@code true} for active staff only, {@code false} for inactive only, {@code null} for all
 	 */
-	public List<StaffMember> findAll(@Nullable Boolean active) {
-		String where = (active == null) ? "" : "WHERE (status = 'ACTIVE') = :active";
-		var query = jdbc.sql("""
-				SELECT id, first_name, last_name, calendar_color, status = 'ACTIVE' AS active
-				FROM staff_profile
-				%s
-				ORDER BY last_name, first_name, id
-				""".formatted(where));
-		if (active != null) {
-			query = query.param("active", active);
-		}
-		return query.query(StaffMember.class).list();
-	}
+	List<StaffMember> findAll(@Nullable Boolean active);
 
 	/**
 	 * The service types each of the given staff members is qualified to run. Staff members
 	 * without any qualification are missing from the map.
 	 */
-	public Map<UUID, Set<UUID>> findQualifications(Collection<UUID> staffIds) {
-		Map<UUID, Set<UUID>> result = new HashMap<>();
-		if (staffIds.isEmpty()) {
-			return result;
-		}
-		jdbc.sql("""
-				SELECT staff_id, service_type_id
-				FROM staff_qualification
-				WHERE staff_id IN (:staffIds)
-				""")
-			.param("staffIds", staffIds)
-			.query((rs) -> {
-				result.computeIfAbsent(rs.getObject("staff_id", UUID.class), (id) -> new HashSet<>())
-					.add(rs.getObject("service_type_id", UUID.class));
-			});
-		return result;
+	Map<UUID, Set<UUID>> findQualifications(Collection<UUID> staffIds);
+
+	record StaffSummary(UUID id, String displayName) {
+
 	}
 
-	public record StaffSummary(UUID id, String displayName) {
+	record StaffProfile(UUID id, @NotBlank @Size(max = 80) String firstName,
+			@NotBlank @Size(max = 80) String lastName, @Size(max = 20) String phone) {
+
+	}
+
+	/** Presence is separate from value so omitted fields and explicit nulls stay distinct. */
+	record ProfileChanges(boolean firstNamePresent, String firstName, boolean lastNamePresent,
+			String lastName, boolean phonePresent, String phone) {
 
 	}
 
@@ -104,7 +66,7 @@ public class StaffProfiles {
 	 * @param calendarColor the colour of the staff member in calendars, {@code #RRGGBB}, or {@code null}
 	 * @param active whether the profile has status {@code ACTIVE}
 	 */
-	public record StaffMember(UUID id, String firstName, String lastName, @Nullable String calendarColor,
+	record StaffMember(UUID id, String firstName, String lastName, @Nullable String calendarColor,
 			boolean active) {
 
 		public String displayName() {

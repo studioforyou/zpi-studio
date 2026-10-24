@@ -40,6 +40,9 @@ class _ClientOnlyAuthRepository implements AuthRepository {
 
   @override
   Future<void> logout() async {}
+
+  @override
+  Future<void> sendPasswordReset(String email) async {}
 }
 
 /// Returns a trainer-only session without a customer profile.
@@ -65,6 +68,9 @@ class _TrainerOnlyAuthRepository implements AuthRepository {
 
   @override
   Future<void> logout() async {}
+
+  @override
+  Future<void> sendPasswordReset(String email) async {}
 }
 
 void main() {
