@@ -50,6 +50,8 @@ The existing `configuration`, `shared`, and `system` implementations remain in p
 
 `scheduling` manages rooms and the service types allowed in them under `/api/v1/resources` (#133), for `ADMIN` accounts only; it reads service types through `offering`'s `ServiceTypes`.
 
+`scheduling` also holds the studio's schedule (#130, #131): one-off and recurring events with their staff and rooms (`/api/v1/schedule-events`, `/api/v1/recurrence-series`), for `ADMIN` accounts only. It reads staff members, their qualifications, leave and working hours through `staff`'s `StaffProfiles` and `StaffAvailability`, and the studio's time zone through `configuration`'s `StudioSettings`. `staff` lists staff members (`GET /api/v1/staff`) and `trainings` lists training groups (`GET /api/v1/training-groups`) for administrators.
+
 Modules retain their default closed boundaries. Public types in a module's base package form its default API. Subpackages are internal unless explicitly exposed with `@NamedInterface`. The `shared.api` package declares `@NamedInterface("api")`, exposing the existing common API types to `configuration` without opening the whole `shared` module.
 
 `ModuleArchitectureTest` checks that `ApplicationModules.of(BackendApplication.class)` discovers exactly the 18 modules listed above, including those containing only package declarations, and calls `verify()` to check module boundaries and dependency cycles. It runs without starting a Spring context, database, or Docker.

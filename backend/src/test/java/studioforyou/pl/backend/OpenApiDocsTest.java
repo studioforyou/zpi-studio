@@ -55,6 +55,22 @@ class OpenApiDocsTest {
 	}
 
 	@Test
+	void documentsScheduleEndpoints() throws Exception {
+		String json = apiDocs();
+
+		Map<String, Object> paths = JsonPath.read(json, "$.paths");
+		assertThat(paths).containsKeys("/api/v1/schedule-events", "/api/v1/schedule-events/{eventId}",
+				"/api/v1/schedule-events/preview", "/api/v1/schedule-events/{eventId}/assignments",
+				"/api/v1/recurrence-series", "/api/v1/recurrence-series/preview",
+				"/api/v1/recurrence-series/{seriesId}", "/api/v1/staff", "/api/v1/training-groups");
+		List<Map<String, Object>> parameters = JsonPath.read(json, "$.paths['/api/v1/schedule-events'].get.parameters");
+		assertThat(parameters).extracting((parameter) -> parameter.get("name"))
+			.contains("from", "to", "kind", "status", "serviceTypeId", "staffId", "resourceId", "trainingGroupId");
+		assertThat((String) JsonPath.read(json, "$.components.schemas.RecurrenceSeries.properties.localStartTime.type"))
+			.isEqualTo("string");
+	}
+
+	@Test
 	void sessionOperationsGetAuthErrors() throws Exception {
 		Map<String, Object> responses = JsonPath.read(apiDocs(), "$.paths['/api/v1/studio'].get.responses");
 

@@ -83,7 +83,10 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 		if (code == ErrorCode.VALIDATION_FAILED) {
 			return validationFailed(ex, ex.getFieldErrors(), new HttpHeaders(), request);
 		}
-		return problem(ex, code, ex.getMessage(), new HttpHeaders(), request);
+		ProblemDetail problem = ProblemDetail.forStatusAndDetail(code.getStatus(), ex.getMessage());
+		ex.getProperties().forEach(problem::setProperty);
+		problem.setProperty("code", code.name());
+		return handleExceptionInternal(ex, problem, new HttpHeaders(), code.getStatus(), request);
 	}
 
 	@ExceptionHandler(AuthenticationException.class)
