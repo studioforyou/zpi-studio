@@ -1,4 +1,4 @@
-package studioforyou.pl.backend.identity.web;
+package studioforyou.pl.backend.staff.internal;
 
 import java.util.UUID;
 

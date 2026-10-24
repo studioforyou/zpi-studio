@@ -42,6 +42,19 @@ class OpenApiDocsTest {
 	}
 
 	@Test
+	void documentsRoomEndpoints() throws Exception {
+		String json = apiDocs();
+
+		Map<String, Object> paths = JsonPath.read(json, "$.paths");
+		assertThat(paths).containsKeys("/api/v1/resources", "/api/v1/resources/{resourceId}",
+				"/api/v1/resources/{resourceId}/service-types", "/api/v1/service-types");
+		Map<String, Object> updateProperties = JsonPath.read(json,
+				"$.components.schemas.UpdateResourceRequest.properties");
+		assertThat(updateProperties).containsOnlyKeys("name", "kind", "parentResourceId", "maxPeople",
+				"description", "isActive", "serviceTypes");
+	}
+
+	@Test
 	void sessionOperationsGetAuthErrors() throws Exception {
 		Map<String, Object> responses = JsonPath.read(apiDocs(), "$.paths['/api/v1/studio'].get.responses");
 
@@ -68,6 +81,10 @@ class OpenApiDocsTest {
 		assertThat(patchResponses).containsKeys("200", "400", "401", "403", "404", "500");
 		assertThat((String) JsonPath.read(json, path + ".get.operationId")).isEqualTo("getMyStaffProfile");
 		assertThat((String) JsonPath.read(json, path + ".patch.operationId")).isEqualTo("updateMyStaffProfile");
+		Map<String, Object> getOperation = JsonPath.read(json, path + ".get");
+		Map<String, Object> patchOperation = JsonPath.read(json, path + ".patch");
+		assertThat(getOperation).doesNotContainKey("parameters");
+		assertThat(patchOperation).doesNotContainKey("parameters");
 		assertThat((String) JsonPath.read(json, path + ".patch.description"))
 			.contains("ACTIVE TRAINER", "Omitted fields stay unchanged", "null names are invalid", "clears it");
 		Map<String, Object> requestFields = JsonPath.read(json,

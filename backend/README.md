@@ -50,6 +50,10 @@ The existing `configuration`, `shared`, and `system` implementations remain in p
 
 The `staff` module provides read and update operations for the signed-in trainer's personal details through `GET` and `PATCH /api/v1/me/staff-profile`, available to active accounts with the `TRAINER` role.
 
+`scheduling` manages rooms and the service types allowed in them under `/api/v1/resources` (#133), for `ADMIN` accounts only; it reads service types through `offering`'s `ServiceTypes`.
+
+The trainer profile controller and HTTP DTOs live in `staff.internal`, alongside the module's persistence implementation. They obtain the active account ID through `shared.api.AccountAuthentication`, implemented by the verified identity token. The existing `identity` session lookup still uses the public `StaffProfiles` contract, without introducing a reverse `staff` dependency on `identity`.
+
 Modules retain their default closed boundaries. Public types in a module's base package form its default API. Subpackages are internal unless explicitly exposed with `@NamedInterface`. The `shared.api` package declares `@NamedInterface("api")`, exposing the existing common API types to `configuration` without opening the whole `shared` module.
 
 `ModuleArchitectureTest` checks that `ApplicationModules.of(BackendApplication.class)` discovers exactly the 18 modules listed above, including those containing only package declarations, and calls `verify()` to check module boundaries and dependency cycles. It runs without starting a Spring context, database, or Docker.
