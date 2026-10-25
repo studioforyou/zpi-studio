@@ -15,6 +15,9 @@ export default defineConfig(({ mode }) => {
       alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
     },
     server: {
+      // IPv4 explicitly: on Windows 'localhost' can bind to ::1 only, and the emulator
+      // reaches this machine as 10.0.2.2 over IPv4 (invitation links open the /invite page that way).
+      host: '127.0.0.1',
       port: 5173,
       strictPort: true,
       proxy: {
