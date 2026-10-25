@@ -1,5 +1,6 @@
 export const paths = {
   login: '/login',
+  invite: '/invite',
   schedule: '/schedule',
   rooms: '/rooms',
   accounts: '/accounts',
