@@ -24,6 +24,8 @@ export default defineConfig(({ mode }) => {
     },
     test: {
       environment: 'jsdom',
+      // Limit concurrent Mantine renders so UI timers stay reliable on developer machines.
+      maxWorkers: 2,
       globals: false,
       setupFiles: ['./src/test/setup.ts'],
     },

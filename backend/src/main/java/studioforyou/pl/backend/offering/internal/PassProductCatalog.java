@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import studioforyou.pl.backend.offering.PassProductAudience;
 import studioforyou.pl.backend.offering.PassProductKind;
+import studioforyou.pl.backend.offering.internal.services.ServiceTypeRepository;
 import studioforyou.pl.backend.shared.api.ApiException;
 import studioforyou.pl.backend.shared.api.ErrorCode;
 
