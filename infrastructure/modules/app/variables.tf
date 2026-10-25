@@ -68,3 +68,13 @@ variable "github_repository" {
   type        = string
   default     = "studioforyou/zpi-studio"
 }
+
+variable "mail_from" {
+  description = "Adres nadawcy maili z zaproszeniami. Musi być zweryfikowany w Brevo (Senders)."
+  type        = string
+}
+
+variable "invitation_link_base_url" {
+  description = "Adres strony, która otwiera zaproszenie w aplikacji. Backend dopisuje do niego ?token=..."
+  type        = string
+}
