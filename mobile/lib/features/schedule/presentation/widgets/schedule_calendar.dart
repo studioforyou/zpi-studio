@@ -97,6 +97,10 @@ class _ScheduleCalendarState extends ConsumerState<ScheduleCalendar> {
                 child: Text(
                   _periodLabel(_view, _day, window),
                   textAlign: TextAlign.center,
+                  // With large text the label would otherwise wrap into a
+                  // column taller than a small screen.
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
               ),
