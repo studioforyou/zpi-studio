@@ -67,14 +67,14 @@ class ProfileScreen extends ConsumerWidget {
                 session.activeProfileId != null)
               ListTile(
                 leading: const Icon(Icons.edit_outlined),
-                title: Text(l10n.customerProfileEditTitle),
+                title: Text(l10n.personalDetailsEditTitle),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () => context.push('/client/profile/edit'),
               ),
             if (session.activeRole == AppRole.trainer) ...[
               ListTile(
                 leading: const Icon(Icons.edit_outlined),
-                title: Text(l10n.staffProfileEditTitle),
+                title: Text(l10n.personalDetailsEditTitle),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () => context.push('/trainer/profile/edit'),
               ),

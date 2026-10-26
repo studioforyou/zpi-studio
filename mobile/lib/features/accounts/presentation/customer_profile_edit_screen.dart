@@ -3,9 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mobile/core/auth/auth_controller.dart';
 import 'package:mobile/core/auth/auth_state.dart';
-import 'package:mobile/core/network/api_exception.dart';
 import 'package:mobile/features/accounts/data/customer_profile.dart';
 import 'package:mobile/features/accounts/data/customer_profile_provider.dart';
+import 'package:mobile/features/accounts/presentation/widgets/personal_details_form.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
 
 /// Edits the active customer profile: the client's own or a child's.
@@ -73,7 +73,7 @@ class _CustomerProfileEditScreenState
       }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(AppLocalizations.of(context).customerProfileSaved),
+          content: Text(AppLocalizations.of(context).personalDetailsSaved),
         ),
       );
       context.pop();
@@ -118,11 +118,11 @@ class _CustomerProfileEditScreenState
     final auth = ref.watch(authControllerProvider);
 
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.customerProfileEditTitle)),
+      appBar: AppBar(title: Text(l10n.personalDetailsEditTitle)),
       body: switch (auth) {
         AuthRestoring() || Unauthenticated() => const SizedBox(),
         Authenticated(:final session) => switch (session.activeProfileId) {
-          null => Center(child: Text(l10n.customerProfileNotFound)),
+          null => Center(child: Text(l10n.personalDetailsNotFound)),
           final profileId => _body((
             accountId: session.accountId,
             profileId: profileId,
@@ -137,34 +137,12 @@ class _CustomerProfileEditScreenState
         .watch(customerProfileProvider(key))
         .when(
           loading: () => const Center(child: CircularProgressIndicator()),
-          error: (error, _) => _loadError(key, error, l10n),
+          error: (error, _) => PersonalDetailsLoadError(
+            error: error,
+            onRetry: () => ref.invalidate(customerProfileProvider(key)),
+          ),
           data: (profile) => _form(key, profile, l10n),
         );
-  }
-
-  Widget _loadError(
-    CustomerProfileKey key,
-    Object error,
-    AppLocalizations l10n,
-  ) {
-    return Center(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          spacing: 16,
-          children: [
-            const Icon(Icons.error_outline),
-            Text(_errorMessage(error, l10n, loading: true)),
-            OutlinedButton.icon(
-              onPressed: () => ref.invalidate(customerProfileProvider(key)),
-              icon: const Icon(Icons.refresh),
-              label: Text(l10n.customerProfileRetry),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 
   Widget _form(
@@ -186,211 +164,130 @@ class _CustomerProfileEditScreenState
               context,
             ).formatCompactDate(profile.birthDate!);
     }
-    final sectionStyle = Theme.of(context).textTheme.titleMedium;
+    // Autofill would offer the guardian's own details for a child.
+    final ownProfile = !profile.isChild;
 
-    return SafeArea(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 400),
-            child: AutofillGroup(
-              child: Form(
-                key: _formKey,
-                autovalidateMode: AutovalidateMode.onUserInteraction,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  spacing: 16,
-                  children: [
-                    if (profile.isChild)
-                      Text(
-                        l10n.customerProfileChildNotice(profile.displayName),
-                      ),
-                    TextFormField(
-                      controller: _firstNameController,
-                      enabled: !_saving,
-                      autofillHints: profile.isChild
-                          ? null
-                          : const [AutofillHints.givenName],
-                      textCapitalization: TextCapitalization.words,
-                      textInputAction: TextInputAction.next,
-                      decoration: _decoration(
-                        l10n.customerProfileFirstName,
-                        Icons.person_outline,
-                      ),
-                      validator: (value) => _validateName(value, l10n),
-                    ),
-                    TextFormField(
-                      controller: _lastNameController,
-                      enabled: !_saving,
-                      autofillHints: profile.isChild
-                          ? null
-                          : const [AutofillHints.familyName],
-                      textCapitalization: TextCapitalization.words,
-                      textInputAction: TextInputAction.next,
-                      decoration: _decoration(
-                        l10n.customerProfileLastName,
-                        Icons.person_outline,
-                      ),
-                      validator: (value) => _validateName(value, l10n),
-                    ),
-                    TextFormField(
-                      key: const Key('birthDateField'),
-                      controller: _birthDateController,
-                      enabled: !_saving,
-                      readOnly: true,
-                      onTap: _pickBirthDate,
-                      decoration:
-                          _decoration(
-                            l10n.customerProfileBirthDate,
-                            Icons.cake_outlined,
-                          ).copyWith(
-                            suffixIcon: _birthDate == null || _saving
-                                ? null
-                                : IconButton(
-                                    tooltip: l10n.customerProfileClearBirthDate,
-                                    icon: const Icon(Icons.clear),
-                                    onPressed: () => _setBirthDate(null),
-                                  ),
-                          ),
-                    ),
-                    TextFormField(
-                      controller: _phoneController,
-                      enabled: !_saving,
-                      autofillHints: profile.isChild
-                          ? null
-                          : const [AutofillHints.telephoneNumber],
-                      keyboardType: TextInputType.phone,
-                      textInputAction: TextInputAction.next,
-                      decoration: _decoration(
-                        l10n.customerProfilePhone,
-                        Icons.phone_outlined,
-                      ),
-                      validator: (value) => _validatePhone(value, l10n),
-                    ),
-                    Text(
-                      l10n.customerProfileEmergencySection,
-                      style: sectionStyle,
-                    ),
-                    Text(l10n.customerProfileEmergencyHint),
-                    TextFormField(
-                      controller: _emergencyNameController,
-                      enabled: !_saving,
-                      textCapitalization: TextCapitalization.words,
-                      textInputAction: TextInputAction.next,
-                      decoration: _decoration(
-                        l10n.customerProfileEmergencyName,
-                        Icons.contact_emergency_outlined,
-                      ),
-                      validator: (value) {
-                        final name = value?.trim() ?? '';
-                        if (name.length > 120) {
-                          return l10n.customerProfileEmergencyNameTooLong;
-                        }
-                        return name.isEmpty &&
-                                _emergencyPhoneController.text.trim().isNotEmpty
-                            ? l10n.customerProfileEmergencyNameRequired
-                            : null;
-                      },
-                    ),
-                    TextFormField(
-                      controller: _emergencyPhoneController,
-                      enabled: !_saving,
-                      keyboardType: TextInputType.phone,
-                      textInputAction: TextInputAction.done,
-                      onFieldSubmitted: (_) => _save(key),
-                      decoration: _decoration(
-                        l10n.customerProfileEmergencyPhone,
-                        Icons.phone_outlined,
-                      ),
-                      validator: (value) {
-                        final phone = value?.trim() ?? '';
-                        if (phone.isEmpty &&
-                            _emergencyNameController.text.trim().isNotEmpty) {
-                          return l10n.customerProfileEmergencyPhoneRequired;
-                        }
-                        return _validatePhone(value, l10n);
-                      },
-                    ),
-                    if (_saveError case final error?)
-                      Text(
-                        _errorMessage(error, l10n),
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.error,
-                        ),
-                      ),
-                    FilledButton(
-                      onPressed: _saving ? null : () => _save(key),
-                      child: _saving
-                          ? SizedBox.square(
-                              dimension: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Theme.of(context).colorScheme.onPrimary,
-                              ),
-                            )
-                          : Text(l10n.customerProfileSave),
-                    ),
-                  ],
-                ),
-              ),
-            ),
+    return PersonalDetailsFormLayout(
+      formKey: _formKey,
+      children: [
+        if (profile.isChild)
+          Text(l10n.customerProfileChildNotice(profile.displayName)),
+        TextFormField(
+          controller: _firstNameController,
+          enabled: !_saving,
+          autofillHints: ownProfile ? const [AutofillHints.givenName] : null,
+          textCapitalization: TextCapitalization.words,
+          textInputAction: TextInputAction.next,
+          decoration: personalDetailsDecoration(
+            label: l10n.personalDetailsFirstName,
+            icon: Icons.person_outline,
           ),
+          validator: (value) => validatePersonName(value, l10n),
         ),
-      ),
+        TextFormField(
+          controller: _lastNameController,
+          enabled: !_saving,
+          autofillHints: ownProfile ? const [AutofillHints.familyName] : null,
+          textCapitalization: TextCapitalization.words,
+          textInputAction: TextInputAction.next,
+          decoration: personalDetailsDecoration(
+            label: l10n.personalDetailsLastName,
+            icon: Icons.person_outline,
+          ),
+          validator: (value) => validatePersonName(value, l10n),
+        ),
+        TextFormField(
+          controller: _birthDateController,
+          enabled: !_saving,
+          readOnly: true,
+          onTap: _pickBirthDate,
+          decoration:
+              personalDetailsDecoration(
+                label: l10n.customerProfileBirthDate,
+                icon: Icons.cake_outlined,
+              ).copyWith(
+                suffixIcon: _birthDate == null || _saving
+                    ? null
+                    : IconButton(
+                        tooltip: l10n.customerProfileClearBirthDate,
+                        icon: const Icon(Icons.clear),
+                        onPressed: () => _setBirthDate(null),
+                      ),
+              ),
+        ),
+        TextFormField(
+          controller: _phoneController,
+          enabled: !_saving,
+          autofillHints: ownProfile
+              ? const [AutofillHints.telephoneNumber]
+              : null,
+          keyboardType: TextInputType.phone,
+          textInputAction: TextInputAction.next,
+          decoration: personalDetailsDecoration(
+            label: l10n.personalDetailsPhone,
+            icon: Icons.phone_outlined,
+          ),
+          validator: (value) => _validatePhone(value, l10n),
+        ),
+        Text(
+          l10n.customerProfileEmergencySection,
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
+        Text(l10n.customerProfileEmergencyHint),
+        TextFormField(
+          controller: _emergencyNameController,
+          enabled: !_saving,
+          textCapitalization: TextCapitalization.words,
+          textInputAction: TextInputAction.next,
+          decoration: personalDetailsDecoration(
+            label: l10n.customerProfileEmergencyName,
+            icon: Icons.contact_emergency_outlined,
+          ),
+          validator: (value) {
+            final name = value?.trim() ?? '';
+            if (name.length > 120) {
+              return l10n.customerProfileEmergencyNameTooLong;
+            }
+            return name.isEmpty &&
+                    _emergencyPhoneController.text.trim().isNotEmpty
+                ? l10n.customerProfileEmergencyNameRequired
+                : null;
+          },
+        ),
+        TextFormField(
+          controller: _emergencyPhoneController,
+          enabled: !_saving,
+          keyboardType: TextInputType.phone,
+          textInputAction: TextInputAction.done,
+          onFieldSubmitted: (_) => _save(key),
+          decoration: personalDetailsDecoration(
+            label: l10n.customerProfileEmergencyPhone,
+            icon: Icons.phone_outlined,
+          ),
+          validator: (value) {
+            if ((value?.trim() ?? '').isEmpty &&
+                _emergencyNameController.text.trim().isNotEmpty) {
+              return l10n.customerProfileEmergencyPhoneRequired;
+            }
+            return _validatePhone(value, l10n);
+          },
+        ),
+        if (_saveError case final error?)
+          PersonalDetailsSaveError(error: error),
+        PersonalDetailsSaveButton(saving: _saving, onPressed: () => _save(key)),
+      ],
     );
   }
 
-  static InputDecoration _decoration(String label, IconData icon) {
-    return InputDecoration(
-      labelText: label,
-      prefixIcon: Icon(icon),
-      border: const OutlineInputBorder(),
-      errorMaxLines: 3,
-    );
-  }
-
-  static String? _validateName(String? value, AppLocalizations l10n) {
-    final name = value?.trim() ?? '';
-    if (name.isEmpty) {
-      return l10n.customerProfileNameRequired;
-    }
-    return name.length > 80 ? l10n.customerProfileNameTooLong : null;
-  }
-
+  /// The trainer's length rule plus the format the backend checks for clients.
   static String? _validatePhone(String? value, AppLocalizations l10n) {
     final phone = value?.trim() ?? '';
     if (phone.isEmpty) {
       return null;
     }
-    if (phone.length > 20) {
-      return l10n.customerProfilePhoneTooLong;
-    }
-    return _phonePattern.hasMatch(phone)
-        ? null
-        : l10n.customerProfilePhoneInvalid;
-  }
-
-  static String _errorMessage(
-    Object error,
-    AppLocalizations l10n, {
-    bool loading = false,
-  }) {
-    if (error is ApiException) {
-      return switch (error.statusCode) {
-        null => l10n.customerProfileNetworkError,
-        401 || 403 => l10n.customerProfileAccessError,
-        404 => l10n.customerProfileNotFound,
-        400 => l10n.customerProfileValidationError,
-        _ =>
-          loading
-              ? l10n.customerProfileLoadError
-              : l10n.customerProfileSaveError,
-      };
-    }
-    return loading
-        ? l10n.customerProfileLoadError
-        : l10n.customerProfileSaveError;
+    return validatePhoneLength(phone, l10n) ??
+        (_phonePattern.hasMatch(phone)
+            ? null
+            : l10n.customerProfilePhoneInvalid);
   }
 }
