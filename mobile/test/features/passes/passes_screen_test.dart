@@ -118,8 +118,8 @@ void main() {
             _pass(
               'Karnet Pole Dance',
               PassStatus.active,
-              validFrom: today.subtract(const Duration(days: 3)),
-              validUntil: today.add(const Duration(days: 4)),
+              validFrom: DateTime(today.year, today.month, today.day - 3),
+              validUntil: DateTime(today.year, today.month, today.day + 4),
             ),
             _pass(
               'Open',

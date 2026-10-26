@@ -1,15 +1,16 @@
-package studioforyou.pl.backend.offering.internal;
+package studioforyou.pl.backend.offering.internal.services;
 
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-import studioforyou.pl.backend.offering.ServiceTypeSummary;
-import studioforyou.pl.backend.offering.ServiceTypes;
-
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import studioforyou.pl.backend.configuration.BookingPolicies;
+import studioforyou.pl.backend.offering.ServiceTypeSummary;
+import studioforyou.pl.backend.offering.ServiceTypes;
 
 @Service
 @Transactional(readOnly = true)
@@ -17,8 +18,20 @@ class ServiceTypeQueries implements ServiceTypes {
 
 	private final ServiceTypeRepository serviceTypeRepository;
 
-	ServiceTypeQueries(ServiceTypeRepository serviceTypeRepository) {
+	private final BookingPolicies bookingPolicies;
+
+	ServiceTypeQueries(ServiceTypeRepository serviceTypeRepository, BookingPolicies bookingPolicies) {
 		this.serviceTypeRepository = serviceTypeRepository;
+		this.bookingPolicies = bookingPolicies;
+	}
+
+	@Override
+	public Optional<Definition> findDefinitionById(UUID id) {
+		return this.serviceTypeRepository.findById(id).map(service -> new Definition(service.getId(), service.getName(),
+				service.getCategory(), service.getLevel(), service.getMinAge(), service.getMaxAge(),
+				service.getDefaultDurationMinutes(), service.getMinParticipants(), service.getMaxParticipants(),
+				service.isActive(), this.bookingPolicies.findForServices(List.of(ServiceTypeManagement.context(service)))
+					.get(id)));
 	}
 
 	@Override
