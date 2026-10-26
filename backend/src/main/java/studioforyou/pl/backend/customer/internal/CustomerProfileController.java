@@ -8,7 +8,6 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -85,21 +84,16 @@ public class CustomerProfileController {
 	}
 
 	private UUID ownProfileId(AccountAuthentication authentication) {
-		return profiles.findOwnProfile(accountId(authentication))
+		return profiles.findOwnProfile(authentication.requireActiveAccountId())
 			.map(ProfileSummary::id)
 			.orElseThrow(CustomerPersonalDetails::notFound);
 	}
 
 	private UUID actingFor(AccountAuthentication authentication, UUID profileId) {
-		if (!profiles.isActingFor(accountId(authentication), profileId)) {
+		if (!profiles.isActingFor(authentication.requireActiveAccountId(), profileId)) {
 			throw CustomerPersonalDetails.notFound();
 		}
 		return profileId;
-	}
-
-	private static UUID accountId(AccountAuthentication authentication) {
-		return authentication.activeAccountId()
-			.orElseThrow(() -> new AccessDeniedException("An active application account is required."));
 	}
 
 }

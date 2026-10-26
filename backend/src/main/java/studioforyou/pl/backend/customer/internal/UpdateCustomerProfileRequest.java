@@ -4,6 +4,8 @@ import java.time.LocalDate;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
+import studioforyou.pl.backend.shared.api.UserText;
+
 /** Partial update with explicit presence tracking, so omitted fields and explicit nulls stay distinct. */
 @Schema(name = "UpdateCustomerProfileRequest",
 		description = "Omitted fields stay unchanged. Values are trimmed before validation.")
@@ -99,12 +101,12 @@ public class UpdateCustomerProfileRequest {
 	/** Applies the supplied fields to the current details, trimming text and clearing blank optional values. */
 	PersonalDetails applyTo(PersonalDetails current) {
 		return new PersonalDetails(current.id(), current.kind(),
-				firstNamePresent ? Texts.trim(firstName) : current.firstName(),
-				lastNamePresent ? Texts.trim(lastName) : current.lastName(),
+				firstNamePresent ? UserText.trim(firstName) : current.firstName(),
+				lastNamePresent ? UserText.trim(lastName) : current.lastName(),
 				birthDatePresent ? birthDate : current.birthDate(),
-				phonePresent ? Texts.trimToNull(phone) : current.phone(),
-				emergencyContactNamePresent ? Texts.trimToNull(emergencyContactName) : current.emergencyContactName(),
-				emergencyPhonePresent ? Texts.trimToNull(emergencyPhone) : current.emergencyPhone());
+				phonePresent ? UserText.trimToNull(phone) : current.phone(),
+				emergencyContactNamePresent ? UserText.trimToNull(emergencyContactName) : current.emergencyContactName(),
+				emergencyPhonePresent ? UserText.trimToNull(emergencyPhone) : current.emergencyPhone());
 	}
 
 }

@@ -1,14 +1,11 @@
 package studioforyou.pl.backend.staff.internal;
 
-import java.util.UUID;
-
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -40,7 +37,7 @@ public class StaffProfileController {
 			description = "Requires an ACTIVE application account with the TRAINER role. The owner comes from the verified Firebase token.")
 	@ApiResponse(responseCode = "200", description = "The trainer's profile.")
 	public StaffProfileResponse get(AccountAuthentication authentication) {
-		return StaffProfileResponse.from(staffProfiles.getByAccount(accountId(authentication)));
+		return StaffProfileResponse.from(staffProfiles.getByAccount(authentication.requireActiveAccountId()));
 	}
 
 	@PatchMapping
@@ -53,12 +50,8 @@ public class StaffProfileController {
 			content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ApiProblem.class)))
 	public StaffProfileResponse update(AccountAuthentication authentication,
 			@RequestBody UpdateStaffProfileRequest request) {
-		return StaffProfileResponse.from(staffProfiles.updateByAccount(accountId(authentication), request.toChanges()));
-	}
-
-	private static UUID accountId(AccountAuthentication authentication) {
-		return authentication.activeAccountId()
-			.orElseThrow(() -> new AccessDeniedException("An active application account is required."));
+		return StaffProfileResponse.from(
+				staffProfiles.updateByAccount(authentication.requireActiveAccountId(), request.toChanges()));
 	}
 
 }
