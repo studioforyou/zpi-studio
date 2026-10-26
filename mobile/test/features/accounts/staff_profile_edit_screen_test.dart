@@ -194,7 +194,8 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.text('Client Name'), findsWidgets);
-      expect(find.text('Dane osobowe'), findsNothing);
+      // The client's own details editor, not the trainer's.
+      expect(find.text('Dane osobowe'), findsOneWidget);
       expect(find.widgetWithText(ChoiceChip, 'Child Name'), findsOneWidget);
       expect(
         tester

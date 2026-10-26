@@ -55,14 +55,19 @@ class Session {
   /// profile). Ids are backend UUIDs kept as `String`.
   final String? activeProfileId;
 
-  Session copyWith({AppRole? activeRole, String? activeProfileId}) {
+  Session copyWith({
+    String? displayName,
+    AppRole? activeRole,
+    List<Profile>? profiles,
+    String? activeProfileId,
+  }) {
     return Session(
       accountId: accountId,
-      displayName: displayName,
+      displayName: displayName ?? this.displayName,
       roles: roles,
       activeRole: activeRole ?? this.activeRole,
       staffProfileId: staffProfileId,
-      profiles: profiles,
+      profiles: profiles ?? this.profiles,
       activeProfileId: activeProfileId ?? this.activeProfileId,
     );
   }
