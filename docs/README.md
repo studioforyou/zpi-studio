@@ -21,3 +21,5 @@ Project design and shared assistant guidance are maintained in the [Wiki](https:
 Update affected READMEs in the same pull request as the related project change. Coordinate related Wiki updates and include links to the relevant Wiki revisions in the pull request.
 
 Local review proposal: [Trainer profile HTTP ownership (PR #210)](wiki-proposals/210-trainer-profile-http-ownership.md).
+
+Feature guide: [Client group class booking (#87, #88, #89, #118)](features/client-group-class-booking.md), with a [local Wiki update proposal](wiki-proposals/87-client-group-class-booking.md).

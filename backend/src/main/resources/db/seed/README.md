@@ -17,9 +17,27 @@ Test accounts created by the seed in this directory. Loaded on dev and stage onl
 
 \* Logs in to Firebase, but the backend gives access to studio features only to ACTIVE accounts.
 
+The timetable showcase seed also completes the known cancellation terms of the original Katarzyna and Zosia reservation fixtures. With a fresh seed, Katarzyna can cancel and rebook the upcoming Tuesday class; Monika can act for Zosia on the kids class. Other historical reservations without known snapshots remain readable but cannot be cancelled through this workflow. Events retain the dates from the week the seed first ran.
+
 Customer profiles without an account:
 
 | Name | Notes |
 | --- | --- |
 | Zosia Dąbrowska | **Child** profile (born 2016), guardian: Monika Dąbrowska; kids pole dance group |
 | Krzysztof Wrona | Adult added by the studio without an account, archived |
+
+## Timetable showcase (seed 08)
+
+Adds **52 public classes across two upcoming weeks**, starting on the next Monday in Europe/Warsaw when first applied. Existing fixture dates, reservations and pass balances are preserved. Restarting the backend does not move these dates or restore cancelled bookings.
+
+- Monday 17:00 and Friday 17:00: three simultaneous classes in separate rooms (pole dance, calisthenics, stretching). Monday also has a partial overlap and short consecutive classes.
+- All seven weekdays have classes; lengths range from 30 to 75 minutes. Most classes remain empty with this small client sample. Occupancy is always the count of actual active reservations. The original two-place Thursday pole class remains the full-group example (Katarzyna and Monika).
+- No accounts, customer profiles or staff profiles are created. Participants use the existing Katarzyna, Monika and Tomasz accounts; Zosia uses her existing child profile through Monika.
+- Katarzyna and Monika each have **two** additional reservations: first Monday 17:00 pole dance and second Wednesday 18:15 stretching. Both accounts see the same roster. Monika uses her existing Open pass; Katarzyna has a separate gifted Open pass, preserving her purchased pass's balance.
+- Tomasz has **two** additional calisthenics reservations (first Tuesday 10:00 and second Friday 17:00) funded by a gifted Open pass. His original Monday class is linked to that pass so cancellation and rebooking work as well.
+- Zosia has **one** additional Wednesday 15:30 booking in the first week, funded by a separate four-entry child pass with three entries left and a matching ledger. Her original Saturday class remains, so the two sessions fall on different days.
+- Anna's four second-week pole classes move to Thursday, Friday and Saturday to respect her existing leave. Existing instructors cover the entire offer. Stretching is a separate green group service; workshops retain their original scope.
+
+Use the same Firebase seed logins and passwords. No Firebase accounts or passwords are created or modified. This repeatable migration runs automatically with the dev/stage seed profile, including against an existing local database. It only inserts missing fixtures. For a date refresh on an old database, use a separate fresh development database rather than overwriting tester data.
+
+This feature adds one seed file: `R__seed_08_timetable_showcase.sql`. The earlier local prototype and its one-off cleanup are not part of the shared seed. The showcase creates no obsolete participant or substitute accounts.

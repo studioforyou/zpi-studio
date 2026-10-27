@@ -8,6 +8,19 @@ import 'package:mobile/l10n/generated/app_localizations.dart';
 /// How much of the schedule the calendar shows at once.
 enum ScheduleView { day, week, month }
 
+typedef ScheduleEventBuilder =
+    Widget Function(BuildContext context, ScheduleEvent event);
+typedef ScheduleDayBuilder =
+    Widget Function(
+      BuildContext context,
+      List<ScheduleEvent> events,
+      DateTime day,
+    );
+typedef ScheduleEventColor =
+    Color Function(ScheduleEvent event, ColorScheme scheme);
+typedef ScheduleLegendBuilder =
+    Widget Function(BuildContext context, List<ScheduleEvent> events);
+
 /// A schedule in a day, week or month view, with navigation between periods.
 ///
 /// The events come from [eventsFor], so the same calendar can show a
@@ -20,6 +33,12 @@ class ScheduleCalendar extends ConsumerStatefulWidget {
     this.where,
     this.filtersBuilder,
     this.today,
+    this.eventBuilder,
+    this.dayBuilder,
+    this.eventColor,
+    this.legendBuilder,
+    this.showLegend = true,
+    this.onRefresh,
   });
 
   /// Events overlapping a window, earliest first.
@@ -36,6 +55,27 @@ class ScheduleCalendar extends ConsumerStatefulWidget {
 
   /// The day the calendar opens on; the current day when `null`.
   final DateTime? today;
+
+  /// Optional participant-specific content for event rows in each list view.
+  /// Without it the trainer's standard [ScheduleEventTile] is used.
+  final ScheduleEventBuilder? eventBuilder;
+
+  /// Replaces the entire day body, including its legend. Receives only filtered
+  /// events overlapping the selected day and must return a vertical scrollable so pull to
+  /// refresh remains available (for example an hourly client timetable).
+  final ScheduleDayBuilder? dayBuilder;
+
+  /// Optional service colours for month markers. Cancelled events remain red.
+  final ScheduleEventColor? eventColor;
+
+  /// Optional explanation for custom event colours in the default list bodies.
+  final ScheduleLegendBuilder? legendBuilder;
+  final bool showLegend;
+
+  /// Refreshes the data sources behind the visible window. Supply this when
+  /// [eventsFor] adapts another cached provider that also needs invalidating.
+  /// Used both for pull to refresh and for retrying a failed load.
+  final Future<void> Function(ScheduleWindow window)? onRefresh;
 
   @override
   ConsumerState<ScheduleCalendar> createState() => _ScheduleCalendarState();
@@ -59,96 +99,135 @@ class _ScheduleCalendarState extends ConsumerState<ScheduleCalendar> {
     final filtersBuilder = widget.filtersBuilder;
     final where = widget.where;
 
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-          child: SegmentedButton<ScheduleView>(
-            segments: [
-              ButtonSegment(
-                value: ScheduleView.day,
-                label: Text(l10n.scheduleViewDay),
-              ),
-              ButtonSegment(
-                value: ScheduleView.week,
-                label: Text(l10n.scheduleViewWeek),
-              ),
-              ButtonSegment(
-                value: ScheduleView.month,
-                label: Text(l10n.scheduleViewMonth),
-              ),
-            ],
-            selected: {_view},
-            showSelectedIcon: false,
-            onSelectionChanged: (selection) =>
-                setState(() => _view = selection.single),
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          child: Row(
+    // The header must remain scrollable when large text or the keyboard leaves
+    // too little height, including while this calendar is retained offstage.
+    return NestedScrollView(
+      headerSliverBuilder: (context, innerBoxIsScrolled) => [
+        SliverToBoxAdapter(
+          child: Column(
             children: [
-              IconButton(
-                icon: const Icon(Icons.chevron_left),
-                tooltip: l10n.schedulePrevious,
-                onPressed: () => setState(() => _day = _step(-1)),
-              ),
-              Expanded(
-                child: Text(
-                  _periodLabel(_view, _day, window),
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.titleMedium,
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                child: SegmentedButton<ScheduleView>(
+                  segments: [
+                    ButtonSegment(
+                      value: ScheduleView.day,
+                      label: Text(l10n.scheduleViewDay),
+                    ),
+                    ButtonSegment(
+                      value: ScheduleView.week,
+                      label: Text(l10n.scheduleViewWeek),
+                    ),
+                    ButtonSegment(
+                      value: ScheduleView.month,
+                      label: Text(l10n.scheduleViewMonth),
+                    ),
+                  ],
+                  selected: {_view},
+                  showSelectedIcon: false,
+                  onSelectionChanged: (selection) =>
+                      setState(() => _view = selection.single),
                 ),
               ),
-              IconButton(
-                icon: const Icon(Icons.chevron_right),
-                tooltip: l10n.scheduleNext,
-                onPressed: () => setState(() => _day = _step(1)),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.chevron_left),
+                      tooltip: l10n.schedulePrevious,
+                      onPressed: () => setState(() => _day = _step(-1)),
+                    ),
+                    Expanded(
+                      child: Text(
+                        _periodLabel(_view, _day, window),
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.chevron_right),
+                      tooltip: l10n.scheduleNext,
+                      onPressed: () => setState(() => _day = _step(1)),
+                    ),
+                    TextButton(
+                      onPressed: () => setState(() => _day = _today),
+                      child: Text(l10n.scheduleToday),
+                    ),
+                  ],
+                ),
               ),
-              TextButton(
-                onPressed: () => setState(() => _day = _today),
-                child: Text(l10n.scheduleToday),
-              ),
+              if (filtersBuilder != null)
+                filtersBuilder(context, eventsState.value ?? const []),
             ],
           ),
-        ),
-        if (filtersBuilder != null)
-          filtersBuilder(context, eventsState.value ?? const []),
-        Expanded(
-          child: eventsState
-              .whenData(
-                (events) =>
-                    where == null ? events : events.where(where).toList(),
-              )
-              .when(
-                skipLoadingOnReload: true,
-                loading: () => const Center(child: CircularProgressIndicator()),
-                error: (_, _) =>
-                    _LoadError(onRetry: () => ref.invalidate(provider)),
-                data: (events) => RefreshIndicator(
-                  onRefresh: () => ref.refresh(provider.future),
-                  child: switch (_view) {
-                    ScheduleView.day => _DayList(events: events, day: _day),
-                    ScheduleView.week => _WeekList(
-                      events: events,
-                      window: window,
-                      today: _today,
-                      onDaySelected: _openDay,
-                    ),
-                    ScheduleView.month => _MonthGrid(
-                      events: events,
-                      window: window,
-                      month: _day,
-                      selected: _day,
-                      today: _today,
-                      onDaySelected: (day) => setState(() => _day = day),
-                    ),
-                  },
-                ),
-              ),
         ),
       ],
+      body: eventsState
+          .whenData(
+            (events) => where == null ? events : events.where(where).toList(),
+          )
+          .when(
+            skipLoadingOnReload: false,
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (_, _) => _LoadError(onRetry: () => _refresh(window)),
+            data: (events) => RefreshIndicator(
+              onRefresh: () => _refresh(window),
+              child: switch (_view) {
+                ScheduleView.day =>
+                  widget.dayBuilder?.call(
+                        context,
+                        _eventsOn(events, _day),
+                        _day,
+                      ) ??
+                      _DayList(
+                        events: events,
+                        day: _day,
+                        eventBuilder: widget.eventBuilder,
+                        legend: _legend(context, events),
+                      ),
+                ScheduleView.week => _WeekList(
+                  events: events,
+                  window: window,
+                  today: _today,
+                  onDaySelected: _openDay,
+                  eventBuilder: widget.eventBuilder,
+                  legend: _legend(context, events),
+                ),
+                ScheduleView.month => _MonthGrid(
+                  events: events,
+                  window: window,
+                  month: _day,
+                  selected: _day,
+                  today: _today,
+                  onDaySelected: (day) => setState(() => _day = day),
+                  eventBuilder: widget.eventBuilder,
+                  eventColor: widget.eventColor,
+                  legend: _legend(context, events),
+                ),
+              },
+            ),
+          ),
     );
+  }
+
+  Widget? _legend(BuildContext context, List<ScheduleEvent> events) {
+    if (!widget.showLegend) return null;
+    return widget.legendBuilder?.call(context, events) ?? const _Legend();
+  }
+
+  Future<void> _refresh(ScheduleWindow window) async {
+    try {
+      final onRefresh = widget.onRefresh;
+      if (onRefresh != null) {
+        await onRefresh(window);
+      } else {
+        final request = ref.refresh(widget.eventsFor(window).future);
+        await request;
+      }
+    } catch (_) {
+      // The observed provider displays load failures and offers another retry.
+    }
   }
 
   void _openDay(DateTime day) {
@@ -209,21 +288,30 @@ List<ScheduleEvent> _eventsOn(List<ScheduleEvent> events, DateTime day) {
 }
 
 class _DayList extends StatelessWidget {
-  const _DayList({required this.events, required this.day});
+  const _DayList({
+    required this.events,
+    required this.day,
+    required this.eventBuilder,
+    required this.legend,
+  });
 
   final List<ScheduleEvent> events;
   final DateTime day;
+  final ScheduleEventBuilder? eventBuilder;
+  final Widget? legend;
 
   @override
   Widget build(BuildContext context) {
     final dayEvents = _eventsOn(events, day);
     return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.all(16),
       children: [
         if (dayEvents.isEmpty)
           _Message(AppLocalizations.of(context).scheduleEmptyDay),
-        for (final event in dayEvents) ScheduleEventTile(event),
-        const _Legend(),
+        for (final event in dayEvents)
+          eventBuilder?.call(context, event) ?? ScheduleEventTile(event),
+        ?legend,
       ],
     );
   }
@@ -235,18 +323,23 @@ class _WeekList extends StatelessWidget {
     required this.window,
     required this.today,
     required this.onDaySelected,
+    required this.eventBuilder,
+    required this.legend,
   });
 
   final List<ScheduleEvent> events;
   final ScheduleWindow window;
   final DateTime today;
   final ValueChanged<DateTime> onDaySelected;
+  final ScheduleEventBuilder? eventBuilder;
+  final Widget? legend;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final textTheme = Theme.of(context).textTheme;
     return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.all(16),
       children: [
         for (var i = 0; i < 7; i++)
@@ -270,10 +363,11 @@ class _WeekList extends StatelessWidget {
               ),
               if (dayEvents.isEmpty)
                 Text(l10n.scheduleEmptyDay, style: textTheme.bodySmall),
-              for (final event in dayEvents) ScheduleEventTile(event),
+              for (final event in dayEvents)
+                eventBuilder?.call(context, event) ?? ScheduleEventTile(event),
             ];
           }(),
-        const _Legend(),
+        ?legend,
       ],
     );
   }
@@ -287,6 +381,9 @@ class _MonthGrid extends StatelessWidget {
     required this.selected,
     required this.today,
     required this.onDaySelected,
+    required this.eventBuilder,
+    required this.eventColor,
+    required this.legend,
   });
 
   final List<ScheduleEvent> events;
@@ -295,6 +392,9 @@ class _MonthGrid extends StatelessWidget {
   final DateTime selected;
   final DateTime today;
   final ValueChanged<DateTime> onDaySelected;
+  final ScheduleEventBuilder? eventBuilder;
+  final ScheduleEventColor? eventColor;
+  final Widget? legend;
 
   @override
   Widget build(BuildContext context) {
@@ -302,6 +402,7 @@ class _MonthGrid extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
     final selectedEvents = _eventsOn(events, selected);
     return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.all(16),
       children: [
         Row(
@@ -333,6 +434,7 @@ class _MonthGrid extends StatelessWidget {
                     isSelected: _addDays(window.from, week * 7 + i) == selected,
                     isToday: _addDays(window.from, week * 7 + i) == today,
                     onTap: onDaySelected,
+                    eventColor: eventColor,
                   ),
                 ),
             ],
@@ -345,8 +447,9 @@ class _MonthGrid extends StatelessWidget {
         const SizedBox(height: 4),
         if (selectedEvents.isEmpty)
           Text(l10n.scheduleEmptyDay, style: textTheme.bodySmall),
-        for (final event in selectedEvents) ScheduleEventTile(event),
-        const _Legend(),
+        for (final event in selectedEvents)
+          eventBuilder?.call(context, event) ?? ScheduleEventTile(event),
+        ?legend,
       ],
     );
   }
@@ -360,9 +463,10 @@ class _MonthDay extends StatelessWidget {
     required this.isSelected,
     required this.isToday,
     required this.onTap,
+    required this.eventColor,
   });
 
-  /// At most this many events are marked with a dot; more add a "+".
+  /// At most this many events are marked with a dot; the rest are counted.
   static const _maxDots = 3;
 
   final DateTime day;
@@ -371,42 +475,66 @@ class _MonthDay extends StatelessWidget {
   final bool isSelected;
   final bool isToday;
   final ValueChanged<DateTime> onTap;
+  final ScheduleEventColor? eventColor;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
-    return InkWell(
-      onTap: () => onTap(day),
-      borderRadius: BorderRadius.circular(8),
-      child: Container(
-        height: 48,
-        decoration: BoxDecoration(
-          color: isSelected ? scheme.primaryContainer : null,
-          borderRadius: BorderRadius.circular(8),
-          border: isToday ? Border.all(color: scheme.primary) : null,
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          spacing: 4,
-          children: [
-            Text(
-              '${day.day}',
-              style: textTheme.bodyMedium?.copyWith(
-                color: inMonth ? null : scheme.outline,
+    final textScale = MediaQuery.textScalerOf(context).scale(14) / 14;
+    return Tooltip(
+      message: events.isEmpty
+          ? ''
+          : AppLocalizations.of(context).scheduleDayEventCount(events.length),
+      child: InkWell(
+        onTap: () => onTap(day),
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          height: 48 * (textScale < 1 ? 1 : textScale),
+          decoration: BoxDecoration(
+            color: isSelected ? scheme.primaryContainer : null,
+            borderRadius: BorderRadius.circular(8),
+            border: isToday ? Border.all(color: scheme.primary) : null,
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            spacing: 4,
+            children: [
+              Text(
+                '${day.day}',
+                style: textTheme.bodyMedium?.copyWith(
+                  color: inMonth ? null : scheme.outline,
+                ),
               ),
-            ),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              spacing: 2,
-              children: [
-                for (final event in events.take(_maxDots))
-                  _Dot(scheduleEventColor(event, scheme)),
-                if (events.length > _maxDots)
-                  Text('+', style: textTheme.labelSmall?.copyWith(height: 1)),
-              ],
-            ),
-          ],
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 2),
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    spacing: 2,
+                    children: [
+                      for (final event in events.take(_maxDots))
+                        _Dot(
+                          event.status == EventStatus.cancelled
+                              ? scheme.error
+                              : eventColor?.call(event, scheme) ??
+                                    scheduleEventColor(event, scheme),
+                        ),
+                      if (events.length > _maxDots)
+                        Text(
+                          '+${events.length - _maxDots}',
+                          style: textTheme.labelSmall?.copyWith(
+                            height: 1,
+                            color: scheme.onSurfaceVariant,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
