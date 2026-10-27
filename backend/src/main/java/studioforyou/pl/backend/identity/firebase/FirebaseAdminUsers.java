@@ -1,6 +1,7 @@
 package studioforyou.pl.backend.identity.firebase;
 
 import java.io.IOException;
+import java.util.Optional;
 
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.firebase.FirebaseApp;
@@ -51,6 +52,21 @@ class FirebaseAdminUsers implements FirebaseUsers {
 			return new FirebaseUser(created.getUid(), true);
 		}
 		catch (FirebaseAuthException ex) {
+			throw new IllegalStateException("Could not create the Firebase user " + email, ex);
+		}
+	}
+
+	@Override
+	public Optional<String> createNew(String email, String password) {
+		try {
+			UserRecord created = auth().createUser(
+					new UserRecord.CreateRequest().setEmail(email).setPassword(password).setEmailVerified(true));
+			return Optional.of(created.getUid());
+		}
+		catch (FirebaseAuthException ex) {
+			if (ex.getAuthErrorCode() == AuthErrorCode.EMAIL_ALREADY_EXISTS) {
+				return Optional.empty();
+			}
 			throw new IllegalStateException("Could not create the Firebase user " + email, ex);
 		}
 	}
