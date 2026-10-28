@@ -4,7 +4,7 @@
 -- Customer profiles (07...NN):
 --   01 Katarzyna Zielińska   02 Tomasz Lewandowski   03 Monika Dąbrowska   04 Zosia Dąbrowska (child of 03)
 --   05 Piotr Wójcik          06 Adam Mazur           07 Krzysztof Wrona (no account)   08 Julia Kamińska
--- Staff profiles (08...NN): 01 Anna Kowalska, 02 Marek Nowak, 03 Ewa Wiśniewska
+-- Staff profiles (08...NN): 01 Anna Kowalska, 02 Marek Nowak, 03 Ewa Wiśniewska, 04 Beata Lis (admin)
 -- Service types (10...NN):
 --   01 Pole dance beginners   02 Pole dance intermediate   03 Calisthenics
 --   04 Personal training      05 Pole dance kids           06 Stretching workshop
@@ -27,7 +27,8 @@ ON CONFLICT DO NOTHING;
 INSERT INTO staff_profile (id, account_id, first_name, last_name, phone, bio, photo_file_id, calendar_color, status) VALUES
     ('08000000-0000-0000-0000-000000000001', '03000000-0000-0000-0000-000000000001', 'Anna', 'Kowalska',   '+48600200201', 'Właścicielka studia, instruktorka pole dance od 10 lat.', '02000000-0000-0000-0000-000000000001', '#E91E63', 'ACTIVE'),
     ('08000000-0000-0000-0000-000000000002', '03000000-0000-0000-0000-000000000002', 'Marek', 'Nowak',     '+48600200202', 'Trener personalny i calisthenics.',                      NULL,                                   '#2196F3', 'ACTIVE'),
-    ('08000000-0000-0000-0000-000000000003', '03000000-0000-0000-0000-000000000003', 'Ewa',   'Wiśniewska','+48600200203', 'Instruktorka pole dance i stretchingu.',                 NULL,                                   '#4CAF50', 'ACTIVE')
+    ('08000000-0000-0000-0000-000000000003', '03000000-0000-0000-0000-000000000003', 'Ewa',   'Wiśniewska','+48600200203', 'Instruktorka pole dance i stretchingu.',                 NULL,                                   '#4CAF50', 'ACTIVE'),
+    ('08000000-0000-0000-0000-000000000004', '03000000-0000-0000-0000-000000000010', 'Beata', 'Lis',       '+48600200204', 'Administratorka studia: grafik, karnety i konta klientów.', NULL,                                 NULL,      'ACTIVE')
 ON CONFLICT DO NOTHING;
 
 INSERT INTO service_type (id, name, description, category, level, min_age, max_age, default_duration_minutes, min_participants, max_participants, calendar_color, is_active) VALUES
@@ -102,20 +103,22 @@ INSERT INTO pass_product_service (product_id, service_type_id) VALUES
     ('13000000-0000-0000-0000-000000000005', '10000000-0000-0000-0000-000000000005')
 ON CONFLICT DO NOTHING;
 
-INSERT INTO resource (id, name, kind, parent_resource_id, capacity_units, max_people, description, is_active) VALUES
-    ('15000000-0000-0000-0000-000000000001', 'Sala pole dance',   'ROOM',      NULL,                                   1, 10,   'Sala z 10 rurkami.',          TRUE),
-    ('15000000-0000-0000-0000-000000000002', 'Sala treningowa 1', 'ROOM',      NULL,                                   3, 12,   'Duża sala, 3 stanowiska PT.', TRUE),
-    ('15000000-0000-0000-0000-000000000003', 'Sala treningowa 2', 'ROOM',      NULL,                                   2, 8,    'Mała sala.',                  TRUE),
-    ('15000000-0000-0000-0000-000000000004', 'Rurka obrotowa #1', 'EQUIPMENT', '15000000-0000-0000-0000-000000000001', 1, NULL, NULL,                          TRUE)
+INSERT INTO resource (id, name, kind, parent_resource_id, max_people, description, is_active) VALUES
+    ('15000000-0000-0000-0000-000000000001', 'Sala pole dance',   'ROOM', NULL, 10, 'Sala z 10 rurkami.',          TRUE),
+    ('15000000-0000-0000-0000-000000000002', 'Sala treningowa 1', 'ROOM', NULL, 12, 'Duża sala, 3 stanowiska PT.', TRUE),
+    ('15000000-0000-0000-0000-000000000003', 'Sala treningowa 2', 'ROOM', NULL, 8,  'Mała sala.',                  TRUE)
 ON CONFLICT DO NOTHING;
 
-INSERT INTO service_type_resource (service_type_id, resource_id, units_required, is_default) VALUES
-    ('10000000-0000-0000-0000-000000000001', '15000000-0000-0000-0000-000000000001', NULL, TRUE),
-    ('10000000-0000-0000-0000-000000000002', '15000000-0000-0000-0000-000000000001', NULL, TRUE),
-    ('10000000-0000-0000-0000-000000000005', '15000000-0000-0000-0000-000000000001', NULL, TRUE),
-    ('10000000-0000-0000-0000-000000000003', '15000000-0000-0000-0000-000000000002', NULL, TRUE),
-    ('10000000-0000-0000-0000-000000000003', '15000000-0000-0000-0000-000000000003', NULL, FALSE),
-    ('10000000-0000-0000-0000-000000000004', '15000000-0000-0000-0000-000000000002', 1,    TRUE),
-    ('10000000-0000-0000-0000-000000000004', '15000000-0000-0000-0000-000000000003', 1,    FALSE),
-    ('10000000-0000-0000-0000-000000000006', '15000000-0000-0000-0000-000000000003', NULL, TRUE)
+-- Only ROOM resources exist for now (#133). Removes the EQUIPMENT row from databases seeded before.
+DELETE FROM resource WHERE id = '15000000-0000-0000-0000-000000000004';
+
+INSERT INTO service_type_resource (service_type_id, resource_id, is_default) VALUES
+    ('10000000-0000-0000-0000-000000000001', '15000000-0000-0000-0000-000000000001', TRUE),
+    ('10000000-0000-0000-0000-000000000002', '15000000-0000-0000-0000-000000000001', TRUE),
+    ('10000000-0000-0000-0000-000000000005', '15000000-0000-0000-0000-000000000001', TRUE),
+    ('10000000-0000-0000-0000-000000000003', '15000000-0000-0000-0000-000000000002', TRUE),
+    ('10000000-0000-0000-0000-000000000003', '15000000-0000-0000-0000-000000000003', FALSE),
+    ('10000000-0000-0000-0000-000000000004', '15000000-0000-0000-0000-000000000002', TRUE),
+    ('10000000-0000-0000-0000-000000000004', '15000000-0000-0000-0000-000000000003', FALSE),
+    ('10000000-0000-0000-0000-000000000006', '15000000-0000-0000-0000-000000000003', TRUE)
 ON CONFLICT DO NOTHING;

@@ -1,13 +1,16 @@
-import { AppShell, Button, Group, NavLink, Text } from '@mantine/core';
+import { useState } from 'react';
+import { AppShell, Button, Group, Menu, NavLink, Text } from '@mantine/core';
 import { NavLink as RouterNavLink, Outlet, useMatch, useNavigate } from 'react-router';
 import { paths } from '@/app/paths';
 import { useAuth } from '@/features/auth/AuthProvider';
+import { ChangePasswordModal } from '@/features/auth/ChangePasswordModal';
 import { pl } from '@/shared/i18n/pl';
 import { navigation, type NavigationItem } from './navigation';
 
 export function AdminLayout() {
   const { session, logout } = useAuth();
   const navigate = useNavigate();
+  const [changingPassword, setChangingPassword] = useState(false);
 
   async function handleLogout() {
     await logout();
@@ -22,12 +25,23 @@ export function AdminLayout() {
             <Text fw={700}>{pl.appName}</Text>
             <Text c="dimmed">{pl.panelName}</Text>
           </Group>
-          <Group gap="sm">
-            <Text>{session?.displayName}</Text>
-            <Button variant="subtle" onClick={() => void handleLogout()}>
-              {pl.auth.logout}
-            </Button>
-          </Group>
+          <Menu position="bottom-end">
+            <Menu.Target>
+              <Button variant="subtle" color="gray" rightSection="▾">
+                <Text fw={500}>{session?.displayName}</Text>
+              </Button>
+            </Menu.Target>
+            <Menu.Dropdown miw={200} maw={360}>
+              <Menu.Label style={{ overflowWrap: 'anywhere' }}>{session?.email}</Menu.Label>
+              <Menu.Item onClick={() => setChangingPassword(true)}>
+                {pl.auth.changePassword.menuItem}
+              </Menu.Item>
+              <Menu.Divider />
+              <Menu.Item color="red" onClick={() => void handleLogout()}>
+                {pl.auth.logout}
+              </Menu.Item>
+            </Menu.Dropdown>
+          </Menu>
         </Group>
       </AppShell.Header>
       <AppShell.Navbar p="xs">
@@ -38,6 +52,7 @@ export function AdminLayout() {
       <AppShell.Main>
         <Outlet />
       </AppShell.Main>
+      <ChangePasswordModal opened={changingPassword} onClose={() => setChangingPassword(false)} />
     </AppShell>
   );
 }

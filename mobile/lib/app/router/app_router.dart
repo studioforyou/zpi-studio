@@ -7,13 +7,17 @@ import 'package:mobile/app/shell/role_shell.dart';
 import 'package:mobile/app/splash/splash_screen.dart';
 import 'package:mobile/core/auth/auth_controller.dart';
 import 'package:mobile/core/auth/auth_state.dart';
+import 'package:mobile/features/accounts/presentation/accept_invitation_screen.dart';
 import 'package:mobile/features/accounts/presentation/login_screen.dart';
 import 'package:mobile/features/accounts/presentation/profile_screen.dart';
+import 'package:mobile/features/accounts/presentation/reset_password_screen.dart';
+import 'package:mobile/features/accounts/presentation/staff_profile_edit_screen.dart';
 import 'package:mobile/features/accounts/presentation/role_picker_screen.dart';
 import 'package:mobile/features/communication/presentation/messages_screen.dart';
 import 'package:mobile/features/passes/presentation/passes_screen.dart';
 import 'package:mobile/features/schedule/presentation/availability_screen.dart';
 import 'package:mobile/features/schedule/presentation/schedule_screen.dart';
+import 'package:mobile/features/schedule/presentation/trainer_schedule_screen.dart';
 import 'package:mobile/features/trainings/presentation/reservations_screen.dart';
 import 'package:mobile/features/trainings/presentation/trainings_screen.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
@@ -22,6 +26,10 @@ const splashPath = '/splash';
 const loginPath = '/login';
 const pingPath = '/ping';
 const rolePickerPath = '/choose-role';
+const resetPasswordPath = '/reset-password';
+
+/// Opened from the invitation e-mail link, with the `token` query parameter.
+const invitePath = '/invite';
 
 const clientSchedulePath = '/client/schedule';
 const clientPassesPath = '/client/passes';
@@ -34,6 +42,7 @@ const trainerTrainingsPath = '/trainer/trainings';
 const trainerMessagesPath = '/trainer/messages';
 const trainerProfilePath = '/trainer/profile';
 const trainerAvailabilitySubPath = 'availability';
+const trainerProfileEditSubPath = 'edit';
 
 /// One bottom-navigation tab: its route and its navigation bar entry.
 typedef _Tab = ({GoRoute route, ShellDestination destination});
@@ -97,7 +106,7 @@ StatefulShellRoute _clientShell() => _roleShell([
 StatefulShellRoute _trainerShell() => _roleShell([
   _tab(
     trainerSchedulePath,
-    const ScheduleScreen(),
+    const TrainerScheduleScreen(),
     Icons.calendar_month,
     (l10n) => l10n.navSchedule,
   ),
@@ -119,6 +128,10 @@ StatefulShellRoute _trainerShell() => _roleShell([
     Icons.person,
     (l10n) => l10n.navProfile,
     routes: [
+      GoRoute(
+        path: trainerProfileEditSubPath,
+        builder: (_, _) => const StaffProfileEditScreen(),
+      ),
       // Opened with context.push('/trainer/profile/availability').
       GoRoute(
         path: trainerAvailabilitySubPath,
@@ -145,9 +158,28 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final location = state.matchedLocation;
       switch (ref.read(authControllerProvider)) {
         case AuthRestoring():
-          return location == splashPath ? null : splashPath;
+          if (location == splashPath) {
+            return null;
+          }
+          // An invitation link opened the app: come back to it once the
+          // session is known.
+          return location == invitePath
+              ? Uri(
+                  path: splashPath,
+                  queryParameters: {'from': state.uri.toString()},
+                ).toString()
+              : splashPath;
         case Unauthenticated():
-          return location == loginPath || location == pingPath
+          final from = state.uri.queryParameters['from'];
+          if (location == splashPath &&
+              from != null &&
+              Uri.parse(from).path == invitePath) {
+            return from;
+          }
+          return location == loginPath ||
+                  location == resetPasswordPath ||
+                  location == invitePath ||
+                  location == pingPath
               ? null
               : loginPath;
         case Authenticated(:final session, :final choosingRole):
@@ -168,6 +200,17 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     routes: [
       GoRoute(path: splashPath, builder: (_, _) => const SplashScreen()),
       GoRoute(path: loginPath, builder: (_, _) => const LoginScreen()),
+      GoRoute(
+        path: resetPasswordPath,
+        builder: (_, state) =>
+            ResetPasswordScreen(initialEmail: state.extra as String? ?? ''),
+      ),
+      GoRoute(
+        path: invitePath,
+        builder: (_, state) => AcceptInvitationScreen(
+          token: state.uri.queryParameters['token'] ?? '',
+        ),
+      ),
       GoRoute(path: pingPath, builder: (_, _) => const PingScreen()),
       GoRoute(
         path: rolePickerPath,

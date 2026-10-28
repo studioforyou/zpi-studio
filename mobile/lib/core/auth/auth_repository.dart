@@ -13,6 +13,11 @@ abstract interface class AuthRepository {
   Future<Session?> restore();
 
   Future<void> logout();
+
+  /// Sends the password reset e-mail. Succeeds also for an address without
+  /// an account, so the caller cannot learn which addresses are registered.
+  /// Throws `PasswordResetFailure` when the request itself fails.
+  Future<void> sendPasswordReset(String email);
 }
 
 final authRepositoryProvider = Provider<AuthRepository>(

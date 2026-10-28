@@ -22,8 +22,9 @@ npm run format      # Prettier (format:check in CI)
 ## Environments
 
 There are two environments, selected by the Vite mode
-**dev** (backend on your machine) and **staging** (backend in the cloud). Each reads its own
-git-ignored file; create them once from the committed templates:
+**dev** (backend on your machine) and **staging** (backend in the cloud). Each reads the committed
+`.env.<mode>` file (Firebase web app config) and its own git-ignored `.env.<mode>.local` file; create
+the local files once from the committed templates:
 
 ```sh
 cp .env.example.dev .env.dev.local
@@ -32,6 +33,10 @@ cp .env.example.staging .env.staging.local
 
 - `API_PROXY_TARGET`: where the local Vite dev server (`npm run dev`, `npm run dev:staging`)
   forwards `/api` and `/actuator`. Not used by `npm run build`.
+- `VITE_FIREBASE_*` (in `.env.dev` and `.env.staging`): the Firebase web app of the environment's
+  project, `studioforyou-dev` or `studioforyou-stage`. It must be the project whose tokens the
+  backend accepts (`FIREBASE_PROJECT_ID`). The values are public, so they are committed, like the
+  mobile app's `firebase_options_<env>.dart`.
 
 The code reads the environment name as `env.appFlavor` (`dev` or `staging`); the "Status systemu"
 page shows it. Requests always go to relative paths (`/api/...`) on the panel's own address, so a
@@ -44,9 +49,25 @@ the backend.
 
 1. Start the backend (port 8080).
 2. Run `npm run dev` and open http://localhost:5173.
-3. Log in with any e-mail and password.
+3. Log in as an administrator (see "Authentication").
 4. Open "Status systemu" and click "Sprawdź połączenie". It calls `GET /api/ping` for now and
    will switch to `GET /actuator/health` once the backend exposes it.
+
+## Authentication
+
+The panel signs in with Firebase Authentication (e-mail and password), then calls `GET /api/v1/me`.
+Firebase only proves the identity; the account status and roles come from the backend. Only an
+`ACTIVE` account with the `ADMIN` role can use the panel; any other account is signed out again with
+a message on the login page.
+
+- Every API request sends the Firebase ID token (`Authorization: Bearer <token>`); Firebase refreshes
+  it on its own. A `401` response logs you out.
+- Firebase keeps the user signed in across reloads and browser restarts; on start the panel checks
+  the saved user with `GET /api/v1/me`.
+- Test administrator: `beata.lis@seed.studioforyou.pl` from the backend seed
+  (`backend/src/main/resources/db/seed`). It can log in only where a Firebase user with UID
+  `seed-uid-beata-lis` exists. To log in as yourself, create a Firebase user and a local account with
+  `scripts/db/create_dev_account.sql` and the role `ADMIN`.
 
 ## Structure
 
@@ -58,15 +79,28 @@ src/
   test/       test setup and tests
 ```
 
-| Feature         | Backend modules                                       |
-| --------------- | ----------------------------------------------------- |
-| `schedule`      | scheduling, group_training, personal_training (rooms) |
-| `accounts`      | identity, customer, staff                             |
-| `passes`        | membership, payments                                  |
-| `trainings`     | personal_training, group_training                     |
-| `communication` | communication                                         |
-| `statistics`    | statistics                                            |
-| `auth`          | identity                                              |
+| Feature         | Backend modules                                |
+| --------------- | ---------------------------------------------- |
+| `schedule`      | scheduling (schedule, rooms), staff, trainings |
+| `accounts`      | identity, customer, staff                      |
+| `passes`        | membership, payments                           |
+| `trainings`     | personal_training, group_training              |
+| `communication` | communication                                  |
+| `statistics`    | statistics                                     |
+| `auth`          | identity                                       |
+
+## Schedule
+
+"Grafik" shows every event of the studio (classes, personal training, workshops, consultations and
+blocks) in a day, week, month or list view, always in the studio's time zone from
+`GET /api/v1/studio`. Filters run in the browser on the loaded period: text, kind, staff, room,
+service, category, level, group, status, visibility, recurrence, weekdays, time of day, age group
+and missing staff or room.
+
+"Dodaj wydarzenie" (or a click on an empty slot) plans a one-off or a recurring event with its
+staff and rooms. The second step shows every date with the conflicts and warnings the
+backend found; dates of a recurring event can be left out before saving. An event's details offer
+"Zmień obsadę i salę" for one event or the following ones of its series.
 
 ## Conventions
 
@@ -76,9 +110,3 @@ src/
 - All backend access goes through `src/shared/api`. The panel never talks to the database or
   storage directly.
 - The API contract is described in `API_CONVENTIONS.md` and `ERROR_CODES.md` (project Wiki).
-
-## Known placeholders
-
-- Login is simulated (`FakeAuthService`): any e-mail and password work.
-- Tokens are kept in memory only; reloading the page logs you out.
-- No token refresh: a `401` response logs you out.

@@ -12,3 +12,8 @@ variable "allow_public_ingress" {
   type    = bool
   default = true
 }
+
+variable "mail_from" {
+  description = "Adres nadawcy maili z zaproszeniami (zweryfikowany w Brevo)."
+  type        = string
+}

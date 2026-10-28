@@ -55,3 +55,19 @@ springdoc:
     operations-sorter: alpha
     tags-sorter: alpha
   paths-to-match: /api/**
+
+app:
+  mail:
+    # LOG only writes e-mails to the log (local default); BREVO sends them (stage, prod).
+    provider: ${MAIL_PROVIDER:LOG}
+    # With Brevo the sender must be verified in the Brevo account (Senders).
+    from-email: ${MAIL_FROM:no-reply@studioforyou.local}
+    from-name: ${MAIL_FROM_NAME:STUDIO FOR YOU}
+    brevo:
+      api-key: ${BREVO_API_KEY:}
+      base-url: https://api.brevo.com
+  invitations:
+    # Page that opens an invitation (the web panel's /invite; the token is added as ?token=...).
+    # The default is the local web panel as seen from the Android emulator; differs per environment.
+    link-base-url: ${INVITATION_LINK_BASE_URL:http://10.0.2.2:5173/invite}
+    valid-for: ${INVITATION_VALID_FOR:7d}

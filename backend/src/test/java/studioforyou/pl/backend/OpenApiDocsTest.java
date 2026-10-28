@@ -42,6 +42,35 @@ class OpenApiDocsTest {
 	}
 
 	@Test
+	void documentsRoomEndpoints() throws Exception {
+		String json = apiDocs();
+
+		Map<String, Object> paths = JsonPath.read(json, "$.paths");
+		assertThat(paths).containsKeys("/api/v1/resources", "/api/v1/resources/{resourceId}",
+				"/api/v1/resources/{resourceId}/service-types", "/api/v1/service-types");
+		Map<String, Object> updateProperties = JsonPath.read(json,
+				"$.components.schemas.UpdateResourceRequest.properties");
+		assertThat(updateProperties).containsOnlyKeys("name", "kind", "parentResourceId", "maxPeople",
+				"description", "isActive", "serviceTypes");
+	}
+
+	@Test
+	void documentsScheduleEndpoints() throws Exception {
+		String json = apiDocs();
+
+		Map<String, Object> paths = JsonPath.read(json, "$.paths");
+		assertThat(paths).containsKeys("/api/v1/schedule-events", "/api/v1/schedule-events/{eventId}",
+				"/api/v1/schedule-events/preview", "/api/v1/schedule-events/{eventId}/assignments",
+				"/api/v1/recurrence-series", "/api/v1/recurrence-series/preview",
+				"/api/v1/recurrence-series/{seriesId}", "/api/v1/staff", "/api/v1/training-groups");
+		List<Map<String, Object>> parameters = JsonPath.read(json, "$.paths['/api/v1/schedule-events'].get.parameters");
+		assertThat(parameters).extracting((parameter) -> parameter.get("name"))
+			.contains("from", "to", "kind", "status", "serviceTypeId", "staffId", "resourceId", "trainingGroupId");
+		assertThat((String) JsonPath.read(json, "$.components.schemas.RecurrenceSeries.properties.localStartTime.type"))
+			.isEqualTo("string");
+	}
+
+	@Test
 	void sessionOperationsGetAuthErrors() throws Exception {
 		Map<String, Object> responses = JsonPath.read(apiDocs(), "$.paths['/api/v1/studio'].get.responses");
 
@@ -58,12 +87,54 @@ class OpenApiDocsTest {
 		assertThat(responses).doesNotContainKeys("401", "403").containsKey("500");
 	}
 
+	@Test
+	void documentsTrainerProfileOperationsAndPartialUpdateRules() throws Exception {
+		String json = apiDocs();
+		String path = "$.paths['/api/v1/me/staff-profile']";
+		Map<String, Object> getResponses = JsonPath.read(json, path + ".get.responses");
+		Map<String, Object> patchResponses = JsonPath.read(json, path + ".patch.responses");
+		assertThat(getResponses).containsKeys("200", "401", "403", "404", "500");
+		assertThat(patchResponses).containsKeys("200", "400", "401", "403", "404", "500");
+		assertThat((String) JsonPath.read(json, path + ".get.operationId")).isEqualTo("getMyStaffProfile");
+		assertThat((String) JsonPath.read(json, path + ".patch.operationId")).isEqualTo("updateMyStaffProfile");
+		Map<String, Object> getOperation = JsonPath.read(json, path + ".get");
+		Map<String, Object> patchOperation = JsonPath.read(json, path + ".patch");
+		assertThat(getOperation).doesNotContainKey("parameters");
+		assertThat(patchOperation).doesNotContainKey("parameters");
+		assertThat((String) JsonPath.read(json, path + ".patch.description"))
+			.contains("ACTIVE TRAINER", "Omitted fields stay unchanged", "null names are invalid", "clears it");
+		Map<String, Object> requestFields = JsonPath.read(json,
+				"$.components.schemas.UpdateStaffProfileRequest.properties");
+		assertThat(requestFields).containsOnlyKeys("firstName", "lastName", "phone");
+		assertThat((Integer) JsonPath.read(json,
+				"$.components.schemas.UpdateStaffProfileRequest.properties.firstName.maxLength")).isEqualTo(80);
+		assertThat((Integer) JsonPath.read(json,
+				"$.components.schemas.UpdateStaffProfileRequest.properties.lastName.maxLength")).isEqualTo(80);
+		assertThat((Integer) JsonPath.read(json,
+				"$.components.schemas.UpdateStaffProfileRequest.properties.phone.maxLength")).isEqualTo(20);
+		Map<String, Object> responseFields = JsonPath.read(json,
+				"$.components.schemas.StaffProfileResponse.properties");
+		assertThat(responseFields).containsOnlyKeys("id", "firstName", "lastName", "phone");
+	}
+
 	private String apiDocs() throws Exception {
 		return this.mockMvc.perform(get("/v3/api-docs"))
 			.andExpect(status().isOk())
 			.andReturn()
 			.getResponse()
 			.getContentAsString();
+	}
+
+	@Test
+	void documentsServiceBookingConfiguration() throws Exception {
+		String json = apiDocs();
+		Map<String, Object> paths = JsonPath.read(json, "$.paths");
+		assertThat(paths).containsKeys("/api/v1/service-types/booking-defaults", "/api/v1/service-types/{serviceTypeId}");
+		Map<String, Object> properties = JsonPath.read(json, "$.components.schemas.BookingPolicyValues.properties");
+		assertThat(properties).containsKeys("cancellationAllowed", "freeCancelHours", "lateCancelAllowed",
+				"lateCancelForfeitsEntry", "autoCancelEnabled", "autoCancelMinParticipants", "autoCancelHoursBefore");
+		Map<String, Object> operation = JsonPath.read(json, "$.paths['/api/v1/service-types'].post");
+		assertThat(operation).doesNotContainKey("parameters");
 	}
 
 	@RestController

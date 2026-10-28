@@ -6,9 +6,9 @@
 --   email         the Firebase user's e-mail
 --   firebase_uid  the Firebase user's UID
 --   first_name, last_name
---   roles         comma-separated role codes, e.g. CLIENT or CLIENT,TRAINER
+--   roles         comma-separated role codes, e.g. CLIENT, CLIENT,TRAINER or ADMIN
 --
--- A CLIENT gets a customer profile, a TRAINER a staff profile.
+-- A CLIENT gets a customer profile, a TRAINER or an ADMIN a staff profile.
 -- See wiki, section "Authentication", for the full command.
 
 \set ON_ERROR_STOP on
@@ -32,6 +32,6 @@ WITH new_account AS (
 ), staff AS (
     INSERT INTO staff_profile (account_id, first_name, last_name)
     SELECT id, :'first_name', :'last_name' FROM new_account
-    WHERE 'TRAINER' = ANY (string_to_array(:'roles', ','))
+    WHERE string_to_array(:'roles', ',') && ARRAY['TRAINER', 'ADMIN']
 )
 SELECT id AS account_id FROM new_account;
