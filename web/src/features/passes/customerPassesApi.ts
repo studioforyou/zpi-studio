@@ -62,8 +62,11 @@ export type AssignPass = {
 };
 
 /** Active participants (adults and children) matching part of their name or phone number. */
-export function searchCustomers(query: string, size = 20): Promise<Page<Customer>> {
+export function searchCustomers(query: string, size = 20, page = 0): Promise<Page<Customer>> {
   const params = new URLSearchParams({ size: String(size) });
+  if (page > 0) {
+    params.set('page', String(page));
+  }
   if (query.trim() !== '') {
     params.set('query', query.trim());
   }
