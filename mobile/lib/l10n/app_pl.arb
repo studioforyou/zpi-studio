@@ -286,5 +286,68 @@
   "scheduleFilterRoleAssistant": "Asystuję",
   "scheduleFilterRoom": "Sala",
   "scheduleFilterNoRooms": "Brak sal w tym okresie",
-  "scheduleFilterShowCancelled": "Pokaż odwołane"
+  "scheduleFilterShowCancelled": "Pokaż odwołane",
+  "trainingsTabTrainees": "Podopieczni",
+  "trainingsTabGroups": "Grupy",
+  "traineesNewCooperation": "Zarejestruj nową współpracę",
+  "traineesEmpty": "Nie masz jeszcze podopiecznych. Zarejestruj nową współpracę, aby dodać pierwszą osobę.",
+  "traineesChild": "Dziecko",
+  "traineesSince": "Współpraca od {date}",
+  "@traineesSince": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "traineesInactive": "Profil nieaktywny",
+  "traineesActions": "Więcej",
+  "traineesEndTitle": "Zakończyć współpracę?",
+  "traineesEndText": "{name} zniknie z listy Twoich podopiecznych. Studio zachowa historię współpracy.",
+  "@traineesEndText": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "traineesEndConfirm": "Zakończ współpracę",
+  "traineesEnded": "Zakończono współpracę z: {name}.",
+  "@traineesEnded": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "traineesCancel": "Anuluj",
+  "traineesRetry": "Spróbuj ponownie",
+  "traineesLoadError": "Nie udało się pobrać listy podopiecznych.",
+  "traineesSaveError": "Nie udało się zapisać zmian. Spróbuj ponownie.",
+  "traineesNetworkError": "Brak połączenia z serwerem. Sprawdź internet i spróbuj ponownie.",
+  "traineesAccessError": "Nie masz dostępu do listy podopiecznych.",
+  "traineesNoStaffProfile": "Nie znaleziono profilu trenera. Skontaktuj się z obsługą studia.",
+  "traineesAlreadyAssigned": "Już współpracujesz z tą osobą.",
+  "traineesNotAvailable": "Nie można rozpocząć współpracy z tą osobą, bo jej profil albo Twój profil trenera jest nieaktywny.",
+  "newCooperationSearchLabel": "Szukaj klienta",
+  "newCooperationSearchHint": "Imię, nazwisko lub telefon",
+  "newCooperationNoResults": "Nie znaleziono klientów.",
+  "newCooperationAlreadyAssigned": "Już współpracujecie",
+  "newCooperationConfirmText": "Rozpocząć współpracę z: {name}?",
+  "@newCooperationConfirmText": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "newCooperationConfirm": "Rozpocznij współpracę",
+  "newCooperationRegistered": "Zarejestrowano współpracę z: {name}.",
+  "@newCooperationRegistered": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  }
 }
