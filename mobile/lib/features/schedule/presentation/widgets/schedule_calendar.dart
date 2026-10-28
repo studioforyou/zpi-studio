@@ -59,95 +59,109 @@ class _ScheduleCalendarState extends ConsumerState<ScheduleCalendar> {
     final filtersBuilder = widget.filtersBuilder;
     final where = widget.where;
 
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-          child: SegmentedButton<ScheduleView>(
-            segments: [
-              ButtonSegment(
-                value: ScheduleView.day,
-                label: Text(l10n.scheduleViewDay),
-              ),
-              ButtonSegment(
-                value: ScheduleView.week,
-                label: Text(l10n.scheduleViewWeek),
-              ),
-              ButtonSegment(
-                value: ScheduleView.month,
-                label: Text(l10n.scheduleViewMonth),
-              ),
-            ],
-            selected: {_view},
-            showSelectedIcon: false,
-            onSelectionChanged: (selection) =>
-                setState(() => _view = selection.single),
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          child: Row(
-            children: [
-              IconButton(
-                icon: const Icon(Icons.chevron_left),
-                tooltip: l10n.schedulePrevious,
-                onPressed: () => setState(() => _day = _step(-1)),
-              ),
-              Expanded(
-                child: Text(
-                  _periodLabel(_view, _day, window),
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-              ),
-              IconButton(
-                icon: const Icon(Icons.chevron_right),
-                tooltip: l10n.scheduleNext,
-                onPressed: () => setState(() => _day = _step(1)),
-              ),
-              TextButton(
-                onPressed: () => setState(() => _day = _today),
-                child: Text(l10n.scheduleToday),
-              ),
-            ],
-          ),
-        ),
-        if (filtersBuilder != null)
-          filtersBuilder(context, eventsState.value ?? const []),
-        Expanded(
-          child: eventsState
-              .whenData(
-                (events) =>
-                    where == null ? events : events.where(where).toList(),
-              )
-              .when(
-                skipLoadingOnReload: true,
-                loading: () => const Center(child: CircularProgressIndicator()),
-                error: (_, _) =>
-                    _LoadError(onRetry: () => ref.invalidate(provider)),
-                data: (events) => RefreshIndicator(
-                  onRefresh: () => ref.refresh(provider.future),
-                  child: switch (_view) {
-                    ScheduleView.day => _DayList(events: events, day: _day),
-                    ScheduleView.week => _WeekList(
-                      events: events,
-                      window: window,
-                      today: _today,
-                      onDaySelected: _openDay,
+    return LayoutBuilder(
+      builder: (context, constraints) => Column(
+        children: [
+          // With large text on a short screen the controls alone can be taller
+          // than the screen: they scroll then, and the events keep half of it.
+          ConstrainedBox(
+            constraints: BoxConstraints(maxHeight: constraints.maxHeight / 2),
+            child: SingleChildScrollView(
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                    child: SegmentedButton<ScheduleView>(
+                      segments: [
+                        ButtonSegment(
+                          value: ScheduleView.day,
+                          label: Text(l10n.scheduleViewDay),
+                        ),
+                        ButtonSegment(
+                          value: ScheduleView.week,
+                          label: Text(l10n.scheduleViewWeek),
+                        ),
+                        ButtonSegment(
+                          value: ScheduleView.month,
+                          label: Text(l10n.scheduleViewMonth),
+                        ),
+                      ],
+                      selected: {_view},
+                      showSelectedIcon: false,
+                      onSelectionChanged: (selection) =>
+                          setState(() => _view = selection.single),
                     ),
-                    ScheduleView.month => _MonthGrid(
-                      events: events,
-                      window: window,
-                      month: _day,
-                      selected: _day,
-                      today: _today,
-                      onDaySelected: (day) => setState(() => _day = day),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    child: Row(
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.chevron_left),
+                          tooltip: l10n.schedulePrevious,
+                          onPressed: () => setState(() => _day = _step(-1)),
+                        ),
+                        Expanded(
+                          child: Text(
+                            _periodLabel(_view, _day, window),
+                            textAlign: TextAlign.center,
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.chevron_right),
+                          tooltip: l10n.scheduleNext,
+                          onPressed: () => setState(() => _day = _step(1)),
+                        ),
+                        TextButton(
+                          onPressed: () => setState(() => _day = _today),
+                          child: Text(l10n.scheduleToday),
+                        ),
+                      ],
                     ),
-                  },
-                ),
+                  ),
+                  if (filtersBuilder != null)
+                    filtersBuilder(context, eventsState.value ?? const []),
+                ],
               ),
-        ),
-      ],
+            ),
+          ),
+          Expanded(
+            child: eventsState
+                .whenData(
+                  (events) =>
+                      where == null ? events : events.where(where).toList(),
+                )
+                .when(
+                  skipLoadingOnReload: true,
+                  loading: () =>
+                      const Center(child: CircularProgressIndicator()),
+                  error: (_, _) =>
+                      _LoadError(onRetry: () => ref.invalidate(provider)),
+                  data: (events) => RefreshIndicator(
+                    onRefresh: () => ref.refresh(provider.future),
+                    child: switch (_view) {
+                      ScheduleView.day => _DayList(events: events, day: _day),
+                      ScheduleView.week => _WeekList(
+                        events: events,
+                        window: window,
+                        today: _today,
+                        onDaySelected: _openDay,
+                      ),
+                      ScheduleView.month => _MonthGrid(
+                        events: events,
+                        window: window,
+                        month: _day,
+                        selected: _day,
+                        today: _today,
+                        onDaySelected: (day) => setState(() => _day = day),
+                      ),
+                    },
+                  ),
+                ),
+          ),
+        ],
+      ),
     );
   }
 
