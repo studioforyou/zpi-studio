@@ -66,6 +66,15 @@ export const pl = {
       unknown: 'Nie udało się zalogować. Spróbuj ponownie.',
     },
   },
+  invite: {
+    pageTitle: 'Zaproszenie do studioforyou',
+    title: 'Aktywuj konto w aplikacji',
+    intro: 'Otwórz ten link na telefonie z zainstalowaną aplikacją studioforyou i tam ustaw hasło.',
+    openInApp: 'Otwórz w aplikacji',
+    noApp: 'Nie masz jeszcze aplikacji? Poproś studio o instrukcję do jej pobrania.',
+    invalidTitle: 'Nieprawidłowy link',
+    invalidText: 'Otwórz ponownie link z e-maila lub poproś studio o nowe zaproszenie.',
+  },
   accounts: {
     title: 'Konta',
     inviteButton: 'Dodaj osobę',

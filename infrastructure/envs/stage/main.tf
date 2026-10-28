@@ -9,4 +9,8 @@ module "app" {
 
   db_tier              = "db-f1-micro"
   db_availability_type = "ZONAL"
+
+  mail_from = var.mail_from
+  # Web panel is not hosted yet: links open the local web panel (npm run dev) from the Android emulator.
+  invitation_link_base_url = "http://10.0.2.2:5173/invite"
 }

@@ -9,6 +9,7 @@ resource "google_project_service" "required" {
     "iam.googleapis.com",
     "iamcredentials.googleapis.com",
     "sts.googleapis.com",
+    "identitytoolkit.googleapis.com",
   ])
 
   project            = var.project_id

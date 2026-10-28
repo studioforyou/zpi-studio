@@ -3,11 +3,24 @@ resource "google_service_account" "backend" {
   display_name = "ZPI backend (${var.env})"
 }
 
-# Backend czyta tylko hasło do bazy. Połączenie z Cloud SQL idzie przez sieć prywatną, nie przez IAM.
+# Backend czyta hasło do bazy i klucz Brevo. Połączenie z Cloud SQL idzie przez sieć prywatną, nie przez IAM.
 resource "google_secret_manager_secret_iam_member" "backend_db_password" {
   secret_id = google_secret_manager_secret.db_password.id
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${google_service_account.backend.email}"
+}
+
+resource "google_secret_manager_secret_iam_member" "backend_brevo_api_key" {
+  secret_id = google_secret_manager_secret.brevo_api_key.id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.backend.email}"
+}
+
+# Akceptacja zaproszenia zakłada użytkownika w Firebase Authentication (Firebase Admin SDK).
+resource "google_project_iam_member" "backend_firebase_auth_admin" {
+  project = var.project_id
+  role    = "roles/firebaseauth.admin"
+  member  = "serviceAccount:${google_service_account.backend.email}"
 }
 
 # --- CI/CD (GitHub Actions) ---
