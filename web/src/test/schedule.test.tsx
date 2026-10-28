@@ -362,6 +362,24 @@ test('creates a one-off event after checking its date', async () => {
   expect(requestBody(fetchMock, 'POST', '/api/v1/schedule-events/preview')).toEqual(expected);
 });
 
+test('uses the configured personal training capacity when selecting a service', async () => {
+  stubApi((url, method) =>
+    url === '/api/v1/service-types' && method === 'GET'
+      ? json({
+          items: serviceTypes.map((service) =>
+            service.id === 'pt' ? { ...service, maxParticipants: 3 } : service,
+          ),
+        })
+      : undefined,
+  );
+  renderWithProviders(<SchedulePage initialDate="2026-11-03" />);
+  await screen.findByRole('button', { name: 'Pole dance, 18:00–19:00' });
+  await userEvent.click(screen.getByRole('button', { name: 'Dodaj wydarzenie' }));
+  const dialog = await screen.findByRole('dialog');
+  await choose(within(dialog).getByRole('combobox', { name: /Usługa/ }), 'Trening personalny');
+  expect(within(dialog).getByLabelText('Limit miejsc')).toHaveValue('3');
+});
+
 test('saves a recurring event after leaving out its conflicting date', async () => {
   const occurrence = (date: string, startsAt: string, blocking: boolean) => ({
     date,

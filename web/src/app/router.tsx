@@ -4,6 +4,7 @@ import { AccountsPage } from '@/features/accounts/AccountsPage';
 import { LoginPage } from '@/features/auth/LoginPage';
 import { RequireAuth } from '@/features/auth/RequireAuth';
 import { InvitePage } from '@/features/invitations/InvitePage';
+import { ResetPasswordPage } from '@/features/auth/ResetPasswordPage';
 import { CommunicationPage } from '@/features/communication/CommunicationPage';
 import { PassesPage } from '@/features/passes/PassesPage';
 import { RoomsPage } from '@/features/schedule/RoomsPage';
@@ -28,6 +29,7 @@ export const appRoutes: RouteObject[] = [
   { path: paths.login, element: <LoginPage /> },
   // Public: opened by invited clients and trainers from the invitation e-mail.
   { path: paths.invite, element: <InvitePage /> },
+  { path: paths.resetPassword, element: <ResetPasswordPage /> },
   {
     element: <RequireAuth />,
     children: [

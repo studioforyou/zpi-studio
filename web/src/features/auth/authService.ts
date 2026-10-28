@@ -17,6 +17,19 @@ export interface AuthService {
   getIdToken(): Promise<string | null>;
 
   logout(): Promise<void>;
+
+  /**
+   * Sends the Firebase e-mail with a link to set a new password. An address without a user also
+   * succeeds, so the page does not reveal which addresses have an account. Throws
+   * `PasswordResetFailure` otherwise.
+   */
+  sendPasswordReset(email: string): Promise<void>;
+
+  /**
+   * Changes the signed-in user's password after confirming the current one; the user stays signed
+   * in. Throws `PasswordChangeFailure` when it fails.
+   */
+  changePassword(currentPassword: string, newPassword: string): Promise<void>;
 }
 
 export const authService: AuthService = new FirebaseAuthService(firebaseAuth, fetchMe);

@@ -25,3 +25,36 @@ export class AuthFailure extends Error {
     this.reason = reason;
   }
 }
+
+/** Why the password reset e-mail could not be sent. */
+export type PasswordResetFailureReason = 'invalidEmail' | 'tooManyAttempts' | 'network' | 'unknown';
+
+export class PasswordResetFailure extends Error {
+  readonly reason: PasswordResetFailureReason;
+
+  constructor(reason: PasswordResetFailureReason) {
+    super(`Password reset failed: ${reason}`);
+    this.name = 'PasswordResetFailure';
+    this.reason = reason;
+  }
+}
+
+/** Why the password could not be changed. */
+export type PasswordChangeFailureReason =
+  /** The current password given to confirm the change is wrong. */
+  | 'wrongPassword'
+  /** Firebase rejected the new password as too weak. */
+  | 'weakPassword'
+  | 'tooManyAttempts'
+  | 'network'
+  | 'unknown';
+
+export class PasswordChangeFailure extends Error {
+  readonly reason: PasswordChangeFailureReason;
+
+  constructor(reason: PasswordChangeFailureReason) {
+    super(`Password change failed: ${reason}`);
+    this.name = 'PasswordChangeFailure';
+    this.reason = reason;
+  }
+}

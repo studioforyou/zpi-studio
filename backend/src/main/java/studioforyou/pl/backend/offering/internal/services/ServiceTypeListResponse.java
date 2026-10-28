@@ -1,4 +1,4 @@
-package studioforyou.pl.backend.offering.internal;
+package studioforyou.pl.backend.offering.internal.services;
 
 import java.util.List;
 

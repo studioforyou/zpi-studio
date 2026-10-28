@@ -125,6 +125,18 @@ class OpenApiDocsTest {
 			.getContentAsString();
 	}
 
+	@Test
+	void documentsServiceBookingConfiguration() throws Exception {
+		String json = apiDocs();
+		Map<String, Object> paths = JsonPath.read(json, "$.paths");
+		assertThat(paths).containsKeys("/api/v1/service-types/booking-defaults", "/api/v1/service-types/{serviceTypeId}");
+		Map<String, Object> properties = JsonPath.read(json, "$.components.schemas.BookingPolicyValues.properties");
+		assertThat(properties).containsKeys("cancellationAllowed", "freeCancelHours", "lateCancelAllowed",
+				"lateCancelForfeitsEntry", "autoCancelEnabled", "autoCancelMinParticipants", "autoCancelHoursBefore");
+		Map<String, Object> operation = JsonPath.read(json, "$.paths['/api/v1/service-types'].post");
+		assertThat(operation).doesNotContainKey("parameters");
+	}
+
 	@RestController
 	static class PublicTestController {
 

@@ -282,7 +282,10 @@ class SchedulePlanner {
 				request.resources(), null);
 		Integer capacity = request.capacity();
 		if (capacity == null) {
-			capacity = personal ? Integer.valueOf(1) : serviceType.maxParticipants();
+			capacity = serviceType.maxParticipants();
+			if (capacity == null && personal) {
+				capacity = 1;
+			}
 			Integer roomLimit = roomLimit(assignments);
 			if (capacity != null && roomLimit != null && capacity > roomLimit) {
 				capacity = roomLimit;

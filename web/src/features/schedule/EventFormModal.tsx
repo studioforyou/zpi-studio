@@ -186,7 +186,7 @@ export function EventFormModal({
     setKind(suggestedKind);
     setVisibility(personal ? 'PRIVATE' : 'PUBLIC');
     setDuration(serviceType.defaultDurationMinutes);
-    setCapacity(personal ? 1 : (serviceType.maxParticipants ?? ''));
+    setCapacity(serviceType.maxParticipants ?? (personal ? 1 : ''));
     const hasRoom = resources.length > 0;
     const defaultRoom = lookups.rooms.find(
       (room) =>
