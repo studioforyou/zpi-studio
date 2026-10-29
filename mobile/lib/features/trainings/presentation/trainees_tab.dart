@@ -117,8 +117,10 @@ class _TraineeCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final birthDate = trainee.birthDate;
     final details = [
       if (trainee.isChild) l10n.traineesChild,
+      if (birthDate != null) l10n.traineesBirthDate(formatBirthDate(birthDate)),
       l10n.traineesSince(
         DateFormat('d MMMM y', 'pl').format(trainee.assignedAt),
       ),
@@ -176,6 +178,10 @@ class _LoadError extends StatelessWidget {
     );
   }
 }
+
+/// A date of birth as shown next to a participant's name, e.g. `12.05.2015`.
+String formatBirthDate(DateTime date) =>
+    DateFormat('dd.MM.y', 'pl').format(date);
 
 /// A message for a failed trainees request, by its HTTP status.
 String traineesErrorMessage(

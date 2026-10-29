@@ -16,6 +16,7 @@ class Trainee {
     required this.customerId,
     required this.displayName,
     required this.isChild,
+    required this.birthDate,
     required this.isActive,
     required this.assignedAt,
   });
@@ -25,6 +26,7 @@ class Trainee {
       customerId: json['customerId'] as String,
       displayName: json['displayName'] as String,
       isChild: json['kind'] == 'CHILD',
+      birthDate: _date(json['birthDate'] as String?),
       isActive: json['isActive'] as bool,
       assignedAt: DateTime.parse(json['assignedAt'] as String).toLocal(),
     );
@@ -33,6 +35,9 @@ class Trainee {
   final String customerId;
   final String displayName;
   final bool isChild;
+
+  /// The date of birth, or `null` if the studio does not know it.
+  final DateTime? birthDate;
 
   /// Whether the participant's profile is still active in the studio.
   final bool isActive;
@@ -47,6 +52,7 @@ class CustomerSummary {
     required this.id,
     required this.displayName,
     required this.isChild,
+    required this.birthDate,
   });
 
   factory CustomerSummary.fromJson(Map<String, dynamic> json) {
@@ -54,13 +60,20 @@ class CustomerSummary {
       id: json['id'] as String,
       displayName: json['displayName'] as String,
       isChild: json['kind'] == 'CHILD',
+      birthDate: _date(json['birthDate'] as String?),
     );
   }
 
   final String id;
   final String displayName;
   final bool isChild;
+
+  /// The date of birth, or `null` if the studio does not know it.
+  final DateTime? birthDate;
 }
+
+/// A calendar date (`yyyy-MM-dd`) without a time zone, or `null`.
+DateTime? _date(String? value) => value == null ? null : DateTime.parse(value);
 
 class TraineesApi {
   const TraineesApi(this._dio);

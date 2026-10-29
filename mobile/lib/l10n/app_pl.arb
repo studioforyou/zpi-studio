@@ -292,6 +292,14 @@
   "traineesNewCooperation": "Zarejestruj nową współpracę",
   "traineesEmpty": "Nie masz jeszcze podopiecznych. Zarejestruj nową współpracę, aby dodać pierwszą osobę.",
   "traineesChild": "Dziecko",
+  "traineesBirthDate": "ur. {date}",
+  "@traineesBirthDate": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
   "traineesSince": "Współpraca od {date}",
   "@traineesSince": {
     "placeholders": {

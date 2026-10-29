@@ -75,10 +75,16 @@ class _FakeTraineesApi implements TraineesApi {
   }
 }
 
-Trainee _trainee(String id, String name, {bool isChild = false}) => Trainee(
+Trainee _trainee(
+  String id,
+  String name, {
+  bool isChild = false,
+  DateTime? birthDate,
+}) => Trainee(
   customerId: id,
   displayName: name,
   isChild: isChild,
+  birthDate: birthDate,
   isActive: true,
   assignedAt: DateTime(2026, 10, 1),
 );
@@ -125,7 +131,12 @@ void main() {
       tester,
       _FakeTraineesApi(
         trainees: [
-          _trainee('c-1', 'Zosia Dąbrowska', isChild: true),
+          _trainee(
+            'c-1',
+            'Zosia Dąbrowska',
+            isChild: true,
+            birthDate: DateTime(2015, 5, 12),
+          ),
           _trainee('c-2', 'Katarzyna Zielińska'),
         ],
       ),
@@ -134,7 +145,9 @@ void main() {
     expect(find.text('Podopieczni'), findsOneWidget);
     expect(find.text('Zosia Dąbrowska'), findsOneWidget);
     expect(find.text('Katarzyna Zielińska'), findsOneWidget);
-    expect(find.textContaining('Dziecko'), findsOneWidget);
+    expect(find.textContaining('Dziecko · ur. 12.05.2015'), findsOneWidget);
+    // Without a known date of birth, none is shown.
+    expect(find.textContaining('ur.'), findsOneWidget);
     expect(find.text('Zarejestruj nową współpracę'), findsOneWidget);
   });
 
@@ -164,16 +177,18 @@ void main() {
   ) async {
     final api = _FakeTraineesApi(
       trainees: [_trainee('c-1', 'Zosia Dąbrowska')],
-      customers: const [
+      customers: [
         CustomerSummary(
           id: 'c-1',
           displayName: 'Zosia Dąbrowska',
           isChild: false,
+          birthDate: null,
         ),
         CustomerSummary(
           id: 'c-2',
           displayName: 'Katarzyna Zielińska',
           isChild: false,
+          birthDate: DateTime(1990, 5, 1),
         ),
       ],
     );
@@ -190,6 +205,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(api.queries.last, 'ziel');
     expect(find.text('Zosia Dąbrowska'), findsNothing);
+    expect(find.text('ur. 01.05.1990'), findsOneWidget);
 
     await tester.tap(find.text('Katarzyna Zielińska'));
     await tester.pumpAndSettle();
@@ -209,8 +225,13 @@ void main() {
     tester,
   ) async {
     final api = _FakeTraineesApi(
-      customers: const [
-        CustomerSummary(id: 'c-2', displayName: 'Adam Mazur', isChild: false),
+      customers: [
+        CustomerSummary(
+          id: 'c-2',
+          displayName: 'Adam Mazur',
+          isChild: false,
+          birthDate: null,
+        ),
       ],
     )..assignStatus = 422;
     await pumpScreen(tester, api);

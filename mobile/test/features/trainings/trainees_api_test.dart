@@ -12,7 +12,7 @@ const _trainee = {
   'firstName': 'Zosia',
   'lastName': 'Dąbrowska',
   'displayName': 'Zosia Dąbrowska',
-  'birthDate': null,
+  'birthDate': '2015-05-12',
   'isActive': true,
   'assignedBy': 'account-1',
   'assignedAt': '2026-10-28T17:00:00Z',
@@ -68,6 +68,7 @@ void main() {
     expect(trainee.customerId, 'customer-1');
     expect(trainee.displayName, 'Zosia Dąbrowska');
     expect(trainee.isChild, isTrue);
+    expect(trainee.birthDate, DateTime(2015, 5, 12));
     expect(trainee.isActive, isTrue);
     expect(trainee.assignedAt, DateTime.utc(2026, 10, 28, 17).toLocal());
     expect(trainee.assignedAt.isUtc, isFalse);
@@ -97,6 +98,7 @@ void main() {
     expect(adapter.request?.queryParameters, {'query': 'ziel'});
     expect(customer.id, 'customer-2');
     expect(customer.isChild, isFalse);
+    expect(customer.birthDate, DateTime(1990, 5, 1));
   });
 
   test('sends no query for an empty search', () async {

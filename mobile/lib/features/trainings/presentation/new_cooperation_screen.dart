@@ -176,8 +176,10 @@ class _NewCooperationScreenState extends ConsumerState<NewCooperationScreen> {
     required bool assigned,
     required AppLocalizations l10n,
   }) {
+    final birthDate = customer.birthDate;
     final details = [
       if (customer.isChild) l10n.traineesChild,
+      if (birthDate != null) l10n.traineesBirthDate(formatBirthDate(birthDate)),
       if (assigned) l10n.newCooperationAlreadyAssigned,
     ];
     final saving = _savingCustomerId == customer.id;
