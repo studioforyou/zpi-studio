@@ -14,6 +14,8 @@ import 'package:mobile/core/auth/auth_state.dart';
 import 'package:mobile/core/auth/session.dart';
 import 'package:mobile/core/network/dio_provider.dart';
 import 'package:mobile/features/accounts/presentation/staff_profile_edit_screen.dart';
+import 'package:mobile/features/accounts/presentation/widgets/choice_tile.dart';
+import 'package:mobile/features/accounts/presentation/widgets/profile_header.dart';
 import 'package:mobile/features/schedule/data/schedule_api.dart';
 
 const _session = Session(
@@ -173,7 +175,7 @@ void main() {
         {'firstName': 'Maria', 'lastName': 'Kowalska', 'phone': null},
       ]);
       expect(find.byType(StaffProfileEditScreen), findsNothing);
-      expect(find.text('Maria Kowalska'), findsOneWidget);
+      expect(find.text('MARIA KOWALSKA'), findsOneWidget);
       expect(find.text('Zmiany zostały zapisane.'), findsOneWidget);
 
       final context = tester.element(find.byType(NavigationBar));
@@ -188,20 +190,20 @@ void main() {
         'Child Name',
       ]);
 
-      await tester.tap(find.text('Zmień rolę'));
+      await tester.tap(find.text('ZMIEŃ PROFIL'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Child Name'));
+      await tester.tap(find.text('Child'));
       await tester.pumpAndSettle();
-      await tester.tap(
+      // Back on the profile tab, now as the child.
+      expect(find.text('CHILD NAME'), findsOneWidget);
+      expect(find.text('Dane osobowe'), findsNothing);
+      final active = tester.widget<ChoiceTile>(
         find.descendant(
-          of: find.byType(NavigationBar),
-          matching: find.text('Profil'),
+          of: find.byType(ProfileHeader),
+          matching: find.byType(ChoiceTile),
         ),
       );
-      await tester.pumpAndSettle();
-      expect(find.text('Client Name'), findsWidgets);
-      expect(find.text('Dane osobowe'), findsNothing);
-      expect(find.text('Dziecko · Child Name'), findsOneWidget);
+      expect(active.labels, (name: 'Child', role: 'Dziecko'));
     },
   );
 
@@ -242,7 +244,7 @@ void main() {
     adapter.saveStatus = 200;
     await save(tester);
     expect(adapter.patches, hasLength(2));
-    expect(find.text('Maria Nowak'), findsOneWidget);
+    expect(find.text('MARIA NOWAK'), findsOneWidget);
     expect(find.text('Zmiany zostały zapisane.'), findsOneWidget);
   });
 
@@ -310,7 +312,7 @@ void main() {
 
       expect(find.byType(StaffProfileEditScreen), findsNothing);
       expect(find.text('Dane osobowe'), findsOneWidget);
-      expect(find.text('Anna Nowak'), findsOneWidget);
+      expect(find.text('ANNA NOWAK'), findsOneWidget);
       expect(find.text('Zmiany zostały zapisane.'), findsNothing);
     },
   );

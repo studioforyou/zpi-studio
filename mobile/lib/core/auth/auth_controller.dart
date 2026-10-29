@@ -48,13 +48,13 @@ class AuthController extends Notifier<AuthState> {
     state = const Unauthenticated();
   }
 
-  /// Shows the role picker again, e.g. from the profile tab. Ignored when
-  /// there is nothing to choose.
+  /// Shows the role picker again from inside the app (the profile tab).
+  /// Ignored when there is nothing to choose.
   void openRolePicker() {
     if (state case Authenticated(
       :final session,
     ) when session.choices.length > 1) {
-      state = Authenticated(session, choosingRole: true);
+      state = Authenticated(session, choosingRole: true, switchingRole: true);
     }
   }
 

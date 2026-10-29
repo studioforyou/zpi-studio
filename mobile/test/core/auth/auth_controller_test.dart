@@ -46,34 +46,6 @@ class _ClientOnlyAuthRepository implements AuthRepository {
   Future<void> sendPasswordReset(String email) async {}
 }
 
-/// Returns a trainer-only session without a customer profile.
-class _TrainerOnlyAuthRepository implements AuthRepository {
-  @override
-  Future<Session> login({
-    required String email,
-    required String password,
-  }) async {
-    return const Session(
-      accountId: 'trainer-user',
-      displayName: 'Trainer',
-      roles: [AppRole.trainer],
-      activeRole: AppRole.trainer,
-      staffProfileId: 'trainer-staff',
-      profiles: [],
-      activeProfileId: null,
-    );
-  }
-
-  @override
-  Future<Session?> restore() async => null;
-
-  @override
-  Future<void> logout() async {}
-
-  @override
-  Future<void> sendPasswordReset(String email) async {}
-}
-
 void main() {
   late ProviderContainer container;
   late InMemoryChoiceStore store;
@@ -222,19 +194,20 @@ void main() {
     expect(container.read(authControllerProvider), same(before));
   });
 
-  test('openRolePicker shows the picker again', () async {
+  test('openRolePicker shows the picker again as a switch', () async {
     await controller().login('a@b.c', 'secret');
     controller().choose(session().choices.first);
 
     controller().openRolePicker();
 
-    expect(choosingRole(), isTrue);
-    expect(session().activeProfileId, 'self');
+    final state = container.read(authControllerProvider) as Authenticated;
+    expect(state.choosingRole, isTrue);
+    expect(state.switchingRole, isTrue);
   });
 
   test('openRolePicker is ignored with a single choice', () async {
     container.dispose();
-    container = createContainer(_TrainerOnlyAuthRepository());
+    container = createContainer(_ClientOnlyAuthRepository());
     await controller().login('a@b.c', 'secret');
     final before = container.read(authControllerProvider);
 

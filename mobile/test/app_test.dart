@@ -3,11 +3,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile/app/app.dart';
 import 'package:mobile/app/config/app_config.dart';
+import 'package:mobile/app/intro/login_intro.dart';
 import 'package:mobile/core/auth/app_role.dart';
 import 'package:mobile/core/auth/auth_repository.dart';
 import 'package:mobile/core/auth/choice_store.dart';
 import 'package:mobile/core/auth/fake_auth_repository.dart';
 import 'package:mobile/core/auth/session.dart';
+import 'package:mobile/features/accounts/presentation/widgets/choice_tile.dart';
+import 'package:mobile/features/accounts/presentation/widgets/profile_header.dart';
+import 'package:mobile/features/accounts/presentation/widgets/profile_styles.dart';
 
 /// Starts with the demo user still signed in from an earlier run.
 class _SignedInAuthRepository extends FakeAuthRepository {
@@ -97,10 +101,10 @@ void main() {
 
     await logIn(tester);
 
-    expect(find.text('Kto korzysta?'), findsOneWidget);
+    expect(find.text('Wybierz profil:'), findsOneWidget);
     expect(find.byType(NavigationBar), findsNothing);
 
-    await tester.tap(find.text('Jan Kowalski'));
+    await tester.tap(find.text('Jan'));
     await tester.pumpAndSettle();
 
     expectClientShell();
@@ -111,28 +115,96 @@ void main() {
 
     await logIn(tester);
 
-    expect(find.text('Kto korzysta?'), findsNothing);
+    expect(find.text('Wybierz profil:'), findsNothing);
     expectClientShell();
   });
 
-  testWidgets('the profile tab goes back to the role picker', (tester) async {
+  Future<void> openProfileAsAnna(WidgetTester tester) async {
     await pumpApp(tester, FakeAuthRepository());
     await logIn(tester);
-    await tester.tap(find.text('Anna Kowalska').first);
+    await tester.tap(find.text('Anna').first);
     await tester.pumpAndSettle();
-
     await tester.tap(find.text('Profil'));
     await tester.pumpAndSettle();
-    expect(find.text('Klient · Anna Kowalska'), findsOneWidget);
-    await tester.tap(find.text('Zmień rolę'));
+  }
+
+  ChoiceTile headerTile(WidgetTester tester) => tester.widget<ChoiceTile>(
+    find.descendant(
+      of: find.byType(ProfileHeader),
+      matching: find.byType(ChoiceTile),
+    ),
+  );
+
+  testWidgets('the profile header shows the active profile and its actions', (
+    tester,
+  ) async {
+    await openProfileAsAnna(tester);
+
+    final tile = headerTile(tester);
+    expect(tile.labels, (name: 'Anna', role: 'Klient'));
+    expect(tile.size, ProfileHeaderStyle.tileSize);
+    expect(tile.onTap, isNull);
+    expect(find.text('ANNA KOWALSKA'), findsOneWidget);
+    expect(find.text('ZMIEŃ PROFIL'), findsOneWidget);
+    expect(find.text('WYLOGUJ SIĘ'), findsOneWidget);
+
+    // The text block is centred on the square, or starts at its top when it
+    // is taller than the square.
+    final squareTop = tester.getTopLeft(find.byType(ChoiceTile)).dy;
+    final textTop = tester.getTopLeft(find.text('ANNA KOWALSKA')).dy;
+    final textBottom = tester.getBottomLeft(find.text('WYLOGUJ SIĘ')).dy;
+    if (textBottom - textTop <= ProfileHeaderStyle.tileSize) {
+      expect(
+        (textTop + textBottom) / 2,
+        moreOrLessEquals(
+          squareTop + ProfileHeaderStyle.tileSize / 2,
+          epsilon: 1,
+        ),
+      );
+    } else {
+      expect(textTop, moreOrLessEquals(squareTop, epsilon: 1));
+    }
+  });
+
+  testWidgets('changing profile returns to the profile tab behind the intro', (
+    tester,
+  ) async {
+    await openProfileAsAnna(tester);
+
+    await tester.tap(find.text('ZMIEŃ PROFIL'));
     await tester.pumpAndSettle();
+    expect(find.text('Wybierz profil:'), findsOneWidget);
 
-    expect(find.text('Kto korzysta?'), findsOneWidget);
-
+    await tester.ensureVisible(find.text('Trener'));
     await tester.tap(find.text('Trener'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(
+      find.byWidgetPredicate(
+        (w) => w is CustomPaint && w.painter is LoginIntroPainter,
+      ),
+      findsOneWidget,
+    );
     await tester.pumpAndSettle();
 
     expectTrainerShell();
+    final navigationBar = tester.widget<NavigationBar>(
+      find.byType(NavigationBar),
+    );
+    expect(
+      navigationBar.destinations[navigationBar.selectedIndex],
+      isA<NavigationDestination>().having((d) => d.label, 'label', 'Profil'),
+    );
+    expect(headerTile(tester).labels.role, 'Trener');
+  });
+
+  testWidgets('logout in the profile header signs out', (tester) async {
+    await openProfileAsAnna(tester);
+
+    await tester.tap(find.text('WYLOGUJ SIĘ'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Zaloguj się'), findsOneWidget);
   });
 
   testWidgets('a saved session reopens the profile it was left in', (
@@ -141,7 +213,7 @@ void main() {
     final store = InMemoryChoiceStore()..values['demo-user'] = 'TRAINER';
     await pumpApp(tester, _SignedInAuthRepository(), store: store);
 
-    expect(find.text('Kto korzysta?'), findsNothing);
+    expect(find.text('Wybierz profil:'), findsNothing);
     expectTrainerShell();
   });
 
@@ -151,6 +223,6 @@ void main() {
     await pumpApp(tester, _SignedInAuthRepository());
 
     expect(find.text('Zaloguj się'), findsNothing);
-    expect(find.text('Kto korzysta?'), findsOneWidget);
+    expect(find.text('Wybierz profil:'), findsOneWidget);
   });
 }
