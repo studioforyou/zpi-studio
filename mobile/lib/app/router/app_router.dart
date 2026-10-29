@@ -14,6 +14,7 @@ import 'package:mobile/features/accounts/presentation/reset_password_screen.dart
 import 'package:mobile/features/accounts/presentation/staff_profile_edit_screen.dart';
 import 'package:mobile/features/communication/presentation/messages_screen.dart';
 import 'package:mobile/features/passes/presentation/passes_screen.dart';
+import 'package:mobile/features/schedule/presentation/add_class_screen.dart';
 import 'package:mobile/features/schedule/presentation/availability_screen.dart';
 import 'package:mobile/features/schedule/presentation/schedule_screen.dart';
 import 'package:mobile/features/schedule/presentation/trainer_schedule_screen.dart';
@@ -41,6 +42,8 @@ const trainerMessagesPath = '/trainer/messages';
 const trainerProfilePath = '/trainer/profile';
 const trainerAvailabilitySubPath = 'availability';
 const trainerProfileEditSubPath = 'edit';
+const trainerAddClassSubPath = 'new-class';
+const trainerAddClassPath = '$trainerSchedulePath/$trainerAddClassSubPath';
 
 /// One bottom-navigation tab: its route and its navigation bar entry.
 typedef _Tab = ({GoRoute route, ShellDestination destination});
@@ -107,6 +110,12 @@ StatefulShellRoute _trainerShell() => _roleShell([
     const TrainerScheduleScreen(),
     Icons.calendar_month,
     (l10n) => l10n.navSchedule,
+    routes: [
+      GoRoute(
+        path: trainerAddClassSubPath,
+        builder: (_, _) => const AddClassScreen(),
+      ),
+    ],
   ),
   _tab(
     trainerTrainingsPath,

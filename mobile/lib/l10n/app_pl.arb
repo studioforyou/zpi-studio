@@ -286,5 +286,121 @@
   "scheduleFilterRoleAssistant": "Asystuję",
   "scheduleFilterRoom": "Sala",
   "scheduleFilterNoRooms": "Brak sal w tym okresie",
-  "scheduleFilterShowCancelled": "Pokaż odwołane"
+  "scheduleFilterShowCancelled": "Pokaż odwołane",
+  "addClassButton": "Dodaj zajęcia",
+  "addClassTitle": "Nowe zajęcia",
+  "addClassOnce": "Jednorazowe",
+  "addClassWeekly": "Cykliczne",
+  "addClassServiceType": "Rodzaj zajęć",
+  "addClassNoServiceTypes": "Studio nie ma jeszcze aktywnych zajęć grupowych.",
+  "addClassRoom": "Sala",
+  "addClassRoomWithLimit": "{name} (do {limit} os.)",
+  "@addClassRoomWithLimit": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "limit": {
+        "type": "int"
+      }
+    }
+  },
+  "addClassNoRooms": "Studio nie ma jeszcze aktywnych sal.",
+  "addClassCapacity": "Limit miejsc",
+  "addClassCapacityHint": "Puste pole: bez limitu",
+  "addClassCapacityDefault": "Puste pole: limit rodzaju zajęć ({limit})",
+  "@addClassCapacityDefault": {
+    "placeholders": {
+      "limit": {
+        "type": "int"
+      }
+    }
+  },
+  "addClassCapacityInvalid": "Podaj liczbę większą od zera.",
+  "addClassDay": "Dzień",
+  "addClassStartsOn": "Od",
+  "addClassEndsOn": "Do",
+  "addClassWeekdays": "Dni tygodnia",
+  "addClassWeekdaysRequired": "Wybierz co najmniej jeden dzień.",
+  "addClassStartTime": "Godzina rozpoczęcia",
+  "addClassStartTimeInvalid": "Podaj godzinę od 00:00 do 23:59, np. 18:30.",
+  "addClassDuration": "Czas trwania (min)",
+  "addClassDurationInvalid": "Podaj od 5 do 720 minut.",
+  "addClassPreviewTitle": "Konflikty",
+  "addClassPreviewIncomplete": "Wybierz rodzaj zajęć i salę, aby sprawdzić termin.",
+  "addClassPreviewLoading": "Sprawdzam termin…",
+  "addClassNoConflicts": "Termin jest wolny.",
+  "addClassNoConflictsSeries": "Wszystkie terminy są wolne ({count}).",
+  "@addClassNoConflictsSeries": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "addClassConflicts": "Ten termin koliduje z innymi zajęciami lub dostępnością.",
+  "addClassConflictsSeries": "Terminy z konfliktem: {count}. Zmień termin albo pomiń te daty.",
+  "@addClassConflictsSeries": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "addClassExcluded": "Pominięte",
+  "addClassExcludeDate": "Pomiń ten termin",
+  "addClassIncludeDate": "Przywróć termin",
+  "addClassSave": "Dodaj zajęcia",
+  "addClassSaveSeries": "Dodaj zajęcia ({count})",
+  "@addClassSaveSeries": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "addClassSaved": "Zajęcia dodane do grafiku.",
+  "addClassLoadError": "Nie udało się pobrać rodzajów zajęć i sal.",
+  "addClassPreviewError": "Nie udało się sprawdzić terminu.",
+  "addClassSaveError": "Nie udało się dodać zajęć.",
+  "addClassNetworkError": "Brak połączenia z serwerem. Sprawdź internet i spróbuj ponownie.",
+  "addClassAccessError": "Nie masz uprawnień do dodawania zajęć.",
+  "addClassNoStaffProfile": "Nie znaleziono profilu trenera. Skontaktuj się z obsługą studia.",
+  "addClassErrorRoomNotAllowed": "Te zajęcia nie mogą odbywać się w wybranej sali.",
+  "addClassErrorRoomUnavailable": "Wybrana sala jest niedostępna.",
+  "addClassErrorServiceTypeUnavailable": "Ten rodzaj zajęć jest niedostępny.",
+  "addClassErrorTrainerUnavailable": "Twój profil trenera jest nieaktywny.",
+  "addClassErrorConflict": "Termin został w międzyczasie zajęty. Sprawdź konflikty poniżej.",
+  "addClassErrorPast": "Zajęcia muszą zaczynać się w przyszłości.",
+  "addClassErrorEndsOn": "Koniec musi być po początku i najwyżej rok później.",
+  "addClassErrorCapacity": "Limit miejsc jest większy niż pojemność sali.",
+  "addClassErrorNoOccurrences": "W wybranym okresie nie ma żadnego wybranego dnia tygodnia.",
+  "addClassErrorInvalid": "Sprawdź dane zajęć.",
+  "planIssueRoomBusy": "Sala zajęta: {title} {time}",
+  "@planIssueRoomBusy": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      },
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "planIssueTrainerBusy": "Prowadzisz wtedy inne zajęcia: {title} {time}",
+  "@planIssueTrainerBusy": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      },
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "planIssueTrainerOnLeave": "Masz wtedy zatwierdzony urlop.",
+  "planIssueLeaveRequested": "Masz wtedy wniosek urlopowy czekający na decyzję.",
+  "planIssueOutsideHours": "Termin jest poza Twoimi godzinami pracy.",
+  "planIssueNotQualified": "Nie masz kwalifikacji do prowadzenia tego rodzaju zajęć.",
+  "planIssueUnknown": "Termin ma nieznany problem."
 }
