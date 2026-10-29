@@ -73,6 +73,11 @@ abstract final class RolePickerStyle {
   static const titleWeight = FontWeight.w600;
   static const titleTopMargin = 24.0;
   static const titleBottomMargin = 28.0;
+
+  /// "Powrót do logowania" / "Powrót do profilu" is pinned to the bottom of
+  /// the screen, this far above its edge; it looks like the actions in the
+  /// profile header ([ProfileHeaderStyle]).
+  static const backBottomMargin = 24.0;
 }
 
 /// The header at the top of the profile tab: the active profile's tile and,

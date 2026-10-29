@@ -58,6 +58,14 @@ class AuthController extends Notifier<AuthState> {
     }
   }
 
+  /// Closes the role picker opened from inside the app without changing
+  /// anything; the router then goes back to where it was opened.
+  void cancelRolePicker() {
+    if (state case Authenticated(:final session, switchingRole: true)) {
+      state = Authenticated(session);
+    }
+  }
+
   /// Uses the app as [choice], one of [Session.choices], closes the role
   /// picker and remembers the choice for the next app start.
   void choose(SessionChoice choice) {

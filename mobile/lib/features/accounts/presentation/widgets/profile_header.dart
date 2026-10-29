@@ -7,6 +7,7 @@ import 'package:mobile/features/accounts/data/staff_profile_provider.dart';
 import 'package:mobile/features/accounts/presentation/widgets/choice_tile.dart';
 import 'package:mobile/features/accounts/presentation/widgets/profile_styles.dart';
 import 'package:mobile/features/accounts/presentation/widgets/shrink_to_fit_text.dart';
+import 'package:mobile/features/accounts/presentation/widgets/text_action.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
 
 /// The top of the profile tab: the active profile's tile (a picture, not a
@@ -39,17 +40,6 @@ class ProfileHeader extends ConsumerWidget {
             session.displayName,
       null => session.displayName,
     };
-
-    TextStyle textStyle(double size, Color color) => TextStyle(
-      fontSize: size,
-      fontWeight: ProfileHeaderStyle.textWeight,
-      letterSpacing: ProfileHeaderStyle.textLetterSpacing,
-      color: color,
-    );
-    final actionStyle = textStyle(
-      ProfileHeaderStyle.actionSize,
-      ProfileHeaderStyle.actionColor,
-    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -90,23 +80,23 @@ class ProfileHeader extends ConsumerWidget {
                         fullName.toUpperCase(),
                         minFontSize: ProfileHeaderStyle.nameMinSize,
                         maxLines: ProfileHeaderStyle.nameMaxLines,
-                        style: textStyle(
-                          ProfileHeaderStyle.nameSize,
-                          ProfileHeaderStyle.nameColor,
+                        style: const TextStyle(
+                          fontSize: ProfileHeaderStyle.nameSize,
+                          fontWeight: ProfileHeaderStyle.textWeight,
+                          letterSpacing: ProfileHeaderStyle.textLetterSpacing,
+                          color: ProfileHeaderStyle.nameColor,
                         ),
                       ),
                       const SizedBox(height: ProfileHeaderStyle.nameActionsGap),
                       if (session.choices.length > 1) ...[
-                        _Action(
-                          label: l10n.profileSwitchProfile.toUpperCase(),
-                          style: actionStyle,
+                        TextAction(
+                          label: l10n.profileSwitchProfile,
                           onTap: controller.openRolePicker,
                         ),
                         const SizedBox(height: ProfileHeaderStyle.actionsGap),
                       ],
-                      _Action(
-                        label: l10n.logoutButton.toUpperCase(),
-                        style: actionStyle,
+                      TextAction(
+                        label: l10n.logoutButton,
                         onTap: controller.logout,
                       ),
                     ],
@@ -126,27 +116,6 @@ class ProfileHeader extends ConsumerWidget {
         ),
         const SizedBox(height: ProfileHeaderStyle.dividerMargin),
       ],
-    );
-  }
-}
-
-/// A text-only action, like a link.
-class _Action extends StatelessWidget {
-  const _Action({
-    required this.label,
-    required this.style,
-    required this.onTap,
-  });
-
-  final String label;
-  final TextStyle style;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      child: Text(label, style: style),
     );
   }
 }

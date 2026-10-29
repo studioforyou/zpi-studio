@@ -198,6 +198,69 @@ void main() {
     expect(headerTile(tester).labels.role, 'Trener');
   });
 
+  final intro = find.byWidgetPredicate(
+    (w) => w is CustomPaint && w.painter is LoginIntroPainter,
+  );
+
+  Future<void> expectBackOnProfileAsAnnaWithoutIntro(
+    WidgetTester tester,
+  ) async {
+    await tester.pump();
+    expect(intro, findsNothing);
+    await tester.pumpAndSettle();
+    expect(find.text('Wybierz profil:'), findsNothing);
+    expect(headerTile(tester).labels, (name: 'Anna', role: 'Klient'));
+  }
+
+  testWidgets('back from the picker after login returns to the login screen', (
+    tester,
+  ) async {
+    await pumpApp(tester, FakeAuthRepository());
+    await logIn(tester);
+
+    await tester.tap(find.text('POWRÓT DO LOGOWANIA'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Zaloguj się'), findsOneWidget);
+  });
+
+  testWidgets('back to profile closes the picker without changes or intro', (
+    tester,
+  ) async {
+    await openProfileAsAnna(tester);
+    await tester.tap(find.text('ZMIEŃ PROFIL'));
+    await tester.pumpAndSettle();
+    expect(find.text('POWRÓT DO LOGOWANIA'), findsNothing);
+
+    await tester.tap(find.text('POWRÓT DO PROFILU'));
+
+    await expectBackOnProfileAsAnnaWithoutIntro(tester);
+  });
+
+  testWidgets('the system back on the picker returns to the profile', (
+    tester,
+  ) async {
+    await openProfileAsAnna(tester);
+    await tester.tap(find.text('ZMIEŃ PROFIL'));
+    await tester.pumpAndSettle();
+
+    await tester.binding.handlePopRoute();
+
+    await expectBackOnProfileAsAnnaWithoutIntro(tester);
+  });
+
+  testWidgets('picking the active profile again skips the intro', (
+    tester,
+  ) async {
+    await openProfileAsAnna(tester);
+    await tester.tap(find.text('ZMIEŃ PROFIL'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Anna').first);
+
+    await expectBackOnProfileAsAnnaWithoutIntro(tester);
+  });
+
   testWidgets('logout in the profile header signs out', (tester) async {
     await openProfileAsAnna(tester);
 

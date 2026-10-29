@@ -93,6 +93,8 @@
   "roleTrainer": "Trener",
   "roleChild": "Dziecko",
   "rolePickerTitle": "Wybierz profil:",
+  "rolePickerBackToLogin": "Powrót do logowania",
+  "rolePickerBackToProfile": "Powrót do profilu",
   "profileSwitchProfile": "Zmień profil",
   "staffProfileEditTitle": "Dane osobowe",
   "staffProfileFirstName": "Imię",

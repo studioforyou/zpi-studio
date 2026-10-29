@@ -216,6 +216,32 @@ void main() {
     expect(container.read(authControllerProvider), same(before));
   });
 
+  test(
+    'cancelRolePicker closes a picker opened from the app unchanged',
+    () async {
+      await controller().login('a@b.c', 'secret');
+      controller().choose(session().choices.first);
+      final before = session();
+      controller().openRolePicker();
+
+      controller().cancelRolePicker();
+
+      final state = container.read(authControllerProvider) as Authenticated;
+      expect(state.choosingRole, isFalse);
+      expect(state.switchingRole, isFalse);
+      expect(state.session, same(before));
+    },
+  );
+
+  test('cancelRolePicker leaves the picker after sign-in open', () async {
+    await controller().login('a@b.c', 'secret');
+    final before = container.read(authControllerProvider);
+
+    controller().cancelRolePicker();
+
+    expect(container.read(authControllerProvider), same(before));
+  });
+
   test('choose remembers the choice for the account', () async {
     await controller().login('a@b.c', 'secret');
 
