@@ -36,6 +36,10 @@ public enum ErrorCode {
 	/** The staff member's account does not have the TRAINER role. */
 	STAFF_NOT_TRAINER(HttpStatus.UNPROCESSABLE_CONTENT),
 
+	// staff
+	/** The staff member already has availability on that day at an overlapping time. */
+	AVAILABILITY_OVERLAP(HttpStatus.CONFLICT),
+
 	// offering
 	PASS_VARIANT_ALREADY_EXISTS(HttpStatus.CONFLICT),
 	PASS_PRODUCT_ARCHIVED(HttpStatus.UNPROCESSABLE_CONTENT),
