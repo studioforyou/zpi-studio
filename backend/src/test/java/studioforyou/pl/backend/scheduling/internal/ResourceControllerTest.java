@@ -351,10 +351,13 @@ class ResourceControllerTest {
 	}
 
 	@Test
-	void roomEndpointsAreForAdministratorsOnly() throws Exception {
+	void trainersCanOnlyListRooms() throws Exception {
 		String room = createRoom("Workout room");
 
 		this.mockMvc.perform(asTrainer(MockMvcRequestBuilders.get("/api/v1/resources")))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.items[0].id").value(room));
+		this.mockMvc.perform(asTrainer(MockMvcRequestBuilders.get("/api/v1/resources/{id}", room)))
 			.andExpect(status().isForbidden())
 			.andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
 		this.mockMvc.perform(asTrainer(MockMvcRequestBuilders.get("/api/v1/resources/{id}/service-types", room)))

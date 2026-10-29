@@ -42,8 +42,11 @@ class ResourceController {
 		this.resourceManagement = resourceManagement;
 	}
 
+	/** Open to trainers too, so that they can pick a room for the classes they add. */
 	@GetMapping
-	@Operation(summary = "List rooms", operationId = "listResources")
+	@PreAuthorize("hasAnyRole('ADMIN', 'TRAINER')")
+	@Operation(summary = "List rooms", operationId = "listResources",
+			description = "Available to administrators and trainers.")
 	ListResponse<ResourceResponse> listResources(
 			@Parameter(description = "Only active (true) or inactive (false) rooms; all when missing.")
 			@RequestParam(required = false) @Nullable Boolean isActive) {
