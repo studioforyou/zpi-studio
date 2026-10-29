@@ -4,7 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:mobile/core/auth/app_role.dart';
 import 'package:mobile/core/auth/auth_controller.dart';
 import 'package:mobile/core/auth/auth_state.dart';
-import 'package:mobile/features/accounts/data/staff_profile_provider.dart';
+import 'package:mobile/features/accounts/presentation/widgets/profile_header.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
 
 class ProfileScreen extends ConsumerWidget {
@@ -13,74 +13,39 @@ class ProfileScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
-    final controller = ref.read(authControllerProvider.notifier);
-    final sectionStyle = Theme.of(context).textTheme.titleMedium;
 
     return Scaffold(
       appBar: AppBar(title: Text(l10n.navProfile)),
       body: switch (ref.watch(authControllerProvider)) {
         AuthRestoring() || Unauthenticated() => const SizedBox(),
         Authenticated(:final session) => ListView(
-          padding: const EdgeInsets.all(16),
+          // The header sets its own margins.
+          padding: const EdgeInsets.only(bottom: 16),
           children: [
-            Text(
-              session.activeRole == AppRole.trainer
-                  ? ref
-                            .watch(staffProfileProvider(session.accountId))
-                            .asData
-                            ?.value
-                            .displayName ??
-                        session.displayName
-                  : session.displayName,
-            ),
-            if (session.roles.length > 1) ...[
-              Text(l10n.profileRoleSection, style: sectionStyle),
-              Wrap(
-                children: [
-                  for (final role in session.roles)
-                    ChoiceChip(
-                      label: Text(switch (role) {
-                        AppRole.client => l10n.roleClient,
-                        AppRole.trainer => l10n.roleTrainer,
-                      }),
-                      selected: role == session.activeRole,
-                      onSelected: (_) => controller.selectRole(role),
+            // Full width, so its line can run from edge to edge.
+            ProfileHeader(session: session),
+            if (session.activeRole == AppRole.trainer)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    ListTile(
+                      leading: const Icon(Icons.edit_outlined),
+                      title: Text(l10n.staffProfileEditTitle),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () => context.push('/trainer/profile/edit'),
                     ),
-                ],
-              ),
-            ],
-            if (session.activeRole == AppRole.client &&
-                session.profiles.length > 1) ...[
-              Text(l10n.profileActiveProfileSection, style: sectionStyle),
-              Wrap(
-                children: [
-                  for (final profile in session.profiles)
-                    ChoiceChip(
-                      label: Text(profile.displayName),
-                      selected: profile.id == session.activeProfileId,
-                      onSelected: (_) => controller.selectProfile(profile.id),
+                    ListTile(
+                      leading: const Icon(Icons.schedule),
+                      title: Text(l10n.navAvailability),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () =>
+                          context.push('/trainer/profile/availability'),
                     ),
-                ],
+                  ],
+                ),
               ),
-            ],
-            if (session.activeRole == AppRole.trainer) ...[
-              ListTile(
-                leading: const Icon(Icons.edit_outlined),
-                title: Text(l10n.staffProfileEditTitle),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () => context.push('/trainer/profile/edit'),
-              ),
-              ListTile(
-                leading: const Icon(Icons.schedule),
-                title: Text(l10n.navAvailability),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () => context.push('/trainer/profile/availability'),
-              ),
-            ],
-            OutlinedButton(
-              onPressed: controller.logout,
-              child: Text(l10n.logoutButton),
-            ),
           ],
         ),
       },

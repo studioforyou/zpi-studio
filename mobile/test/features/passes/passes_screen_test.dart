@@ -204,7 +204,11 @@ void main() {
       findsOneWidget,
     );
 
-    container.read(authControllerProvider.notifier).selectProfile('child-1');
+    container
+        .read(authControllerProvider.notifier)
+        .choose(
+          SessionChoice(role: AppRole.client, profile: _session.profiles[1]),
+        );
     await tester.pumpAndSettle();
 
     expect(find.text('Profil: Jan Kowalski'), findsOneWidget);

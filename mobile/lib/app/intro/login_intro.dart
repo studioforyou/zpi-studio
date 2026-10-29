@@ -7,6 +7,7 @@ import 'package:mobile/app/intro/logo_paths.dart';
 import 'package:mobile/app/theme/brand_colors.dart';
 import 'package:mobile/core/auth/auth_controller.dart';
 import 'package:mobile/core/auth/auth_state.dart';
+import 'package:mobile/core/auth/session.dart';
 
 /// Whether the login screen may be left after a successful login.
 ///
@@ -25,9 +26,26 @@ final loginCoveredProvider = NotifierProvider<LoginCoveredNotifier, bool>(
   LoginCoveredNotifier.new,
 );
 
-/// Plays the logo intro over the whole app after a successful login: white
-/// curtains close over the login screen, the 4 and the U fly in and join,
-/// STUDIO appears, then the logo slides up and uncovers the app.
+/// A profile picked on the role picker opened from the profile tab. The
+/// intro plays and the app switches to it once the curtains have closed.
+class ProfileSwitchNotifier extends Notifier<SessionChoice?> {
+  @override
+  SessionChoice? build() => null;
+
+  void request(SessionChoice choice) => state = choice;
+
+  void clear() => state = null;
+}
+
+final profileSwitchProvider =
+    NotifierProvider<ProfileSwitchNotifier, SessionChoice?>(
+      ProfileSwitchNotifier.new,
+    );
+
+/// Plays the logo intro over the whole app after a successful login and when
+/// the profile is changed from the profile tab: white curtains close over the
+/// screen, the 4 and the U fly in and join, STUDIO appears, then the logo
+/// slides up and uncovers the app.
 ///
 /// Not played when a saved session is restored, skipped by a tap, and left
 /// out when the system asks for reduced motion.
@@ -60,20 +78,45 @@ class _LoginIntroState extends ConsumerState<LoginIntro>
 
   bool _playing = false;
 
+  /// Runs once, when the curtains have closed (or right away without
+  /// animations).
+  VoidCallback? _onCovered;
+
   @override
   void dispose() {
     _controller.dispose();
     super.dispose();
   }
 
-  void _start() {
+  void _start(VoidCallback onCovered) {
     FocusManager.instance.primaryFocus?.unfocus();
+    _onCovered = onCovered;
     if (MediaQuery.disableAnimationsOf(context)) {
       _cover();
       return;
     }
     setState(() => _playing = true);
     _controller.forward(from: 0);
+  }
+
+  void _coverLogin() {
+    if (!ref.read(loginCoveredProvider)) {
+      ref.read(loginCoveredProvider.notifier).cover();
+    }
+  }
+
+  void _switchProfile(SessionChoice? choice) {
+    if (choice == null) {
+      return;
+    }
+    if (_playing) {
+      ref.read(profileSwitchProvider.notifier).clear();
+      return;
+    }
+    _start(() {
+      ref.read(authControllerProvider.notifier).choose(choice);
+      ref.read(profileSwitchProvider.notifier).clear();
+    });
   }
 
   void _coverOnceClosed() {
@@ -90,13 +133,15 @@ class _LoginIntroState extends ConsumerState<LoginIntro>
   }
 
   void _cover() {
-    if (!ref.read(loginCoveredProvider)) {
-      ref.read(loginCoveredProvider.notifier).cover();
-    }
+    final onCovered = _onCovered;
+    _onCovered = null;
+    onCovered?.call();
   }
 
   void _stop() {
+    _onCovered = null;
     ref.read(loginCoveredProvider.notifier).reset();
+    ref.read(profileSwitchProvider.notifier).clear();
     _controller.reset();
     if (_playing) setState(() => _playing = false);
   }
@@ -107,9 +152,13 @@ class _LoginIntroState extends ConsumerState<LoginIntro>
       if (next is Unauthenticated) {
         _stop();
       } else if (previous is Unauthenticated && next is Authenticated) {
-        _start();
+        _start(_coverLogin);
       }
     });
+    ref.listen<SessionChoice?>(
+      profileSwitchProvider,
+      (_, next) => _switchProfile(next),
+    );
 
     return Stack(
       children: [

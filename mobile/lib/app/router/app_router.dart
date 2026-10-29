@@ -5,12 +5,14 @@ import 'package:mobile/app/intro/login_intro.dart';
 import 'package:mobile/app/ping/ping_screen.dart';
 import 'package:mobile/app/shell/role_shell.dart';
 import 'package:mobile/app/splash/splash_screen.dart';
+import 'package:mobile/core/auth/app_role.dart';
 import 'package:mobile/core/auth/auth_controller.dart';
 import 'package:mobile/core/auth/auth_state.dart';
 import 'package:mobile/features/accounts/presentation/accept_invitation_screen.dart';
 import 'package:mobile/features/accounts/presentation/login_screen.dart';
 import 'package:mobile/features/accounts/presentation/profile_screen.dart';
 import 'package:mobile/features/accounts/presentation/reset_password_screen.dart';
+import 'package:mobile/features/accounts/presentation/role_picker_screen.dart';
 import 'package:mobile/features/accounts/presentation/staff_profile_edit_screen.dart';
 import 'package:mobile/features/communication/presentation/messages_screen.dart';
 import 'package:mobile/features/passes/presentation/passes_screen.dart';
@@ -24,6 +26,7 @@ import 'package:mobile/l10n/generated/app_localizations.dart';
 const splashPath = '/splash';
 const loginPath = '/login';
 const pingPath = '/ping';
+const rolePickerPath = '/choose-role';
 const resetPasswordPath = '/reset-password';
 
 /// Opened from the invitation e-mail link, with the `token` query parameter.
@@ -41,6 +44,35 @@ const trainerMessagesPath = '/trainer/messages';
 const trainerProfilePath = '/trainer/profile';
 const trainerAvailabilitySubPath = 'availability';
 const trainerProfileEditSubPath = 'edit';
+
+/// The tabs of each role's shell.
+const _roleTabs = {
+  AppRole.client: [
+    clientSchedulePath,
+    clientPassesPath,
+    clientReservationsPath,
+    clientMessagesPath,
+    clientProfilePath,
+  ],
+  AppRole.trainer: [
+    trainerSchedulePath,
+    trainerTrainingsPath,
+    trainerMessagesPath,
+    trainerProfilePath,
+  ],
+};
+
+/// After switching to [role] from [location] in another role's shell: the
+/// same tab in the new shell (e.g. the profile tab), or `null` when the new
+/// role has no such tab.
+String? _sameTab(AppRole role, String location) {
+  final segments = Uri.parse(location).pathSegments;
+  if (segments.length < 2) {
+    return null;
+  }
+  final path = '/${role.name}/${segments[1]}';
+  return _roleTabs[role]!.contains(path) ? path : null;
+}
 
 /// One bottom-navigation tab: its route and its navigation bar entry.
 typedef _Tab = ({GoRoute route, ShellDestination destination});
@@ -180,16 +212,31 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                   location == pingPath
               ? null
               : loginPath;
-        case Authenticated(:final session):
+        case Authenticated(:final session, :final choosingRole):
           // Just logged in: stay until the intro covers the login screen.
           if (location == loginPath && !ref.read(loginCoveredProvider)) {
             return null;
           }
-          final role = session.activeRole.name;
-          if (location == loginPath || !location.startsWith('/$role/')) {
-            return '/$role/schedule';
+          if (choosingRole) {
+            if (location == rolePickerPath) {
+              return null;
+            }
+            // Remembers where the picker was opened, to come back there.
+            return Uri(
+              path: rolePickerPath,
+              queryParameters: {'from': location},
+            ).toString();
           }
-          return null;
+          final role = session.activeRole;
+          if (location.startsWith('/${role.name}/')) {
+            return null;
+          }
+          // A profile changed from the profile tab keeps the user there.
+          final from = location == rolePickerPath
+              ? state.uri.queryParameters['from']
+              : location;
+          return (from == null ? null : _sameTab(role, from)) ??
+              '/${role.name}/schedule';
       }
     },
     routes: [
@@ -207,6 +254,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         ),
       ),
       GoRoute(path: pingPath, builder: (_, _) => const PingScreen()),
+      GoRoute(
+        path: rolePickerPath,
+        builder: (_, _) => const RolePickerScreen(),
+      ),
       _clientShell(),
       _trainerShell(),
     ],
