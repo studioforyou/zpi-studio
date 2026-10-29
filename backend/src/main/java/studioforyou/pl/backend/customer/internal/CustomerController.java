@@ -16,7 +16,8 @@ import studioforyou.pl.backend.customer.CustomerProfiles;
 import studioforyou.pl.backend.shared.api.PageResponse;
 
 /**
- * Participant profiles for the studio staff, e.g. to choose who a pass is assigned to.
+ * Participant profiles for the studio staff, e.g. to choose who a pass is assigned to or who a
+ * trainer starts working with.
  */
 @RestController
 @RequestMapping("/api/v1/customers")
@@ -30,9 +31,10 @@ public class CustomerController {
 	}
 
 	@GetMapping
-	@PreAuthorize("hasRole('ADMIN')")
+	@PreAuthorize("hasAnyRole('ADMIN', 'TRAINER')")
 	@Operation(summary = "Search active participants", operationId = "searchCustomers",
-			description = "Adults and children, sorted by last and first name.")
+			description = "Adults and children, sorted by last and first name. Trainers use it to choose "
+					+ "participants they start working with.")
 	public PageResponse<CustomerResponse> search(
 			@Parameter(description = "Part of the first and/or last name, or of the phone number; all participants when omitted.")
 			@RequestParam(required = false) String query,
