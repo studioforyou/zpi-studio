@@ -40,6 +40,16 @@ class SeedGroupClassBookingTests {
 				             AND '19000000-0000-0000-0000-000000000226'::uuid
 				""").query(Integer.class).single()).isEqualTo(52);
 		assertThat(jdbc.sql("""
+				SELECT count(*) FROM event_staff
+				WHERE event_id BETWEEN '19000000-0000-0000-0000-000000000101'::uuid
+				                   AND '19000000-0000-0000-0000-000000000226'::uuid
+				""").query(Integer.class).single()).isEqualTo(52);
+		assertThat(jdbc.sql("""
+				SELECT count(*) FROM event_resource
+				WHERE event_id BETWEEN '19000000-0000-0000-0000-000000000101'::uuid
+				                   AND '19000000-0000-0000-0000-000000000226'::uuid
+				""").query(Integer.class).single()).isEqualTo(52);
+		assertThat(jdbc.sql("""
 				SELECT count(*) FROM schedule_event
 				WHERE starts_at = (SELECT starts_at FROM schedule_event
 				                    WHERE id = '19000000-0000-0000-0000-000000000101')
@@ -74,6 +84,35 @@ class SeedGroupClassBookingTests {
 			.containsExactlyInAnyOrder("Katarzyna Zielińska", "Monika Dąbrowska");
 		assertThat(bookings.get(UUID.fromString("03000000-0000-0000-0000-000000000006"),
 			UUID.fromString("07000000-0000-0000-0000-000000000003"), shared).ownReservation()).isNotNull();
+	}
+
+	@Test
+	void showcaseRerunPreservesEditedClassesAndInstructorAndRoomAssignments() {
+		UUID event = UUID.fromString("19000000-0000-0000-0000-000000000101");
+		UUID substitute = UUID.fromString("08000000-0000-0000-0000-000000000003");
+		UUID replacementRoom = UUID.fromString("15000000-0000-0000-0000-000000000003");
+		jdbc.sql("""
+				UPDATE schedule_event
+				SET title = 'Adjusted during manual testing', capacity = 6,
+				    starts_at = starts_at + interval '1 day', ends_at = ends_at + interval '1 day'
+				WHERE id = :id
+				""").param("id", event).update();
+		var before = jdbc.sql("SELECT title, capacity, starts_at, ends_at FROM schedule_event WHERE id = :id")
+			.param("id", event).query().singleRow();
+		jdbc.sql("UPDATE event_staff SET staff_id = :staff WHERE event_id = :event")
+			.param("staff", substitute).param("event", event).update();
+		jdbc.sql("UPDATE event_resource SET resource_id = :room WHERE event_id = :event")
+			.param("room", replacementRoom).param("event", event).update();
+
+		new ResourceDatabasePopulator(new ClassPathResource("db/seed/R__seed_08_timetable_showcase.sql"))
+			.execute(dataSource);
+
+		assertThat(jdbc.sql("SELECT title, capacity, starts_at, ends_at FROM schedule_event WHERE id = :id")
+			.param("id", event).query().singleRow()).isEqualTo(before);
+		assertThat(jdbc.sql("SELECT staff_id FROM event_staff WHERE event_id = :id")
+			.param("id", event).query(UUID.class).list()).containsExactly(substitute);
+		assertThat(jdbc.sql("SELECT resource_id FROM event_resource WHERE event_id = :id")
+			.param("id", event).query(UUID.class).list()).containsExactly(replacementRoom);
 	}
 
 	@Test

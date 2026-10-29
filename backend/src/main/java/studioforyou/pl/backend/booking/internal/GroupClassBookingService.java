@@ -111,11 +111,11 @@ class GroupClassBookingService {
 	List<ParticipantResponse> participants(UUID actorId, UUID profileId, UUID eventId) {
 		requireProfile(actorId, profileId);
 		requireEvent(eventId);
-		if (!this.reservations.ownActive(profileId, List.of(eventId)).containsKey(eventId)) {
+		List<UUID> ids = this.reservations.activeParticipantIdsForBookedProfile(profileId, eventId);
+		if (ids.isEmpty()) {
 			throw new ApiException(ErrorCode.ACCESS_DENIED,
 					"The participant list is available to participants with an active reservation.");
 		}
-		List<UUID> ids = this.reservations.activeParticipantIds(eventId);
 		Map<UUID, String> names = this.customers.displayNames(ids);
 		return ids.stream().filter(names::containsKey)
 			.map(id -> new ParticipantResponse(names.get(id), id.equals(profileId)))

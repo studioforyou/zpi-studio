@@ -67,6 +67,9 @@ class GroupClassBookingTests {
 	@MockitoSpyBean
 	private BookingEntitlements entitlements;
 
+	@MockitoSpyBean
+	private ReservationStore reservations;
+
 	@Autowired
 	private GroupClassBookingService bookings;
 
@@ -164,6 +167,27 @@ class GroupClassBookingTests {
 		bookings.cancel(actor, profile, own.id(), new CancelRequest(0, true));
 		mvc.perform(get(path).header("Authorization", "Bearer " + PARENT_TOKEN))
 			.andExpect(status().isForbidden());
+	}
+
+	@Test
+	void aCancellationCommittedBeforeTheRosterReadPreventsDisclosureOfOtherParticipants() throws Exception {
+		jdbc.sql("UPDATE schedule_event SET capacity = 3 WHERE id = :id").param("id", event).update();
+		var own = bookings.book(actor, profile, event, pass).reservation();
+		bookings.book(otherActor, otherProfile, event, otherPass);
+		try (var executor = Executors.newSingleThreadExecutor()) {
+			org.mockito.stubbing.Answer<Object> cancelBeforeRosterRead = invocation -> {
+				executor.submit(() -> bookings.cancel(actor, profile, own.id(), new CancelRequest(0, true)))
+					.get(10, TimeUnit.SECONDS);
+				return invocation.callRealMethod();
+			};
+			// Exercise both the guarded query and the former separate roster read: the old
+			// implementation has already checked access when this cancellation commits.
+			doAnswer(cancelBeforeRosterRead).when(reservations).activeParticipantIdsForBookedProfile(profile, event);
+			doAnswer(cancelBeforeRosterRead).when(reservations).activeParticipantIds(event);
+			assertError(() -> bookings.participants(actor, profile, event), ErrorCode.ACCESS_DENIED);
+		}
+		assertThat(bookings.getReservation(actor, profile, own.id()).status()).isEqualTo("CANCELLED");
+		assertThat(bookings.participants(otherActor, otherProfile, event)).hasSize(1);
 	}
 
 	@Test

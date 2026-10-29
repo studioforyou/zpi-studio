@@ -30,6 +30,8 @@ Customer profiles without an account:
 
 Adds **52 public classes across two upcoming weeks**, starting on the next Monday in Europe/Warsaw when first applied. Existing fixture dates, reservations and pass balances are preserved. Restarting the backend does not move these dates or restore cancelled bookings.
 
+The seed changes data only. Fixture values use query-scoped CTEs without creating tables or other database objects.
+
 - Monday 17:00 and Friday 17:00: three simultaneous classes in separate rooms (pole dance, calisthenics, stretching). Monday also has a partial overlap and short consecutive classes.
 - All seven weekdays have classes; lengths range from 30 to 75 minutes. Most classes remain empty with this small client sample. Occupancy is always the count of actual active reservations. The original two-place Thursday pole class remains the full-group example (Katarzyna and Monika).
 - No accounts, customer profiles or staff profiles are created. Participants use the existing Katarzyna, Monika and Tomasz accounts; Zosia uses her existing child profile through Monika.

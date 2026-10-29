@@ -1,7 +1,22 @@
 import { FirebaseError } from 'firebase/app';
-import { signInWithEmailAndPassword, signOut, type Auth } from 'firebase/auth';
+import {
+  EmailAuthProvider,
+  reauthenticateWithCredential,
+  sendPasswordResetEmail,
+  signInWithEmailAndPassword,
+  signOut,
+  updatePassword,
+  type Auth,
+} from 'firebase/auth';
 import { ApiError, NETWORK_ERROR } from '@/shared/api/ApiError';
-import { AuthFailure, type AuthFailureReason } from './authFailure';
+import {
+  AuthFailure,
+  PasswordChangeFailure,
+  PasswordResetFailure,
+  type AuthFailureReason,
+  type PasswordChangeFailureReason,
+  type PasswordResetFailureReason,
+} from './authFailure';
 import type { AuthService } from './authService';
 import type { MeResponse, Session } from './types';
 
@@ -67,6 +82,35 @@ export class FirebaseAuthService implements AuthService {
     return signOut(this.auth);
   }
 
+  async sendPasswordReset(email: string): Promise<void> {
+    try {
+      await sendPasswordResetEmail(this.auth, email.trim());
+    } catch (error) {
+      // An unknown address looks like a success, as it does with Firebase's enumeration protection.
+      if (!(error instanceof FirebaseError && error.code === 'auth/user-not-found')) {
+        throw new PasswordResetFailure(resetReason(error));
+      }
+    }
+  }
+
+  async changePassword(currentPassword: string, newPassword: string): Promise<void> {
+    const user = this.auth.currentUser;
+    if (user === null || user.email === null) {
+      throw new PasswordChangeFailure('unknown');
+    }
+    try {
+      // Firebase only changes the password of a recent sign-in; confirming the current password
+      // makes it one and keeps someone at an unattended computer from changing it.
+      await reauthenticateWithCredential(
+        user,
+        EmailAuthProvider.credential(user.email, currentPassword),
+      );
+      await updatePassword(user, newPassword);
+    } catch (error) {
+      throw new PasswordChangeFailure(changeReason(error));
+    }
+  }
+
   private async loadMe(): Promise<MeResponse> {
     try {
       return await this.fetchMe();
@@ -103,6 +147,43 @@ function firebaseReason(error: unknown): AuthFailureReason {
       return 'invalidCredentials';
     case 'auth/user-disabled':
       return 'accountInactive';
+    case 'auth/too-many-requests':
+      return 'tooManyAttempts';
+    case 'auth/network-request-failed':
+      return 'network';
+    default:
+      return 'unknown';
+  }
+}
+
+function resetReason(error: unknown): PasswordResetFailureReason {
+  if (!(error instanceof FirebaseError)) {
+    return 'unknown';
+  }
+  switch (error.code) {
+    case 'auth/invalid-email':
+    case 'auth/missing-email':
+      return 'invalidEmail';
+    case 'auth/too-many-requests':
+      return 'tooManyAttempts';
+    case 'auth/network-request-failed':
+      return 'network';
+    default:
+      return 'unknown';
+  }
+}
+
+function changeReason(error: unknown): PasswordChangeFailureReason {
+  if (!(error instanceof FirebaseError)) {
+    return 'unknown';
+  }
+  switch (error.code) {
+    case 'auth/invalid-credential':
+    case 'auth/wrong-password':
+      return 'wrongPassword';
+    case 'auth/weak-password':
+    case 'auth/password-does-not-meet-requirements':
+      return 'weakPassword';
     case 'auth/too-many-requests':
       return 'tooManyAttempts';
     case 'auth/network-request-failed':

@@ -43,12 +43,10 @@ VALUES ('39000000-0000-0000-0000-000000000101', '38000000-0000-0000-0000-0000000
         '07000000-0000-0000-0000-000000000004', '03000000-0000-0000-0000-000000000006', 'APP')
 ON CONFLICT DO NOTHING;
 
-CREATE TEMP TABLE seed08_slots (
-    slot INT, weekday INT, start_time TIME, duration_minutes INT, service_no INT,
-    title TEXT, staff_no INT, room_no INT, capacity INT
-);
-INSERT INTO seed08_slots VALUES
-    ( 1, 1, '17:00', 60,   1, 'Pole dance od podstaw',          1, 1, 10),
+-- Query-scoped fixture values; this seed creates no database objects.
+WITH slots (slot, weekday, start_time, duration_minutes, service_no,
+            title, staff_no, room_no, capacity) AS (VALUES
+    ( 1, 1, TIME '17:00', 60,   1, 'Pole dance od podstaw',          1, 1, 10),
     ( 2, 1, '17:00', 75,   3, 'Kalistenika — siła i technika',  2, 2, 12),
     ( 3, 1, '17:00', 45, 101, 'Stretching całego ciała',        3, 3,  8),
     ( 4, 1, '18:00', 45,   2, 'Pole dance — kombinacje',        1, 1, 10),
@@ -73,9 +71,8 @@ INSERT INTO seed08_slots VALUES
     (23, 6, '11:00', 45, 101, 'Stretching i oddech',             3, 3,  8),
     (24, 7, '10:00', 60,   1, 'Pole dance — niedzielna energia', 1, 1, 10),
     (25, 7, '10:00', 75,   3, 'Kalistenika — trening weekendowy',2, 2, 12),
-    (26, 7, '10:00', 45, 101, 'Stretching na cały tydzień',      3, 3,  8);
-
-CREATE TEMP TABLE seed08_events AS
+    (26, 7, '10:00', 45, 101, 'Stretching na cały tydzień',      3, 3,  8)
+), events AS (
 SELECT (100 + week_no * 100 + slot) AS event_no, s.*,
        (date_trunc('week', now() AT TIME ZONE 'Europe/Warsaw')
         + make_interval(weeks => week_no + 1, days =>
@@ -83,43 +80,57 @@ SELECT (100 + week_no * 100 + slot) AS event_no, s.*,
                  ELSE weekday END - 1)
         + (CASE WHEN week_no = 1 THEN CASE slot WHEN 4 THEN TIME '19:15' WHEN 7 THEN TIME '16:00' WHEN 12 THEN TIME '12:00' WHEN 21 THEN TIME '10:00' ELSE start_time END
                 ELSE start_time END - TIME '00:00')) AT TIME ZONE 'Europe/Warsaw' AS starts_at
-FROM seed08_slots s CROSS JOIN generate_series(0, 1) AS weeks(week_no);
-
+FROM slots s CROSS JOIN generate_series(0, 1) AS weeks(week_no)
+), inserted_events AS (
 INSERT INTO schedule_event (id, kind, service_type_id, title, starts_at, ends_at,
                             capacity, visibility, status, created_by)
 SELECT ('19000000-0000-0000-0000-' || lpad(event_no::text, 12, '0'))::uuid,
        'CLASS', ('10000000-0000-0000-0000-' || lpad(service_no::text, 12, '0'))::uuid,
        title, starts_at, starts_at + make_interval(mins => duration_minutes), capacity, 'PUBLIC', 'SCHEDULED',
        '03000000-0000-0000-0000-000000000001'::uuid
-FROM seed08_events
-ON CONFLICT DO NOTHING;
-
+FROM events
+ON CONFLICT DO NOTHING
+RETURNING id
+), available_events AS (
+    -- RETURNING supplies new rows, which sibling statements cannot read yet.
+    SELECT id FROM inserted_events
+    UNION ALL
+    SELECT e.id FROM schedule_event e
+    JOIN events fixture
+      ON e.id = ('19000000-0000-0000-0000-' || lpad(fixture.event_no::text, 12, '0'))::uuid
+), inserted_staff AS (
 INSERT INTO event_staff (event_id, staff_id, role)
 SELECT ('19000000-0000-0000-0000-' || lpad(event_no::text, 12, '0'))::uuid,
        ('08000000-0000-0000-0000-' || lpad(staff_no::text, 12, '0'))::uuid, 'LEAD'
-FROM seed08_events
+FROM events
+JOIN available_events e
+  ON e.id = ('19000000-0000-0000-0000-' || lpad(event_no::text, 12, '0'))::uuid
 WHERE NOT EXISTS (SELECT 1 FROM event_staff assigned
                   WHERE assigned.event_id = ('19000000-0000-0000-0000-' || lpad(event_no::text, 12, '0'))::uuid)
-ON CONFLICT DO NOTHING;
-
+ON CONFLICT DO NOTHING
+RETURNING event_id
+)
 INSERT INTO event_resource (event_id, resource_id, blocks_whole_room)
 SELECT ('19000000-0000-0000-0000-' || lpad(event_no::text, 12, '0'))::uuid,
        ('15000000-0000-0000-0000-' || lpad(room_no::text, 12, '0'))::uuid, TRUE
-FROM seed08_events
+FROM events
+JOIN available_events e
+  ON e.id = ('19000000-0000-0000-0000-' || lpad(event_no::text, 12, '0'))::uuid
+WHERE NOT EXISTS (SELECT 1 FROM event_resource assigned
+                  WHERE assigned.event_id = ('19000000-0000-0000-0000-' || lpad(event_no::text, 12, '0'))::uuid)
 ON CONFLICT DO NOTHING;
 
 -- Two extra sessions per adult over two weeks; one extra child session.
 -- The same reservation is visible when logging into either participant's own account.
-CREATE TEMP TABLE seed08_bookings (event_no INT, person_no INT);
-INSERT INTO seed08_bookings VALUES
-    (101, 1), (214, 1), -- Katarzyna: Monday pole + next Wednesday stretching
-    (101, 3), (214, 3), -- Monika attends those classes with Katarzyna
-    (108, 2), (219, 2), -- Tomasz: one calisthenics session each week
-    (121, 4);           -- Zosia: first Wednesday, managed by Monika
+-- Katarzyna and Monika: Monday pole + next Wednesday stretching.
+-- Tomasz: one calisthenics session each week; Zosia: first Wednesday.
 
 -- Reuse Monika's existing Open pass. Dedicated gifted passes for the other three
 -- profiles keep existing purchases and balances untouched. The child's four-entry
 -- pass has three remaining entries; adult Open passes have no entry limit.
+WITH bookings (event_no, person_no) AS (VALUES
+    (101, 1), (214, 1), (101, 3), (214, 3), (108, 2), (219, 2), (121, 4)
+)
 INSERT INTO customer_pass (id, customer_id, variant_id, product_name, entries_total, entries_remaining,
                            price_paid, status, valid_from, valid_until, created_by)
 SELECT ('28000000-0000-0000-0000-' || lpad((1000 + person_no)::text, 12, '0'))::uuid,
@@ -129,9 +140,12 @@ SELECT ('28000000-0000-0000-0000-' || lpad((1000 + person_no)::text, 12, '0'))::
        CASE WHEN person_no = 4 THEN 4 ELSE NULL END,
        CASE WHEN person_no = 4 THEN 4 - count(*) ELSE NULL END,
        0, 'ACTIVE', CURRENT_DATE, CURRENT_DATE + 30, '03000000-0000-0000-0000-000000000001'::uuid
-FROM seed08_bookings WHERE person_no <> 3 GROUP BY person_no
+FROM bookings WHERE person_no <> 3 GROUP BY person_no
 ON CONFLICT DO NOTHING;
 
+WITH bookings (event_no, person_no) AS (VALUES
+    (101, 1), (214, 1), (101, 3), (214, 3), (108, 2), (219, 2), (121, 4)
+)
 INSERT INTO reservation (id, event_id, customer_id, booked_by, source, status, customer_pass_id,
                          free_cancel_until, cancellation_allowed_snapshot,
                          late_cancel_allowed_snapshot, late_cancel_forfeits_entry_snapshot)
@@ -141,30 +155,32 @@ SELECT ('30000000-0000-0000-0000-' || lpad((100000 + b.event_no * 1000 + b.perso
        CASE WHEN b.person_no = 4 THEN 'GUARDIAN' ELSE 'SELF' END,
        'ACTIVE', ('28000000-0000-0000-0000-' || lpad((CASE WHEN b.person_no = 3 THEN 5 ELSE 1000 + b.person_no END)::text, 12, '0'))::uuid,
        e.starts_at - interval '12 hours', TRUE, TRUE, TRUE
-FROM seed08_bookings b
+FROM bookings b
 JOIN schedule_event e ON e.id = ('19000000-0000-0000-0000-' || lpad(b.event_no::text, 12, '0'))::uuid
 ON CONFLICT DO NOTHING;
 
+WITH bookings (event_no, person_no) AS (VALUES
+    (101, 1), (214, 1), (101, 3), (214, 3), (108, 2), (219, 2), (121, 4)
+)
 INSERT INTO pass_ledger (id, pass_id, kind, entries_delta, valid_until_after, reason, actor_account_id)
 SELECT ('34000000-0000-0000-0000-' || lpad((1000 + person_no)::text, 12, '0'))::uuid,
        p.id, 'ACTIVATION', coalesce(p.entries_total, 0), p.valid_until, 'Karnet podarowany przez studio',
        '03000000-0000-0000-0000-000000000001'::uuid
-FROM (SELECT DISTINCT person_no FROM seed08_bookings WHERE person_no <> 3) b
+FROM (SELECT DISTINCT person_no FROM bookings WHERE person_no <> 3) b
 JOIN customer_pass p ON p.id = ('28000000-0000-0000-0000-' || lpad((1000 + person_no)::text, 12, '0'))::uuid
 ON CONFLICT DO NOTHING;
 
+WITH bookings (event_no, person_no) AS (VALUES
+    (101, 1), (214, 1), (101, 3), (214, 3), (108, 2), (219, 2), (121, 4)
+)
 INSERT INTO pass_ledger (id, pass_id, kind, entries_delta, reservation_id, actor_account_id)
 SELECT ('34000000-0000-0000-0000-' || lpad((100000 + event_no * 1000 + person_no)::text, 12, '0'))::uuid,
        r.customer_pass_id, 'ENTRY_RESERVED', CASE WHEN p.entries_total IS NULL THEN 0 ELSE -1 END,
        r.id, r.booked_by
-FROM seed08_bookings b
+FROM bookings b
 JOIN reservation r ON r.id = ('30000000-0000-0000-0000-' || lpad((100000 + event_no * 1000 + person_no)::text, 12, '0'))::uuid
 JOIN customer_pass p ON p.id = r.customer_pass_id
 ON CONFLICT DO NOTHING;
-
-DROP TABLE seed08_bookings;
-DROP TABLE seed08_events;
-DROP TABLE seed08_slots;
 
 -- Complete two known original unlimited-pass fixtures as well: Monika's full
 -- Thursday class and Tomasz's Monday calisthenics. Their allocations are zero.

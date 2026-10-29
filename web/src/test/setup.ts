@@ -34,6 +34,8 @@ vi.mock('@/features/auth/authService', () => ({
     restore: vi.fn(async () => null),
     getIdToken: vi.fn(async () => null),
     logout: vi.fn(async () => {}),
+    sendPasswordReset: vi.fn(async () => {}),
+    changePassword: vi.fn(async () => {}),
   },
 }));
 

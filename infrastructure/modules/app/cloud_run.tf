@@ -46,6 +46,27 @@ resource "google_cloud_run_v2_service" "backend" {
         value = var.project_id
       }
       env {
+        name  = "MAIL_PROVIDER"
+        value = "BREVO"
+      }
+      env {
+        name  = "MAIL_FROM"
+        value = var.mail_from
+      }
+      env {
+        name  = "INVITATION_LINK_BASE_URL"
+        value = var.invitation_link_base_url
+      }
+      env {
+        name = "BREVO_API_KEY"
+        value_source {
+          secret_key_ref {
+            secret  = google_secret_manager_secret.brevo_api_key.secret_id
+            version = "latest"
+          }
+        }
+      }
+      env {
         name = "SPRING_DATASOURCE_PASSWORD"
         value_source {
           secret_key_ref {
@@ -66,6 +87,7 @@ resource "google_cloud_run_v2_service" "backend" {
     google_project_service.required,
     google_secret_manager_secret_version.db_password,
     google_secret_manager_secret_iam_member.backend_db_password,
+    google_secret_manager_secret_iam_member.backend_brevo_api_key,
   ]
 }
 

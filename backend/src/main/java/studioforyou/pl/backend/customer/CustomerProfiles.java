@@ -1,6 +1,9 @@
 package studioforyou.pl.backend.customer;
 
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -121,6 +124,22 @@ public class CustomerProfiles {
 		}
 		long total = count.query(Long.class).single();
 		return PageResponse.of(select.query(ProfileDetails.class).list(), page, size, total);
+	}
+
+	/**
+	 * Participant profiles without an account of their own (children, adults added by the studio)
+	 * created in {@code [from, to)}, whatever their status now.
+	 */
+	public long countCreatedWithoutAccount(Instant from, Instant to) {
+		return jdbc.sql("""
+				SELECT count(*)
+				FROM customer_profile
+				WHERE account_id IS NULL AND created_at >= :from AND created_at < :to
+				""")
+			.param("from", OffsetDateTime.ofInstant(from, ZoneOffset.UTC))
+			.param("to", OffsetDateTime.ofInstant(to, ZoneOffset.UTC))
+			.query(Long.class)
+			.single();
 	}
 
 	private static String escapeLike(String text) {

@@ -1,1 +1,2 @@
 project_id = "project_id"
+mail_from  = "sender@example.com"
