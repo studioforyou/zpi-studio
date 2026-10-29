@@ -27,6 +27,13 @@ class SessionChoice {
   /// profile.
   final Profile? profile;
 
+  /// Identifies the choice when it is stored, e.g. `CLIENT:<profile id>` or
+  /// `TRAINER`.
+  String get key => switch (profile) {
+    final profile? => '${role.apiValue}:${profile.id}',
+    null => role.apiValue,
+  };
+
   @override
   bool operator ==(Object other) =>
       other is SessionChoice &&
@@ -89,6 +96,11 @@ class Session {
     if (roles.contains(AppRole.trainer))
       const SessionChoice(role: AppRole.trainer),
   ];
+
+  /// The choice with the given [SessionChoice.key], or `null` when the
+  /// account no longer has it.
+  SessionChoice? choiceByKey(String key) =>
+      choices.where((choice) => choice.key == key).firstOrNull;
 
   /// The choice matching [activeRole] and, for a client, [activeProfileId].
   SessionChoice get activeChoice => choices.firstWhere(

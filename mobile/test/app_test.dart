@@ -5,6 +5,7 @@ import 'package:mobile/app/app.dart';
 import 'package:mobile/app/config/app_config.dart';
 import 'package:mobile/core/auth/app_role.dart';
 import 'package:mobile/core/auth/auth_repository.dart';
+import 'package:mobile/core/auth/choice_store.dart';
 import 'package:mobile/core/auth/fake_auth_repository.dart';
 import 'package:mobile/core/auth/session.dart';
 
@@ -36,11 +37,16 @@ class _ClientOnlyAuthRepository extends FakeAuthRepository {
 
 void main() {
   // Nothing here touches Firebase or Dio; the app uses FakeAuthRepository.
-  Future<void> pumpApp(WidgetTester tester, AuthRepository repository) async {
+  Future<void> pumpApp(
+    WidgetTester tester,
+    AuthRepository repository, {
+    ChoiceStore? store,
+  }) async {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
           authRepositoryProvider.overrideWithValue(repository),
+          choiceStoreProvider.overrideWithValue(store ?? InMemoryChoiceStore()),
           appConfigProvider.overrideWithValue(
             const AppConfig(
               flavor: AppFlavor.dev,
@@ -126,6 +132,16 @@ void main() {
     await tester.tap(find.text('Trener'));
     await tester.pumpAndSettle();
 
+    expectTrainerShell();
+  });
+
+  testWidgets('a saved session reopens the profile it was left in', (
+    tester,
+  ) async {
+    final store = InMemoryChoiceStore()..values['demo-user'] = 'TRAINER';
+    await pumpApp(tester, _SignedInAuthRepository(), store: store);
+
+    expect(find.text('Kto korzysta?'), findsNothing);
     expectTrainerShell();
   });
 

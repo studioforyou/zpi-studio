@@ -4,6 +4,7 @@ import 'package:mobile/core/auth/app_role.dart';
 import 'package:mobile/core/auth/auth_controller.dart';
 import 'package:mobile/core/auth/auth_repository.dart';
 import 'package:mobile/core/auth/auth_state.dart';
+import 'package:mobile/core/auth/choice_store.dart';
 import 'package:mobile/core/auth/fake_auth_repository.dart';
 import 'package:mobile/core/auth/session.dart';
 
@@ -75,10 +76,14 @@ class _TrainerOnlyAuthRepository implements AuthRepository {
 
 void main() {
   late ProviderContainer container;
+  late InMemoryChoiceStore store;
 
   ProviderContainer createContainer(AuthRepository repository) {
     return ProviderContainer(
-      overrides: [authRepositoryProvider.overrideWithValue(repository)],
+      overrides: [
+        authRepositoryProvider.overrideWithValue(repository),
+        choiceStoreProvider.overrideWithValue(store),
+      ],
     );
   }
 
@@ -88,7 +93,10 @@ void main() {
   Session session() =>
       (container.read(authControllerProvider) as Authenticated).session;
 
-  setUp(() => container = createContainer(FakeAuthRepository()));
+  setUp(() {
+    store = InMemoryChoiceStore();
+    container = createContainer(FakeAuthRepository());
+  });
 
   tearDown(() => container.dispose());
 
@@ -233,6 +241,49 @@ void main() {
     controller().openRolePicker();
 
     expect(container.read(authControllerProvider), same(before));
+  });
+
+  test('choose remembers the choice for the account', () async {
+    await controller().login('a@b.c', 'secret');
+
+    controller().choose(const SessionChoice(role: AppRole.trainer));
+    await pumpEventQueue();
+
+    expect(store.values, {'demo-user': 'TRAINER'});
+  });
+
+  test('a restored session reopens as the remembered choice', () async {
+    final saved = await FakeAuthRepository().login(email: '', password: '');
+    container.dispose();
+    store.values['demo-user'] = 'CLIENT:child-1';
+    container = createContainer(_RestoringAuthRepository(saved));
+    container.read(authControllerProvider);
+
+    await pumpEventQueue();
+
+    expect(choosingRole(), isFalse);
+    expect(session().activeRole, AppRole.client);
+    expect(session().activeProfileId, 'child-1');
+  });
+
+  test('a remembered choice the account lost opens the picker', () async {
+    final saved = await FakeAuthRepository().login(email: '', password: '');
+    container.dispose();
+    store.values['demo-user'] = 'CLIENT:removed-child';
+    container = createContainer(_RestoringAuthRepository(saved));
+    container.read(authControllerProvider);
+
+    await pumpEventQueue();
+
+    expect(choosingRole(), isTrue);
+  });
+
+  test('login starts on the picker even with a remembered choice', () async {
+    store.values['demo-user'] = 'TRAINER';
+
+    await controller().login('a@b.c', 'secret');
+
+    expect(choosingRole(), isTrue);
   });
 
   test('logout returns to Unauthenticated', () async {
