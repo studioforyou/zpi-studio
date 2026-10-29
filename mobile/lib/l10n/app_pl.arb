@@ -674,6 +674,59 @@
   "trainingOutcomeUnmarked": "Obecność jeszcze nie potwierdzona",
   "trainingOutcomeCancelled": "Odwołano w terminie",
   "trainingOutcomeLateCancelled": "Odwołano po terminie",
-  "trainingOutcomeClassCancelled": "Zajęcia odwołane przez studio"
+  "trainingOutcomeClassCancelled": "Zajęcia odwołane przez studio",
+  "availabilityIntro": "Godziny, w których możesz prowadzić zajęcia i treningi. Studio widzi je przy układaniu grafiku.",
+  "availabilityWeeklySection": "Stały tydzień",
+  "availabilityExtraSection": "Dodatkowe dni",
+  "availabilityExtraHint": "Jednorazowe godziny poza stałym tygodniem.",
+  "availabilityDayOff": "Niedostępny",
+  "availabilityNoExtraDays": "Brak dodatkowych dni",
+  "availabilityAddHours": "Dodaj godziny",
+  "availabilityAddDay": "Dodaj dzień",
+  "availabilityEditHours": "Zmień godziny",
+  "availabilityNewWeeklyTitle": "Nowe godziny: {day}",
+  "@availabilityNewWeeklyTitle": {
+    "placeholders": {
+      "day": {
+        "type": "String"
+      }
+    }
+  },
+  "availabilityNewDayTitle": "Dodatkowy dzień",
+  "availabilityDate": "Dzień",
+  "availabilityStart": "Od",
+  "availabilityEnd": "Do",
+  "availabilityValidTo": "Obowiązuje do",
+  "availabilityNoEndDate": "Bez daty końcowej",
+  "availabilityClearEndDate": "Usuń datę końcową",
+  "availabilitySince": "od {date}",
+  "@availabilitySince": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "availabilityUntil": "do {date}",
+  "@availabilityUntil": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "availabilitySave": "Zapisz",
+  "availabilityRemove": "Usuń",
+  "availabilitySaved": "Dyspozycyjność została zapisana.",
+  "availabilityRemoved": "Godziny zostały usunięte.",
+  "availabilityEndBeforeStart": "Godzina zakończenia musi być późniejsza niż rozpoczęcia.",
+  "availabilityOverlap": "Te godziny nachodzą na inne godziny tego dnia.",
+  "availabilityValidationError": "Sprawdź godziny i daty, a potem spróbuj ponownie.",
+  "availabilityLoadError": "Nie udało się pobrać dyspozycyjności.",
+  "availabilitySaveError": "Nie udało się zapisać zmian. Spróbuj ponownie.",
+  "availabilityNetworkError": "Brak połączenia z serwerem. Sprawdź internet i spróbuj ponownie.",
+  "availabilityAccessError": "Nie masz dostępu do edycji dyspozycyjności.",
+  "availabilityNotFound": "Nie znaleziono tych godzin. Odśwież listę.",
+  "availabilityRetry": "Spróbuj ponownie"
 }
 
