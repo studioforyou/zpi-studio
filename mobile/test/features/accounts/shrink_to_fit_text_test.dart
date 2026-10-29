@@ -120,15 +120,21 @@ void main() {
   testWidgets('measures with the font the text is drawn in', (tester) async {
     // Real Roboto from the Flutter SDK: the test font hides measuring with
     // the wrong font, because every font falls back to it.
-    final fonts =
-        '${Platform.environment['FLUTTER_ROOT']}'
-        '/bin/cache/artifacts/material_fonts';
+    final fonts = Directory(
+      '${Platform.environment['FLUTTER_ROOT']}'
+      '/bin/cache/artifacts/material_fonts',
+    );
     await tester.runAsync(() async {
+      // The file is "roboto-medium.ttf" in some SDK caches and
+      // "Roboto-Medium.ttf" in others, and Linux file names are
+      // case-sensitive.
+      final roboto = fonts.listSync().whereType<File>().firstWhere(
+        (file) =>
+            file.uri.pathSegments.last.toLowerCase() == 'roboto-medium.ttf',
+      );
       final loader = FontLoader('Roboto')
         ..addFont(
-          File(
-            '$fonts/roboto-medium.ttf',
-          ).readAsBytes().then((bytes) => ByteData.sublistView(bytes)),
+          roboto.readAsBytes().then((bytes) => ByteData.sublistView(bytes)),
         );
       await loader.load();
     });
