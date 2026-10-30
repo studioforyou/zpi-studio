@@ -75,7 +75,7 @@ StatefulShellRoute _clientShell() => _roleShell([
     clientSchedulePath,
     const ScheduleScreen(),
     Icons.calendar_month,
-    (l10n) => l10n.navSchedule,
+    (l10n) => l10n.navClassOffer,
   ),
   _tab(
     clientPassesPath,
@@ -87,7 +87,7 @@ StatefulShellRoute _clientShell() => _roleShell([
     clientReservationsPath,
     const ReservationsScreen(),
     Icons.event_available,
-    (l10n) => l10n.navReservations,
+    (l10n) => l10n.navMySchedule,
   ),
   _tab(
     clientMessagesPath,

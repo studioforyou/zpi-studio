@@ -124,12 +124,12 @@ void main() {
       _event(
         'Pole dance',
         EventKind.groupClass,
-        today.add(const Duration(hours: 18)),
+        DateTime(today.year, today.month, today.day, 18),
       ),
       _event(
         'PT with Tomasz',
         EventKind.personalTraining,
-        today.add(const Duration(hours: 8)),
+        DateTime(today.year, today.month, today.day, 8),
         status: EventStatus.cancelled,
       ),
     ]);
@@ -153,7 +153,7 @@ void main() {
       _event(
         'Pole dance',
         EventKind.groupClass,
-        today.add(const Duration(hours: 18)),
+        DateTime(today.year, today.month, today.day, 18),
       ),
     ]);
 
@@ -182,12 +182,12 @@ void main() {
       _event(
         'Pole dance',
         EventKind.groupClass,
-        today.add(const Duration(hours: 18)),
+        DateTime(today.year, today.month, today.day, 18),
       ),
       _event(
         'Workshop',
         EventKind.workshop,
-        other.add(const Duration(hours: 10)),
+        DateTime(other.year, other.month, other.day, 10),
       ),
     ]);
 
@@ -212,7 +212,7 @@ void main() {
       _event(
         'Pole dance',
         EventKind.groupClass,
-        today.add(const Duration(hours: 18)),
+        DateTime(today.year, today.month, today.day, 18),
       ),
     ])..fails = true;
     await tester.pumpWidget(
@@ -245,19 +245,19 @@ void main() {
       _event(
         'Pole dance',
         EventKind.groupClass,
-        today.add(const Duration(hours: 18)),
+        DateTime(today.year, today.month, today.day, 18),
       ),
       _event(
         'Assisted workshop',
         EventKind.workshop,
-        today.add(const Duration(hours: 12)),
+        DateTime(today.year, today.month, today.day, 12),
         isLead: false,
         room: 'Gym',
       ),
       _event(
         'PT with Tomasz',
         EventKind.personalTraining,
-        today.add(const Duration(hours: 8)),
+        DateTime(today.year, today.month, today.day, 8),
         status: EventStatus.cancelled,
         room: 'Gym',
       ),

@@ -1,6 +1,16 @@
 import { useState, type FormEvent } from 'react';
-import { Alert, Button, Card, Center, PasswordInput, Stack, TextInput, Title } from '@mantine/core';
-import { Navigate, useLocation, type Location } from 'react-router';
+import {
+  Alert,
+  Anchor,
+  Button,
+  Card,
+  Center,
+  PasswordInput,
+  Stack,
+  TextInput,
+  Title,
+} from '@mantine/core';
+import { Link, Navigate, useLocation, type Location } from 'react-router';
 import { paths } from '@/app/paths';
 import { pl } from '@/shared/i18n/pl';
 import { FullPageLoader } from '@/shared/ui/FullPageLoader';
@@ -72,6 +82,15 @@ export function LoginPage() {
             <Button type="submit" loading={submitting}>
               {pl.auth.submit}
             </Button>
+            <Anchor
+              component={Link}
+              to={paths.resetPassword}
+              state={{ email: email.trim() }}
+              size="sm"
+              ta="center"
+            >
+              {pl.auth.forgotPassword}
+            </Anchor>
           </Stack>
         </form>
       </Card>

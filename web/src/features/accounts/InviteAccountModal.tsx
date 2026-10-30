@@ -2,6 +2,8 @@ import { useState, type FormEvent } from 'react';
 import {
   Alert,
   Button,
+  Code,
+  CopyButton,
   Group,
   Modal,
   SegmentedControl,
@@ -12,12 +14,36 @@ import {
 import { useMutation } from '@tanstack/react-query';
 import { ApiError } from '@/shared/api/ApiError';
 import { pl } from '@/shared/i18n/pl';
+import { createAdminAccount, type NewAdminAccount } from './adminAccountsApi';
 import { inviteAccount, type InvitedRole, type NewInvitation } from './invitationsApi';
 
-// Same limits as the backend's InviteRequest.
+// Same limits as the backend's InviteRequest and CreateAdminRequest.
 const NAME_MAX_LENGTH = 80;
 const EMAIL_MAX_LENGTH = 254;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/**
+ * Clients and trainers get an invitation e-mail; administrators get an active account with a
+ * generated password right away.
+ */
+type Role = InvitedRole | 'ADMIN';
+
+type AddPersonInput = {
+  role: Role;
+  email: string;
+  firstName: string;
+  lastName: string;
+};
+
+type AddPersonResult =
+  { kind: 'invited'; invitation: NewInvitation } | { kind: 'created'; account: NewAdminAccount };
+
+async function addPerson({ role, ...person }: AddPersonInput): Promise<AddPersonResult> {
+  if (role === 'ADMIN') {
+    return { kind: 'created', account: await createAdminAccount(person) };
+  }
+  return { kind: 'invited', invitation: await inviteAccount({ ...person, role }) };
+}
 
 type InviteAccountModalProps = {
   opened: boolean;
@@ -25,12 +51,13 @@ type InviteAccountModalProps = {
 };
 
 export function InviteAccountModal({ opened, onClose }: InviteAccountModalProps) {
-  const [role, setRole] = useState<InvitedRole>('CLIENT');
+  const texts = pl.accounts.invite;
+  const [role, setRole] = useState<Role>('CLIENT');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [submitted, setSubmitted] = useState(false);
-  const invite = useMutation({ mutationFn: inviteAccount });
+  const add = useMutation({ mutationFn: addPerson });
 
   function reset() {
     setRole('CLIENT');
@@ -38,7 +65,7 @@ export function InviteAccountModal({ opened, onClose }: InviteAccountModalProps)
     setLastName('');
     setEmail('');
     setSubmitted(false);
-    invite.reset();
+    add.reset();
   }
 
   function handleClose() {
@@ -46,80 +73,93 @@ export function InviteAccountModal({ opened, onClose }: InviteAccountModalProps)
     onClose();
   }
 
+  const isAdmin = role === 'ADMIN';
   const errors = {
     firstName: requiredText(firstName, NAME_MAX_LENGTH),
     lastName: requiredText(lastName, NAME_MAX_LENGTH),
     email:
       requiredText(email, EMAIL_MAX_LENGTH) ??
-      (EMAIL_PATTERN.test(email.trim()) ? undefined : pl.accounts.invite.invalidEmail),
+      (EMAIL_PATTERN.test(email.trim()) ? undefined : texts.invalidEmail),
   };
   const accountExists =
-    invite.error instanceof ApiError && invite.error.code === 'ACCOUNT_ALREADY_EXISTS';
+    add.error instanceof ApiError && add.error.code === 'ACCOUNT_ALREADY_EXISTS';
 
   function handleSubmit(event: FormEvent) {
     event.preventDefault();
     setSubmitted(true);
-    if (errors.firstName || errors.lastName || errors.email) {
+    if (Object.values(errors).some((error) => error !== undefined)) {
       return;
     }
-    invite.mutate({
+    add.mutate({
+      role,
       email: email.trim(),
       firstName: firstName.trim(),
       lastName: lastName.trim(),
-      role,
     });
   }
+
+  const name = `${firstName.trim()} ${lastName.trim()}`;
 
   return (
     <Modal
       opened={opened}
       onClose={handleClose}
-      title={pl.accounts.invite.title}
+      title={texts.title}
       size="md"
       centered
+      // The generated password is shown only once, so a stray click must not close it.
+      closeOnClickOutside={add.data?.kind !== 'created'}
     >
-      {invite.isSuccess ? (
+      {add.isSuccess ? (
         <Stack>
-          <SentAlert invitation={invite.data} name={`${firstName.trim()} ${lastName.trim()}`} />
+          {add.data.kind === 'invited' ? (
+            <SentAlert invitation={add.data.invitation} name={name} />
+          ) : (
+            <CreatedAdmin account={add.data.account} name={name} />
+          )}
           <Group justify="flex-end">
             <Button variant="default" onClick={handleClose}>
-              {pl.accounts.invite.close}
+              {texts.close}
             </Button>
-            <Button onClick={reset}>{pl.accounts.invite.inviteAnother}</Button>
+            <Button onClick={reset}>{texts.inviteAnother}</Button>
           </Group>
         </Stack>
       ) : (
         <form onSubmit={handleSubmit} noValidate>
           <Stack>
-            {invite.isError && !accountExists && (
+            {add.isError && !accountExists && (
               <Alert color="red" role="alert">
-                {errorMessage(invite.error)}
+                {errorMessage(add.error, isAdmin)}
               </Alert>
             )}
             <Stack gap={4}>
               <Text size="sm" fw={500}>
-                {pl.accounts.invite.role}
+                {texts.role}
               </Text>
               <SegmentedControl
                 fullWidth
                 value={role}
-                onChange={(value) => setRole(value as InvitedRole)}
+                onChange={(value) => {
+                  setRole(value as Role);
+                  add.reset();
+                }}
                 data={[
                   { value: 'CLIENT', label: pl.accounts.roles.CLIENT },
                   { value: 'TRAINER', label: pl.accounts.roles.TRAINER },
+                  { value: 'ADMIN', label: pl.accounts.roles.ADMIN },
                 ]}
               />
             </Stack>
             <Group grow align="flex-start">
               <TextInput
-                label={pl.accounts.invite.firstName}
+                label={texts.firstName}
                 withAsterisk
                 value={firstName}
                 onChange={(event) => setFirstName(event.currentTarget.value)}
                 error={submitted ? errors.firstName : undefined}
               />
               <TextInput
-                label={pl.accounts.invite.lastName}
+                label={texts.lastName}
                 withAsterisk
                 value={lastName}
                 onChange={(event) => setLastName(event.currentTarget.value)}
@@ -127,33 +167,29 @@ export function InviteAccountModal({ opened, onClose }: InviteAccountModalProps)
               />
             </Group>
             <TextInput
-              label={pl.accounts.invite.email}
+              label={texts.email}
               withAsterisk
               type="email"
               value={email}
               onChange={(event) => {
                 setEmail(event.currentTarget.value);
                 if (accountExists) {
-                  invite.reset();
+                  add.reset();
                 }
               }}
               error={
-                accountExists
-                  ? pl.accounts.invite.errors.accountExists
-                  : submitted
-                    ? errors.email
-                    : undefined
+                accountExists ? texts.errors.accountExists : submitted ? errors.email : undefined
               }
             />
             <Text size="sm" c="dimmed">
-              {pl.accounts.invite.hint}
+              {isAdmin ? texts.adminHint : texts.hint}
             </Text>
             <Group justify="flex-end">
               <Button variant="default" onClick={handleClose}>
-                {pl.accounts.invite.cancel}
+                {texts.cancel}
               </Button>
-              <Button type="submit" loading={invite.isPending}>
-                {pl.accounts.invite.submit}
+              <Button type="submit" loading={add.isPending}>
+                {isAdmin ? texts.createAdmin : texts.submit}
               </Button>
             </Group>
           </Stack>
@@ -172,6 +208,39 @@ function SentAlert({ invitation, name }: { invitation: NewInvitation; name: stri
   );
 }
 
+function CreatedAdmin({ account, name }: { account: NewAdminAccount; name: string }) {
+  const texts = pl.accounts.invite;
+  return (
+    <Stack gap="sm">
+      <Alert color="green" title={texts.createdTitle}>
+        {texts.created(name, account.email)}
+      </Alert>
+      <Stack gap={4}>
+        <Text size="sm" fw={500}>
+          {texts.generatedPassword}
+        </Text>
+        <Group gap="xs" wrap="nowrap">
+          <Code fz="md" px="sm" py={6} style={{ flex: 1 }} aria-label={texts.generatedPassword}>
+            {account.password}
+          </Code>
+          <CopyButton value={account.password}>
+            {({ copied, copy }) => (
+              <Button
+                variant={copied ? 'light' : 'default'}
+                color={copied ? 'teal' : undefined}
+                onClick={copy}
+              >
+                {copied ? texts.copied : texts.copy}
+              </Button>
+            )}
+          </CopyButton>
+        </Group>
+      </Stack>
+      <Alert color="yellow">{texts.passwordShownOnce}</Alert>
+    </Stack>
+  );
+}
+
 function requiredText(value: string, maxLength: number): string | undefined {
   if (!value.trim()) {
     return pl.auth.fieldRequired;
@@ -179,9 +248,9 @@ function requiredText(value: string, maxLength: number): string | undefined {
   return value.trim().length > maxLength ? pl.accounts.invite.tooLong(maxLength) : undefined;
 }
 
-function errorMessage(error: Error): string {
+function errorMessage(error: Error, isAdmin: boolean): string {
   if (error instanceof ApiError && error.code === 'EMAIL_NOT_SENT') {
     return pl.accounts.invite.errors.emailNotSent;
   }
-  return pl.accounts.invite.errors.unknown;
+  return isAdmin ? pl.accounts.invite.errors.adminNotCreated : pl.accounts.invite.errors.unknown;
 }

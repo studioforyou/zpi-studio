@@ -87,4 +87,12 @@ profiles (listed in `Session.profiles`), not a separate role.
 | `communication` | communication (conversations, messages, notifications, device tokens) |
 | `statistics` | no dedicated tables in the current schema |
 
+## Client group classes
+
+The client **Oferta** and **Mój grafik** tabs directly reuse the trainer's `ScheduleCalendar` with day, week and month navigation. Oferta shows public group classes; Mój grafik shows the selected participant's upcoming bookings. The day view uses an hourly timeline with parallel columns for overlapping classes. Week and month views use client booking cards, service colors and a legend. Filters follow the trainer calendar's bottom-sheet and chip style.
+
+Calendar screens, adapters, filters and the timeline live in `lib/features/schedule/`. Booking details and reusable booking widgets live in `lib/features/trainings/presentation/`, with widgets in its `widgets/` directory. The feature is based on main containing #108 (PR #216, `ac773de`).
+
+The screens use the profile-scoped group-class booking API. They support choosing an eligible pass, booking, cancellation with a short entry consequence before confirmation, and viewing co-participants while booked. Data is scoped to both account and selected participant; switching to a child cannot reuse another participant's action. Successful mutations refresh class availability, own reservations and pass balances.
+
 

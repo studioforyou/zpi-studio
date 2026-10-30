@@ -24,6 +24,9 @@ class ResizeObserverMock {
 }
 window.ResizeObserver = ResizeObserverMock;
 
+// Combobox scrolls the selected option into view; jsdom does not implement scrolling.
+window.HTMLElement.prototype.scrollIntoView = vi.fn();
+
 // Tests never reach Firebase: every test gets this fake service, set up per test where needed.
 vi.mock('@/features/auth/authService', () => ({
   authService: {
@@ -31,6 +34,8 @@ vi.mock('@/features/auth/authService', () => ({
     restore: vi.fn(async () => null),
     getIdToken: vi.fn(async () => null),
     logout: vi.fn(async () => {}),
+    sendPasswordReset: vi.fn(async () => {}),
+    changePassword: vi.fn(async () => {}),
   },
 }));
 

@@ -91,6 +91,20 @@ class ScheduleEventControllerTest extends ScheduleTestSupport {
 	}
 
 	@Test
+	void personalTrainingUsesTheCapacityConfiguredInTheServiceCatalogue() throws Exception {
+		this.mockMvc.perform(MockMvcRequestBuilders.patch("/api/v1/service-types/" + PERSONAL)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"category\":\"PERSONAL_TRAINING\",\"minParticipants\":2,\"maxParticipants\":3}"))
+			.andExpect(status().isOk());
+
+		post("/api/v1/schedule-events", eventJson("PERSONAL_TRAINING", PERSONAL,
+				at(this.monday, "17:00"), at(this.monday, "18:00"), staff(MAREK, "LEAD"), room(GYM, false)))
+			.andExpect(status().isCreated())
+			.andExpect(jsonPath("$.capacity").value(3))
+			.andExpect(jsonPath("$.visibility").value("PRIVATE"));
+	}
+
+	@Test
 	void defaultCapacityDoesNotExceedTheRoom() throws Exception {
 		this.jdbcTemplate.update("UPDATE resource SET max_people = 6 WHERE id = ?", POLE_ROOM);
 

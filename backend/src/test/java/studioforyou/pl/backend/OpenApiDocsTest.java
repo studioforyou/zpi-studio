@@ -125,6 +125,37 @@ class OpenApiDocsTest {
 			.getContentAsString();
 	}
 
+	@Test
+	void documentsServiceBookingConfiguration() throws Exception {
+		String json = apiDocs();
+		Map<String, Object> paths = JsonPath.read(json, "$.paths");
+		assertThat(paths).containsKeys("/api/v1/service-types/booking-defaults", "/api/v1/service-types/{serviceTypeId}");
+		Map<String, Object> properties = JsonPath.read(json, "$.components.schemas.BookingPolicyValues.properties");
+		assertThat(properties).containsKeys("cancellationAllowed", "freeCancelHours", "lateCancelAllowed",
+				"lateCancelForfeitsEntry", "autoCancelEnabled", "autoCancelMinParticipants", "autoCancelHoursBefore");
+		Map<String, Object> operation = JsonPath.read(json, "$.paths['/api/v1/service-types'].post");
+		assertThat(operation).doesNotContainKey("parameters");
+	}
+
+	@Test
+	void documentsClientGroupClassBooking() throws Exception {
+		String json = apiDocs();
+		Map<String, Object> paths = JsonPath.read(json, "$.paths");
+		String base = "/api/v1/me/profiles/{profileId}";
+		assertThat(paths).containsKeys(base + "/group-classes", base + "/group-classes/{eventId}", base + "/group-classes/{eventId}/participants",
+				base + "/group-classes/{eventId}/reservations", base + "/reservations",
+				base + "/reservations/{reservationId}", base + "/reservations/{reservationId}/cancel");
+		Map<String, Object> createResponses = JsonPath.read(json,
+				"$.paths['" + base + "/group-classes/{eventId}/reservations'].post.responses");
+		assertThat(createResponses).containsKeys("200", "201", "409", "422");
+		Map<String, Object> cancelResponses = JsonPath.read(json,
+				"$.paths['" + base + "/reservations/{reservationId}/cancel'].post.responses");
+		assertThat(cancelResponses).containsKeys("409", "422");
+		Map<String, Object> participantFields = JsonPath.read(json,
+				"$.components.schemas.GroupClassParticipant.properties");
+		assertThat(participantFields).containsOnlyKeys("displayName", "isSelf");
+	}
+
 	@RestController
 	static class PublicTestController {
 

@@ -1,5 +1,7 @@
 package studioforyou.pl.backend.identity.firebase;
 
+import java.util.Optional;
+
 /**
  * Manages users in Firebase Authentication on behalf of the backend (Firebase Admin SDK).
  */
@@ -12,7 +14,15 @@ public interface FirebaseUsers {
 	 */
 	FirebaseUser createOrUpdate(String email, String password);
 
-	/** Deletes a user created by {@link #createOrUpdate}, e.g. when the database change is rolled back. */
+	/**
+	 * Creates a new Firebase user with the given e-mail and password, marked as verified. Unlike
+	 * {@link #createOrUpdate}, never changes an existing user's password.
+	 *
+	 * @return the new user's UID, or empty if a user with this e-mail already exists
+	 */
+	Optional<String> createNew(String email, String password);
+
+	/** Deletes a user created by {@link #createOrUpdate} or {@link #createNew}, e.g. when the database change is rolled back. */
 	void delete(String uid);
 
 	/**

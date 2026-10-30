@@ -24,20 +24,8 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
-            <!-- Invitation e-mail links (App Links): verified through
-                 /.well-known/assetlinks.json on these hosts, so Android opens
-                 them in the app without asking. -->
-            <intent-filter android:autoVerify="true">
-                <action android:name="android.intent.action.VIEW"/>
-                <category android:name="android.intent.category.DEFAULT"/>
-                <category android:name="android.intent.category.BROWSABLE"/>
-                <data android:scheme="https"/>
-                <data android:host="studioforyou-dev.web.app"/>
-                <data android:host="studioforyou-stage.web.app"/>
-                <data android:pathPrefix="/invite"/>
-            </intent-filter>
-            <!-- studioforyou://app/invite?token=... from the invitation page's
-                 button, for devices where the link opens in the browser. -->
+            <!-- studioforyou://app/invite?token=... from the button on the web
+                 invitation page that the e-mail link opens. -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW"/>
                 <category android:name="android.intent.category.DEFAULT"/>
