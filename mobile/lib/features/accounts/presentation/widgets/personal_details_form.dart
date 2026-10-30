@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:mobile/core/network/api_exception.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
 
-/// Building blocks shared by the trainer's and the client's personal details
-/// editors, so both look and behave the same.
+// Building blocks shared by the trainer's and the client's personal details
+// editors, so both look and behave the same.
 
 /// The scrollable, width-limited form both editors are laid out in.
 class PersonalDetailsFormLayout extends StatelessWidget {
