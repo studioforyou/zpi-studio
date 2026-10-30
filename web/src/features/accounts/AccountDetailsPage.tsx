@@ -20,6 +20,7 @@ import { paths } from '@/app/paths';
 import { useAuth } from '@/features/auth/AuthProvider';
 import { ApiError } from '@/shared/api/ApiError';
 import { pl } from '@/shared/i18n/pl';
+import { AccountAccessPanel } from './AccountAccessPanel';
 import { AccountDataForm } from './AccountDataForm';
 import { AccountStatusModal, type StatusAction } from './AccountStatusModal';
 import { RoleBadges, StatusBadge } from './accountBadges';
@@ -130,10 +131,7 @@ export function AccountDetailsPage() {
                 <ProfileForm account={account.data} profile={selected} />
               </Tabs.Panel>
               <Tabs.Panel value="access" pt="md">
-                {/* Will render the account's roles and permission overrides once they can be managed. */}
-                <Text c="dimmed" maw={560}>
-                  {texts.accessPlaceholder}
-                </Text>
+                <AccountAccessPanel accountId={accountId} />
               </Tabs.Panel>
             </Tabs>
           </Stack>

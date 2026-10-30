@@ -2,6 +2,7 @@ import { Anchor, Stack, Title } from '@mantine/core';
 import { createBrowserRouter, Link, Navigate, type RouteObject } from 'react-router';
 import { AccountDetailsPage } from '@/features/accounts/AccountDetailsPage';
 import { AccountsPage } from '@/features/accounts/AccountsPage';
+import { RolesPage } from '@/features/accounts/RolesPage';
 import { LoginPage } from '@/features/auth/LoginPage';
 import { RequireAuth } from '@/features/auth/RequireAuth';
 import { InvitePage } from '@/features/invitations/InvitePage';
@@ -42,6 +43,7 @@ export const appRoutes: RouteObject[] = [
           { path: paths.rooms, element: <RoomsPage /> },
           { path: paths.accounts, element: <AccountsPage /> },
           { path: `${paths.accounts}/:accountId`, element: <AccountDetailsPage /> },
+          { path: paths.roles, element: <RolesPage /> },
           { path: paths.passes, element: <PassesPage /> },
           { path: paths.trainings, element: <TrainingsPage /> },
           { path: paths.communication, element: <CommunicationPage /> },
