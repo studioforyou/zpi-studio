@@ -4,9 +4,12 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
@@ -24,6 +27,16 @@ public class CustomerProfiles {
 
 	public CustomerProfiles(JdbcClient jdbc) {
 		this.jdbc = jdbc;
+	}
+
+	/** Names for a caller-authorized participant set; no contacts or participant details. */
+	public Map<UUID, String> displayNames(Collection<UUID> profileIds) {
+		if (profileIds.isEmpty()) {
+			return Map.of();
+		}
+		return jdbc.sql("SELECT id, first_name, last_name FROM customer_profile WHERE id IN (:ids)")
+			.param("ids", profileIds).query(ProfileSummary.class).list().stream()
+			.collect(Collectors.toMap(ProfileSummary::id, ProfileSummary::displayName));
 	}
 
 	/** The account's own customer profile (an adult client), if it has one. */

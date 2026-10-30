@@ -11,4 +11,13 @@ public interface PassProductVariantRepository extends Repository<PassProductVari
 	@Query("SELECT v FROM PassProductVariant v JOIN FETCH v.product WHERE v.id = :id")
 	Optional<PassProductVariant> findWithProductById(UUID id);
 
+	@Query(value = """
+			SELECT EXISTS (
+			    SELECT 1 FROM pass_product_variant variant
+			    JOIN pass_product_service service ON service.product_id = variant.product_id
+			    WHERE variant.id = :variantId AND service.service_type_id = :serviceTypeId
+			)
+			""", nativeQuery = true)
+	boolean coversService(UUID variantId, UUID serviceTypeId);
+
 }

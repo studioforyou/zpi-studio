@@ -124,6 +124,32 @@ class JdbcBookingPolicies implements BookingPolicies {
 			.param("actor", changedBy).update();
 	}
 
+	@Override
+	@Transactional(readOnly = true)
+	public Definition forOccurrence(UUID serviceTypeId, UUID trainingGroupId, UUID eventId) {
+		Definition base = findForServices(java.util.List.of(new ServiceContext(serviceTypeId, true, null, null)))
+			.get(serviceTypeId);
+		Values resolved = base.effective();
+		UUID policyId = base.policyId();
+		for (String scope : java.util.List.of("GROUP", "EVENT")) {
+			UUID context = scope.equals("GROUP") ? trainingGroupId : eventId;
+			if (context == null) {
+				continue;
+			}
+			String column = scope.equals("GROUP") ? "training_group_id" : "event_id";
+			PolicyRow row = jdbc.sql("SELECT * FROM booking_policy WHERE scope = :scope AND " + column + " = :context "
+					+ "AND valid_from <= now() AND (valid_to IS NULL OR valid_to > now()) "
+					+ "ORDER BY valid_from DESC, created_at DESC, id LIMIT 1")
+				.param("scope", scope).param("context", context)
+				.query((rs, n) -> new PolicyRow(rs.getObject("id", UUID.class), values(rs))).optional().orElse(null);
+			if (row != null) {
+				resolved = merge(row.values(), resolved);
+				policyId = row.id();
+			}
+		}
+		return new Definition(policyId, base.studioPolicyId(), null, resolved);
+	}
+
 	private static Values effective(ServiceContext service, Values overrides, Values studio) {
 		Values rules = merge(overrides, studio);
 		Integer minimum = overrides != null && overrides.autoCancelMinParticipants() != null

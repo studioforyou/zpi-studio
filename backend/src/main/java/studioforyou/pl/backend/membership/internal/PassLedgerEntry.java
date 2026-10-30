@@ -76,4 +76,15 @@ class PassLedgerEntry {
 				reason, actorAccountId);
 	}
 
+	static PassLedgerEntry reservation(UUID passId, UUID reservationId, PassLedgerKind kind, short entriesDelta,
+			UUID actorAccountId) {
+		PassLedgerEntry entry = new PassLedgerEntry(passId, kind, entriesDelta, null, null, null, actorAccountId);
+		entry.reservationId = reservationId;
+		return entry;
+	}
+
+	short getEntriesDelta() {
+		return this.entriesDelta;
+	}
+
 }
