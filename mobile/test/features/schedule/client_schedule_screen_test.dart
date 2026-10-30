@@ -353,7 +353,13 @@ void main() {
       details: true,
     );
     expect(
-      find.textContaining('zaakceptować wymagane dokumenty'),
+      find.text(
+        'Przed zapisem zaakceptuj wymagane dokumenty w sekcji Dokumenty i zgody.',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.widgetWithText(OutlinedButton, 'Przejdź do dokumentów'),
       findsOneWidget,
     );
     expect(
