@@ -143,7 +143,7 @@ class _StaffProfileEditScreenState
             icon: Icons.phone_outlined,
             helperText: l10n.staffProfilePhoneHint,
           ),
-          validator: (value) => validatePhoneLength(value, l10n),
+          validator: (value) => validatePhone(value, l10n),
         ),
         if (_saveError case final error?)
           PersonalDetailsSaveError(error: error),

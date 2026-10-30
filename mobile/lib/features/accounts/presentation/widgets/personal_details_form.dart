@@ -136,20 +136,46 @@ InputDecoration personalDetailsDecoration({
   );
 }
 
-/// First and last names: required, at most 80 characters.
-String? validatePersonName(String? value, AppLocalizations l10n) {
+// The same rules as the backend: words of letters joined by spaces, hyphens,
+// apostrophes or dots; phone digits with spaces, dashes, parentheses and an
+// optional leading plus.
+final _personNamePattern = RegExp(
+  r"^[\p{L}\p{M}]+(?:[ '’.-]+[\p{L}\p{M}]+)*\.?$",
+  unicode: true,
+);
+final _phonePattern = RegExp(r'^\+?[0-9][0-9 ()-]*[0-9]$');
+
+/// A person's name: required unless [optional], letters only.
+String? validatePersonName(
+  String? value,
+  AppLocalizations l10n, {
+  int maxLength = 80,
+  bool optional = false,
+}) {
   final name = value?.trim() ?? '';
   if (name.isEmpty) {
-    return l10n.personalDetailsNameRequired;
+    return optional ? null : l10n.personalDetailsNameRequired;
   }
-  return name.length > 80 ? l10n.personalDetailsNameTooLong : null;
+  if (name.length > maxLength) {
+    return l10n.personalDetailsTooLong(maxLength);
+  }
+  return _personNamePattern.hasMatch(name)
+      ? null
+      : l10n.personalDetailsNameInvalid;
 }
 
-/// Phone numbers: optional, at most 20 characters.
-String? validatePhoneLength(String? value, AppLocalizations l10n) {
-  return (value?.trim().length ?? 0) > 20
-      ? l10n.personalDetailsPhoneTooLong
-      : null;
+/// An optional phone number of at most 20 characters.
+String? validatePhone(String? value, AppLocalizations l10n) {
+  final phone = value?.trim() ?? '';
+  if (phone.isEmpty) {
+    return null;
+  }
+  if (phone.length > 20) {
+    return l10n.personalDetailsTooLong(20);
+  }
+  return _phonePattern.hasMatch(phone)
+      ? null
+      : l10n.personalDetailsPhoneInvalid;
 }
 
 String personalDetailsErrorMessage(

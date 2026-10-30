@@ -222,6 +222,26 @@ void main() {
     },
   );
 
+  testWidgets('rejects digits in names and letters in the phone', (
+    tester,
+  ) async {
+    await openEditor(tester);
+    await tester.enterText(field(0), 'Anna2');
+    await tester.enterText(field(1), '12345');
+    await tester.enterText(field(2), 'abcdef');
+    await save(tester);
+
+    expect(
+      find.text('Używaj tylko liter, spacji, myślników i apostrofów.'),
+      findsNWidgets(2),
+    );
+    expect(
+      find.text('Wpisz numer z cyframi, np. +48 600 100 200.'),
+      findsOneWidget,
+    );
+    expect(adapter.patches, isEmpty);
+  });
+
   testWidgets('a failed save keeps typed values and can be retried', (
     tester,
   ) async {

@@ -225,6 +225,46 @@ void main() {
     expect(find.text('Podaj telefon osoby do kontaktu.'), findsOneWidget);
   });
 
+  testWidgets('a missing emergency phone is reported only on save', (
+    tester,
+  ) async {
+    await openEditor(tester);
+
+    await tester.enterText(field('Imię i nazwisko'), 'Marek');
+    await tester.pump();
+    expect(find.text('Podaj telefon osoby do kontaktu.'), findsNothing);
+
+    await tapSave(tester);
+    expect(find.text('Podaj telefon osoby do kontaktu.'), findsOneWidget);
+    expect(adapter.patches, isEmpty);
+  });
+
+  testWidgets('rejects digits in names', (tester) async {
+    await openEditor(tester);
+
+    await tester.enterText(field('Nazwisko'), 'Kowalska2');
+    await tester.enterText(field('Imię i nazwisko'), 'M4rek');
+    await tester.enterText(field('Telefon'), '601200300');
+    await tapSave(tester);
+
+    expect(
+      find.text('Używaj tylko liter, spacji, myślników i apostrofów.'),
+      findsNWidgets(2),
+    );
+    expect(adapter.patches, isEmpty);
+  });
+
+  testWidgets('accepts names with Polish letters and separators', (
+    tester,
+  ) async {
+    await openEditor(tester);
+
+    await tester.enterText(field('Nazwisko'), "O'Neil-Żółkiewska");
+    await tapSave(tester);
+
+    expect(adapter.patches.single['lastName'], "O'Neil-Żółkiewska");
+  });
+
   testWidgets('clears the birth date', (tester) async {
     await openEditor(tester);
 

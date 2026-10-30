@@ -19,8 +19,6 @@ class CustomerProfileEditScreen extends ConsumerStatefulWidget {
 
 class _CustomerProfileEditScreenState
     extends ConsumerState<CustomerProfileEditScreen> {
-  static final _phonePattern = RegExp(r'^\+?[0-9][0-9 ()-]*[0-9]$');
-
   final _formKey = GlobalKey<FormState>();
   final _firstNameController = TextEditingController();
   final _lastNameController = TextEditingController();
@@ -31,6 +29,10 @@ class _CustomerProfileEditScreenState
   CustomerProfileKey? _loadedKey;
   DateTime? _birthDate;
   bool _saving = false;
+
+  /// The emergency contact's name and phone are only required together, so a
+  /// missing half is reported once the client tries to save, not while typing.
+  bool _saveAttempted = false;
   Object? _saveError;
 
   @override
@@ -45,7 +47,11 @@ class _CustomerProfileEditScreenState
   }
 
   Future<void> _save(CustomerProfileKey key) async {
-    if (_saving || !_formKey.currentState!.validate()) {
+    if (_saving) {
+      return;
+    }
+    setState(() => _saveAttempted = true);
+    if (!_formKey.currentState!.validate()) {
       return;
     }
     FocusScope.of(context).unfocus();
@@ -227,7 +233,7 @@ class _CustomerProfileEditScreenState
             label: l10n.personalDetailsPhone,
             icon: Icons.phone_outlined,
           ),
-          validator: (value) => _validatePhone(value, l10n),
+          validator: (value) => validatePhone(value, l10n),
         ),
         Text(
           l10n.customerProfileEmergencySection,
@@ -244,14 +250,17 @@ class _CustomerProfileEditScreenState
             icon: Icons.contact_emergency_outlined,
           ),
           validator: (value) {
-            final name = value?.trim() ?? '';
-            if (name.length > 120) {
-              return l10n.customerProfileEmergencyNameTooLong;
+            if (_saveAttempted &&
+                (value?.trim() ?? '').isEmpty &&
+                _emergencyPhoneController.text.trim().isNotEmpty) {
+              return l10n.customerProfileEmergencyNameRequired;
             }
-            return name.isEmpty &&
-                    _emergencyPhoneController.text.trim().isNotEmpty
-                ? l10n.customerProfileEmergencyNameRequired
-                : null;
+            return validatePersonName(
+              value,
+              l10n,
+              maxLength: 120,
+              optional: true,
+            );
           },
         ),
         TextFormField(
@@ -265,11 +274,12 @@ class _CustomerProfileEditScreenState
             icon: Icons.phone_outlined,
           ),
           validator: (value) {
-            if ((value?.trim() ?? '').isEmpty &&
+            if (_saveAttempted &&
+                (value?.trim() ?? '').isEmpty &&
                 _emergencyNameController.text.trim().isNotEmpty) {
               return l10n.customerProfileEmergencyPhoneRequired;
             }
-            return _validatePhone(value, l10n);
+            return validatePhone(value, l10n);
           },
         ),
         if (_saveError case final error?)
@@ -277,17 +287,5 @@ class _CustomerProfileEditScreenState
         PersonalDetailsSaveButton(saving: _saving, onPressed: () => _save(key)),
       ],
     );
-  }
-
-  /// The trainer's length rule plus the format the backend checks for clients.
-  static String? _validatePhone(String? value, AppLocalizations l10n) {
-    final phone = value?.trim() ?? '';
-    if (phone.isEmpty) {
-      return null;
-    }
-    return validatePhoneLength(phone, l10n) ??
-        (_phonePattern.hasMatch(phone)
-            ? null
-            : l10n.customerProfilePhoneInvalid);
   }
 }

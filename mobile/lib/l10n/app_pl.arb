@@ -102,8 +102,16 @@
   "personalDetailsSaved": "Zmiany zostały zapisane.",
   "personalDetailsRetry": "Spróbuj ponownie",
   "personalDetailsNameRequired": "To pole jest wymagane.",
-  "personalDetailsNameTooLong": "Wpisz maksymalnie 80 znaków.",
-  "personalDetailsPhoneTooLong": "Wpisz maksymalnie 20 znaków.",
+  "personalDetailsTooLong": "Wpisz maksymalnie {count} znaków.",
+  "@personalDetailsTooLong": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "personalDetailsNameInvalid": "Używaj tylko liter, spacji, myślników i apostrofów.",
+  "personalDetailsPhoneInvalid": "Wpisz numer z cyframi, np. +48 600 100 200.",
   "personalDetailsLoadError": "Nie udało się pobrać danych osobowych.",
   "personalDetailsSaveError": "Nie udało się zapisać zmian. Spróbuj ponownie.",
   "personalDetailsNetworkError": "Brak połączenia z serwerem. Sprawdź internet i spróbuj ponownie.",
@@ -126,8 +134,6 @@
   "customerProfileEmergencyPhone": "Telefon",
   "customerProfileEmergencyNameRequired": "Podaj imię osoby do kontaktu.",
   "customerProfileEmergencyPhoneRequired": "Podaj telefon osoby do kontaktu.",
-  "customerProfileEmergencyNameTooLong": "Wpisz maksymalnie 120 znaków.",
-  "customerProfilePhoneInvalid": "Wpisz numer z cyframi, np. +48 600 100 200.",
   "logoutButton": "Wyloguj się",
   "placeholderComingSoon": "Wkrótce",
   "pingTitle": "Test połączenia",
