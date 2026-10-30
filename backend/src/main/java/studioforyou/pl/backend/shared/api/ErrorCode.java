@@ -36,6 +36,11 @@ public enum ErrorCode {
 	/** The staff member's account does not have the TRAINER role. */
 	STAFF_NOT_TRAINER(HttpStatus.UNPROCESSABLE_CONTENT),
 
+	// documents
+	DOCUMENT_ALREADY_ACCEPTED(HttpStatus.CONFLICT),
+	/** A required document cannot be withdrawn by the participant, only an optional consent. */
+	DOCUMENT_REVOCATION_NOT_ALLOWED(HttpStatus.UNPROCESSABLE_CONTENT),
+
 	// offering
 	PASS_VARIANT_ALREADY_EXISTS(HttpStatus.CONFLICT),
 	PASS_PRODUCT_ARCHIVED(HttpStatus.UNPROCESSABLE_CONTENT),
