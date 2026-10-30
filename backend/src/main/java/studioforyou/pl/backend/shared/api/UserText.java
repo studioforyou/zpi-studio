@@ -9,6 +9,20 @@ public final class UserText {
 	private static final Pattern EDGE_WHITESPACE = Pattern.compile(
 			"^[\\s\\p{Z}\\u0085\\uFEFF]+|[\\s\\p{Z}\\u0085\\uFEFF]+$");
 
+	/**
+	 * A person's name: words of letters joined by spaces, hyphens, apostrophes or dots,
+	 * e.g. {@code Anna-Maria O'Neil}; no digits or other symbols. Empty text matches, so
+	 * required names also need {@code @NotBlank}.
+	 */
+	public static final String PERSON_NAME = "(?:[\\p{L}\\p{M}]+(?:[ '’.-]+[\\p{L}\\p{M}]+)*\\.?)?";
+
+	/** A phone number: an optional leading plus, then digits separated by spaces, dashes or parentheses. */
+	public static final String PHONE = "\\+?[0-9][0-9 ()-]*[0-9]";
+
+	/** {@link #PERSON_NAME} and {@link #PHONE} in words, for API documentation. */
+	public static final String CHARACTER_RULES = "Names may contain only letters, spaces, hyphens, apostrophes and dots; "
+			+ "phone numbers only digits, spaces, dashes, parentheses and a leading plus.";
+
 	private UserText() {
 	}
 

@@ -20,7 +20,7 @@ public class UpdateStaffProfileRequest {
 
 	private boolean phonePresent;
 
-	@Schema(description = "Nonblank first name, at most 80 characters after trimming. Null is invalid.", maxLength = 80)
+	@Schema(description = "Nonblank first name of letters, spaces, hyphens, apostrophes or dots; at most 80 characters after trimming. Null is invalid.", maxLength = 80)
 	public String getFirstName() {
 		return firstName;
 	}
@@ -30,7 +30,7 @@ public class UpdateStaffProfileRequest {
 		this.firstName = firstName;
 	}
 
-	@Schema(description = "Nonblank last name, at most 80 characters after trimming. Null is invalid.", maxLength = 80)
+	@Schema(description = "Nonblank last name of letters, spaces, hyphens, apostrophes or dots; at most 80 characters after trimming. Null is invalid.", maxLength = 80)
 	public String getLastName() {
 		return lastName;
 	}
@@ -40,7 +40,7 @@ public class UpdateStaffProfileRequest {
 		this.lastName = lastName;
 	}
 
-	@Schema(description = "At most 20 characters after trimming. Null, empty text or whitespace clears the phone.",
+	@Schema(description = "Digits with an optional leading plus, spaces, dashes or parentheses; at most 20 characters after trimming. Null, empty text or whitespace clears the phone.",
 			maxLength = 20, nullable = true)
 	public String getPhone() {
 		return phone;

@@ -8,8 +8,11 @@ import java.util.Set;
 import java.util.UUID;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import org.jspecify.annotations.Nullable;
+
+import studioforyou.pl.backend.shared.api.UserText;
 
 /**
  * Public staff profile operations for other modules. Callers authorize the account before
@@ -51,8 +54,9 @@ public interface StaffProfiles {
 
 	}
 
-	record StaffProfile(UUID id, @NotBlank @Size(max = 80) String firstName,
-			@NotBlank @Size(max = 80) String lastName, @Size(max = 20) String phone) {
+	record StaffProfile(UUID id, @NotBlank @Size(max = 80) @Pattern(regexp = UserText.PERSON_NAME) String firstName,
+			@NotBlank @Size(max = 80) @Pattern(regexp = UserText.PERSON_NAME) String lastName,
+			@Size(max = 20) @Pattern(regexp = UserText.PHONE) String phone) {
 
 	}
 

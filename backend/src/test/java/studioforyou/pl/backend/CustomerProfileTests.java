@@ -229,6 +229,17 @@ class CustomerProfileTests {
 		perform(OTHER_CLIENT, get(OWN), null).andExpect(jsonPath("$.firstName").value("Piotr"));
 	}
 
+	@Test
+	void namesMayUseLettersOfAnyAlphabetWithSeparators() throws Exception {
+		perform(CLIENT, patch(OWN), """
+				{ "firstName": "Anna-Maria", "lastName": "O'Neil Żółkiewska", "emergencyContactName": "J. Ó Briain",
+				  "emergencyPhone": "601200300" }
+				""")
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.lastName").value("O'Neil Żółkiewska"))
+			.andExpect(jsonPath("$.emergencyContactName").value("J. Ó Briain"));
+	}
+
 	@ParameterizedTest
 	@MethodSource("invalidFields")
 	void invalidFieldsUseApiProblemAndDoNotSaveAnyChanges(String body, String field, String code) throws Exception {
@@ -252,6 +263,12 @@ class CustomerProfileTests {
 				Arguments.of("{\"firstName\":\"" + "a".repeat(81) + "\"}", "firstName", "TOO_LONG"),
 				Arguments.of("{\"phone\":\"" + "1".repeat(21) + "\"}", "phone", "TOO_LONG"),
 				Arguments.of("{\"phone\":\"abc123\"}", "phone", "INVALID_FORMAT"),
+				Arguments.of("{\"firstName\":\"Anna2\"}", "firstName", "INVALID_FORMAT"),
+				Arguments.of("{\"lastName\":\"12345\"}", "lastName", "INVALID_FORMAT"),
+				Arguments.of("{\"emergencyContactName\":\"M4rek\",\"emergencyPhone\":\"601200300\"}",
+						"emergencyContactName", "INVALID_FORMAT"),
+				Arguments.of("{\"emergencyContactName\":\"Marek\",\"emergencyPhone\":\"tel\"}", "emergencyPhone",
+						"INVALID_FORMAT"),
 				Arguments.of("{\"birthDate\":\"" + tomorrow + "\"}", "birthDate", "INVALID_VALUE"),
 				Arguments.of("{\"emergencyContactName\":\"" + "m".repeat(121) + "\",\"emergencyPhone\":\"601200300\"}",
 						"emergencyContactName", "TOO_LONG"),

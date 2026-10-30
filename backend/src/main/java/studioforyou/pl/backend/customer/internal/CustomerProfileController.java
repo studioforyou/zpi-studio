@@ -19,6 +19,7 @@ import studioforyou.pl.backend.customer.CustomerProfiles;
 import studioforyou.pl.backend.customer.CustomerProfiles.ProfileSummary;
 import studioforyou.pl.backend.shared.api.AccountAuthentication;
 import studioforyou.pl.backend.shared.api.ApiProblem;
+import studioforyou.pl.backend.shared.api.UserText;
 
 /**
  * Personal details of the signed-in client's own profile and of the children they are a
@@ -34,7 +35,7 @@ public class CustomerProfileController {
 	private static final String UPDATE_RULES = "Omitted fields stay unchanged. Surrounding Unicode whitespace is trimmed. "
 			+ "Names must be nonblank and at most 80 characters; null names are invalid. A null birth date, or null, "
 			+ "empty or whitespace phone and emergency contact values clear them. The emergency contact name and "
-			+ "phone must be set together.";
+			+ "phone must be set together. " + UserText.CHARACTER_RULES;
 
 	private final CustomerProfiles profiles;
 

@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import studioforyou.pl.backend.shared.api.AccountAuthentication;
 import studioforyou.pl.backend.shared.api.ApiProblem;
+import studioforyou.pl.backend.shared.api.UserText;
 import studioforyou.pl.backend.staff.StaffProfiles;
 
 /** Authenticates the owner and delegates profile rules and storage to staff. */
@@ -44,7 +45,8 @@ public class StaffProfileController {
 	@Operation(summary = "Edit the signed-in trainer's profile", operationId = "updateMyStaffProfile",
 			description = "Requires an ACTIVE TRAINER. Omitted fields stay unchanged. Surrounding Unicode whitespace is trimmed. "
 					+ "Names must be nonblank and at most 80 characters; null names are invalid. Phone has at most 20 characters; "
-					+ "null, empty text or whitespace clears it. An empty object keeps the current values. Only the staff profile changes.")
+					+ "null, empty text or whitespace clears it. An empty object keeps the current values. Only the staff profile changes. "
+					+ UserText.CHARACTER_RULES)
 	@ApiResponse(responseCode = "200", description = "The saved trainer profile.")
 	@ApiResponse(responseCode = "400", description = "VALIDATION_FAILED for invalid fields, or MALFORMED_REQUEST for an invalid body.",
 			content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ApiProblem.class)))
