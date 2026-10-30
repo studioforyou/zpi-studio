@@ -38,13 +38,16 @@ public class CustomerPassService {
 
 	private final StudioSettings studio;
 
+	private final CustomerPassLock passLock;
+
 	public CustomerPassService(CustomerPassRepository passes, PassLedgerRepository ledger,
-			CustomerProfiles customers, PassVariantLookup variants, StudioSettings studio) {
+			CustomerProfiles customers, PassVariantLookup variants, StudioSettings studio, CustomerPassLock passLock) {
 		this.passes = passes;
 		this.ledger = ledger;
 		this.customers = customers;
 		this.variants = variants;
 		this.studio = studio;
+		this.passLock = passLock;
 	}
 
 	/**
@@ -113,6 +116,33 @@ public class CustomerPassService {
 		return pass;
 	}
 
+	/** Changes the available balance and appends its history atomically with booking accounting. */
+	public CustomerPass correctEntries(UUID customerId, UUID passId, EntryCorrection command, UUID actorAccountId) {
+		CustomerPass pass = passLock.acquire(customerId, passId);
+		if (pass.getVersion() != command.version()) {
+			throw new ApiException(ErrorCode.VERSION_CONFLICT,
+					"The pass was modified by another request. Reload it and try again.");
+		}
+		if (pass.getEntriesRemaining() == null) {
+			throw ApiException.invalidField("entriesDelta", FieldErrorCode.INVALID_VALUE,
+					"Unlimited passes have no entry balance to correct.");
+		}
+		if (command.entriesDelta() == 0) {
+			throw ApiException.invalidField("entriesDelta", FieldErrorCode.INVALID_VALUE,
+					"An entry correction must change the balance.");
+		}
+		long balance = (long) pass.getEntriesRemaining() + command.entriesDelta();
+		if (balance < 0 || balance > Short.MAX_VALUE || balance + ledger.pendingReturns(passId) > Short.MAX_VALUE) {
+			throw ApiException.invalidField("entriesDelta", FieldErrorCode.OUT_OF_RANGE,
+					"The balance must stay between 0 and 32767, including entries that may still be returned.");
+		}
+		pass.correctEntries((short) balance);
+		ledger.save(PassLedgerEntry.correction(passId, (short) command.entriesDelta(), blankToNull(command.reason()),
+				actorAccountId));
+		passes.flush();
+		return pass;
+	}
+
 	private ProfileDetails requireCustomer(UUID customerId) {
 		return customers.findById(customerId)
 			.orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "Participant not found."));
@@ -151,6 +181,9 @@ public class CustomerPassService {
 	 */
 	public record Assignment(UUID variantId, LocalDate validFrom, BigDecimal pricePaid, String currency,
 			String reason) {
+	}
+
+	public record EntryCorrection(int entriesDelta, String reason, int version) {
 	}
 
 }

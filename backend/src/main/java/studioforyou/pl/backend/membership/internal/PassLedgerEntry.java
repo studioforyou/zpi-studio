@@ -83,6 +83,10 @@ class PassLedgerEntry {
 		return entry;
 	}
 
+	static PassLedgerEntry correction(UUID passId, short entriesDelta, String reason, UUID actorAccountId) {
+		return new PassLedgerEntry(passId, PassLedgerKind.CORRECTION, entriesDelta, null, null, reason, actorAccountId);
+	}
+
 	short getEntriesDelta() {
 		return this.entriesDelta;
 	}
