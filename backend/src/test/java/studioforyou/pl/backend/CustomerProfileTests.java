@@ -45,8 +45,6 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 @Import(TestcontainersConfiguration.class)
 class CustomerProfileTests {
 
-	private static final String OWN = "/api/v1/me/customer-profile";
-
 	private static final String CLIENT = "client-token";
 
 	private static final String OTHER_CLIENT = "other-client-token";
@@ -68,6 +66,9 @@ class CustomerProfileTests {
 
 	private UUID ownProfileId;
 
+	/** The client's own profile. */
+	private String own;
+
 	private UUID childProfileId;
 
 	private UUID otherProfileId;
@@ -78,6 +79,7 @@ class CustomerProfileTests {
 	void setUp() {
 		clientAccountId = addAccount("client", "ACTIVE", CLIENT, "CLIENT");
 		ownProfileId = addProfile(clientAccountId, "ADULT", "Anna", "Kowalska", "+48 600 100 200");
+		own = byId(ownProfileId);
 		childProfileId = addProfile(null, "CHILD", "Jan", "Kowalski", null);
 		addGuardianship(ownProfileId, childProfileId);
 		UUID otherAccountId = addAccount("other", "ACTIVE", OTHER_CLIENT, "CLIENT");
@@ -108,7 +110,7 @@ class CustomerProfileTests {
 
 	@Test
 	void clientReadsTheirOwnProfile() throws Exception {
-		perform(CLIENT, get(OWN), null)
+		perform(CLIENT, get(own), null)
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.id").value(ownProfileId.toString()))
 			.andExpect(jsonPath("$.kind").value("ADULT"))
@@ -117,9 +119,6 @@ class CustomerProfileTests {
 			.andExpect(jsonPath("$.phone").value("+48 600 100 200"))
 			.andExpect(jsonPath("$.birthDate").isEmpty())
 			.andExpect(jsonPath("$.emergencyContactName").isEmpty());
-		perform(CLIENT, get(byId(ownProfileId)), null)
-			.andExpect(status().isOk())
-			.andExpect(jsonPath("$.id").value(ownProfileId.toString()));
 	}
 
 	@Test
@@ -127,7 +126,7 @@ class CustomerProfileTests {
 		jdbc.sql("UPDATE customer_profile SET updated_at = '2000-01-01T00:00:00Z' WHERE id = :id")
 			.param("id", ownProfileId)
 			.update();
-		perform(CLIENT, patch(OWN), """
+		perform(CLIENT, patch(own), """
 				{ "firstName": "  Alicja ", "lastName": "\\tNowak\\n", "birthDate": "1990-05-17",
 				  "phone": " 600-100-200 ", "emergencyContactName": " Marek ", "emergencyPhone": "+48 (12) 345 67 89" }
 				""")
@@ -139,7 +138,7 @@ class CustomerProfileTests {
 			.andExpect(jsonPath("$.emergencyContactName").value("Marek"))
 			.andExpect(jsonPath("$.emergencyPhone").value("+48 (12) 345 67 89"));
 
-		perform(CLIENT, get(OWN), null)
+		perform(CLIENT, get(own), null)
 			.andExpect(jsonPath("$.firstName").value("Alicja"))
 			.andExpect(jsonPath("$.emergencyContactName").value("Marek"));
 		assertThat(jdbc.sql("SELECT updated_at FROM customer_profile WHERE id = :id")
@@ -151,12 +150,12 @@ class CustomerProfileTests {
 
 	@Test
 	void omittedFieldsAndEmptyPatchKeepTheCurrentValues() throws Exception {
-		perform(CLIENT, patch(OWN), "{\"birthDate\":\"1990-05-17\"}")
+		perform(CLIENT, patch(own), "{\"birthDate\":\"1990-05-17\"}")
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.firstName").value("Anna"))
 			.andExpect(jsonPath("$.phone").value("+48 600 100 200"))
 			.andExpect(jsonPath("$.birthDate").value("1990-05-17"));
-		perform(CLIENT, patch(OWN), "{}")
+		perform(CLIENT, patch(own), "{}")
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.lastName").value("Kowalska"))
 			.andExpect(jsonPath("$.birthDate").value("1990-05-17"));
@@ -165,10 +164,10 @@ class CustomerProfileTests {
 	@ParameterizedTest
 	@ValueSource(strings = { "null", "\"\"", "\" \\t\\n \"", "\"\\u00a0\\u0085\\ufeff\"" })
 	void optionalValuesCanBeCleared(String value) throws Exception {
-		perform(CLIENT, patch(OWN), """
+		perform(CLIENT, patch(own), """
 				{ "emergencyContactName": "Marek", "emergencyPhone": "601200300", "birthDate": "1990-05-17" }
 				""").andExpect(status().isOk());
-		perform(CLIENT, patch(OWN), """
+		perform(CLIENT, patch(own), """
 				{ "phone": %1$s, "emergencyContactName": %1$s, "emergencyPhone": %1$s, "birthDate": null }
 				""".formatted(value))
 			.andExpect(status().isOk())
@@ -194,7 +193,7 @@ class CustomerProfileTests {
 		perform(CLIENT, get(byId(childProfileId)), null)
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.birthDate").value("2016-02-01"));
-		perform(CLIENT, get(OWN), null).andExpect(jsonPath("$.firstName").value("Anna"));
+		perform(CLIENT, get(own), null).andExpect(jsonPath("$.firstName").value("Anna"));
 	}
 
 	@Test
@@ -214,24 +213,24 @@ class CustomerProfileTests {
 			perform(CLIENT, patch(byId(profileId)), "{\"firstName\":\"Changed\"}")
 				.andExpect(status().isNotFound());
 		}
-		perform(OTHER_CLIENT, get(OWN), null).andExpect(jsonPath("$.firstName").value("Piotr"));
+		perform(OTHER_CLIENT, get(byId(otherProfileId)), null).andExpect(jsonPath("$.firstName").value("Piotr"));
 		perform(OTHER_CLIENT, get(byId(otherChildProfileId)), null).andExpect(jsonPath("$.firstName").value("Ola"));
 	}
 
 	@Test
 	void suppliedIdentifiersCannotTargetAnotherProfile() throws Exception {
-		perform(CLIENT, patch(OWN), """
+		perform(CLIENT, patch(own), """
 				{ "id": "%s", "kind": "CHILD", "firstName": "Changed" }
 				""".formatted(otherProfileId))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.id").value(ownProfileId.toString()))
 			.andExpect(jsonPath("$.kind").value("ADULT"));
-		perform(OTHER_CLIENT, get(OWN), null).andExpect(jsonPath("$.firstName").value("Piotr"));
+		perform(OTHER_CLIENT, get(byId(otherProfileId)), null).andExpect(jsonPath("$.firstName").value("Piotr"));
 	}
 
 	@Test
 	void namesMayUseLettersOfAnyAlphabetWithSeparators() throws Exception {
-		perform(CLIENT, patch(OWN), """
+		perform(CLIENT, patch(own), """
 				{ "firstName": "Anna-Maria", "lastName": "O'Neil Żółkiewska", "emergencyContactName": "J. Ó Briain",
 				  "emergencyPhone": "601200300" }
 				""")
@@ -243,13 +242,13 @@ class CustomerProfileTests {
 	@ParameterizedTest
 	@MethodSource("invalidFields")
 	void invalidFieldsUseApiProblemAndDoNotSaveAnyChanges(String body, String field, String code) throws Exception {
-		perform(CLIENT, patch(OWN), body)
+		perform(CLIENT, patch(own), body)
 			.andExpect(status().isBadRequest())
 			.andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
 			.andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
 			.andExpect(jsonPath("$.errors[0].field").value(field))
 			.andExpect(jsonPath("$.errors[0].code").value(code));
-		perform(CLIENT, get(OWN), null)
+		perform(CLIENT, get(own), null)
 			.andExpect(jsonPath("$.firstName").value("Anna"))
 			.andExpect(jsonPath("$.phone").value("+48 600 100 200"))
 			.andExpect(jsonPath("$.emergencyContactName").isEmpty());
@@ -279,22 +278,22 @@ class CustomerProfileTests {
 	@ParameterizedTest
 	@ValueSource(strings = { "{", "null", "{\"birthDate\":\"17.05.1990\"}", "{\"firstName\":{}}" })
 	void malformedBodiesUseApiProblem(String body) throws Exception {
-		perform(CLIENT, patch(OWN), body)
+		perform(CLIENT, patch(own), body)
 			.andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.code").value("MALFORMED_REQUEST"));
 	}
 
 	@Test
-	void missingOwnProfileIsNotFound() throws Exception {
-		perform(NO_PROFILE, get(OWN), null).andExpect(status().isNotFound())
+	void accountWithoutAProfileCannotActForOthers() throws Exception {
+		perform(NO_PROFILE, get(own), null).andExpect(status().isNotFound())
 			.andExpect(jsonPath("$.code").value("NOT_FOUND"));
-		perform(NO_PROFILE, patch(OWN), "{\"firstName\":\"Changed\"}").andExpect(status().isNotFound());
+		perform(NO_PROFILE, patch(own), "{\"firstName\":\"Changed\"}").andExpect(status().isNotFound());
 	}
 
 	@Test
 	void missingOrInvalidTokenIsUnauthorized() throws Exception {
 		for (String token : new String[] { null, "bad-token" }) {
-			perform(token, get(OWN), null).andExpect(status().isUnauthorized())
+			perform(token, get(own), null).andExpect(status().isUnauthorized())
 				.andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
 			perform(token, patch(byId(ownProfileId)), "{\"firstName\":\"Changed\"}")
 				.andExpect(status().isUnauthorized());
@@ -303,7 +302,7 @@ class CustomerProfileTests {
 
 	@Test
 	void onlyAClientCanReadOrWrite() throws Exception {
-		perform(TRAINER, get(OWN), null).andExpect(status().isForbidden())
+		perform(TRAINER, get(own), null).andExpect(status().isForbidden())
 			.andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
 		perform(TRAINER, patch(byId(ownProfileId)), "{\"firstName\":\"Changed\"}")
 			.andExpect(status().isForbidden());
@@ -314,7 +313,7 @@ class CustomerProfileTests {
 	void inactiveClientCannotReadOrWrite(String accountStatus) throws Exception {
 		jdbc.sql("UPDATE account SET status = :status WHERE id = :id")
 			.param("status", accountStatus).param("id", clientAccountId).update();
-		perform(CLIENT, get(OWN), null).andExpect(status().isForbidden());
+		perform(CLIENT, get(own), null).andExpect(status().isForbidden());
 		perform(CLIENT, patch(byId(childProfileId)), "{\"firstName\":\"Changed\"}")
 			.andExpect(status().isForbidden());
 		assertThat(jdbc.sql("SELECT first_name FROM customer_profile WHERE id = :id")
