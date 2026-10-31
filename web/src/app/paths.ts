@@ -5,6 +5,7 @@ export const paths = {
   schedule: '/schedule',
   rooms: '/rooms',
   accounts: '/accounts',
+  accountDetails: (accountId: string) => `/accounts/${accountId}`,
   passes: '/passes',
   trainings: '/trainings',
   communication: '/communication',

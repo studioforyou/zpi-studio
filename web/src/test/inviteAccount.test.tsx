@@ -5,6 +5,15 @@ import { AccountsPage } from '@/features/accounts/AccountsPage';
 import { pl } from '@/shared/i18n/pl';
 import { renderWithProviders } from './renderWithProviders';
 
+const emptyPage = { items: [], page: 0, size: 20, totalItems: 0, totalPages: 0 };
+
+function renderAccountsPage() {
+  return renderWithProviders(null, {
+    routes: [{ path: '/accounts', element: <AccountsPage /> }],
+    initialEntry: '/accounts',
+  });
+}
+
 const t = pl.accounts.invite;
 
 function jsonResponse(status: number, body: unknown, contentType = 'application/json') {
@@ -34,6 +43,9 @@ function stubFetch(invitation: () => Response, adminAccount?: () => Response) {
       const counts = { from: '2026-10-01', to: '2026-10-30', activeCustomers: 0, newCustomers: 0 };
       return jsonResponse(200, { current: counts, previous: counts });
     }
+    if (url.startsWith('/api/v1/accounts?')) {
+      return jsonResponse(200, emptyPage);
+    }
     throw new Error(`Unexpected request: ${url}`);
   });
   vi.stubGlobal('fetch', fetchMock);
@@ -45,7 +57,7 @@ function invitationRequests(fetchMock: ReturnType<typeof stubFetch>) {
 }
 
 async function openAndFill(role?: string) {
-  renderWithProviders(<AccountsPage />);
+  renderAccountsPage();
   await userEvent.click(screen.getByRole('button', { name: pl.accounts.inviteButton }));
   const dialog = await screen.findByRole('dialog');
   if (role) {
@@ -87,7 +99,7 @@ test('sends the invitation and confirms it', async () => {
 
 test('validates the form before sending', async () => {
   const fetchMock = stubFetch(() => jsonResponse(201, {}));
-  renderWithProviders(<AccountsPage />);
+  renderAccountsPage();
   await userEvent.click(screen.getByRole('button', { name: pl.accounts.inviteButton }));
   const dialog = await screen.findByRole('dialog');
 
@@ -134,7 +146,7 @@ test('starts a fresh form for the next person', async () => {
 });
 
 async function fillAdmin() {
-  renderWithProviders(<AccountsPage />);
+  renderAccountsPage();
   await userEvent.click(screen.getByRole('button', { name: pl.accounts.inviteButton }));
   const dialog = await screen.findByRole('dialog');
   await userEvent.click(within(dialog).getByText(pl.accounts.roles.ADMIN));
