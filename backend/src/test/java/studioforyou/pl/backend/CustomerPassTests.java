@@ -283,6 +283,142 @@ class CustomerPassTests {
 			.andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
 	}
 
+	@Test
+	void adminCorrectsEntriesWithAnImmutableHistoryAndUnchangedPassTerms() throws Exception {
+		UUID pass = UUID.fromString(assign(adult, eightEntries));
+		perform(ADMIN_TOKEN, post(correctionPath(adult, pass)), """
+				{ "entriesDelta": 2, "reason": "  Correction of a mistaken charge  ", "version": 0 }
+				""")
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.id").value(pass.toString()))
+			.andExpect(jsonPath("$.entriesRemaining").value(10))
+			.andExpect(jsonPath("$.entriesTotal").value(8))
+			.andExpect(jsonPath("$.status").value("ACTIVE"))
+			.andExpect(jsonPath("$.validFrom").value(today().toString()))
+			.andExpect(jsonPath("$.validUntil").value(today().plusDays(29).toString()))
+			.andExpect(jsonPath("$.version").value(1));
+		Map<String, Object> correction = jdbc.sql("""
+				SELECT entries_delta, reason, actor_account_id, reservation_id, occurred_at
+				FROM pass_ledger WHERE pass_id = :pass AND kind = 'CORRECTION'
+				""").param("pass", pass).query().singleRow();
+		assertThat(correction).containsEntry("entries_delta", 2)
+			.containsEntry("reason", "Correction of a mistaken charge")
+			.containsEntry("actor_account_id", adminAccount)
+			.containsEntry("reservation_id", null);
+		assertThat(correction.get("occurred_at")).isNotNull();
+
+		perform(ADMIN_TOKEN, post(correctionPath(adult, pass)), """
+				{ "entriesDelta": -10, "reason": "  ", "version": 1 }
+				""")
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.entriesRemaining").value(0))
+			.andExpect(jsonPath("$.version").value(2));
+		assertThat(jdbc.sql("SELECT count(*) FROM pass_ledger WHERE pass_id = :pass")
+			.param("pass", pass).query(Long.class).single()).isEqualTo(3);
+		assertThat(jdbc.sql("SELECT entries_delta FROM pass_ledger WHERE pass_id = :pass AND kind = 'ACTIVATION'")
+			.param("pass", pass).query(Integer.class).single()).isEqualTo(8);
+		assertThat(jdbc.sql("SELECT reason FROM pass_ledger WHERE pass_id = :pass AND entries_delta = -10")
+			.param("pass", pass).query().singleRow()).containsEntry("reason", null);
+		assertLedgerBalance(pass, 0);
+	}
+
+	@Test
+	void aCorrectionCannotBeReplayedWithTheOldVersion() throws Exception {
+		UUID pass = UUID.fromString(assign(adult, eightEntries));
+		String request = "{ \"entriesDelta\": 1, \"version\": 0 }";
+		perform(ADMIN_TOKEN, post(correctionPath(adult, pass)), request).andExpect(status().isOk());
+		perform(ADMIN_TOKEN, post(correctionPath(adult, pass)), request)
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.code").value("VERSION_CONFLICT"));
+		assertLedgerBalance(pass, 9);
+		assertThat(jdbc.sql("SELECT count(*) FROM pass_ledger WHERE pass_id = :pass AND kind = 'CORRECTION'")
+			.param("pass", pass).query(Long.class).single()).isEqualTo(1);
+	}
+
+	@Test
+	void correctingEntriesRequiresAnAdminAndTheMatchingParticipant() throws Exception {
+		UUID pass = UUID.fromString(assign(adult, eightEntries));
+		String request = "{ \"entriesDelta\": 1, \"version\": 0 }";
+		perform(CLIENT_TOKEN, post(correctionPath(adult, pass)), request)
+			.andExpect(status().isForbidden())
+			.andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
+		mvc.perform(post(correctionPath(adult, pass)).contentType(MediaType.APPLICATION_JSON).content(request))
+			.andExpect(status().isUnauthorized());
+		perform(ADMIN_TOKEN, post(correctionPath(child, pass)), request).andExpect(status().isNotFound());
+		perform(ADMIN_TOKEN, post(correctionPath(adult, UUID.randomUUID())), request).andExpect(status().isNotFound());
+		assertLedgerBalance(pass, 8);
+	}
+
+	@Test
+	void invalidCorrectionsAndUnlimitedPassesLeaveNoHistoryOrBalanceChanges() throws Exception {
+		UUID pass = UUID.fromString(assign(adult, eightEntries));
+		for (String request : new String[] {
+				"{ \"entriesDelta\": 0, \"version\": 0 }",
+				"{ \"entriesDelta\": -9, \"version\": 0 }",
+				"{ \"entriesDelta\": 32767, \"version\": 0 }",
+				"{ \"entriesDelta\": 32768, \"version\": 0 }",
+				"{ \"entriesDelta\": 1, \"version\": -1 }",
+				"{ \"entriesDelta\": 1 }", "{ \"version\": 0 }",
+				"{ \"entriesDelta\": 1, \"reason\": \"%s\", \"version\": 0 }".formatted("x".repeat(501)) }) {
+			perform(ADMIN_TOKEN, post(correctionPath(adult, pass)), request)
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+		}
+		UUID unlimitedPass = UUID.fromString(assign(adult, unlimited));
+		perform(ADMIN_TOKEN, post(correctionPath(adult, unlimitedPass)), "{ \"entriesDelta\": 1, \"version\": 0 }")
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.errors[0].field").value("entriesDelta"))
+			.andExpect(jsonPath("$.errors[0].code").value("INVALID_VALUE"));
+		assertLedgerBalance(pass, 8);
+		assertThat(jdbc.sql("SELECT count(*) FROM pass_ledger WHERE kind = 'CORRECTION'")
+			.query(Long.class).single()).isZero();
+	}
+
+	@Test
+	void finiteCorrectionsCanReachBothStorageLimitsAndDoNotReactivateExpiredPasses() throws Exception {
+		UUID pass = UUID.fromString(assign(adult, eightEntries));
+		jdbc.sql("UPDATE customer_pass SET status = 'EXPIRED', valid_until = :until WHERE id = :pass")
+			.param("until", today().minusDays(1)).param("pass", pass).update();
+		perform(ADMIN_TOKEN, post(correctionPath(adult, pass)), "{ \"entriesDelta\": 32759, \"version\": 0 }")
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.entriesRemaining").value(32767))
+			.andExpect(jsonPath("$.entriesTotal").value(8))
+			.andExpect(jsonPath("$.status").value("EXPIRED"))
+			.andExpect(jsonPath("$.validUntil").value(today().minusDays(1).toString()));
+		perform(ADMIN_TOKEN, post(correctionPath(adult, pass)), "{ \"entriesDelta\": -32767, \"version\": 1 }")
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.entriesRemaining").value(0));
+		assertLedgerBalance(pass, 0);
+	}
+
+	@Test
+	void correctionsRejectFractionalAndCoercedNumbersInsteadOfSilentlyTruncatingThem() throws Exception {
+		UUID pass = UUID.fromString(assign(adult, eightEntries));
+		for (String request : new String[] {
+				"{ \"entriesDelta\": 1.5, \"version\": 0 }",
+				"{ \"entriesDelta\": 1, \"version\": 0.5 }",
+				"{ \"entriesDelta\": \"1\", \"version\": 0 }",
+				"{ \"entriesDelta\": 1, \"version\": \"0\" }" }) {
+			perform(ADMIN_TOKEN, post(correctionPath(adult, pass)), request)
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.code").value("MALFORMED_REQUEST"));
+		}
+		assertLedgerBalance(pass, 8);
+		assertThat(jdbc.sql("SELECT count(*) FROM pass_ledger WHERE kind = 'CORRECTION'")
+			.query(Long.class).single()).isZero();
+	}
+
+	private static String correctionPath(UUID customer, UUID pass) {
+		return passesOf(customer) + "/" + pass + "/correct-entries";
+	}
+
+	private void assertLedgerBalance(UUID pass, int expected) {
+		assertThat(jdbc.sql("SELECT entries_remaining FROM customer_pass WHERE id = :pass")
+			.param("pass", pass).query(Integer.class).single()).isEqualTo(expected);
+		assertThat(jdbc.sql("SELECT SUM(entries_delta) FROM pass_ledger WHERE pass_id = :pass")
+			.param("pass", pass).query(Integer.class).single()).isEqualTo(expected);
+	}
+
 	private String assign(UUID customer, UUID variant) throws Exception {
 		String body = perform(ADMIN_TOKEN, post(passesOf(customer)), assignJson(variant, today()))
 			.andExpect(status().isCreated())

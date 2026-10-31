@@ -4,10 +4,12 @@ import { useDebouncedValue } from '@mantine/hooks';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { pl } from '@/shared/i18n/pl';
 import { AssignPassModal } from './AssignPassModal';
+import { CorrectPassEntriesModal } from './CorrectPassEntriesModal';
 import {
   listCustomerPasses,
   searchCustomers,
   type Customer,
+  type CustomerPass,
   type CustomerPassStatus,
 } from './customerPassesApi';
 import { formatDate, formatMoney } from './passFormat';
@@ -33,6 +35,7 @@ export function CustomerPassesPanel() {
   const [debouncedSearch] = useDebouncedValue(search, 300);
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [assigning, setAssigning] = useState(false);
+  const [correcting, setCorrecting] = useState<CustomerPass | null>(null);
 
   const customers = useQuery({
     queryKey: ['customers', debouncedSearch],
@@ -65,7 +68,10 @@ export function CustomerPassesPanel() {
           filter={({ options: all }) => all}
           data={options.map((item) => ({ value: item.id, label: customerLabel(item) }))}
           value={customer?.id ?? null}
-          onChange={(id) => setCustomer(options.find((item) => item.id === id) ?? null)}
+          onChange={(id) => {
+            setCorrecting(null);
+            setCustomer(options.find((item) => item.id === id) ?? null);
+          }}
           nothingFoundMessage={pl.customerPasses.noCustomers}
         />
         <Button disabled={customer === null} onClick={() => setAssigning(true)}>
@@ -89,6 +95,7 @@ export function CustomerPassesPanel() {
               <Table.Th>{pl.customerPasses.columns.validity}</Table.Th>
               <Table.Th>{pl.customerPasses.columns.price}</Table.Th>
               <Table.Th>{pl.customerPasses.columns.status}</Table.Th>
+              <Table.Th>{pl.customerPasses.columns.actions}</Table.Th>
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
@@ -111,12 +118,27 @@ export function CustomerPassesPanel() {
                     {pl.customerPasses.statuses[pass.status]}
                   </Badge>
                 </Table.Td>
+                <Table.Td>
+                  {pass.entriesRemaining !== null && (
+                    <Button variant="light" size="xs" onClick={() => setCorrecting(pass)}>
+                      {pl.customerPasses.correction.title}
+                    </Button>
+                  )}
+                </Table.Td>
               </Table.Tr>
             ))}
           </Table.Tbody>
         </Table>
       )}
       <AssignPassModal customer={assigning ? customer : null} onClose={() => setAssigning(false)} />
+      {customer && correcting && (
+        <CorrectPassEntriesModal
+          key={`${customer.id}:${correcting.id}`}
+          customer={customer}
+          pass={correcting}
+          onClose={() => setCorrecting((current) => (current === correcting ? null : current))}
+        />
+      )}
     </Stack>
   );
 }

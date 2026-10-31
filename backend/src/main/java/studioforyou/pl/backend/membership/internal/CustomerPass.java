@@ -141,6 +141,11 @@ public class CustomerPass {
 		}
 	}
 
+	/** The caller validates the new finite balance while holding this pass's accounting lock. */
+	void correctEntries(short balance) {
+		this.entriesRemaining = balance;
+	}
+
 	public BigDecimal getPricePaid() {
 		return this.pricePaid;
 	}

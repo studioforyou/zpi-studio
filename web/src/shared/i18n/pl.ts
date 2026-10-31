@@ -487,8 +487,41 @@ export const pl = {
       validity: 'Ważność',
       price: 'Cena',
       status: 'Status',
+      actions: 'Działania',
     },
-    entriesLeft: (remaining: number, total: number) => `${remaining} z ${total}`,
+    entriesLeft: (remaining: number, total: number) =>
+      remaining > total ? `${remaining} (pierwotnie ${total})` : `${remaining} z ${total}`,
+    correction: {
+      title: 'Koryguj wejścia',
+      direction: 'Rodzaj korekty',
+      add: 'Dodaj wejścia',
+      subtract: 'Odejmij wejścia',
+      amount: 'Liczba wejść',
+      currentBalance: (remaining: number | null) =>
+        remaining === null ? 'Karnet bez limitu wejść.' : `Obecne saldo: ${remaining}`,
+      resultingBalance: (remaining: number) => `Saldo po korekcie: ${remaining}`,
+      reason: 'Powód (opcjonalnie)',
+      reasonPlaceholder: 'np. Zwrot błędnie odjętego wejścia',
+      historyNote: 'Korekta zostanie zapisana z datą, autorem i podanym powodem.',
+      invalidAmount: 'Podaj całkowitą liczbę wejść od 1 do 32767.',
+      invalidBalance: 'Saldo po korekcie musi mieścić się w przedziale od 0 do 32767.',
+      unlimited: 'Karnet bez limitu nie wymaga korekty liczby wejść.',
+      save: 'Potwierdź korektę',
+      cancel: 'Anuluj',
+      refresh: 'Odśwież saldo',
+      refreshed: 'Saldo zostało odświeżone. Sprawdź je i wpisz zamierzoną korektę ponownie.',
+      errors: {
+        conflict: 'Karnet zmienił się od otwarcia formularza. Odśwież saldo przed kolejną korektą.',
+        uncertain:
+          'Nie udało się potwierdzić zapisu. Korekta mogła zostać zapisana. Odśwież saldo i sprawdź je przed kolejną korektą.',
+        validation:
+          'Nie można wykonać tej korekty. Sprawdź liczbę wejść i saldo; uwzględnij też wejścia, które mogą wrócić z rezerwacji.',
+        notFound: 'Nie znaleziono karnetu tego uczestnika. Zamknij formularz i odśwież listę.',
+        accessDenied: 'Nie masz uprawnień do korygowania wejść.',
+        refresh: 'Nie udało się odświeżyć salda. Spróbuj odświeżyć je ponownie.',
+        unknown: 'Nie udało się zapisać korekty. Sprawdź dane i spróbuj ponownie.',
+      },
+    },
     statuses: {
       PENDING_PAYMENT: 'Czeka na płatność',
       SCHEDULED: 'Zaplanowany',

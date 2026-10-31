@@ -86,3 +86,24 @@ export function assignCustomerPass(customerId: string, pass: AssignPass): Promis
     body: pass,
   });
 }
+
+export function getCustomerPass(customerId: string, passId: string): Promise<CustomerPass> {
+  return apiFetch<CustomerPass>(`/api/v1/customers/${customerId}/passes/${passId}`);
+}
+
+export type CorrectPassEntries = {
+  entriesDelta: number;
+  reason: string | null;
+  version: number;
+};
+
+export function correctPassEntries(
+  customerId: string,
+  passId: string,
+  correction: CorrectPassEntries,
+): Promise<CustomerPass> {
+  return apiFetch<CustomerPass>(
+    `/api/v1/customers/${customerId}/passes/${passId}/correct-entries`,
+    { method: 'POST', body: correction },
+  );
+}

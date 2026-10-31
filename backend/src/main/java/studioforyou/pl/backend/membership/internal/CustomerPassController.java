@@ -11,6 +11,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -22,10 +23,11 @@ import org.springframework.web.bind.annotation.RestController;
 
 import studioforyou.pl.backend.configuration.StudioSettings;
 import studioforyou.pl.backend.identity.CurrentAccount;
+import studioforyou.pl.backend.shared.api.AccountAuthentication;
 import studioforyou.pl.backend.shared.api.ApiProblem;
 
 /**
- * Passes held by a participant. For now only administrators read and assign them.
+ * Passes held by a participant. Administrators read, assign and correct their entries.
  */
 @RestController
 @RequestMapping("/api/v1/customers/{customerId}/passes")
@@ -61,6 +63,28 @@ public class CustomerPassController {
 			mediaType = "application/problem+json", schema = @Schema(implementation = ApiProblem.class)))
 	public CustomerPassResponse get(@PathVariable UUID customerId, @PathVariable UUID passId) {
 		return CustomerPassResponse.from(passes.get(customerId, passId), studio.currency());
+	}
+
+	@PostMapping("/{passId}/correct-entries")
+	@Operation(summary = "Correct a participant's remaining pass entries", operationId = "correctCustomerPassEntries",
+			description = "Adds or removes entries of a finite pass and records the signed change, administrator, time "
+					+ "and optional reason in its immutable ledger. The resulting balance cannot be negative or exceed "
+					+ "32767, including outstanding entries that may still be returned. Original entry total, status "
+					+ "and validity are unchanged; corrections can also repair historical or suspended passes.")
+	@ApiResponse(responseCode = "200", description = "The corrected pass with its new balance and version.")
+	@ApiResponse(responseCode = "400", description = "VALIDATION_FAILED: zero delta, unlimited pass, invalid balance, "
+			+ "reason longer than 500 characters or invalid version; MALFORMED_REQUEST for non-integer JSON numbers.", content = @Content(
+					mediaType = "application/problem+json", schema = @Schema(implementation = ApiProblem.class)))
+	@ApiResponse(responseCode = "404", description = "No such pass of this participant.", content = @Content(
+			mediaType = "application/problem+json", schema = @Schema(implementation = ApiProblem.class)))
+	@ApiResponse(responseCode = "409", description = "VERSION_CONFLICT: reload the pass before retrying.", content = @Content(
+			mediaType = "application/problem+json", schema = @Schema(implementation = ApiProblem.class)))
+	public CustomerPassResponse correctEntries(@PathVariable UUID customerId, @PathVariable UUID passId,
+			@Valid @RequestBody CorrectPassEntriesRequest request, AccountAuthentication authentication) {
+		UUID actorAccountId = authentication.activeAccountId()
+			.orElseThrow(() -> new AccessDeniedException("An active application account is required."));
+		return CustomerPassResponse.from(passes.correctEntries(customerId, passId, request.toCommand(), actorAccountId),
+				studio.currency());
 	}
 
 	@PostMapping
