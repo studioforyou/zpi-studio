@@ -74,7 +74,7 @@ function hasBlockingIssue(occurrence: OccurrencePreview): boolean {
 }
 
 /**
- * Creates a one-off or a recurring event in two steps: its details with the staff and rooms,
+ * Creates a one-off or a recurring event, e.g. a class or a block of rooms, in two steps: its details with the staff and rooms,
  * then every date it would take with the conflicts found by the backend. Dates of a recurring
  * event can be left out, e.g. those with a conflict.
  */
@@ -107,6 +107,7 @@ export function EventFormModal({
   const [excluded, setExcluded] = useState<string[]>([]);
   const [submitted, setSubmitted] = useState(false);
 
+  const isBlock = kind === 'BLOCK';
   const recurring = mode === 'recurring';
   const durationValid =
     typeof duration === 'number' && Number.isInteger(duration) && duration >= 5 && duration <= 720;
@@ -114,8 +115,9 @@ export function EventFormModal({
     capacity === '' ||
     (typeof capacity === 'number' && Number.isInteger(capacity) && capacity >= 1);
   const endsOnValid = !recurring || (endsOn !== '' && endsOn >= date);
+  const blockRoomChosen = resources.length > 0;
   const valid =
-    serviceTypeId !== null &&
+    (isBlock ? title.trim() !== '' && blockRoomChosen : serviceTypeId !== null) &&
     date !== '' &&
     startTime !== '' &&
     durationValid &&
@@ -126,12 +128,15 @@ export function EventFormModal({
   function details(): EventDetailsInput {
     return {
       kind,
-      serviceTypeId: serviceTypeId!,
+      serviceTypeId: isBlock ? null : serviceTypeId,
       title: title.trim() === '' ? null : title.trim(),
-      capacity: capacity === '' ? null : Number(capacity),
+      capacity: isBlock || capacity === '' ? null : Number(capacity),
       visibility,
-      staff,
-      resources,
+      staff: isBlock ? [] : staff,
+      // A block takes its rooms whole.
+      resources: isBlock
+        ? resources.map((resource) => ({ ...resource, blocksWholeRoom: true }))
+        : resources,
     };
   }
 
@@ -200,7 +205,10 @@ export function EventFormModal({
 
   function selectKind(value: PlannableKind) {
     setKind(value);
-    setVisibility(value === 'PERSONAL_TRAINING' ? 'PRIVATE' : 'PUBLIC');
+    setVisibility(value === 'PERSONAL_TRAINING' || value === 'BLOCK' ? 'PRIVATE' : 'PUBLIC');
+    if (value === 'BLOCK') {
+      setCapacity('');
+    }
   }
 
   function handleNext(event: FormEvent) {
@@ -248,16 +256,6 @@ export function EventFormModal({
             />
             <SimpleGrid cols={{ base: 1, sm: 2 }}>
               <Select
-                label={texts.serviceType}
-                placeholder={texts.serviceTypePlaceholder}
-                required
-                searchable
-                data={serviceOptions}
-                value={serviceTypeId}
-                onChange={selectServiceType}
-                error={error(serviceTypeId === null, texts.required)}
-              />
-              <Select
                 label={texts.kind}
                 required
                 allowDeselect={false}
@@ -268,13 +266,31 @@ export function EventFormModal({
                 value={kind}
                 onChange={(value) => value && selectKind(value as PlannableKind)}
               />
+              {!isBlock && (
+                <Select
+                  label={texts.serviceType}
+                  placeholder={texts.serviceTypePlaceholder}
+                  required
+                  searchable
+                  data={serviceOptions}
+                  value={serviceTypeId}
+                  onChange={selectServiceType}
+                  error={error(serviceTypeId === null, texts.required)}
+                />
+              )}
             </SimpleGrid>
             <TextInput
               label={texts.eventTitle}
-              placeholder={selectedService?.name ?? texts.eventTitlePlaceholder}
+              placeholder={
+                isBlock
+                  ? texts.blockTitlePlaceholder
+                  : (selectedService?.name ?? texts.eventTitlePlaceholder)
+              }
+              required={isBlock}
               maxLength={120}
               value={title}
               onChange={(event) => setTitle(event.currentTarget.value)}
+              error={error(isBlock && title.trim() === '', texts.required)}
             />
             {recurring && (
               <Stack gap={4}>
@@ -362,38 +378,46 @@ export function EventFormModal({
                 w={220}
               />
             )}
-            <SimpleGrid cols={{ base: 1, sm: 2 }}>
-              <NumberInput
-                label={texts.capacity}
-                description={texts.capacityDescription}
-                inputWrapperOrder={['label', 'input', 'description', 'error']}
-                min={1}
-                max={32767}
-                allowDecimal={false}
-                value={capacity}
-                onChange={setCapacity}
-                error={error(!capacityValid, texts.positiveNumber)}
-              />
-              <Select
-                label={texts.visibility}
-                allowDeselect={false}
-                data={eventVisibilities.map((value) => ({
-                  value,
-                  label: pl.schedule.visibilities[value],
-                }))}
-                value={visibility}
-                onChange={(value) => value && setVisibility(value as EventVisibility)}
-              />
-            </SimpleGrid>
+            {!isBlock && (
+              <SimpleGrid cols={{ base: 1, sm: 2 }}>
+                <NumberInput
+                  label={texts.capacity}
+                  description={texts.capacityDescription}
+                  inputWrapperOrder={['label', 'input', 'description', 'error']}
+                  min={1}
+                  max={32767}
+                  allowDecimal={false}
+                  value={capacity}
+                  onChange={setCapacity}
+                  error={error(!capacityValid, texts.positiveNumber)}
+                />
+                <Select
+                  label={texts.visibility}
+                  allowDeselect={false}
+                  data={eventVisibilities.map((value) => ({
+                    value,
+                    label: pl.schedule.visibilities[value],
+                  }))}
+                  value={visibility}
+                  onChange={(value) => value && setVisibility(value as EventVisibility)}
+                />
+              </SimpleGrid>
+            )}
             <AssignmentFields
-              serviceTypeId={serviceTypeId}
+              serviceTypeId={isBlock ? null : serviceTypeId}
               staff={staff}
               onStaffChange={setStaff}
               resources={resources}
               onResourcesChange={setResources}
               lookups={lookups}
               roomRules={roomRules}
+              block={isBlock}
             />
+            {submitted && isBlock && !blockRoomChosen && (
+              <Text size="xs" c="red">
+                {texts.blockRoomRequired}
+              </Text>
+            )}
             <Group justify="flex-end">
               <Button variant="default" onClick={onClose}>
                 {texts.cancel}

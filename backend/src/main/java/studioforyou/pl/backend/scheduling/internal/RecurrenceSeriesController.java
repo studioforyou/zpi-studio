@@ -16,6 +16,7 @@ import studioforyou.pl.backend.scheduling.internal.ScheduleDtos.SeriesPlanRespon
 import studioforyou.pl.backend.scheduling.internal.ScheduleDtos.SeriesResponse;
 import studioforyou.pl.backend.shared.api.ApiProblem;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -47,7 +48,8 @@ class RecurrenceSeriesController {
 			description = "Creates one series for each weekday and all their occurrences between startsOn and endsOn, "
 					+ "except excludedDates, with the given staff and rooms. Any occurrence that conflicts "
 					+ "with another event or staff leave rejects the whole plan; the response then lists the "
-					+ "conflicting occurrences in `conflicts`. Location points to the first series.")
+					+ "conflicting occurrences in `conflicts`. Location points to the first series. Recurring blocks "
+					+ "create one-off BLOCK events instead of series, without Location.")
 	@ApiResponse(responseCode = "201", description = "The created series.")
 	@ApiResponse(responseCode = "400", description = "VALIDATION_FAILED, also when the series starts in the past, "
 			+ "lasts over a year or has no occurrences.", content = @Content(mediaType = "application/problem+json",
@@ -61,6 +63,9 @@ class RecurrenceSeriesController {
 	ResponseEntity<SeriesPlanResponse> createRecurrenceSeries(@Valid @RequestBody CreateSeriesRequest request,
 			Authentication authentication) {
 		SeriesPlanResponse created = this.planner.createSeries(request, CurrentAccount.of(authentication).id());
+		if (created.items().isEmpty()) {
+			return ResponseEntity.status(HttpStatus.CREATED).body(created);
+		}
 		return ResponseEntity.created(URI.create("/api/v1/recurrence-series/" + created.items().get(0).id()))
 			.body(created);
 	}

@@ -212,6 +212,43 @@ class RecurrenceSeriesControllerTest extends ScheduleTestSupport {
 	}
 
 	/** A weekly pole class at 18:00 for 60 minutes, run by Anna in the pole room. */
+	@Test
+	void createsARecurringBlockOfARoom() throws Exception {
+		// A Wednesday class in the pole room, in the third week of the block's series.
+		String wednesdayClass = createEvent(poleClass(this.monday.plusWeeks(2).plusDays(2), "07:30", "08:30"));
+		String block = """
+				{"kind": "BLOCK", "serviceTypeId": "%s", "title": "Sprzątanie", "capacity": 5, "weekdays": [1, 3],
+				 "localStartTime": "08:00", "durationMinutes": 60, "startsOn": "%s", "endsOn": "%s",
+				 "excludedDates": %s, "resources": [%s]}
+				""";
+		LocalDate endsOn = this.monday.plusWeeks(4).minusDays(1);
+
+		post("/api/v1/recurrence-series/preview", block.formatted(POLE, this.monday, endsOn, "[]", room(POLE_ROOM, false)))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.conflictCount").value(1))
+			.andExpect(jsonPath("$.occurrences[5].issues[0].eventId").value(wednesdayClass));
+		LocalDate conflicting = this.monday.plusWeeks(2).plusDays(2);
+		post("/api/v1/recurrence-series",
+				block.formatted(POLE, this.monday, endsOn, "[\"" + conflicting + "\"]", room(POLE_ROOM, false)))
+			.andExpect(status().isCreated())
+			.andExpect(header().doesNotExist("Location"))
+			.andExpect(jsonPath("$.occurrenceCount").value(7))
+			// Recurring blocks need no series: each occurrence is a one-off block.
+			.andExpect(jsonPath("$.items.length()").value(0));
+		assertThat(this.jdbcTemplate.queryForObject("SELECT count(*) FROM recurrence_series", Integer.class)).isZero();
+
+		get("/api/v1/schedule-events", "from", at(this.monday, "00:00").toString(), "to",
+				at(this.monday.plusWeeks(4), "00:00").toString(), "kind", "BLOCK")
+			.andExpect(jsonPath("$.items.length()").value(7))
+			.andExpect(jsonPath("$.items[*].title", everyItem(org.hamcrest.Matchers.is("Sprzątanie"))))
+			.andExpect(jsonPath("$.items[*].visibility", everyItem(org.hamcrest.Matchers.is("PRIVATE"))))
+			.andExpect(jsonPath("$.items[*].blockReason", everyItem(org.hamcrest.Matchers.is(ScheduleEvent.BLOCK_REASON))))
+			.andExpect(jsonPath("$.items[*].seriesId", everyItem(org.hamcrest.Matchers.nullValue())))
+			.andExpect(jsonPath("$.items[*].resources[0].blocksWholeRoom", everyItem(org.hamcrest.Matchers.is(true))));
+		post("/api/v1/schedule-events", poleClass(this.monday, "08:30", "09:30")).andExpect(status().isConflict())
+			.andExpect(jsonPath("$.code").value("RESOURCE_CAPACITY_EXCEEDED"));
+	}
+
 	private static String series(String weekdays, LocalDate startsOn, LocalDate endsOn, int intervalWeeks,
 			String excludedDates) {
 		return """

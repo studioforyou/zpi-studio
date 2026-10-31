@@ -53,15 +53,17 @@ final class ScheduleDtos {
 
 	}
 
-	@Schema(name = "CreateScheduleEventRequest", description = "A one-off event.")
+	@Schema(name = "CreateScheduleEventRequest", description = "A one-off event. A BLOCK, e.g. a maintenance, "
+			+ "has no service type, capacity or staff: it takes its rooms whole and is always PRIVATE.")
 	record CreateEventRequest(
-			@NotNull @Schema(description = "CLASS, PERSONAL_TRAINING or WORKSHOP.") EventKind kind,
-			@NotNull UUID serviceTypeId,
-			@Size(max = MAX_TITLE_LENGTH) @Schema(description = "The service type's name when missing.") String title,
+			@NotNull @Schema(description = "CLASS, PERSONAL_TRAINING, WORKSHOP or BLOCK.") EventKind kind,
+			@Schema(description = "Required, except for BLOCK, which ignores it.") UUID serviceTypeId,
+			@Size(max = MAX_TITLE_LENGTH)
+			@Schema(description = "The service type's name when missing; required for BLOCK.") String title,
 			@Min(1) @Max(Short.MAX_VALUE)
 			@Schema(description = "Maximum number of participants; the service type's limit (at most the rooms' "
-					+ "limit) when missing, 1 for personal training.") Integer capacity,
-			@Schema(description = "PRIVATE for personal training, PUBLIC otherwise when missing.")
+					+ "limit) when missing, 1 for personal training. Ignored for BLOCK.") Integer capacity,
+			@Schema(description = "PRIVATE for personal training and BLOCK, PUBLIC otherwise when missing.")
 			EventVisibility visibility,
 			@NotNull @Schema(example = "2026-11-03T17:00:00Z") Instant startsAt,
 			@NotNull @Schema(example = "2026-11-03T18:00:00Z") Instant endsAt,
@@ -78,8 +80,8 @@ final class ScheduleDtos {
 	@Schema(name = "CreateRecurrenceSeriesRequest",
 			description = "A recurring event in the studio's local time. One series is created for each weekday.")
 	record CreateSeriesRequest(
-			@NotNull @Schema(description = "CLASS, PERSONAL_TRAINING or WORKSHOP.") EventKind kind,
-			@NotNull UUID serviceTypeId,
+			@NotNull @Schema(description = "CLASS, PERSONAL_TRAINING, WORKSHOP or BLOCK.") EventKind kind,
+			@Schema(description = "Required, except for BLOCK, which ignores it.") UUID serviceTypeId,
 			@Size(max = MAX_TITLE_LENGTH) @Schema(description = "The service type's name when missing.") String title,
 			@Min(1) @Max(Short.MAX_VALUE) Integer capacity,
 			EventVisibility visibility,
@@ -189,7 +191,8 @@ final class ScheduleDtos {
 
 	}
 
-	@Schema(name = "RecurrencePlan", description = "The series created for a recurring event, one for each weekday.")
+	@Schema(name = "RecurrencePlan", description = "The series created for a recurring event, one for each weekday. "
+			+ "Recurring blocks create no series, only one-off BLOCK events, so their items are empty.")
 	record SeriesPlanResponse(List<SeriesResponse> items,
 			@Schema(description = "Number of occurrences created in all the series.") int occurrenceCount) {
 	}
