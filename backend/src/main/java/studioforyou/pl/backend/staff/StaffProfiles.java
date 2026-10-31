@@ -31,6 +31,9 @@ public interface StaffProfiles {
 
 	/** Creates the staff profile of a new account and returns its id. */
 	UUID create(UUID accountId, String firstName, String lastName);
+	/** The login account of each given staff member, whatever their status; unknown ids are left out. */
+	Map<UUID, UUID> findAccountIds(Collection<UUID> staffIds);
+
 	/** The given staff members, whatever their status; unknown ids are left out. */
 	List<StaffMember> findAllById(Collection<UUID> ids);
 
