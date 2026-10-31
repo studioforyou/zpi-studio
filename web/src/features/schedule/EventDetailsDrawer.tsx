@@ -64,20 +64,24 @@ export function EventDetailsDrawer({
               <Text>{event.serviceTypeName}</Text>
             </Detail>
           )}
-          <Detail label={texts.details.capacity}>
-            <Text>{texts.capacity(event.capacity)}</Text>
-          </Detail>
-          <Detail label={texts.details.staff}>
-            {event.staff.length === 0 ? (
-              <Text c={event.kind === 'BLOCK' ? 'dimmed' : 'red.7'}>{texts.details.none}</Text>
-            ) : (
-              event.staff.map((member) => (
-                <Text key={member.staffId}>
-                  {member.displayName ?? texts.unknownStaff} — {texts.roles[member.role]}
-                </Text>
-              ))
-            )}
-          </Detail>
+          {event.kind !== 'BLOCK' && (
+            <Detail label={texts.details.capacity}>
+              <Text>{texts.capacity(event.capacity)}</Text>
+            </Detail>
+          )}
+          {event.kind !== 'BLOCK' && (
+            <Detail label={texts.details.staff}>
+              {event.staff.length === 0 ? (
+                <Text c="red.7">{texts.details.none}</Text>
+              ) : (
+                event.staff.map((member) => (
+                  <Text key={member.staffId}>
+                    {member.displayName ?? texts.unknownStaff} — {texts.roles[member.role]}
+                  </Text>
+                ))
+              )}
+            </Detail>
+          )}
           <Detail label={texts.details.resources}>
             {event.resources.length === 0 ? (
               <Text c={event.kind === 'BLOCK' ? 'dimmed' : 'red.7'}>{texts.details.none}</Text>

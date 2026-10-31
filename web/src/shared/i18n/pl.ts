@@ -625,6 +625,8 @@ export const pl = {
       kind: 'Rodzaj',
       eventTitle: 'Tytuł',
       eventTitlePlaceholder: 'Domyślnie nazwa usługi',
+      blockTitlePlaceholder: 'np. Serwis klimatyzacji',
+      blockRoomRequired: 'Wybierz co najmniej jedną salę do zablokowania.',
       date: 'Data',
       startTime: 'Godzina rozpoczęcia',
       duration: 'Czas trwania (min)',

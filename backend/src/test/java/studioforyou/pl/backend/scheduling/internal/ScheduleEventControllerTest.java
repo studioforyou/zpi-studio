@@ -127,14 +127,20 @@ class ScheduleEventControllerTest extends ScheduleTestSupport {
 			.andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.errors[0].field").value("startsAt"))
 			.andExpect(jsonPath("$.errors[0].code").value("OUT_OF_RANGE"));
-		post("/api/v1/schedule-events", eventJson("BLOCK", POLE, at(day, "18:00"), at(day, "19:00"), "", ""))
+		post("/api/v1/schedule-events", eventJson("CONSULTATION", POLE, at(day, "18:00"), at(day, "19:00"), "", ""))
 			.andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.errors[0].field").value("kind"));
 		post("/api/v1/schedule-events", """
-				{"kind": "CLASS", "startsAt": "%s", "endsAt": "%s", "capacity": 0}
+				{"kind": "CLASS", "startsAt": "%s", "endsAt": "%s"}
 				""".formatted(at(day, "18:00"), at(day, "19:00")))
 			.andExpect(status().isBadRequest())
-			.andExpect(jsonPath("$.errors.length()").value(2));
+			.andExpect(jsonPath("$.errors[0].field").value("serviceTypeId"))
+			.andExpect(jsonPath("$.errors[0].code").value("REQUIRED"));
+		post("/api/v1/schedule-events", """
+				{"kind": "CLASS", "serviceTypeId": "%s", "startsAt": "%s", "endsAt": "%s", "capacity": 0}
+				""".formatted(POLE, at(day, "18:00"), at(day, "19:00")))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.errors[0].field").value("capacity"));
 		post("/api/v1/schedule-events", eventJson("CLASS", POLE, at(day, "18:00"), at(day, "19:00"),
 				staff(ANNA, "LEAD") + "," + staff(ANNA, "ASSISTANT"), ""))
 			.andExpect(status().isBadRequest())
@@ -193,6 +199,100 @@ class ScheduleEventControllerTest extends ScheduleTestSupport {
 		// Back-to-back events do not overlap.
 		createEvent(eventJson("CLASS", POLE, at(this.monday, "19:00"), at(this.monday, "20:00"), staff(MAREK, "LEAD"),
 				room(POLE_ROOM, true)));
+	}
+
+	@Test
+	void blocksARoomSoThatNoEventCanTakeIt() throws Exception {
+		LocalDate tuesday = this.monday.plusDays(1);
+		var created = post("/api/v1/schedule-events", """
+				{"kind": "BLOCK", "serviceTypeId": "%s", "title": "  Serwis klimatyzacji  ", "capacity": 5,
+				 "visibility": "PUBLIC", "startsAt": "%s", "endsAt": "%s", "resources": [%s]}
+				""".formatted(POLE, at(tuesday, "08:00"), at(tuesday, "12:00"), room(POLE_ROOM, false)))
+			.andExpect(status().isCreated())
+			.andExpect(jsonPath("$.kind").value("BLOCK"))
+			.andExpect(jsonPath("$.status").value("SCHEDULED"))
+			.andExpect(jsonPath("$.visibility").value("PRIVATE"))
+			.andExpect(jsonPath("$.title").value("Serwis klimatyzacji"))
+			.andExpect(jsonPath("$.blockReason").value(ScheduleEvent.BLOCK_REASON))
+			.andExpect(jsonPath("$.serviceTypeId").doesNotExist())
+			.andExpect(jsonPath("$.capacity").doesNotExist())
+			.andExpect(jsonPath("$.resources[0].resourceId").value(POLE_ROOM.toString()))
+			.andExpect(jsonPath("$.resources[0].blocksWholeRoom").value(true));
+		String block = id(created);
+
+		// Not even an event that shares the room may take it.
+		post("/api/v1/schedule-events", eventJson("CLASS", POLE, at(tuesday, "11:00"), at(tuesday, "12:00"),
+				staff(ANNA, "LEAD"), room(POLE_ROOM, false)))
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.code").value("RESOURCE_CAPACITY_EXCEEDED"))
+			.andExpect(jsonPath("$.conflicts[0].issues[0].eventId").value(block))
+			.andExpect(jsonPath("$.conflicts[0].issues[0].eventTitle").value("Serwis klimatyzacji"));
+
+		// Its rooms stay taken whole when they change.
+		put("/api/v1/schedule-events/" + block + "/assignments", """
+				{"version": 0, "staff": [], "resources": [%s]}""".formatted(room(GYM, false)))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.resources[0].resourceId").value(GYM.toString()))
+			.andExpect(jsonPath("$.resources[0].blocksWholeRoom").value(true));
+	}
+
+	@Test
+	void previewsAndRejectsABlockLikeOtherEvents() throws Exception {
+		LocalDate day = this.monday;
+		createEvent(poleClass(day, "18:00", "19:00"));
+
+		post("/api/v1/schedule-events/preview", blockJson("Remont", at(day, "17:00"), at(day, "18:30"),
+				room(POLE_ROOM, true)))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.conflictCount").value(1))
+			.andExpect(jsonPath("$.occurrences[0].issues[0].type").value("RESOURCE_BUSY"))
+			.andExpect(jsonPath("$.warnings.length()").value(0));
+		post("/api/v1/schedule-events", blockJson("Remont", at(day, "17:00"), at(day, "18:30"), room(POLE_ROOM, true)))
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.code").value("RESOURCE_CAPACITY_EXCEEDED"));
+
+		// The class shares the gym with nobody else, but a block takes even a shared room.
+		createEvent(eventJson("CLASS", POLE, at(day, "18:00"), at(day, "19:00"), staff(MAREK, "LEAD"), room(GYM, false)));
+		post("/api/v1/schedule-events", blockJson("Sprzątanie", at(day, "18:30"), at(day, "19:30"), room(GYM, false)))
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.code").value("RESOURCE_CAPACITY_EXCEEDED"));
+	}
+
+	@Test
+	void rejectsInvalidBlocks() throws Exception {
+		LocalDate day = this.monday;
+		post("/api/v1/schedule-events", blockJson("Remont", at(day, "08:00"), at(day, "12:00"), ""))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.errors[0].field").value("resources"))
+			.andExpect(jsonPath("$.errors[0].code").value("REQUIRED"));
+		post("/api/v1/schedule-events", """
+				{"kind": "BLOCK", "title": "Remont", "startsAt": "%s", "endsAt": "%s", "staff": [%s], "resources": [%s]}
+				""".formatted(at(day, "08:00"), at(day, "12:00"), staff(ANNA, "LEAD"), room(POLE_ROOM, true)))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.errors[0].field").value("staff"));
+		post("/api/v1/schedule-events", blockJson(" ", at(day, "08:00"), at(day, "12:00"), room(POLE_ROOM, true)))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.errors[0].field").value("title"))
+			.andExpect(jsonPath("$.errors[0].code").value("REQUIRED"));
+		post("/api/v1/schedule-events", blockJson("Remont", at(day, "08:00"), at(day, "12:00"), room(CLOSED_ROOM, true)))
+			.andExpect(status().isUnprocessableContent())
+			.andExpect(jsonPath("$.code").value("RESOURCE_UNAVAILABLE"));
+
+		String block = createEvent(blockJson("Remont", at(day, "08:00"), at(day, "12:00"), room(POLE_ROOM, true)));
+		put("/api/v1/schedule-events/" + block + "/assignments", """
+				{"version": 0, "staff": [%s], "resources": [%s]}""".formatted(staff(ANNA, "LEAD"), room(POLE_ROOM, true)))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.errors[0].field").value("staff"));
+		put("/api/v1/schedule-events/" + block + "/assignments", """
+				{"version": 0, "staff": [], "resources": []}""")
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.errors[0].field").value("resources"));
+	}
+
+	private static String blockJson(String title, Instant startsAt, Instant endsAt, String resources) {
+		return """
+				{"kind": "BLOCK", "title": "%s", "startsAt": "%s", "endsAt": "%s", "resources": [%s]}
+				""".formatted(title, startsAt, endsAt, resources);
 	}
 
 	@Test
