@@ -52,6 +52,32 @@ class AuthController extends Notifier<AuthState> {
       state = Authenticated(session.copyWith(activeProfileId: profileId));
     }
   }
+
+  /// Shows a customer profile's new name after its details were saved. The
+  /// account's own profile also gives the session its display name.
+  void renameProfile(String profileId, String displayName) {
+    if (state case Authenticated(:final session)) {
+      final renamed = session.profiles.where((p) => p.id == profileId);
+      if (renamed.isEmpty) {
+        return;
+      }
+      state = Authenticated(
+        session.copyWith(
+          displayName: renamed.first.isChild ? null : displayName,
+          profiles: [
+            for (final p in session.profiles)
+              p.id == profileId
+                  ? Profile(
+                      id: p.id,
+                      displayName: displayName,
+                      isChild: p.isChild,
+                    )
+                  : p,
+          ],
+        ),
+      );
+    }
+  }
 }
 
 final authControllerProvider = NotifierProvider<AuthController, AuthState>(

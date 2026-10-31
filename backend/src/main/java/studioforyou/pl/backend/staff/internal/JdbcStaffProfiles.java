@@ -8,7 +8,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
-import java.util.regex.Pattern;
 
 import jakarta.validation.ConstraintViolationException;
 import jakarta.validation.Validator;
@@ -20,16 +19,13 @@ import org.springframework.transaction.annotation.Transactional;
 
 import studioforyou.pl.backend.shared.api.ApiException;
 import studioforyou.pl.backend.shared.api.ErrorCode;
+import studioforyou.pl.backend.shared.api.UserText;
 import studioforyou.pl.backend.staff.StaffProfiles;
 
 /** Keeps staff persistence inside the module, including the account-to-profile lookup. */
 @Service
 @Transactional
 public class JdbcStaffProfiles implements StaffProfiles {
-
-	// Unicode White_Space plus BOM, matching the mobile client's String.trim().
-	private static final Pattern EDGE_WHITESPACE = Pattern.compile(
-			"^[\\s\\p{Z}\\u0085\\uFEFF]+|[\\s\\p{Z}\\u0085\\uFEFF]+$");
 
 	private final JdbcClient jdbc;
 
@@ -78,9 +74,9 @@ public class JdbcStaffProfiles implements StaffProfiles {
 		// Lock while merging a partial update so concurrent edits preserve omitted fields.
 		StaffProfile current = findProfile(accountId, true);
 		StaffProfile updated = new StaffProfile(current.id(),
-				changes.firstNamePresent() ? trim(changes.firstName()) : current.firstName(),
-				changes.lastNamePresent() ? trim(changes.lastName()) : current.lastName(),
-				changes.phonePresent() ? blankToNull(trim(changes.phone())) : current.phone());
+				changes.firstNamePresent() ? UserText.trim(changes.firstName()) : current.firstName(),
+				changes.lastNamePresent() ? UserText.trim(changes.lastName()) : current.lastName(),
+				changes.phonePresent() ? UserText.trimToNull(changes.phone()) : current.phone());
 		var violations = validator.validate(updated);
 		if (!violations.isEmpty()) {
 			throw new ConstraintViolationException(violations);
@@ -176,14 +172,6 @@ public class JdbcStaffProfiles implements StaffProfiles {
 			.query(StaffProfile.class)
 			.optional()
 			.orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "Staff profile not found."));
-	}
-
-	private static String trim(String value) {
-		return value == null ? null : EDGE_WHITESPACE.matcher(value).replaceAll("");
-	}
-
-	private static String blankToNull(String value) {
-		return value == null || value.isEmpty() ? null : value;
 	}
 
 }

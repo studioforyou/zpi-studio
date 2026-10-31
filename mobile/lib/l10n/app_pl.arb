@@ -93,23 +93,47 @@
   "roleTrainer": "Trener",
   "profileRoleSection": "Rola",
   "profileActiveProfileSection": "Aktywny profil",
-  "staffProfileEditTitle": "Dane osobowe",
-  "staffProfileFirstName": "Imię",
-  "staffProfileLastName": "Nazwisko",
-  "staffProfilePhone": "Telefon (opcjonalnie)",
+  "personalDetailsEditTitle": "Dane osobowe",
+  "personalDetailsFirstName": "Imię",
+  "personalDetailsLastName": "Nazwisko",
+  "personalDetailsPhone": "Telefon (opcjonalnie)",
   "staffProfilePhoneHint": "Pozostaw puste, aby usunąć numer telefonu.",
-  "staffProfileSave": "Zapisz zmiany",
-  "staffProfileSaved": "Zmiany zostały zapisane.",
-  "staffProfileRetry": "Spróbuj ponownie",
-  "staffProfileNameRequired": "To pole jest wymagane.",
-  "staffProfileNameTooLong": "Wpisz maksymalnie 80 znaków.",
-  "staffProfilePhoneTooLong": "Wpisz maksymalnie 20 znaków.",
-  "staffProfileLoadError": "Nie udało się pobrać danych osobowych.",
-  "staffProfileSaveError": "Nie udało się zapisać zmian. Spróbuj ponownie.",
-  "staffProfileNetworkError": "Brak połączenia z serwerem. Sprawdź internet i spróbuj ponownie.",
-  "staffProfileAccessError": "Nie masz dostępu do edycji danych osobowych.",
-  "staffProfileNotFound": "Nie znaleziono profilu. Skontaktuj się z obsługą studia.",
-  "staffProfileValidationError": "Sprawdź wpisane dane i spróbuj ponownie.",
+  "personalDetailsSave": "Zapisz zmiany",
+  "personalDetailsSaved": "Zmiany zostały zapisane.",
+  "personalDetailsRetry": "Spróbuj ponownie",
+  "personalDetailsNameRequired": "To pole jest wymagane.",
+  "personalDetailsTooLong": "Wpisz maksymalnie {count} znaków.",
+  "@personalDetailsTooLong": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "personalDetailsNameInvalid": "Używaj tylko liter, spacji, myślników i apostrofów.",
+  "personalDetailsPhoneInvalid": "Wpisz numer z cyframi, np. +48 600 100 200.",
+  "personalDetailsLoadError": "Nie udało się pobrać danych osobowych.",
+  "personalDetailsSaveError": "Nie udało się zapisać zmian. Spróbuj ponownie.",
+  "personalDetailsNetworkError": "Brak połączenia z serwerem. Sprawdź internet i spróbuj ponownie.",
+  "personalDetailsAccessError": "Nie masz dostępu do edycji danych osobowych.",
+  "personalDetailsNotFound": "Nie znaleziono profilu. Skontaktuj się z obsługą studia.",
+  "personalDetailsValidationError": "Sprawdź wpisane dane i spróbuj ponownie.",
+  "customerProfileChildNotice": "Edytujesz dane dziecka: {name}.",
+  "@customerProfileChildNotice": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "customerProfileBirthDate": "Data urodzenia (opcjonalnie)",
+  "customerProfileClearBirthDate": "Usuń datę urodzenia",
+  "customerProfileEmergencySection": "Kontakt awaryjny",
+  "customerProfileEmergencyHint": "Osoba, z którą studio skontaktuje się w razie wypadku. Podaj imię i telefon albo zostaw oba pola puste.",
+  "customerProfileEmergencyName": "Imię i nazwisko",
+  "customerProfileEmergencyPhone": "Telefon",
+  "customerProfileEmergencyNameRequired": "Podaj imię osoby do kontaktu.",
+  "customerProfileEmergencyPhoneRequired": "Podaj telefon osoby do kontaktu.",
   "logoutButton": "Wyloguj się",
   "placeholderComingSoon": "Wkrótce",
   "pingTitle": "Test połączenia",
