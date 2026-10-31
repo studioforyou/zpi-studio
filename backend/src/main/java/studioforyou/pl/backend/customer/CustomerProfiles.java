@@ -66,6 +66,40 @@ public class CustomerProfiles {
 			.single();
 	}
 
+	/**
+	 * Changes the name and phone number of the account's own profile, whatever its status. A blank
+	 * phone clears it.
+	 *
+	 * @return whether the account has an own profile
+	 */
+	public boolean updateOwnProfile(UUID accountId, String firstName, String lastName, String phone) {
+		return jdbc.sql("""
+				UPDATE customer_profile
+				SET first_name = :firstName, last_name = :lastName, phone = :phone, updated_at = now()
+				WHERE account_id = :accountId
+				""")
+			.param("accountId", accountId)
+			.param("firstName", firstName.strip())
+			.param("lastName", lastName.strip())
+			.param("phone", (phone == null || phone.isBlank()) ? null : phone.strip())
+			.update() > 0;
+	}
+
+	/**
+	 * Archives the account's own profile when the account is closed and clears its contact data.
+	 * The name stays for the history of passes and bookings; children keep their own profiles.
+	 */
+	public void archiveOwnProfile(UUID accountId) {
+		jdbc.sql("""
+				UPDATE customer_profile
+				SET status = 'ARCHIVED', phone = NULL, emergency_contact_name = NULL, emergency_phone = NULL,
+				    updated_at = now()
+				WHERE account_id = :accountId
+				""")
+			.param("accountId", accountId)
+			.update();
+	}
+
 	/** Active child profiles the given profile is a current guardian of. */
 	public List<ProfileSummary> findChildrenOf(UUID guardianProfileId) {
 		return jdbc.sql("""
