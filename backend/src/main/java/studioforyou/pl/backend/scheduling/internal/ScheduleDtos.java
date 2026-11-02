@@ -104,6 +104,58 @@ final class ScheduleDtos {
 
 	}
 
+	@Schema(name = "CreateOwnScheduleEventRequest",
+			description = "A one-off public group class run by the signed-in trainer.")
+	record OwnEventRequest(
+			@NotNull UUID serviceTypeId,
+			@Size(max = MAX_TITLE_LENGTH) @Schema(description = "The service type's name when missing.") String title,
+			@Min(1) @Max(Short.MAX_VALUE)
+			@Schema(description = "Maximum number of participants; the service type's limit (at most the rooms' "
+					+ "limit) when missing.") Integer capacity,
+			@NotNull @Schema(example = "2026-11-03T17:00:00Z") Instant startsAt,
+			@NotNull @Schema(example = "2026-11-03T18:00:00Z") Instant endsAt,
+			List<@Valid @NotNull ResourceAssignmentRequest> resources) {
+
+		/** The same event as an administrator would plan it, run by {@code staffId}. */
+		CreateEventRequest runBy(UUID staffId) {
+			return new CreateEventRequest(EventKind.CLASS, this.serviceTypeId, this.title, this.capacity,
+					EventVisibility.PUBLIC, this.startsAt, this.endsAt, List.of(lead(staffId)), this.resources);
+		}
+
+	}
+
+	@Schema(name = "CreateOwnRecurrenceSeriesRequest", description = "A recurring public group class run by the "
+			+ "signed-in trainer, in the studio's local time. One series is created for each weekday.")
+	record OwnSeriesRequest(
+			@NotNull UUID serviceTypeId,
+			@Size(max = MAX_TITLE_LENGTH) @Schema(description = "The service type's name when missing.") String title,
+			@Min(1) @Max(Short.MAX_VALUE) Integer capacity,
+			@NotEmpty @Schema(description = "ISO weekdays, 1 = Monday.", example = "[2, 4]")
+			Set<@NotNull @Min(1) @Max(7) Integer> weekdays,
+			@NotNull @Schema(type = "string", example = "18:00", description = "Studio local time, HH:mm.")
+			LocalTime localStartTime,
+			@NotNull @Min(5) @Max(MAX_DURATION_MINUTES) @Schema(example = "60") Integer durationMinutes,
+			@Min(1) @Max(MAX_INTERVAL_WEEKS) @Schema(description = "Every how many weeks; 1 when missing.")
+			Integer intervalWeeks,
+			@NotNull @Schema(description = "First day of the series, not in the past.") LocalDate startsOn,
+			@NotNull @Schema(description = "Last day of the series, at most a year after startsOn.") LocalDate endsOn,
+			@Schema(description = "Days on which no occurrence is created, e.g. holidays or conflicting dates.")
+			Set<@NotNull LocalDate> excludedDates,
+			List<@Valid @NotNull ResourceAssignmentRequest> resources) {
+
+		/** The same series as an administrator would plan it, run by {@code staffId}. */
+		CreateSeriesRequest runBy(UUID staffId) {
+			return new CreateSeriesRequest(EventKind.CLASS, this.serviceTypeId, this.title, this.capacity,
+					EventVisibility.PUBLIC, this.weekdays, this.localStartTime, this.durationMinutes, this.intervalWeeks,
+					this.startsOn, this.endsOn, this.excludedDates, List.of(lead(staffId)), this.resources);
+		}
+
+	}
+
+	private static StaffAssignmentRequest lead(UUID staffId) {
+		return new StaffAssignmentRequest(staffId, StaffRole.LEAD);
+	}
+
 	/** The part of a create request shared by one-off events and series. */
 	record EventDetailsRequest(EventKind kind, UUID serviceTypeId, String title, Integer capacity,
 			EventVisibility visibility, List<StaffAssignmentRequest> staff,
