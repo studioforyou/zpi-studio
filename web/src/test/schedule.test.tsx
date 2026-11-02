@@ -551,3 +551,130 @@ test('shows the conflicts that rejected a change', async () => {
     ),
   ).toBeInTheDocument();
 });
+
+test('plans a block of a room like other events and checks it for conflicts', async () => {
+  const conflict = {
+    date: '2026-11-03',
+    startsAt: '2026-11-03T16:00:00Z',
+    endsAt: '2026-11-03T18:00:00Z',
+    excluded: false,
+    issues: [
+      {
+        type: 'RESOURCE_BUSY',
+        blocking: true,
+        staffId: null,
+        resourceId: 'pole-room',
+        eventId: 'pole-class',
+        eventTitle: 'Pole dance',
+        startsAt: '2026-11-03T17:00:00Z',
+        endsAt: '2026-11-03T18:00:00Z',
+      },
+    ],
+  };
+  const fetchMock = stubApi((url, method) =>
+    url === '/api/v1/schedule-events/preview' && method === 'POST'
+      ? json({ occurrences: [conflict], warnings: [], conflictCount: 1 })
+      : undefined,
+  );
+  renderWithProviders(<SchedulePage initialDate="2026-11-03" />);
+  await screen.findByRole('button', { name: 'Pole dance, 18:00–19:00' });
+
+  await userEvent.click(screen.getByRole('button', { name: 'Dodaj wydarzenie' }));
+  const dialog = await screen.findByRole('dialog');
+  await choose(within(dialog).getByRole('combobox', { name: /Rodzaj/ }), 'Blokada');
+  // A block has no service, capacity, visibility or staff.
+  expect(within(dialog).queryByRole('combobox', { name: /Usługa/ })).not.toBeInTheDocument();
+  expect(within(dialog).queryByLabelText(/Limit miejsc/)).not.toBeInTheDocument();
+  expect(within(dialog).queryByRole('combobox', { name: 'Prowadzący' })).not.toBeInTheDocument();
+  expect(within(dialog).queryByRole('combobox', { name: 'Asystenci' })).not.toBeInTheDocument();
+
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Dalej: sprawdź terminy' }));
+  expect(
+    within(dialog).getByText('Wybierz co najmniej jedną salę do zablokowania.'),
+  ).toBeInTheDocument();
+
+  await userEvent.type(within(dialog).getByLabelText(/Tytuł/), 'Serwis klimatyzacji');
+  fireEvent.change(within(dialog).getByLabelText(/Godzina rozpoczęcia/), {
+    target: { value: '17:00' },
+  });
+  fireEvent.change(within(dialog).getByLabelText(/Czas trwania/), { target: { value: '120' } });
+  await choose(within(dialog).getByRole('combobox', { name: 'Sale' }), 'Sala pole dance');
+  // A block always takes its rooms whole.
+  expect(within(dialog).queryByText(/zajmuje całą salę/)).not.toBeInTheDocument();
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Dalej: sprawdź terminy' }));
+
+  expect(
+    await within(dialog).findByText(/Sala pole dance jest zajęta: Pole dance \(18:00–19:00\)/),
+  ).toBeInTheDocument();
+  expect(within(dialog).getByRole('button', { name: 'Zapisz' })).toBeDisabled();
+  expect(requestBody(fetchMock, 'POST', '/api/v1/schedule-events/preview')).toEqual({
+    kind: 'BLOCK',
+    serviceTypeId: null,
+    title: 'Serwis klimatyzacji',
+    capacity: null,
+    visibility: 'PRIVATE',
+    staff: [],
+    resources: [{ resourceId: 'pole-room', blocksWholeRoom: true }],
+    startsAt: '2026-11-03T16:00:00.000Z',
+    endsAt: '2026-11-03T18:00:00.000Z',
+  });
+});
+
+test('plans a recurring block of a room', async () => {
+  const fetchMock = stubApi(
+    (url, method) =>
+      url === '/api/v1/recurrence-series/preview' && method === 'POST'
+        ? json({
+            occurrences: ['2026-11-02', '2026-11-09'].map((date) => ({
+              date,
+              startsAt: `${date}T07:00:00Z`,
+              endsAt: `${date}T08:00:00Z`,
+              excluded: false,
+              issues: [],
+            })),
+            warnings: [],
+            conflictCount: 0,
+          })
+        : undefined,
+    (url, method) =>
+      url === '/api/v1/recurrence-series' && method === 'POST'
+        ? json({ items: [], occurrenceCount: 2 }, 201)
+        : undefined,
+  );
+  renderWithProviders(<SchedulePage initialDate="2026-11-02" />);
+  await screen.findByRole('button', { name: 'Pole dance, 18:00–19:00' });
+
+  await userEvent.click(screen.getByRole('button', { name: 'Dodaj wydarzenie' }));
+  const dialog = await screen.findByRole('dialog');
+  await choose(within(dialog).getByRole('combobox', { name: /Rodzaj/ }), 'Blokada');
+  await userEvent.click(within(dialog).getByRole('radio', { name: 'Cykliczne' }));
+  await userEvent.type(within(dialog).getByLabelText(/Tytuł/), 'Sprzątanie');
+  fireEvent.change(within(dialog).getByLabelText(/Do dnia/), { target: { value: '2026-11-09' } });
+  fireEvent.change(within(dialog).getByLabelText(/Godzina rozpoczęcia/), {
+    target: { value: '08:00' },
+  });
+  await choose(within(dialog).getByRole('combobox', { name: 'Sale' }), 'Sala treningowa');
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Dalej: sprawdź terminy' }));
+
+  await userEvent.click(await within(dialog).findByRole('button', { name: 'Zapisz (2)' }));
+  const expected = {
+    kind: 'BLOCK',
+    serviceTypeId: null,
+    title: 'Sprzątanie',
+    capacity: null,
+    visibility: 'PRIVATE',
+    staff: [],
+    resources: [{ resourceId: 'gym', blocksWholeRoom: true }],
+    weekdays: [1],
+    localStartTime: '08:00',
+    durationMinutes: 60,
+    intervalWeeks: 1,
+    startsOn: '2026-11-02',
+    endsOn: '2026-11-09',
+    excludedDates: [],
+  };
+  await vi.waitFor(() =>
+    expect(requestBody(fetchMock, 'POST', '/api/v1/recurrence-series')).toEqual(expected),
+  );
+  expect(requestBody(fetchMock, 'POST', '/api/v1/recurrence-series/preview')).toEqual(expected);
+});

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:mobile/app/router/app_router.dart';
 import 'package:mobile/core/auth/auth_controller.dart';
 import 'package:mobile/core/auth/auth_state.dart';
 import 'package:mobile/features/schedule/data/schedule_api.dart';
@@ -9,7 +11,8 @@ import 'package:mobile/features/schedule/presentation/widgets/trainer_schedule_f
 import 'package:mobile/features/trainings/presentation/trainer_event_details_screen.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
 
-/// The trainer's own classes and trainings, to plan the working day.
+/// The trainer's own classes and trainings, to plan the working day, with a
+/// button to add a group class.
 class TrainerScheduleScreen extends ConsumerStatefulWidget {
   const TrainerScheduleScreen({super.key});
 
@@ -26,6 +29,11 @@ class _TrainerScheduleScreenState extends ConsumerState<TrainerScheduleScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text(AppLocalizations.of(context).navSchedule)),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => context.push(trainerAddClassPath),
+        icon: const Icon(Icons.add),
+        label: Text(AppLocalizations.of(context).addClassButton),
+      ),
       body: switch (ref.watch(authControllerProvider)) {
         AuthRestoring() || Unauthenticated() => const SizedBox(),
         Authenticated(:final session) => ScheduleCalendar(
