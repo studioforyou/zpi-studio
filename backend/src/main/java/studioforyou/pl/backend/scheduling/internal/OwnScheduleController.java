@@ -14,13 +14,16 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import studioforyou.pl.backend.identity.CurrentAccount;
 import studioforyou.pl.backend.scheduling.internal.ScheduleDtos.ScheduleEventResponse;
 import studioforyou.pl.backend.scheduling.internal.ScheduleQueries.TimetableFilter;
+import studioforyou.pl.backend.shared.api.ApiException;
 import studioforyou.pl.backend.shared.api.ApiProblem;
+import studioforyou.pl.backend.shared.api.ErrorCode;
 import studioforyou.pl.backend.shared.api.ListResponse;
 import studioforyou.pl.backend.staff.StaffProfiles;
 
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -67,6 +70,22 @@ class OwnScheduleController {
 		UUID staffId = this.staffProfiles.getByAccount(CurrentAccount.of(authentication).id()).id();
 		return new ListResponse<>(this.queries.findEvents(new TimetableFilter(from, to, TRAINER_KINDS, null, null,
 				null, List.of(staffId), null, null, null)));
+	}
+
+	@GetMapping("/{eventId}")
+	@Operation(summary = "Get one of my events", operationId = "getOwnScheduleEvent",
+			description = "An event the signed-in trainer runs or assists, including a completed or cancelled one. "
+					+ "Its participants are listed by GET /api/v1/me/schedule-events/{eventId}/participants.")
+	@ApiResponse(responseCode = "200", description = "The event.")
+	@ApiResponse(responseCode = "404", description = "No such event, the trainer does not run or assist it, it is a "
+			+ "block, or the account has no staff profile.", content = @Content(
+					mediaType = "application/problem+json", schema = @Schema(implementation = ApiProblem.class)))
+	ScheduleEventResponse getOwnScheduleEvent(@PathVariable UUID eventId, Authentication authentication) {
+		UUID staffId = this.staffProfiles.getByAccount(CurrentAccount.of(authentication).id()).id();
+		return this.queries.findEvent(eventId)
+			.filter((event) -> TRAINER_KINDS.contains(event.kind()))
+			.filter((event) -> event.staff().stream().anyMatch((staff) -> staff.staffId().equals(staffId)))
+			.orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "Schedule event not found."));
 	}
 
 }

@@ -64,6 +64,17 @@ class ReservationStore {
 			.param("event", eventId).query(UUID.class).list();
 	}
 
+	/** Active reservations of the event, earliest booking first. */
+	List<ActiveReservation> activeReservations(UUID eventId) {
+		return this.jdbc.sql("""
+				SELECT id, customer_id, created_at FROM reservation
+				WHERE event_id = :event AND status = 'ACTIVE' ORDER BY created_at, id
+				""").param("event", eventId)
+			.query((rs, row) -> new ActiveReservation(rs.getObject("id", UUID.class),
+					rs.getObject("customer_id", UUID.class), instant(rs, "created_at")))
+			.list();
+	}
+
 	/** Authorization and the active roster use one statement snapshot of booking-owned rows. */
 	List<UUID> activeParticipantIdsForBookedProfile(UUID profileId, UUID eventId) {
 		return this.jdbc.sql("""
@@ -140,6 +151,9 @@ class ReservationStore {
 	record Reservation(UUID id, UUID eventId, UUID customerId, String status, UUID customerPassId,
 			Instant freeCancelUntil, Instant cancelledAt, String cancelKind, Boolean entryReturned,
 			Boolean cancellationAllowed, Boolean lateCancelAllowed, Boolean lateCancelForfeitsEntry, int version) {
+	}
+
+	record ActiveReservation(UUID id, UUID customerId, Instant bookedAt) {
 	}
 
 }
