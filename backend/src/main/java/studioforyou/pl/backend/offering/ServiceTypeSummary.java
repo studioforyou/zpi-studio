@@ -10,5 +10,5 @@ import java.util.UUID;
  * @param maxParticipants the usual maximum number of participants, or {@code null} for no limit
  */
 public record ServiceTypeSummary(UUID id, String name, boolean active, String category, int defaultDurationMinutes,
-		Integer maxParticipants) {
+		Integer maxParticipants, String calendarColor) {
 }

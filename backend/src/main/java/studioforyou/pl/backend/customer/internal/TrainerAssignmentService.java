@@ -25,12 +25,6 @@ import studioforyou.pl.backend.shared.api.ErrorCode;
 import studioforyou.pl.backend.staff.StaffProfiles;
 import studioforyou.pl.backend.staff.StaffProfiles.StaffMember;
 
-/**
- * Trainers assigned to a participant ({@code staff_assignment}). A participant can have several
- * trainers at once. An administrator assigns any trainer; a trainer assigns participants to
- * themselves. Ending an assignment keeps it as history instead of deleting it. For now
- * every assignment has the default scope, {@code PERSONAL_TRAINING}, and no access to health data.
- */
 @Service
 @Transactional
 public class TrainerAssignmentService {
@@ -78,7 +72,8 @@ public class TrainerAssignmentService {
 	@Transactional(readOnly = true)
 	public AssignedTrainer get(UUID customerId, UUID staffId) {
 		requireCustomer(customerId);
-		AssignmentRow row = findActive(customerId, staffId).orElseThrow(TrainerAssignmentService::notAssigned);
+		AssignmentRow row = findActive(customerId, staffId)
+			.orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "The trainer is not assigned to the participant."));
 		return row.toTrainer(staff.findAllById(List.of(staffId)).getFirst());
 	}
 
@@ -96,11 +91,39 @@ public class TrainerAssignmentService {
 	 */
 	public AssignedTrainer assign(UUID customerId, UUID staffId, UUID actorAccountId) {
 		ProfileDetails customer = requireCustomer(customerId);
+		if (!customer.active()) {
+			throw new ApiException(ErrorCode.CUSTOMER_NOT_ACTIVE, "The participant's profile is not active.");
+		}
 		StaffMember member = staff.findAllById(List.of(staffId))
 			.stream()
+			.filter(StaffMember::active)
 			.findFirst()
-			.orElseThrow(TrainerAssignmentService::staffUnavailable);
-		return insert(customer, member, actorAccountId).toTrainer(member);
+			.orElseThrow(() -> new ApiException(ErrorCode.STAFF_UNAVAILABLE,
+					"The staff member does not exist or is not active."));
+		if (onlyTrainers(List.of(member)).isEmpty()) {
+			throw new ApiException(ErrorCode.STAFF_NOT_TRAINER, "Only a trainer can be assigned to a participant.");
+		}
+		if (findActive(customerId, staffId).isPresent()) {
+			throw alreadyAssigned();
+		}
+		try {
+			AssignmentRow row = jdbc.sql("""
+					INSERT INTO staff_assignment (customer_id, staff_id, scope, assigned_by)
+					VALUES (:customerId, :staffId, :scope, :assignedBy)
+					RETURNING staff_id, assigned_by, started_at
+					""")
+				.param("customerId", customerId)
+				.param("staffId", staffId)
+				.param("scope", SCOPE)
+				.param("assignedBy", actorAccountId)
+				.query(AssignmentRow.class)
+				.single();
+			return row.toTrainer(member);
+		}
+		catch (DuplicateKeyException ex) {
+			// The same trainer was assigned by another request at the same moment.
+			throw alreadyAssigned();
+		}
 	}
 
 	/**
@@ -285,3 +308,4 @@ public class TrainerAssignmentService {
 	}
 
 }
+
