@@ -1,3 +1,9 @@
+function passEntryCount(count: number): string {
+  const plural = new Intl.PluralRules('pl').select(count);
+  const unit = plural === 'one' ? 'wejście' : plural === 'few' ? 'wejścia' : 'wejść';
+  return `${count} ${unit}`;
+}
+
 export const pl = {
   appName: 'studio4U',
   panelName: 'Panel administratora',
@@ -448,32 +454,32 @@ export const pl = {
       remaining > total ? `${remaining} (pierwotnie ${total})` : `${remaining} z ${total}`,
     correction: {
       title: 'Koryguj wejścia',
-      direction: 'Rodzaj korekty',
-      add: 'Dodaj wejścia',
-      subtract: 'Odejmij wejścia',
-      amount: 'Liczba wejść',
-      currentBalance: (remaining: number | null) =>
-        remaining === null ? 'Karnet bez limitu wejść.' : `Obecne saldo: ${remaining}`,
-      resultingBalance: (remaining: number) => `Saldo po korekcie: ${remaining}`,
+      newBalance: 'Nowa liczba pozostałych wejść',
+      balanceHint: 'Wpisz liczbę wejść, które mają pozostać w karnecie.',
+      summary: 'Podsumowanie korekty',
+      before: 'Obecnie',
+      after: 'Po korekcie',
+      difference: (delta: number) => `${delta > 0 ? '+' : '−'}${passEntryCount(Math.abs(delta))}`,
+      noChange: 'Bez zmian',
       reason: 'Powód (opcjonalnie)',
       reasonPlaceholder: 'np. Zwrot błędnie odjętego wejścia',
       historyNote: 'Korekta zostanie zapisana z datą, autorem i podanym powodem.',
-      invalidAmount: 'Podaj całkowitą liczbę wejść od 1 do 32767.',
-      invalidBalance: 'Saldo po korekcie musi mieścić się w przedziale od 0 do 32767.',
+      invalidBalance: 'Podaj całkowitą liczbę pozostałych wejść od 0 do 32767.',
       unlimited: 'Karnet bez limitu nie wymaga korekty liczby wejść.',
       save: 'Potwierdź korektę',
       cancel: 'Anuluj',
-      refresh: 'Odśwież saldo',
-      refreshed: 'Saldo zostało odświeżone. Sprawdź je i wpisz zamierzoną korektę ponownie.',
+      refresh: 'Odśwież liczbę wejść',
+      refreshed: 'Liczba wejść została odświeżona. Sprawdź ją i wpisz docelową wartość ponownie.',
       errors: {
-        conflict: 'Karnet zmienił się od otwarcia formularza. Odśwież saldo przed kolejną korektą.',
+        conflict:
+          'Karnet zmienił się od otwarcia formularza. Odśwież liczbę wejść przed kolejną korektą.',
         uncertain:
-          'Nie udało się potwierdzić zapisu. Korekta mogła zostać zapisana. Odśwież saldo i sprawdź je przed kolejną korektą.',
+          'Nie udało się potwierdzić zapisu. Korekta mogła zostać zapisana. Odśwież liczbę wejść i sprawdź ją przed kolejną korektą.',
         validation:
-          'Nie można wykonać tej korekty. Sprawdź liczbę wejść i saldo; uwzględnij też wejścia, które mogą wrócić z rezerwacji.',
+          'Nie można wykonać tej korekty. Sprawdź liczbę wejść; uwzględnij też wejścia, które mogą wrócić z rezerwacji.',
         notFound: 'Nie znaleziono karnetu tego uczestnika. Zamknij formularz i odśwież listę.',
         accessDenied: 'Nie masz uprawnień do korygowania wejść.',
-        refresh: 'Nie udało się odświeżyć salda. Spróbuj odświeżyć je ponownie.',
+        refresh: 'Nie udało się odświeżyć liczby wejść. Spróbuj ponownie.',
         unknown: 'Nie udało się zapisać korekty. Sprawdź dane i spróbuj ponownie.',
       },
     },

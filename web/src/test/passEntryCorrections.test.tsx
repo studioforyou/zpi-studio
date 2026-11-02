@@ -83,18 +83,24 @@ async function openCorrection() {
   return screen.findByRole('dialog');
 }
 
-async function enterAmount(dialog: HTMLElement, value: string) {
-  const input = within(dialog).getByLabelText(/^Liczba wejść/);
+async function enterBalance(dialog: HTMLElement, value: string) {
+  const input = within(dialog).getByLabelText(/^Nowa liczba pozostałych wejść/);
   await userEvent.clear(input);
   await userEvent.type(input, value);
 }
 
-test('previews and adds entries, records the optional reason and refreshes the selected participant', async () => {
+test('sets a target balance, calculates the increase and records the optional reason', async () => {
   const { post } = api();
   const dialog = await openCorrection();
-  expect(within(dialog).getByText('Obecne saldo: 5')).toBeInTheDocument();
-  await enterAmount(dialog, '10');
-  expect(within(dialog).getByText('Saldo po korekcie: 15')).toBeInTheDocument();
+  const summary = within(dialog).getByRole('group', { name: 'Podsumowanie korekty' });
+  expect(within(summary).getByText('Obecnie')).toBeInTheDocument();
+  expect(within(summary).getByText('5')).toBeInTheDocument();
+  expect(within(dialog).queryByText('Dodaj wejścia')).not.toBeInTheDocument();
+  expect(within(dialog).queryByText('Odejmij wejścia')).not.toBeInTheDocument();
+  await enterBalance(dialog, '15');
+  expect(within(summary).getByText('Po korekcie')).toBeInTheDocument();
+  expect(within(summary).getByText('15')).toBeInTheDocument();
+  expect(within(summary).getByRole('status')).toHaveTextContent('+10 wejść');
   await userEvent.type(
     within(dialog).getByLabelText('Powód (opcjonalnie)'),
     '  Uzgodniona korekta  ',
@@ -108,36 +114,55 @@ test('previews and adds entries, records the optional reason and refreshes the s
   expect(screen.getByText('15 (pierwotnie 8)')).toBeInTheDocument();
 });
 
-test('subtracts entries and sends null when no reason is entered', async () => {
+test('calculates a decrease from the target balance and sends null without a reason', async () => {
   const { post } = api();
   const dialog = await openCorrection();
-  await userEvent.click(within(dialog).getByText('Odejmij wejścia'));
-  await enterAmount(dialog, '2');
-  expect(within(dialog).getByText('Saldo po korekcie: 3')).toBeInTheDocument();
+  await enterBalance(dialog, '3');
+  expect(within(dialog).getByRole('status')).toHaveTextContent('−2 wejścia');
   await userEvent.click(within(dialog).getByRole('button', { name: 'Potwierdź korektę' }));
   await vi.waitFor(() => expect(post).toHaveBeenCalledOnce());
   expect(post.mock.calls[0][1]).toEqual({ entriesDelta: -2, reason: null, version: 0 });
 });
 
-test('does not submit zero, negative resulting balances or values outside storage limits', async () => {
+test('rejects an empty or excessive balance and does not submit an unchanged balance', async () => {
   const { post } = api();
   const dialog = await openCorrection();
   const save = within(dialog).getByRole('button', { name: 'Potwierdź korektę' });
-  await enterAmount(dialog, '0');
   await userEvent.click(save);
   expect(
-    within(dialog).getByText('Podaj całkowitą liczbę wejść od 1 do 32767.'),
+    within(dialog).getByText('Podaj całkowitą liczbę pozostałych wejść od 0 do 32767.'),
   ).toBeInTheDocument();
-  await userEvent.click(within(dialog).getByText('Odejmij wejścia'));
-  await enterAmount(dialog, '6');
+  await enterBalance(dialog, '5');
+  expect(save).toBeDisabled();
+  expect(within(dialog).getByRole('status')).toHaveTextContent('Bez zmian');
+  await enterBalance(dialog, '32768');
   await userEvent.click(save);
   expect(
-    within(dialog).getByText('Saldo po korekcie musi mieścić się w przedziale od 0 do 32767.'),
+    within(dialog).getByText('Podaj całkowitą liczbę pozostałych wejść od 0 do 32767.'),
   ).toBeInTheDocument();
-  await userEvent.click(within(dialog).getByText('Dodaj wejścia'));
-  await enterAmount(dialog, '32767');
-  await userEvent.click(save);
   expect(post).not.toHaveBeenCalled();
+});
+
+test('allows setting the remaining balance to zero', async () => {
+  const { post } = api();
+  const dialog = await openCorrection();
+  await enterBalance(dialog, '0');
+  expect(within(dialog).getByRole('status')).toHaveTextContent('−5 wejść');
+  expect(within(dialog).getByRole('group', { name: 'Podsumowanie korekty' })).toHaveTextContent(
+    '0',
+  );
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Potwierdź korektę' }));
+  await vi.waitFor(() => expect(post).toHaveBeenCalledOnce());
+  expect(post.mock.calls[0][1]).toEqual({ entriesDelta: -5, reason: null, version: 0 });
+});
+
+test('allows the maximum target balance without adding it to the existing balance', async () => {
+  const { post } = api();
+  const dialog = await openCorrection();
+  await enterBalance(dialog, '32767');
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Potwierdź korektę' }));
+  await vi.waitFor(() => expect(post).toHaveBeenCalledOnce());
+  expect(post.mock.calls[0][1]).toEqual({ entriesDelta: 32762, reason: null, version: 0 });
 });
 
 test('does not offer an entry correction for unlimited passes', async () => {
@@ -154,19 +179,23 @@ test('requires a fresh balance and a new deliberate correction after a version c
     return json({ code: 'VERSION_CONFLICT', status: 409 }, 409);
   });
   const dialog = await openCorrection();
-  await enterAmount(dialog, '2');
+  await enterBalance(dialog, '7');
   await userEvent.click(within(dialog).getByRole('button', { name: 'Potwierdź korektę' }));
-  const refresh = await within(dialog).findByRole('button', { name: 'Odśwież saldo' });
+  const refresh = await within(dialog).findByRole('button', { name: 'Odśwież liczbę wejść' });
   expect(mocked.post).toHaveBeenCalledOnce();
   expect(
     within(dialog).queryByRole('button', { name: 'Potwierdź korektę' }),
   ).not.toBeInTheDocument();
   await userEvent.click(refresh);
-  expect(await within(dialog).findByText('Obecne saldo: 4')).toBeInTheDocument();
-  expect(within(dialog).getByLabelText(/^Liczba wejść/)).toHaveValue('');
+  await vi.waitFor(() =>
+    expect(
+      within(within(dialog).getByRole('group', { name: 'Podsumowanie korekty' })).getByText('4'),
+    ).toBeInTheDocument(),
+  );
+  expect(within(dialog).getByLabelText(/^Nowa liczba pozostałych wejść/)).toHaveValue('');
   await userEvent.click(within(dialog).getByRole('button', { name: 'Potwierdź korektę' }));
   expect(mocked.post).toHaveBeenCalledOnce();
-  await enterAmount(dialog, '1');
+  await enterBalance(dialog, '5');
   await userEvent.click(within(dialog).getByRole('button', { name: 'Potwierdź korektę' }));
   await vi.waitFor(() => expect(mocked.post).toHaveBeenCalledTimes(2));
   expect(mocked.post.mock.calls[1][1]).toEqual({ entriesDelta: 1, reason: null, version: 1 });
@@ -179,12 +208,16 @@ test('does not repeat a request whose response was lost and lets the administrat
     throw new TypeError('connection lost after commit');
   });
   const dialog = await openCorrection();
-  await enterAmount(dialog, '2');
+  await enterBalance(dialog, '7');
   await userEvent.click(within(dialog).getByRole('button', { name: 'Potwierdź korektę' }));
   expect(await within(dialog).findByText(/Korekta mogła zostać zapisana/)).toBeInTheDocument();
   expect(mocked.post).toHaveBeenCalledOnce();
-  await userEvent.click(within(dialog).getByRole('button', { name: 'Odśwież saldo' }));
-  expect(await within(dialog).findByText('Obecne saldo: 7')).toBeInTheDocument();
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Odśwież liczbę wejść' }));
+  await vi.waitFor(() =>
+    expect(
+      within(within(dialog).getByRole('group', { name: 'Podsumowanie korekty' })).getByText('7'),
+    ).toBeInTheDocument(),
+  );
   expect(mocked.post).toHaveBeenCalledOnce();
 });
 
@@ -198,7 +231,7 @@ test('blocks duplicate confirmation and closing while a correction is being save
       }),
   );
   const dialog = await openCorrection();
-  await enterAmount(dialog, '2');
+  await enterBalance(dialog, '7');
   await userEvent.dblClick(within(dialog).getByRole('button', { name: 'Potwierdź korektę' }));
   expect(mocked.post).toHaveBeenCalledOnce();
   expect(within(dialog).getByRole('button', { name: 'Anuluj' })).toBeDisabled();
@@ -221,7 +254,7 @@ test('a late result stays bound to its original participant after the view switc
     <CorrectPassEntriesModal key={customer.id} customer={customer} pass={pass} onClose={closed} />,
   );
   const dialog = await screen.findByRole('dialog');
-  await enterAmount(dialog, '2');
+  await enterBalance(dialog, '7');
   fireEvent.click(within(dialog).getByRole('button', { name: 'Potwierdź korektę' }));
   await vi.waitFor(() => expect(mocked.post).toHaveBeenCalledOnce());
   view.unmount();

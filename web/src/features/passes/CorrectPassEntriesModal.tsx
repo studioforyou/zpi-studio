@@ -5,7 +5,7 @@ import {
   Group,
   Modal,
   NumberInput,
-  SegmentedControl,
+  Paper,
   Stack,
   Text,
   Textarea,
@@ -53,8 +53,7 @@ function correctionError(error: unknown): string {
 export function CorrectPassEntriesModal({ customer, pass, onClose }: Props) {
   const queryClient = useQueryClient();
   const [basis, setBasis] = useState(pass);
-  const [direction, setDirection] = useState('add');
-  const [amount, setAmount] = useState<number | string>('');
+  const [newBalance, setNewBalance] = useState<number | string>('');
   const [reason, setReason] = useState('');
   const [submitted, setSubmitted] = useState(false);
   const [refreshed, setRefreshed] = useState(false);
@@ -74,7 +73,7 @@ export function CorrectPassEntriesModal({ customer, pass, onClose }: Props) {
     retry: false,
     onSuccess: async (updated) => {
       setBasis(updated);
-      setAmount('');
+      setNewBalance('');
       setSubmitted(false);
       setRefreshed(true);
       correction.reset();
@@ -82,18 +81,25 @@ export function CorrectPassEntriesModal({ customer, pass, onClose }: Props) {
     },
   });
 
-  const delta = typeof amount === 'number' ? (direction === 'add' ? amount : -amount) : null;
-  const resulting =
-    basis.entriesRemaining === null || delta === null ? null : basis.entriesRemaining + delta;
-  const invalidAmount =
-    typeof amount !== 'number' || !Number.isInteger(amount) || amount < 1 || amount > 32767;
-  const invalidBalance = resulting === null || resulting < 0 || resulting > 32767;
+  const delta =
+    typeof newBalance === 'number' && basis.entriesRemaining !== null
+      ? newBalance - basis.entriesRemaining
+      : null;
+  const invalidBalance =
+    typeof newBalance !== 'number' ||
+    !Number.isInteger(newBalance) ||
+    newBalance < 0 ||
+    newBalance > 32767;
+  const unchanged = delta === 0;
+  const previewBalance = !invalidBalance && typeof newBalance === 'number' ? newBalance : null;
+  const changeTone =
+    delta !== null && delta > 0 ? 'green' : delta !== null && delta < 0 ? 'red' : 'gray';
   const mustRefresh = correction.isError && needsRefresh(correction.error);
   const pending = correction.isPending || refresh.isPending;
 
   function submit() {
     setSubmitted(true);
-    if (pending || mustRefresh || invalidAmount || invalidBalance || delta === null) return;
+    if (pending || mustRefresh || invalidBalance || unchanged || delta === null) return;
     setRefreshed(false);
     correction.mutate({
       entriesDelta: delta,
@@ -113,41 +119,75 @@ export function CorrectPassEntriesModal({ customer, pass, onClose }: Props) {
       withCloseButton={!pending}
     >
       <Stack>
-        <Text fw={600}>{customer.displayName}</Text>
-        <Text>{basis.productName}</Text>
-        <Text>{text.currentBalance(basis.entriesRemaining)}</Text>
-        <SegmentedControl
-          aria-label={text.direction}
-          value={direction}
-          onChange={setDirection}
-          disabled={pending || mustRefresh}
-          data={[
-            { value: 'add', label: text.add },
-            { value: 'subtract', label: text.subtract },
-          ]}
-        />
+        <Stack gap={2}>
+          <Text fw={600}>{customer.displayName}</Text>
+          <Text size="sm" c="dimmed">
+            {basis.productName}
+          </Text>
+        </Stack>
         <NumberInput
-          label={text.amount}
+          label={text.newBalance}
+          description={text.balanceHint}
           required
-          value={amount}
-          onChange={setAmount}
+          value={newBalance}
+          onChange={setNewBalance}
           allowDecimal={false}
           allowNegative={false}
-          min={1}
+          min={0}
           max={32767}
           clampBehavior="none"
           disabled={pending || mustRefresh || basis.entriesRemaining === null}
-          error={
-            submitted && invalidAmount
-              ? text.invalidAmount
-              : !invalidAmount && invalidBalance
-                ? text.invalidBalance
-                : undefined
-          }
+          error={submitted && invalidBalance ? text.invalidBalance : undefined}
         />
-        {!invalidAmount && !invalidBalance && (
-          <Text fw={600}>{text.resultingBalance(resulting!)}</Text>
-        )}
+        <Paper withBorder radius="md" p="md" bg="gray.0" role="group" aria-label={text.summary}>
+          <Group justify="space-between" gap="sm">
+            <Group gap="md" wrap="nowrap">
+              <Stack gap={2}>
+                <Text size="xs" c="dimmed">
+                  {text.before}
+                </Text>
+                <Text size="xl" fw={700} lh={1.3}>
+                  {basis.entriesRemaining ?? '—'}
+                </Text>
+              </Stack>
+              <Text c="dimmed" aria-hidden="true">
+                →
+              </Text>
+              <Stack gap={2}>
+                <Text size="xs" c="dimmed">
+                  {text.after}
+                </Text>
+                <Text
+                  size="xl"
+                  fw={700}
+                  lh={1.3}
+                  c={previewBalance === null ? 'dimmed' : undefined}
+                >
+                  {previewBalance ?? '—'}
+                </Text>
+              </Stack>
+            </Group>
+            {previewBalance !== null && delta !== null && (
+              <Text
+                component="span"
+                px="sm"
+                py={6}
+                size="sm"
+                fw={600}
+                style={{
+                  backgroundColor: `var(--mantine-color-${changeTone}-0)`,
+                  color: `var(--mantine-color-${changeTone}-9)`,
+                  borderRadius: 'var(--mantine-radius-sm)',
+                  whiteSpace: 'nowrap',
+                }}
+                role="status"
+                aria-live="polite"
+              >
+                {unchanged ? text.noChange : text.difference(delta)}
+              </Text>
+            )}
+          </Group>
+        </Paper>
         <Textarea
           label={text.reason}
           placeholder={text.reasonPlaceholder}
@@ -176,7 +216,7 @@ export function CorrectPassEntriesModal({ customer, pass, onClose }: Props) {
             <Button
               onClick={submit}
               loading={correction.isPending}
-              disabled={refresh.isPending || basis.entriesRemaining === null}
+              disabled={refresh.isPending || basis.entriesRemaining === null || unchanged}
             >
               {text.save}
             </Button>

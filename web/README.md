@@ -105,8 +105,11 @@ backend found; dates of a recurring event can be left out before saving. An even
 ## Participant pass corrections
 
 In **Karnety → Karnety uczestników**, select a participant and choose **Koryguj wejścia**
-next to a pass with a finite entry count. Add or subtract entries, optionally give a reason,
-and check the resulting balance before confirming. Each correction is recorded with its
+next to a pass with a finite entry count. Enter the intended remaining balance in one field,
+optionally give a reason, and compare the current and intended counts before confirming. A green
+or red badge shows the signed difference; an unchanged count is neutral and cannot be submitted. The panel
+calculates the signed adjustment from the displayed current balance; setting it to zero is
+allowed, while leaving it unchanged does not create a correction. Each correction is recorded with its
 author, time and reason in the pass ledger. The original entry allowance and validity stay
 unchanged; a correction can increase the balance beyond the original allowance.
 
