@@ -51,6 +51,11 @@ export type ScheduleEvent = {
   seriesId: string | null;
   /** The occurrence differs from its series' rule. */
   isSeriesException: boolean;
+  /**
+   * The start the series' rule gives the occurrence; differs from `startsAt` when this one
+   * occurrence was moved. `null` for a one-off event.
+   */
+  originalStartsAt: string | null;
   trainingGroupId: string | null;
   startsAt: string;
   endsAt: string;
@@ -192,6 +197,19 @@ export type AssignmentsChange = {
   resources: ResourceAssignment[];
 };
 
+/** The new time, title, capacity, staff and rooms of one event (or one occurrence of a series). */
+export type EventChange = {
+  version: number;
+  startsAt: string;
+  endsAt: string;
+  /** `null` = the service type's name. */
+  title: string | null;
+  /** `null` = no limit. */
+  capacity: number | null;
+  staff: StaffAssignment[];
+  resources: ResourceAssignment[];
+};
+
 type ListResponse<T> = { items: T[] };
 
 export const scheduleKeys = {
@@ -240,6 +258,30 @@ export function changeEventAssignments(
   return apiFetch<ScheduleEvent>(`/api/v1/schedule-events/${eventId}/assignments`, {
     method: 'PUT',
     body: change,
+  });
+}
+
+/** Changes this event only; an occurrence of a series becomes an exception to the series. */
+export function changeScheduleEvent(eventId: string, change: EventChange): Promise<ScheduleEvent> {
+  return apiFetch<ScheduleEvent>(`/api/v1/schedule-events/${eventId}`, {
+    method: 'PUT',
+    body: change,
+  });
+}
+
+/** The conflicts and warnings of a change, without saving it. */
+export function previewEventChange(eventId: string, change: EventChange): Promise<PlanPreview> {
+  return apiFetch<PlanPreview>(`/api/v1/schedule-events/${eventId}/change-preview`, {
+    method: 'POST',
+    body: change,
+  });
+}
+
+/** Brings a changed occurrence back to its series' time, title, capacity, staff and rooms. */
+export function restoreEventSeries(eventId: string, version: number): Promise<ScheduleEvent> {
+  return apiFetch<ScheduleEvent>(`/api/v1/schedule-events/${eventId}/restore-series`, {
+    method: 'POST',
+    body: { version },
   });
 }
 

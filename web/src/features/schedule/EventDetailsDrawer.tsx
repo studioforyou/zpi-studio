@@ -1,11 +1,22 @@
-import type { ReactNode } from 'react';
-import { Alert, Badge, Button, Divider, Drawer, Group, Stack, Text } from '@mantine/core';
-import { useQuery } from '@tanstack/react-query';
+import { useState, type ReactNode } from 'react';
+import { Alert, Badge, Button, Divider, Drawer, Group, Modal, Stack, Text } from '@mantine/core';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { pl } from '@/shared/i18n/pl';
 import { EventAttendanceSection } from './EventAttendanceSection';
 import { EventReservationsSection } from './EventReservationsSection';
-import { getRecurrenceSeries, scheduleKeys, type ScheduleEvent } from './scheduleApi';
-import { eventTitle, formatTimeRange } from './scheduleFormat';
+import {
+  getRecurrenceSeries,
+  plannableKinds,
+  restoreEventSeries,
+  scheduleKeys,
+  type ScheduleEvent,
+} from './scheduleApi';
+import {
+  eventTitle,
+  formatDateTime,
+  formatTimeRange,
+  scheduleErrorMessage,
+} from './scheduleFormat';
 import { formatDate, formatDayLong, toZoned } from './studioTime';
 import type { ScheduleLookups } from './useScheduleLookups';
 
@@ -15,7 +26,22 @@ type EventDetailsDrawerProps = {
   lookups: ScheduleLookups;
   onClose: () => void;
   onEditAssignments: (event: ScheduleEvent) => void;
+  /** Opens the change of this one event, e.g. a single occurrence of a series. */
+  onEditOccurrence: (event: ScheduleEvent) => void;
 };
+
+function hasStarted(event: ScheduleEvent): boolean {
+  return new Date(event.startsAt).getTime() <= Date.now();
+}
+
+/** Whether the time, name and capacity of the event can be changed in the panel. */
+function isChangeable(event: ScheduleEvent): boolean {
+  return (
+    event.status === 'SCHEDULED' &&
+    (plannableKinds as readonly string[]).includes(event.kind) &&
+    !hasStarted(event)
+  );
+}
 
 const statusColors = { SCHEDULED: 'blue', COMPLETED: 'green', CANCELLED: 'gray' } as const;
 
@@ -37,8 +63,22 @@ export function EventDetailsDrawer({
   lookups,
   onClose,
   onEditAssignments,
+  onEditOccurrence,
 }: EventDetailsDrawerProps) {
   const texts = pl.schedule;
+  const queryClient = useQueryClient();
+  const [confirmRestore, setConfirmRestore] = useState(false);
+  const restore = useMutation({
+    mutationFn: (target: ScheduleEvent) => restoreEventSeries(target.id, target.version),
+    onSuccess: async () => {
+      setConfirmRestore(false);
+      await queryClient.invalidateQueries({ queryKey: scheduleKeys.all });
+    },
+  });
+  const moved =
+    event?.originalStartsAt && event.originalStartsAt !== event.startsAt
+      ? event.originalStartsAt
+      : null;
   const seriesId = event?.seriesId ?? null;
   const series = useQuery({
     queryKey: scheduleKeys.series(seriesId ?? ''),
@@ -74,6 +114,13 @@ export function EventDetailsDrawer({
             <Text>{formatDayLong(toZoned(event.startsAt, lookups.timeZone).date)}</Text>
             <Text>{formatTimeRange(event.startsAt, event.endsAt, lookups.timeZone)}</Text>
           </Detail>
+          {moved && (
+            <Detail label={texts.details.originalTime}>
+              <Text c="grape.7" td="line-through">
+                {formatDateTime(moved, lookups.timeZone)}
+              </Text>
+            </Detail>
+          )}
           {event.serviceTypeName && (
             <Detail label={texts.details.service}>
               <Text>{event.serviceTypeName}</Text>
@@ -158,13 +205,66 @@ export function EventDetailsDrawer({
           )}
           <Divider />
           {event.status === 'SCHEDULED' ? (
-            <Button onClick={() => onEditAssignments(event)}>
-              {texts.details.editAssignments}
-            </Button>
+            <Stack gap="xs">
+              {isChangeable(event) && (
+                <Button onClick={() => onEditOccurrence(event)}>
+                  {event.seriesId ? texts.details.editOccurrence : texts.details.editEvent}
+                </Button>
+              )}
+              <Button
+                variant={isChangeable(event) ? 'light' : 'filled'}
+                onClick={() => onEditAssignments(event)}
+              >
+                {texts.details.editAssignments}
+              </Button>
+              {isChangeable(event) && event.isSeriesException && (
+                <Button variant="subtle" color="grape" onClick={() => setConfirmRestore(true)}>
+                  {texts.details.restoreSeries}
+                </Button>
+              )}
+              {hasStarted(event) && (
+                <Text size="xs" c="dimmed">
+                  {texts.details.started}
+                </Text>
+              )}
+              {restore.isError && !confirmRestore && (
+                <Alert color="red">{scheduleErrorMessage(restore.error)}</Alert>
+              )}
+            </Stack>
           ) : (
             <Alert color="gray">{texts.details.notEditable}</Alert>
           )}
         </Stack>
+      )}
+      {event && confirmRestore && (
+        <Modal
+          opened
+          onClose={() => setConfirmRestore(false)}
+          title={texts.restore.title}
+          size="sm"
+          zIndex={400}
+        >
+          <Stack>
+            <Text size="sm">
+              {texts.restore.body(
+                formatDateTime(event.originalStartsAt ?? event.startsAt, lookups.timeZone),
+              )}
+            </Text>
+            {restore.isError && <Alert color="red">{scheduleErrorMessage(restore.error)}</Alert>}
+            <Group justify="flex-end">
+              <Button variant="default" onClick={() => setConfirmRestore(false)}>
+                {texts.restore.cancel}
+              </Button>
+              <Button
+                color="grape"
+                loading={restore.isPending}
+                onClick={() => restore.mutate(event)}
+              >
+                {texts.restore.confirm}
+              </Button>
+            </Group>
+          </Stack>
+        </Modal>
       )}
     </Drawer>
   );
