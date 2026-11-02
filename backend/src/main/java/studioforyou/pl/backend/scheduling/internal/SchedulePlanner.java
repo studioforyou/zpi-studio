@@ -106,13 +106,13 @@ class SchedulePlanner {
 	PlanPreviewResponse previewEvent(CreateEventRequest request) {
 		ZoneId zone = this.studio.zone();
 		Details details = details(request.details());
-		return preview(details, List.of(occurrence(request, zone)), zone);
+		return preview(details, List.of(occurrence(request.startsAt(), request.endsAt(), zone)), zone);
 	}
 
 	ScheduleEventResponse createEvent(CreateEventRequest request, UUID actorAccountId) {
 		ZoneId zone = this.studio.zone();
 		Details details = details(request.details());
-		Occurrence occurrence = occurrence(request, zone);
+		Occurrence occurrence = occurrence(request.startsAt(), request.endsAt(), zone);
 		lockAndRejectConflicts(List.of(occurrence), details.assignments(), zone, Set.of());
 
 		ScheduleEvent event = newEvent(details, null, occurrence, actorAccountId);
@@ -134,6 +134,14 @@ class SchedulePlanner {
 		List<Occurrence> planned = occurrences(request, zone).stream().filter((o) -> !o.excluded()).toList();
 		lockAndRejectConflicts(planned, details.assignments(), zone, Set.of());
 
+		if (details.kind() == EventKind.BLOCK) {
+			// A series needs a service type, so each occurrence of recurring blocks is a one-off block.
+			for (Occurrence occurrence : planned) {
+				this.events.save(newEvent(details, null, occurrence, actorAccountId));
+			}
+			this.events.flush();
+			return new SeriesPlanResponse(List.of(), planned.size());
+		}
 		int intervalWeeks = intervalWeeks(request);
 		Map<Integer, List<Occurrence>> byWeekday = planned.stream()
 			.collect(Collectors.groupingBy((o) -> o.date().getDayOfWeek().getValue(), LinkedHashMap::new,
@@ -141,7 +149,7 @@ class SchedulePlanner {
 		List<SeriesResponse> created = new ArrayList<>();
 		byWeekday.entrySet().stream().sorted(Map.Entry.comparingByKey()).forEach((entry) -> {
 			List<Occurrence> occurrences = entry.getValue();
-			RecurrenceSeries series = new RecurrenceSeries(details.serviceType().id(), details.title(), entry.getKey(),
+			RecurrenceSeries series = new RecurrenceSeries(details.serviceTypeId(),details.title(), entry.getKey(),
 					request.localStartTime(), request.durationMinutes(), intervalWeeks, occurrences.get(0).date(),
 					request.endsOn(), details.capacity(), actorAccountId);
 			series.setDefaults(details.assignments().leadStaffId(), details.assignments().mainResourceId());
@@ -182,8 +190,10 @@ class SchedulePlanner {
 				event.getStartsAt(), EventStatus.SCHEDULED) : List.of(event);
 
 		Short capacity = event.getCapacity();
+		List<ResourceAssignmentRequest> resources = (event.getKind() == EventKind.BLOCK)
+				? blockRooms(request.staff(), request.resources()) : request.resources();
 		Assignments assignments = assignments(event.getServiceTypeId(), (capacity != null) ? capacity.intValue() : null,
-				request.staff(), request.resources(), event);
+				request.staff(), resources, event);
 		ZoneId zone = this.studio.zone();
 		List<Occurrence> occurrences = targets.stream()
 			.map((target) -> new Occurrence(LocalDate.ofInstant(target.getStartsAt(), zone), target.getStartsAt(),
@@ -217,7 +227,7 @@ class SchedulePlanner {
 			.filter((preview) -> !preview.excluded() && preview.hasBlockingIssue())
 			.count();
 		return new PlanPreviewResponse(previews,
-				this.conflicts.warnings(details.serviceType().id(), details.assignments()), conflictCount);
+				this.conflicts.warnings(details.serviceTypeId(), details.assignments()), conflictCount);
 	}
 
 	/**
@@ -251,7 +261,7 @@ class SchedulePlanner {
 
 	private ScheduleEvent newEvent(Details details, @Nullable UUID seriesId, Occurrence occurrence,
 			UUID actorAccountId) {
-		ScheduleEvent event = new ScheduleEvent(details.kind(), details.serviceType().id(), seriesId, details.title(),
+		ScheduleEvent event = new ScheduleEvent(details.kind(), details.serviceTypeId(), seriesId, details.title(),
 				details.capacity(), details.visibility(), occurrence.startsAt(), occurrence.endsAt(), actorAccountId);
 		event.replaceAssignments(details.assignments().staff(), details.assignments().resources());
 		return event;
@@ -263,7 +273,13 @@ class SchedulePlanner {
 	private Details details(EventDetailsRequest request) {
 		if (!EventKind.PLANNABLE.contains(request.kind())) {
 			throw ApiException.invalidField("kind", FieldErrorCode.INVALID_VALUE,
-					"Only CLASS, PERSONAL_TRAINING and WORKSHOP events can be planned here.");
+					"Only CLASS, PERSONAL_TRAINING, WORKSHOP and BLOCK events can be planned here.");
+		}
+		if (request.kind() == EventKind.BLOCK) {
+			return blockDetails(request);
+		}
+		if (request.serviceTypeId() == null) {
+			throw ApiException.invalidField("serviceTypeId", FieldErrorCode.REQUIRED, "The service type is required.");
 		}
 		ServiceTypeSummary serviceType = this.serviceTypes.findById(request.serviceTypeId())
 			.filter(ServiceTypeSummary::active)
@@ -293,6 +309,34 @@ class SchedulePlanner {
 		}
 		return new Details(request.kind(), serviceType, title, (capacity != null) ? capacity.shortValue() : null,
 				visibility, assignments);
+	}
+
+	/**
+	 * A block, e.g. a maintenance: a private event without a service type, capacity or staff that
+	 * takes its rooms whole, so it conflicts with every other event in them.
+	 */
+	private Details blockDetails(EventDetailsRequest request) {
+		if (request.title() == null || request.title().isBlank()) {
+			throw ApiException.invalidField("title", FieldErrorCode.REQUIRED, "A block needs a title.");
+		}
+		Assignments assignments = assignments(null, null, List.of(), blockRooms(request.staff(), request.resources()),
+				null);
+		return new Details(EventKind.BLOCK, null, request.title().strip(), null, EventVisibility.PRIVATE,
+				assignments);
+	}
+
+	/** The rooms of a block, all taken whole. A block has no staff and needs at least one room. */
+	private static List<ResourceAssignmentRequest> blockRooms(@Nullable List<StaffAssignmentRequest> staff,
+			@Nullable List<ResourceAssignmentRequest> resources) {
+		if (staff != null && !staff.isEmpty()) {
+			throw ApiException.invalidField("staff", FieldErrorCode.INVALID_VALUE, "A block has no staff.");
+		}
+		if (resources == null || resources.isEmpty()) {
+			throw ApiException.invalidField("resources", FieldErrorCode.REQUIRED, "A block needs at least one room.");
+		}
+		return resources.stream()
+			.map((resource) -> new ResourceAssignmentRequest(resource.resourceId(), true))
+			.toList();
 	}
 
 	/**
@@ -365,9 +409,9 @@ class SchedulePlanner {
 		return assignments;
 	}
 
-	private Occurrence occurrence(CreateEventRequest request, ZoneId zone) {
-		Instant startsAt = request.startsAt().truncatedTo(ChronoUnit.SECONDS);
-		Instant endsAt = request.endsAt().truncatedTo(ChronoUnit.SECONDS);
+	private Occurrence occurrence(Instant requestedStart, Instant requestedEnd, ZoneId zone) {
+		Instant startsAt = requestedStart.truncatedTo(ChronoUnit.SECONDS);
+		Instant endsAt = requestedEnd.truncatedTo(ChronoUnit.SECONDS);
 		if (!endsAt.isAfter(startsAt)) {
 			throw ApiException.invalidField("endsAt", FieldErrorCode.OUT_OF_RANGE, "The event must end after it starts.");
 		}
@@ -466,9 +510,14 @@ class SchedulePlanner {
 		}
 	}
 
-	/** Checked details of a planned event, with defaults filled in. */
-	private record Details(EventKind kind, ServiceTypeSummary serviceType, String title, @Nullable Short capacity,
-			EventVisibility visibility, Assignments assignments) {
+	/** Checked details of a planned event, with defaults filled in; a block has no service type. */
+	private record Details(EventKind kind, @Nullable ServiceTypeSummary serviceType, String title,
+			@Nullable Short capacity, EventVisibility visibility, Assignments assignments) {
+
+		@Nullable UUID serviceTypeId() {
+			return (this.serviceType != null) ? this.serviceType.id() : null;
+		}
+
 	}
 
 }

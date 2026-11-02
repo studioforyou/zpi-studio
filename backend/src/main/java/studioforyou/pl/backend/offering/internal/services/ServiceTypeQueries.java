@@ -59,7 +59,7 @@ class ServiceTypeQueries implements ServiceTypes {
 		Short maxParticipants = serviceType.getMaxParticipants();
 		return new ServiceTypeSummary(serviceType.getId(), serviceType.getName(), serviceType.isActive(),
 				serviceType.getCategory(), serviceType.getDefaultDurationMinutes(),
-				(maxParticipants != null) ? Integer.valueOf(maxParticipants) : null);
+				(maxParticipants != null) ? Integer.valueOf(maxParticipants) : null, serviceType.getCalendarColor());
 	}
 
 }

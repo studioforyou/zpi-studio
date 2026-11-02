@@ -18,6 +18,9 @@ public interface BookingPolicies {
 
 	Map<UUID, Definition> findForServices(Collection<ServiceContext> services);
 
+	/** Resolves the current studio, service, fixed-group and occurrence layers in that order. */
+	Definition forOccurrence(UUID serviceTypeId, UUID trainingGroupId, UUID eventId);
+
 	/** The caller serializes edits to the service. Null overrides restore studio defaults. */
 	void replaceForService(ServiceContext service, Values overrides, UUID changedBy);
 

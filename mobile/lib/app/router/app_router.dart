@@ -16,9 +16,11 @@ import 'package:mobile/features/accounts/presentation/role_picker_screen.dart';
 import 'package:mobile/features/accounts/presentation/staff_profile_edit_screen.dart';
 import 'package:mobile/features/communication/presentation/messages_screen.dart';
 import 'package:mobile/features/passes/presentation/passes_screen.dart';
+import 'package:mobile/features/schedule/presentation/add_class_screen.dart';
 import 'package:mobile/features/schedule/presentation/availability_screen.dart';
 import 'package:mobile/features/schedule/presentation/schedule_screen.dart';
 import 'package:mobile/features/schedule/presentation/trainer_schedule_screen.dart';
+import 'package:mobile/features/trainings/presentation/new_cooperation_screen.dart';
 import 'package:mobile/features/trainings/presentation/reservations_screen.dart';
 import 'package:mobile/features/trainings/presentation/trainings_screen.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
@@ -44,6 +46,9 @@ const trainerMessagesPath = '/trainer/messages';
 const trainerProfilePath = '/trainer/profile';
 const trainerAvailabilitySubPath = 'availability';
 const trainerProfileEditSubPath = 'edit';
+const trainerNewCooperationSubPath = 'new-cooperation';
+const trainerAddClassSubPath = 'new-class';
+const trainerAddClassPath = '$trainerSchedulePath/$trainerAddClassSubPath';
 
 /// The tabs of each role's shell.
 const _roleTabs = {
@@ -105,7 +110,7 @@ StatefulShellRoute _clientShell() => _roleShell([
     clientSchedulePath,
     const ScheduleScreen(),
     Icons.calendar_month,
-    (l10n) => l10n.navSchedule,
+    (l10n) => l10n.navClassOffer,
   ),
   _tab(
     clientPassesPath,
@@ -117,7 +122,7 @@ StatefulShellRoute _clientShell() => _roleShell([
     clientReservationsPath,
     const ReservationsScreen(),
     Icons.event_available,
-    (l10n) => l10n.navReservations,
+    (l10n) => l10n.navMySchedule,
   ),
   _tab(
     clientMessagesPath,
@@ -139,12 +144,25 @@ StatefulShellRoute _trainerShell() => _roleShell([
     const TrainerScheduleScreen(),
     Icons.calendar_month,
     (l10n) => l10n.navSchedule,
+    routes: [
+      GoRoute(
+        path: trainerAddClassSubPath,
+        builder: (_, _) => const AddClassScreen(),
+      ),
+    ],
   ),
   _tab(
     trainerTrainingsPath,
     const TrainingsScreen(),
     Icons.fitness_center,
     (l10n) => l10n.navTrainings,
+    routes: [
+      // Opened with context.push('/trainer/trainings/new-cooperation').
+      GoRoute(
+        path: trainerNewCooperationSubPath,
+        builder: (_, _) => const NewCooperationScreen(),
+      ),
+    ],
   ),
   _tab(
     trainerMessagesPath,

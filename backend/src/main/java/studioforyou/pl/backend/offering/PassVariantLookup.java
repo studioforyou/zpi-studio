@@ -31,4 +31,12 @@ public class PassVariantLookup {
 		});
 	}
 
+	/**
+	 * Whether the variant's product pays for this service. Archived products and replaced
+	 * price variants keep covering services for passes already held by participants.
+	 */
+	public boolean coversService(UUID variantId, UUID serviceTypeId) {
+		return variants.coversService(variantId, serviceTypeId);
+	}
+
 }

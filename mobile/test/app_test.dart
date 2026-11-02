@@ -12,6 +12,7 @@ import 'package:mobile/core/auth/session.dart';
 import 'package:mobile/features/accounts/presentation/widgets/choice_tile.dart';
 import 'package:mobile/features/accounts/presentation/widgets/profile_header.dart';
 import 'package:mobile/features/accounts/presentation/widgets/profile_styles.dart';
+import 'package:mobile/features/trainings/data/group_classes_api.dart';
 
 /// Starts with the demo user still signed in from an earlier run.
 class _SignedInAuthRepository extends FakeAuthRepository {
@@ -51,6 +52,7 @@ void main() {
         overrides: [
           authRepositoryProvider.overrideWithValue(repository),
           choiceStoreProvider.overrideWithValue(store ?? InMemoryChoiceStore()),
+          groupClassesProvider.overrideWith((ref, query) async => const []),
           appConfigProvider.overrideWithValue(
             const AppConfig(
               flavor: AppFlavor.dev,
@@ -67,9 +69,9 @@ void main() {
   void expectClientShell() {
     final navigationBar = find.byType(NavigationBar);
     for (final label in [
-      'Grafik',
+      'Oferta',
       'Karnety',
-      'Zapisy',
+      'Mój grafik',
       'Wiadomości',
       'Profil',
     ]) {
