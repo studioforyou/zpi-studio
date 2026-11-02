@@ -148,10 +148,22 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    // The account has several choices, so the role picker comes first.
     final container = ProviderScope.containerOf(
-      tester.element(find.byType(NavigationBar)),
+      tester.element(find.byType(App)),
     );
-    container.read(authControllerProvider.notifier).selectProfile(profileId);
+    final signedIn =
+        (container.read(authControllerProvider) as Authenticated).session;
+    container
+        .read(authControllerProvider.notifier)
+        .choose(
+          signedIn.choices.firstWhere(
+            (choice) =>
+                choice.role == AppRole.client &&
+                choice.profile?.id == profileId,
+          ),
+        );
+    await tester.pumpAndSettle();
     await tester.tap(
       find.descendant(
         of: find.byType(NavigationBar),

@@ -25,6 +25,10 @@ public enum ErrorCode {
 
 	// customer
 	CUSTOMER_NOT_ACTIVE(HttpStatus.UNPROCESSABLE_CONTENT),
+	/** The trainer already has an active assignment to the participant. */
+	TRAINER_ALREADY_ASSIGNED(HttpStatus.CONFLICT),
+	/** The staff member's account does not have the TRAINER role. */
+	STAFF_NOT_TRAINER(HttpStatus.UNPROCESSABLE_CONTENT),
 
 	// offering
 	PASS_VARIANT_ALREADY_EXISTS(HttpStatus.CONFLICT),

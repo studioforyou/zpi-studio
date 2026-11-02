@@ -10,8 +10,11 @@ export const eventKinds = [
 ] as const;
 export type EventKind = (typeof eventKinds)[number];
 
-/** Kinds an administrator plans in the panel; consultations and blocks have their own stories. */
-export const plannableKinds = ['CLASS', 'WORKSHOP', 'PERSONAL_TRAINING'] as const;
+/**
+ * Kinds an administrator plans in the panel; consultations have their own story. A block, e.g. a
+ * maintenance, has no service or staff and takes its rooms whole.
+ */
+export const plannableKinds = ['CLASS', 'WORKSHOP', 'PERSONAL_TRAINING', 'BLOCK'] as const;
 export type PlannableKind = (typeof plannableKinds)[number];
 
 export const eventStatuses = ['SCHEDULED', 'COMPLETED', 'CANCELLED'] as const;
@@ -100,7 +103,8 @@ export type ResourceAssignment = { resourceId: string; blocksWholeRoom: boolean 
 
 export type EventDetailsInput = {
   kind: PlannableKind;
-  serviceTypeId: string;
+  /** `null` only for a block. */
+  serviceTypeId: string | null;
   /** `null` = the service type's name. */
   title: string | null;
   /** `null` = the service type's limit, at most what the rooms hold. */
