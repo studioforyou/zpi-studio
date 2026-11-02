@@ -194,6 +194,8 @@ final class ScheduleDtos {
 			@Schema(example = "Pole dance - początkujący") String serviceTypeName,
 			@Schema(description = "The series that generated the event; null for a one-off event.") UUID seriesId,
 			@Schema(description = "The occurrence differs from its series' rule.") boolean isSeriesException,
+			@Schema(description = "The start the series' rule gives the occurrence; it differs from startsAt when "
+					+ "this one occurrence was moved. null for a one-off event.") Instant originalStartsAt,
 			UUID trainingGroupId,
 			Instant startsAt,
 			Instant endsAt,
@@ -302,6 +304,26 @@ final class ScheduleDtos {
 			String eventTitle,
 			@Schema(description = "Start of the other event or of the leave.") Instant startsAt,
 			@Schema(description = "End of the other event or of the leave.") Instant endsAt) {
+	}
+
+	@Schema(name = "ChangeScheduleEventRequest", description = "The new time, title, capacity, staff and rooms of one "
+			+ "event. For an occurrence of a series only this occurrence changes; the series and its other "
+			+ "occurrences stay as they are.")
+	record ChangeEventRequest(
+			@NotNull @Schema(description = "The event's version the change is based on.") Integer version,
+			@NotNull @Schema(example = "2026-11-03T17:30:00Z") Instant startsAt,
+			@NotNull @Schema(example = "2026-11-03T18:30:00Z") Instant endsAt,
+			@Size(max = MAX_TITLE_LENGTH) @Schema(description = "The service type's name when missing.") String title,
+			@Min(1) @Max(Short.MAX_VALUE)
+			@Schema(description = "Maximum number of participants; null = no limit. Not below the number of "
+					+ "active reservations.") Integer capacity,
+			@NotNull List<@Valid @NotNull StaffAssignmentRequest> staff,
+			@NotNull List<@Valid @NotNull ResourceAssignmentRequest> resources) {
+	}
+
+	@Schema(name = "RestoreSeriesOccurrenceRequest")
+	record RestoreSeriesRequest(
+			@NotNull @Schema(description = "The event's version the change is based on.") Integer version) {
 	}
 
 }

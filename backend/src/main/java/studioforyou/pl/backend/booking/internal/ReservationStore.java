@@ -3,6 +3,7 @@ package studioforyou.pl.backend.booking.internal;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Types;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -229,6 +230,22 @@ class ReservationStore {
 				UPDATE reservation SET trainer_confirmed_at = :now, updated_at = :now, version = version + 1
 				WHERE event_id = :event AND status = 'ACTIVE' AND trainer_confirmed_at IS NULL
 				""").param("now", utc(now)).param("event", eventId).update();
+	}
+
+	/**
+	 * Moves the free cancellation deadlines of the event's active reservations by the event's
+	 * shift. A deadline never ends up before the earlier of its old value and the new start, so a
+	 * class moved earlier does not take away a free cancellation the client already had.
+	 */
+	int shiftFreeCancelDeadlines(UUID eventId, Duration shift, Instant newStart) {
+		return this.jdbc.sql("""
+				UPDATE reservation
+				SET free_cancel_until = GREATEST(free_cancel_until + make_interval(secs => :shiftSeconds),
+				                                 LEAST(free_cancel_until, :newStart)),
+				    updated_at = now(), version = version + 1
+				WHERE event_id = :event AND status = 'ACTIVE' AND free_cancel_until IS NOT NULL
+				""").param("shiftSeconds", (double) shift.toSeconds()).param("newStart", utc(newStart))
+			.param("event", eventId).update();
 	}
 
 	private static Instant instant(ResultSet rs, String column) throws SQLException {

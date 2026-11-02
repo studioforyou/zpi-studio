@@ -234,7 +234,7 @@ class SchedulePlanner {
 	 * Takes the locks of the assigned staff and resources, then rejects the plan if any of its
 	 * occurrences has a blocking problem. The response lists those occurrences with their problems.
 	 */
-	private void lockAndRejectConflicts(List<Occurrence> occurrences, Assignments assignments, ZoneId zone,
+	void lockAndRejectConflicts(List<Occurrence> occurrences, Assignments assignments, ZoneId zone,
 			Collection<UUID> ignoredEventIds) {
 		this.locks.lock(assignments.staffIds(), assignments.resourceIds());
 		List<List<ScheduleIssue>> issues = this.conflicts.find(occurrences, assignments, zone, ignoredEventIds);
@@ -346,7 +346,7 @@ class SchedulePlanner {
 	 *
 	 * @param current the event whose assignments are replaced, or {@code null} for a new event
 	 */
-	private Assignments assignments(@Nullable UUID serviceTypeId, @Nullable Integer capacity,
+	Assignments assignments(@Nullable UUID serviceTypeId, @Nullable Integer capacity,
 			@Nullable List<StaffAssignmentRequest> staffRequests,
 			@Nullable List<ResourceAssignmentRequest> resourceRequests, @Nullable ScheduleEvent current) {
 		List<EventStaffAssignment> staff = (staffRequests != null)
@@ -477,6 +477,14 @@ class SchedulePlanner {
 			}
 		}
 		return result;
+	}
+
+	/**
+	 * Checks the time of one event like for a new one-off event: it must end after it starts, last
+	 * at most {@link #MAX_EVENT_DURATION} and start in the future.
+	 */
+	Occurrence checkedOccurrence(Instant startsAt, Instant endsAt, ZoneId zone) {
+		return occurrence(startsAt, endsAt, zone);
 	}
 
 	private static int intervalWeeks(CreateSeriesRequest request) {

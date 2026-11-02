@@ -39,7 +39,7 @@ class ScheduleQueries {
 
 	private static final String EVENT_COLUMNS = """
 			SELECT e.id, e.kind, e.status, e.visibility, e.title, e.service_type_id, e.series_id,
-			       e.is_series_exception, e.training_group_id, e.starts_at, e.ends_at, e.capacity,
+			       e.is_series_exception, e.series_original_start, e.training_group_id, e.starts_at, e.ends_at, e.capacity,
 			       e.cancel_reason, e.block_reason, e.guest_name, e.version
 			FROM schedule_event e
 			""";
@@ -48,7 +48,8 @@ class ScheduleQueries {
 			rs.getObject("id", UUID.class), EventKind.valueOf(rs.getString("kind")),
 			EventStatus.valueOf(rs.getString("status")), EventVisibility.valueOf(rs.getString("visibility")),
 			rs.getString("title"), rs.getObject("service_type_id", UUID.class), rs.getObject("series_id", UUID.class),
-			rs.getBoolean("is_series_exception"), rs.getObject("training_group_id", UUID.class),
+			rs.getBoolean("is_series_exception"), nullableInstant(rs, "series_original_start"),
+			rs.getObject("training_group_id", UUID.class),
 			instant(rs, "starts_at"), instant(rs, "ends_at"), rs.getObject("capacity", Integer.class),
 			rs.getString("cancel_reason"), rs.getString("block_reason"), rs.getString("guest_name"),
 			rs.getInt("version"));
@@ -288,6 +289,11 @@ class ScheduleQueries {
 		return rs.getObject(column, OffsetDateTime.class).toInstant();
 	}
 
+	private static @Nullable Instant nullableInstant(ResultSet rs, String column) throws SQLException {
+		OffsetDateTime value = rs.getObject(column, OffsetDateTime.class);
+		return (value != null) ? value.toInstant() : null;
+	}
+
 	/**
 	 * The criteria of a timetable query. An empty list means no restriction.
 	 */
@@ -322,16 +328,16 @@ class ScheduleQueries {
 	}
 
 	private record EventRow(UUID id, EventKind kind, EventStatus status, EventVisibility visibility, String title,
-			UUID serviceTypeId, UUID seriesId, boolean seriesException, UUID trainingGroupId, Instant startsAt,
-			Instant endsAt, Integer capacity, String cancelReason, String blockReason, String guestName,
-			int version) {
+			UUID serviceTypeId, UUID seriesId, boolean seriesException, Instant originalStartsAt,
+			UUID trainingGroupId, Instant startsAt, Instant endsAt, Integer capacity, String cancelReason,
+			String blockReason, String guestName, int version) {
 
 		ScheduleEventResponse toResponse(String serviceTypeName, List<AssignedStaffResponse> staff,
 				List<AssignedResourceResponse> resources) {
 			return new ScheduleEventResponse(this.id, this.kind, this.status, this.visibility, this.title,
-					this.serviceTypeId, serviceTypeName, this.seriesId, this.seriesException, this.trainingGroupId,
-					this.startsAt, this.endsAt, this.capacity, staff, resources, this.cancelReason, this.blockReason,
-					this.guestName, this.version);
+					this.serviceTypeId, serviceTypeName, this.seriesId, this.seriesException, this.originalStartsAt,
+					this.trainingGroupId, this.startsAt, this.endsAt, this.capacity, staff, resources,
+					this.cancelReason, this.blockReason, this.guestName, this.version);
 		}
 
 	}
