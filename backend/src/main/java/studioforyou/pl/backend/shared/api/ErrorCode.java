@@ -41,6 +41,8 @@ public enum ErrorCode {
 	PASS_NOT_USABLE(HttpStatus.UNPROCESSABLE_CONTENT),
 	PASS_ENTRIES_EXHAUSTED(HttpStatus.UNPROCESSABLE_CONTENT),
 	PASS_SERVICE_MISMATCH(HttpStatus.UNPROCESSABLE_CONTENT),
+	/** The product does not allow suspension, or the suspension breaks its rules. */
+	PASS_SUSPENSION_NOT_ALLOWED(HttpStatus.UNPROCESSABLE_CONTENT),
 
 	// booking: client group-class participation
 	EVENT_NOT_BOOKABLE(HttpStatus.UNPROCESSABLE_CONTENT),

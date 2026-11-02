@@ -31,6 +31,18 @@ export const customerPassStatuses = [
 ] as const;
 export type CustomerPassStatus = (typeof customerPassStatuses)[number];
 
+/** A period in which a pass cannot be used; it moved the pass's last day. */
+export type PassSuspension = {
+  id: string;
+  /** `yyyy-MM-dd`. */
+  startsOn: string;
+  /** The last suspended day, inclusive (`yyyy-MM-dd`). */
+  endsOn: string;
+  reason: string | null;
+  createdBy: string;
+  createdAt: string;
+};
+
 export type CustomerPass = {
   id: string;
   customerId: string;
@@ -50,6 +62,8 @@ export type CustomerPass = {
   createdAt: string;
   updatedAt: string;
   version: number;
+  /** Suspensions that were not cancelled, oldest first. */
+  suspensions: PassSuspension[];
 };
 
 export type AssignPass = {
@@ -85,4 +99,54 @@ export function assignCustomerPass(customerId: string, pass: AssignPass): Promis
     method: 'POST',
     body: pass,
   });
+}
+
+export type ExtendPass = {
+  /** The new last day, inclusive (`yyyy-MM-dd`); later than the current one. */
+  validUntil: string;
+  reason: string | null;
+  version: number;
+};
+
+export type SuspendPass = {
+  /** `yyyy-MM-dd`, today or later. */
+  startsOn: string;
+  /** The last suspended day, inclusive (`yyyy-MM-dd`). */
+  endsOn: string;
+  reason: string | null;
+  version: number;
+};
+
+export function extendCustomerPass(
+  customerId: string,
+  passId: string,
+  extension: ExtendPass,
+): Promise<CustomerPass> {
+  return apiFetch<CustomerPass>(`/api/v1/customers/${customerId}/passes/${passId}/extend`, {
+    method: 'POST',
+    body: extension,
+  });
+}
+
+export function suspendCustomerPass(
+  customerId: string,
+  passId: string,
+  suspension: SuspendPass,
+): Promise<CustomerPass> {
+  return apiFetch<CustomerPass>(`/api/v1/customers/${customerId}/passes/${passId}/suspend`, {
+    method: 'POST',
+    body: suspension,
+  });
+}
+
+export function cancelPassSuspension(
+  customerId: string,
+  passId: string,
+  suspensionId: string,
+  version: number,
+): Promise<CustomerPass> {
+  return apiFetch<CustomerPass>(
+    `/api/v1/customers/${customerId}/passes/${passId}/suspensions/${suspensionId}/cancel`,
+    { method: 'POST', body: { version } },
+  );
 }

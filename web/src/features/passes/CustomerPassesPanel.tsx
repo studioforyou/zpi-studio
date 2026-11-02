@@ -8,9 +8,13 @@ import {
   listCustomerPasses,
   searchCustomers,
   type Customer,
+  type CustomerPass,
   type CustomerPassStatus,
 } from './customerPassesApi';
-import { formatDate, formatMoney } from './passFormat';
+import { ExtendPassModal } from './ExtendPassModal';
+import { formatDate, formatMoney, todayIsoDate } from './passFormat';
+import { listPassProducts } from './passesApi';
+import { SuspendPassModal } from './SuspendPassModal';
 
 const statusColors: Record<CustomerPassStatus, string> = {
   PENDING_PAYMENT: 'yellow',
@@ -21,18 +25,29 @@ const statusColors: Record<CustomerPassStatus, string> = {
   CANCELLED: 'red',
 };
 
+/** A pass waiting for its payment or cancelled cannot be extended. */
+const extendable: CustomerPassStatus[] = ['SCHEDULED', 'ACTIVE', 'SUSPENDED', 'EXPIRED'];
+
+/** Only a pass that is still valid can be suspended. */
+const suspendable: CustomerPassStatus[] = ['SCHEDULED', 'ACTIVE', 'SUSPENDED'];
+
 function customerLabel(customer: Customer): string {
   return customer.kind === 'CHILD'
     ? `${customer.displayName} (${pl.customerPasses.child})`
     : customer.displayName;
 }
 
-/** Passes held by one participant, chosen by searching their name, and assigning new ones. */
+/**
+ * Passes held by one participant, chosen by searching their name: assigning new ones,
+ * extending them and suspending them.
+ */
 export function CustomerPassesPanel() {
   const [search, setSearch] = useState('');
   const [debouncedSearch] = useDebouncedValue(search, 300);
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [assigning, setAssigning] = useState(false);
+  const [extending, setExtending] = useState<CustomerPass | null>(null);
+  const [suspending, setSuspending] = useState<CustomerPass | null>(null);
 
   const customers = useQuery({
     queryKey: ['customers', debouncedSearch],
@@ -49,6 +64,17 @@ export function CustomerPassesPanel() {
     queryFn: () => listCustomerPasses(customer!.id),
     enabled: customer !== null,
   });
+  // All products, also archived ones: a pass keeps the suspension rules of its product.
+  const products = useQuery({
+    queryKey: ['pass-products', 'all'],
+    queryFn: () => listPassProducts(),
+    enabled: customer !== null,
+  });
+  const productOf = (pass: CustomerPass) =>
+    products.data?.find((product) =>
+      product.variants.some((variant) => variant.id === pass.variantId),
+    );
+  const today = todayIsoDate();
 
   return (
     <Stack>
@@ -89,6 +115,7 @@ export function CustomerPassesPanel() {
               <Table.Th>{pl.customerPasses.columns.validity}</Table.Th>
               <Table.Th>{pl.customerPasses.columns.price}</Table.Th>
               <Table.Th>{pl.customerPasses.columns.status}</Table.Th>
+              <Table.Th>{pl.customerPasses.columns.actions}</Table.Th>
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
@@ -104,6 +131,16 @@ export function CustomerPassesPanel() {
                   {pass.validFrom && pass.validUntil
                     ? `${formatDate(pass.validFrom)} – ${formatDate(pass.validUntil)}`
                     : '—'}
+                  {pass.suspensions
+                    .filter((suspension) => suspension.endsOn >= today)
+                    .map((suspension) => (
+                      <Text key={suspension.id} size="xs" c="orange">
+                        {pl.customerPasses.suspendedPeriod(
+                          formatDate(suspension.startsOn),
+                          formatDate(suspension.endsOn),
+                        )}
+                      </Text>
+                    ))}
                 </Table.Td>
                 <Table.Td>{formatMoney(pass.pricePaid)}</Table.Td>
                 <Table.Td>
@@ -111,12 +148,37 @@ export function CustomerPassesPanel() {
                     {pl.customerPasses.statuses[pass.status]}
                   </Badge>
                 </Table.Td>
+                <Table.Td>
+                  <Group gap="xs" wrap="nowrap">
+                    {extendable.includes(pass.status) && (
+                      <Button size="xs" variant="light" onClick={() => setExtending(pass)}>
+                        {pl.customerPasses.extend}
+                      </Button>
+                    )}
+                    {suspendable.includes(pass.status) && (
+                      <Button
+                        size="xs"
+                        variant="light"
+                        color="orange"
+                        onClick={() => setSuspending(pass)}
+                      >
+                        {pl.customerPasses.suspend}
+                      </Button>
+                    )}
+                  </Group>
+                </Table.Td>
               </Table.Tr>
             ))}
           </Table.Tbody>
         </Table>
       )}
       <AssignPassModal customer={assigning ? customer : null} onClose={() => setAssigning(false)} />
+      <ExtendPassModal pass={extending} onClose={() => setExtending(null)} />
+      <SuspendPassModal
+        pass={suspending}
+        product={suspending ? productOf(suspending) : undefined}
+        onClose={() => setSuspending(null)}
+      />
     </Stack>
   );
 }

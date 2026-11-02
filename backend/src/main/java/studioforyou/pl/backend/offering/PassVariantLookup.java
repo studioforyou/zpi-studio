@@ -27,7 +27,8 @@ public class PassVariantLookup {
 			PassProduct product = variant.getProduct();
 			return new PassVariantTerms(variant.getId(), product.getId(), product.getName(), product.getKind(),
 					product.getAudience(), variant.getEntriesCount(), variant.getValidityDays(), variant.getPrice(),
-					variant.getCurrency(), product.isActive(), variant.isActive());
+					variant.getCurrency(), product.isActive(), variant.isActive(), product.isSuspensionAllowed(),
+					product.getMaxSuspensionDays());
 		});
 	}
 

@@ -59,3 +59,19 @@ export function customerPassErrorMessage(error: unknown): string {
   }
   return pl.customerPasses.errors.unknown;
 }
+
+/** Days from one `yyyy-MM-dd` date to another, counting both. */
+export function daysInclusive(from: string, to: string): number {
+  const millis = new Date(`${to}T00:00:00Z`).getTime() - new Date(`${from}T00:00:00Z`).getTime();
+  return Math.round(millis / 86_400_000) + 1;
+}
+
+export function passChangeErrorMessage(error: unknown): string {
+  if (error instanceof ApiError && error.code !== null) {
+    const known = pl.passChanges.errors[error.code as keyof typeof pl.passChanges.errors];
+    if (known) {
+      return known;
+    }
+  }
+  return pl.passChanges.errors.unknown;
+}
