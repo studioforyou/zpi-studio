@@ -20,6 +20,7 @@ import 'package:mobile/features/schedule/presentation/schedule_screen.dart';
 import 'package:mobile/features/schedule/presentation/trainer_schedule_screen.dart';
 import 'package:mobile/features/trainings/presentation/new_cooperation_screen.dart';
 import 'package:mobile/features/trainings/presentation/reservations_screen.dart';
+import 'package:mobile/features/trainings/presentation/training_history_screen.dart';
 import 'package:mobile/features/trainings/presentation/trainings_screen.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
 
@@ -36,6 +37,9 @@ const clientPassesPath = '/client/passes';
 const clientReservationsPath = '/client/reservations';
 const clientMessagesPath = '/client/messages';
 const clientProfilePath = '/client/profile';
+const clientTrainingHistorySubPath = 'history';
+const clientTrainingHistoryPath =
+    '$clientReservationsPath/$clientTrainingHistorySubPath';
 
 const trainerSchedulePath = '/trainer/schedule';
 const trainerTrainingsPath = '/trainer/trainings';
@@ -91,6 +95,12 @@ StatefulShellRoute _clientShell() => _roleShell([
     const ReservationsScreen(),
     Icons.event_available,
     (l10n) => l10n.navMySchedule,
+    routes: [
+      GoRoute(
+        path: clientTrainingHistorySubPath,
+        builder: (_, _) => const TrainingHistoryScreen(),
+      ),
+    ],
   ),
   _tab(
     clientMessagesPath,

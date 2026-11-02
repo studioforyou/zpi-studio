@@ -98,6 +98,19 @@ class ReservationStore {
 			.stream().collect(Collectors.toMap(Reservation::eventId, Function.identity()));
 	}
 
+	/** One reservation per event the customer booked: the active one, otherwise the latest cancelled. */
+	List<PastReservation> history(UUID customerId) {
+		return this.jdbc.sql("""
+				SELECT DISTINCT ON (event_id) id, event_id, status, cancel_kind, entry_returned, attendance
+				FROM reservation WHERE customer_id = :customer
+				ORDER BY event_id, status = 'ACTIVE' DESC, created_at DESC, id
+				""").param("customer", customerId)
+			.query((rs, row) -> new PastReservation(rs.getObject("id", UUID.class),
+					rs.getObject("event_id", UUID.class), rs.getString("status"), rs.getString("cancel_kind"),
+					rs.getObject("entry_returned", Boolean.class), rs.getString("attendance")))
+			.list();
+	}
+
 	Reservation insert(UUID reservationId, UUID eventId, UUID customerId, UUID actorId, String source,
 			UUID policyId, Instant freeCancelUntil, boolean cancellationAllowed,
 			boolean lateAllowed, boolean lateForfeits) {
@@ -140,6 +153,10 @@ class ReservationStore {
 	record Reservation(UUID id, UUID eventId, UUID customerId, String status, UUID customerPassId,
 			Instant freeCancelUntil, Instant cancelledAt, String cancelKind, Boolean entryReturned,
 			Boolean cancellationAllowed, Boolean lateCancelAllowed, Boolean lateCancelForfeitsEntry, int version) {
+	}
+
+	record PastReservation(UUID id, UUID eventId, String status, String cancelKind, Boolean entryReturned,
+			String attendance) {
 	}
 
 }

@@ -144,7 +144,8 @@ class OpenApiDocsTest {
 		String base = "/api/v1/me/profiles/{profileId}";
 		assertThat(paths).containsKeys(base + "/group-classes", base + "/group-classes/{eventId}", base + "/group-classes/{eventId}/participants",
 				base + "/group-classes/{eventId}/reservations", base + "/reservations",
-				base + "/reservations/{reservationId}", base + "/reservations/{reservationId}/cancel");
+				base + "/reservations/{reservationId}", base + "/reservations/{reservationId}/cancel",
+				base + "/training-history");
 		Map<String, Object> createResponses = JsonPath.read(json,
 				"$.paths['" + base + "/group-classes/{eventId}/reservations'].post.responses");
 		assertThat(createResponses).containsKeys("200", "201", "409", "422");

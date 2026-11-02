@@ -95,4 +95,6 @@ Calendar screens, adapters, filters and the timeline live in `lib/features/sched
 
 The screens use the profile-scoped group-class booking API. They support choosing an eligible pass, booking, cancellation with a short entry consequence before confirmation, and viewing co-participants while booked. Data is scoped to both account and selected participant; switching to a child cannot reuse another participant's action. Successful mutations refresh class availability, own reservations and pass balances.
 
+The history icon in **Mój grafik** opens the training history (`/client/reservations/history`, #97): the selected participant's past bookings month by month, with attendance, cancellations and a monthly attendance rate.
+
 

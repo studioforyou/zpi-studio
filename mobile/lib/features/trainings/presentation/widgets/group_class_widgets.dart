@@ -38,8 +38,11 @@ String classPlaces(AppLocalizations l10n, GroupClass event) {
   return l10n.classesPlaces(event.availablePlaces ?? 0, event.capacity!);
 }
 
-Color classServiceColor(GroupClass event, ColorScheme scheme) {
-  final color = event.calendarColor;
+Color classServiceColor(GroupClass event, ColorScheme scheme) =>
+    serviceColor(event.calendarColor, scheme);
+
+/// A service's configured `#RRGGBB` color, or the theme's primary color.
+Color serviceColor(String? color, ColorScheme scheme) {
   if (color != null && RegExp(r'^#[0-9a-fA-F]{6}$').hasMatch(color)) {
     return Color(0xff000000 | int.parse(color.substring(1), radix: 16));
   }
