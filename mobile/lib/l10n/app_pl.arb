@@ -118,6 +118,12 @@
   "personalDetailsAccessError": "Nie masz dostępu do edycji danych osobowych.",
   "personalDetailsNotFound": "Nie znaleziono profilu. Skontaktuj się z obsługą studia.",
   "personalDetailsValidationError": "Sprawdź wpisane dane i spróbuj ponownie.",
+  "personalDetailsSyncTitle": "Zmienić też drugi profil?",
+  "personalDetailsSyncTrainerQuestion": "Masz też profil trenera. Zapisać nowe imię, nazwisko i telefon również w nim?",
+  "personalDetailsSyncClientQuestion": "Masz też profil klienta. Zapisać nowe imię, nazwisko i telefon również w nim?",
+  "personalDetailsSyncOnlyThis": "Tylko ten profil",
+  "personalDetailsSyncBoth": "Oba profile",
+  "personalDetailsSyncFailed": "Zmiany w tym profilu zostały zapisane, ale nie udało się zaktualizować drugiego profilu. Spróbuj ponownie.",
   "customerProfileChildNotice": "Edytujesz dane dziecka: {name}.",
   "@customerProfileChildNotice": {
     "placeholders": {

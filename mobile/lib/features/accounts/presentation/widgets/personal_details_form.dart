@@ -178,11 +178,69 @@ String? validatePhone(String? value, AppLocalizations l10n) {
       : l10n.personalDetailsPhoneInvalid;
 }
 
+/// Whether a save changes the name or phone, the details the account's own
+/// customer profile and its trainer profile share.
+bool sharedDetailsChanged({
+  required String firstName,
+  required String lastName,
+  required String? phone,
+  required String newFirstName,
+  required String newLastName,
+  required String newPhone,
+}) {
+  return firstName != newFirstName.trim() ||
+      lastName != newLastName.trim() ||
+      (phone ?? '') != newPhone.trim();
+}
+
+/// Asks whether a changed name and phone should also be saved in the
+/// account's other profile: the trainer profile when [otherIsTrainer], the own
+/// customer profile otherwise. `null` when the dialog is dismissed, which
+/// cancels the save.
+Future<bool?> askToUpdateOtherProfile(
+  BuildContext context, {
+  required bool otherIsTrainer,
+}) {
+  final l10n = AppLocalizations.of(context);
+  return showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: Text(l10n.personalDetailsSyncTitle),
+      content: Text(
+        otherIsTrainer
+            ? l10n.personalDetailsSyncTrainerQuestion
+            : l10n.personalDetailsSyncClientQuestion,
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: Text(l10n.personalDetailsSyncOnlyThis),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(context).pop(true),
+          child: Text(l10n.personalDetailsSyncBoth),
+        ),
+      ],
+    ),
+  );
+}
+
+/// The edited profile was saved, but copying the name and phone to the
+/// account's other profile failed.
+class OtherProfileNotUpdated implements Exception {
+  const OtherProfileNotUpdated(this.cause);
+
+  final Object cause;
+}
+
 String personalDetailsErrorMessage(
   Object error,
   AppLocalizations l10n, {
   bool loading = false,
 }) {
+  if (error is OtherProfileNotUpdated) {
+    return l10n.personalDetailsSyncFailed;
+  }
   final fallback = loading
       ? l10n.personalDetailsLoadError
       : l10n.personalDetailsSaveError;

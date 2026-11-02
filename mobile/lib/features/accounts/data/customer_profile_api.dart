@@ -33,18 +33,40 @@ class CustomerProfileApi {
     required String phone,
     required String emergencyContactName,
     required String emergencyPhone,
-  }) async {
+  }) {
+    return _patch(profileId, {
+      'firstName': firstName.trim(),
+      'lastName': lastName.trim(),
+      'birthDate': birthDate == null ? null : _isoDate(birthDate),
+      'phone': _blankToNull(phone),
+      'emergencyContactName': _blankToNull(emergencyContactName),
+      'emergencyPhone': _blankToNull(emergencyPhone),
+    });
+  }
+
+  /// Changes only the name and phone, which the account's own profile shares
+  /// with its trainer profile; other details stay as they are.
+  Future<CustomerProfile> updateNameAndPhone(
+    String profileId, {
+    required String firstName,
+    required String lastName,
+    required String phone,
+  }) {
+    return _patch(profileId, {
+      'firstName': firstName.trim(),
+      'lastName': lastName.trim(),
+      'phone': _blankToNull(phone),
+    });
+  }
+
+  Future<CustomerProfile> _patch(
+    String profileId,
+    Map<String, Object?> data,
+  ) async {
     try {
       final response = await _dio.patch<Map<String, dynamic>>(
         customerProfilePath(profileId),
-        data: {
-          'firstName': firstName.trim(),
-          'lastName': lastName.trim(),
-          'birthDate': birthDate == null ? null : _isoDate(birthDate),
-          'phone': _blankToNull(phone),
-          'emergencyContactName': _blankToNull(emergencyContactName),
-          'emergencyPhone': _blankToNull(emergencyPhone),
-        },
+        data: data,
       );
       return CustomerProfile.fromJson(response.data!);
     } on DioException catch (e) {

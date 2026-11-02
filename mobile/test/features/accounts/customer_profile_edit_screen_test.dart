@@ -12,6 +12,7 @@ import 'package:mobile/core/auth/auth_repository.dart';
 import 'package:mobile/core/auth/auth_state.dart';
 import 'package:mobile/core/auth/session.dart';
 import 'package:mobile/core/network/dio_provider.dart';
+import 'package:mobile/features/accounts/data/staff_profile_api.dart';
 import 'package:mobile/features/accounts/presentation/customer_profile_edit_screen.dart';
 
 const _session = Session(
@@ -28,14 +29,18 @@ const _session = Session(
 );
 
 class _SignedInRepository implements AuthRepository {
+  const _SignedInRepository(this.session);
+
+  final Session session;
+
   @override
-  Future<Session?> restore() async => _session;
+  Future<Session?> restore() async => session;
 
   @override
   Future<Session> login({
     required String email,
     required String password,
-  }) async => _session;
+  }) async => session;
 
   @override
   Future<void> logout() async {}
@@ -50,6 +55,7 @@ class _ProfileAdapter implements HttpClientAdapter {
   int saveStatus = 200;
   final requests = <RequestOptions>[];
   final patches = <Map<String, dynamic>>[];
+  final staffPatches = <Map<String, dynamic>>[];
   final profiles = <String, Map<String, dynamic>>{
     'self': {
       'id': 'self',
@@ -88,6 +94,11 @@ class _ProfileAdapter implements HttpClientAdapter {
     Future<void>? cancelFuture,
   ) async {
     const prefix = '/api/v1/me/customer-profiles/';
+    if (options.path == staffProfilePath && options.method == 'PATCH') {
+      final patch = Map<String, dynamic>.from(options.data as Map);
+      staffPatches.add(patch);
+      return json({'id': 'staff-1', ...patch}, 200);
+    }
     if (!options.path.startsWith(prefix)) {
       return json({'items': <Object>[]}, 200);
     }
@@ -123,11 +134,14 @@ void main() {
   Future<ProviderContainer> openEditor(
     WidgetTester tester, {
     String profileId = 'self',
+    Session session = _session,
   }) async {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          authRepositoryProvider.overrideWithValue(_SignedInRepository()),
+          authRepositoryProvider.overrideWithValue(
+            _SignedInRepository(session),
+          ),
           dioProvider.overrideWithValue(dio),
         ],
         child: const App(),
@@ -263,6 +277,88 @@ void main() {
     await tapSave(tester);
 
     expect(adapter.patches.single['lastName'], "O'Neil-Żółkiewska");
+  });
+
+  group('an account that is also a trainer', () {
+    const trainerSession = Session(
+      accountId: 'account-1',
+      displayName: 'Anna Kowalska',
+      roles: [AppRole.client, AppRole.trainer],
+      activeRole: AppRole.client,
+      staffProfileId: 'staff-1',
+      profiles: [
+        Profile(id: 'self', displayName: 'Anna Kowalska', isChild: false),
+        Profile(id: 'child', displayName: 'Jan Kowalski', isChild: true),
+      ],
+      activeProfileId: 'self',
+    );
+
+    testWidgets('copies a new name and phone to the trainer profile', (
+      tester,
+    ) async {
+      await openEditor(tester, session: trainerSession);
+
+      await tester.enterText(field('Imię'), 'Alicja');
+      await tapSave(tester);
+      expect(find.text('Zmienić też drugi profil?'), findsOneWidget);
+      await tester.tap(find.text('Oba profile'));
+      await tester.pumpAndSettle();
+
+      expect(adapter.patches.single['firstName'], 'Alicja');
+      expect(adapter.staffPatches.single, {
+        'firstName': 'Alicja',
+        'lastName': 'Kowalska',
+        'phone': '600100200',
+      });
+      expect(find.byType(CustomerProfileEditScreen), findsNothing);
+    });
+
+    testWidgets('keeps the trainer profile when asked to', (tester) async {
+      await openEditor(tester, session: trainerSession);
+
+      await tester.enterText(field('Imię'), 'Alicja');
+      await tapSave(tester);
+      await tester.tap(find.text('Tylko ten profil'));
+      await tester.pumpAndSettle();
+
+      expect(adapter.patches.single['firstName'], 'Alicja');
+      expect(adapter.staffPatches, isEmpty);
+    });
+
+    testWidgets('dismissing the question cancels the save', (tester) async {
+      await openEditor(tester, session: trainerSession);
+
+      await tester.enterText(field('Imię'), 'Alicja');
+      await tapSave(tester);
+      await tester.tapAt(const Offset(5, 5));
+      await tester.pumpAndSettle();
+
+      expect(adapter.patches, isEmpty);
+      expect(find.byType(CustomerProfileEditScreen), findsOneWidget);
+    });
+
+    testWidgets('does not ask when only other details change', (tester) async {
+      await openEditor(tester, session: trainerSession);
+
+      await tester.tap(find.byTooltip('Usuń datę urodzenia'));
+      await tester.pump();
+      await tapSave(tester);
+
+      expect(find.text('Zmienić też drugi profil?'), findsNothing);
+      expect(adapter.patches.single['birthDate'], isNull);
+      expect(adapter.staffPatches, isEmpty);
+    });
+
+    testWidgets('does not ask for a child profile', (tester) async {
+      await openEditor(tester, session: trainerSession, profileId: 'child');
+
+      await tester.enterText(field('Imię'), 'Jasiek');
+      await tapSave(tester);
+
+      expect(find.text('Zmienić też drugi profil?'), findsNothing);
+      expect(adapter.patches.single['firstName'], 'Jasiek');
+      expect(adapter.staffPatches, isEmpty);
+    });
   });
 
   testWidgets('clears the birth date', (tester) async {

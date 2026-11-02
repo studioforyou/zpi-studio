@@ -5,6 +5,8 @@ import 'package:mobile/core/auth/auth_controller.dart';
 import 'package:mobile/core/auth/auth_state.dart';
 import 'package:mobile/features/accounts/data/customer_profile.dart';
 import 'package:mobile/features/accounts/data/customer_profile_provider.dart';
+import 'package:mobile/features/accounts/data/staff_profile_api.dart';
+import 'package:mobile/features/accounts/data/staff_profile_provider.dart';
 import 'package:mobile/features/accounts/presentation/widgets/personal_details_form.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
 
@@ -55,6 +57,10 @@ class _CustomerProfileEditScreenState
       return;
     }
     FocusScope.of(context).unfocus();
+    final updateTrainer = await _askToUpdateTrainer(key);
+    if (updateTrainer == null || !mounted) {
+      return;
+    }
     setState(() {
       _saving = true;
       _saveError = null;
@@ -71,6 +77,24 @@ class _CustomerProfileEditScreenState
             emergencyContactName: _emergencyNameController.text,
             emergencyPhone: _emergencyPhoneController.text,
           );
+      if (updateTrainer) {
+        try {
+          await ref
+              .read(staffProfileApiProvider)
+              .updateProfile(
+                firstName: profile.firstName,
+                lastName: profile.lastName,
+                phone: profile.phone ?? '',
+              );
+        } catch (e) {
+          auth.renameProfile(profile.id, profile.displayName);
+          throw OtherProfileNotUpdated(e);
+        } finally {
+          if (mounted) {
+            ref.invalidate(staffProfileProvider(key.accountId));
+          }
+        }
+      }
       // Renaming changes the session, which refreshes the router, so it runs
       // only after this screen has left the navigation stack.
       if (!mounted || ModalRoute.of(context)?.isCurrent != true) {
@@ -93,6 +117,29 @@ class _CustomerProfileEditScreenState
         setState(() => _saving = false);
       }
     }
+  }
+
+  /// Whether the changed name and phone of the client's own profile should
+  /// also go to their trainer profile; `null` cancels the save.
+  Future<bool?> _askToUpdateTrainer(CustomerProfileKey key) async {
+    final loaded = ref.read(customerProfileProvider(key)).requireValue;
+    final hasTrainerProfile = switch (ref.read(authControllerProvider)) {
+      Authenticated(:final session) => session.staffProfileId != null,
+      _ => false,
+    };
+    if (loaded.isChild ||
+        !hasTrainerProfile ||
+        !sharedDetailsChanged(
+          firstName: loaded.firstName,
+          lastName: loaded.lastName,
+          phone: loaded.phone,
+          newFirstName: _firstNameController.text,
+          newLastName: _lastNameController.text,
+          newPhone: _phoneController.text,
+        )) {
+      return false;
+    }
+    return askToUpdateOtherProfile(context, otherIsTrainer: true);
   }
 
   Future<void> _pickBirthDate() async {

@@ -3,6 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mobile/core/auth/auth_controller.dart';
 import 'package:mobile/core/auth/auth_state.dart';
+import 'package:mobile/core/auth/session.dart';
+import 'package:mobile/features/accounts/data/customer_profile_api.dart';
+import 'package:mobile/features/accounts/data/customer_profile_provider.dart';
 import 'package:mobile/features/accounts/data/staff_profile.dart';
 import 'package:mobile/features/accounts/data/staff_profile_provider.dart';
 import 'package:mobile/features/accounts/presentation/widgets/personal_details_form.dart';
@@ -39,19 +42,55 @@ class _StaffProfileEditScreenState
       return;
     }
     FocusScope.of(context).unfocus();
+    final ownProfile = _ownCustomerProfile();
+    final updateClient = await _askToUpdateClient(accountId, ownProfile);
+    if (updateClient == null || !mounted) {
+      return;
+    }
     setState(() {
       _saving = true;
       _saveError = null;
     });
+    final auth = ref.read(authControllerProvider.notifier);
     try {
-      await ref
+      final profile = await ref
           .read(staffProfileProvider(accountId).notifier)
           .save(
             firstName: _firstNameController.text,
             lastName: _lastNameController.text,
             phone: _phoneController.text,
           );
+      String? renamedProfileId;
+      if (updateClient) {
+        final customerKey = (accountId: accountId, profileId: ownProfile!.id);
+        try {
+          await ref
+              .read(customerProfileApiProvider)
+              .updateNameAndPhone(
+                ownProfile.id,
+                firstName: profile.firstName,
+                lastName: profile.lastName,
+                phone: profile.phone ?? '',
+              );
+          renamedProfileId = ownProfile.id;
+        } catch (e) {
+          throw OtherProfileNotUpdated(e);
+        } finally {
+          if (mounted) {
+            ref.invalidate(customerProfileProvider(customerKey));
+          }
+        }
+      }
+      void rename() {
+        if (renamedProfileId != null) {
+          auth.renameProfile(renamedProfileId, profile.displayName);
+        }
+      }
+
+      // Renaming changes the session, which refreshes the router, so it runs
+      // only after this screen has left the navigation stack.
       if (!mounted || ModalRoute.of(context)?.isCurrent != true) {
+        rename();
         return;
       }
       ScaffoldMessenger.of(context).showSnackBar(
@@ -60,6 +99,7 @@ class _StaffProfileEditScreenState
         ),
       );
       context.pop();
+      rename();
     } catch (e) {
       if (mounted) {
         setState(() => _saveError = e);
@@ -69,6 +109,36 @@ class _StaffProfileEditScreenState
         setState(() => _saving = false);
       }
     }
+  }
+
+  /// The account's own customer profile, if it has one.
+  Profile? _ownCustomerProfile() {
+    return switch (ref.read(authControllerProvider)) {
+      Authenticated(:final session) =>
+        session.profiles.where((p) => !p.isChild).firstOrNull,
+      _ => null,
+    };
+  }
+
+  /// Whether the changed name and phone should also go to the trainer's own
+  /// customer profile; `null` cancels the save.
+  Future<bool?> _askToUpdateClient(
+    String accountId,
+    Profile? ownProfile,
+  ) async {
+    final loaded = ref.read(staffProfileProvider(accountId)).requireValue;
+    if (ownProfile == null ||
+        !sharedDetailsChanged(
+          firstName: loaded.firstName,
+          lastName: loaded.lastName,
+          phone: loaded.phone,
+          newFirstName: _firstNameController.text,
+          newLastName: _lastNameController.text,
+          newPhone: _phoneController.text,
+        )) {
+      return false;
+    }
+    return askToUpdateOtherProfile(context, otherIsTrainer: false);
   }
 
   @override
