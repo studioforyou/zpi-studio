@@ -17,6 +17,7 @@ import 'package:mobile/features/passes/presentation/passes_screen.dart';
 import 'package:mobile/features/schedule/presentation/availability_screen.dart';
 import 'package:mobile/features/schedule/presentation/schedule_screen.dart';
 import 'package:mobile/features/schedule/presentation/trainer_schedule_screen.dart';
+import 'package:mobile/features/trainings/presentation/new_cooperation_screen.dart';
 import 'package:mobile/features/trainings/presentation/reservations_screen.dart';
 import 'package:mobile/features/trainings/presentation/trainings_screen.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
@@ -41,6 +42,7 @@ const trainerMessagesPath = '/trainer/messages';
 const trainerProfilePath = '/trainer/profile';
 const trainerAvailabilitySubPath = 'availability';
 const trainerProfileEditSubPath = 'edit';
+const trainerNewCooperationSubPath = 'new-cooperation';
 
 /// One bottom-navigation tab: its route and its navigation bar entry.
 typedef _Tab = ({GoRoute route, ShellDestination destination});
@@ -113,6 +115,13 @@ StatefulShellRoute _trainerShell() => _roleShell([
     const TrainingsScreen(),
     Icons.fitness_center,
     (l10n) => l10n.navTrainings,
+    routes: [
+      // Opened with context.push('/trainer/trainings/new-cooperation').
+      GoRoute(
+        path: trainerNewCooperationSubPath,
+        builder: (_, _) => const NewCooperationScreen(),
+      ),
+    ],
   ),
   _tab(
     trainerMessagesPath,
