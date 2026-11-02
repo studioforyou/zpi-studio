@@ -18,6 +18,7 @@ import 'package:mobile/features/schedule/presentation/add_class_screen.dart';
 import 'package:mobile/features/schedule/presentation/availability_screen.dart';
 import 'package:mobile/features/schedule/presentation/schedule_screen.dart';
 import 'package:mobile/features/schedule/presentation/trainer_schedule_screen.dart';
+import 'package:mobile/features/trainings/presentation/new_cooperation_screen.dart';
 import 'package:mobile/features/trainings/presentation/reservations_screen.dart';
 import 'package:mobile/features/trainings/presentation/trainings_screen.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
@@ -42,6 +43,7 @@ const trainerMessagesPath = '/trainer/messages';
 const trainerProfilePath = '/trainer/profile';
 const trainerAvailabilitySubPath = 'availability';
 const trainerProfileEditSubPath = 'edit';
+const trainerNewCooperationSubPath = 'new-cooperation';
 const trainerAddClassSubPath = 'new-class';
 const trainerAddClassPath = '$trainerSchedulePath/$trainerAddClassSubPath';
 
@@ -76,7 +78,7 @@ StatefulShellRoute _clientShell() => _roleShell([
     clientSchedulePath,
     const ScheduleScreen(),
     Icons.calendar_month,
-    (l10n) => l10n.navSchedule,
+    (l10n) => l10n.navClassOffer,
   ),
   _tab(
     clientPassesPath,
@@ -88,7 +90,7 @@ StatefulShellRoute _clientShell() => _roleShell([
     clientReservationsPath,
     const ReservationsScreen(),
     Icons.event_available,
-    (l10n) => l10n.navReservations,
+    (l10n) => l10n.navMySchedule,
   ),
   _tab(
     clientMessagesPath,
@@ -122,6 +124,13 @@ StatefulShellRoute _trainerShell() => _roleShell([
     const TrainingsScreen(),
     Icons.fitness_center,
     (l10n) => l10n.navTrainings,
+    routes: [
+      // Opened with context.push('/trainer/trainings/new-cooperation').
+      GoRoute(
+        path: trainerNewCooperationSubPath,
+        builder: (_, _) => const NewCooperationScreen(),
+      ),
+    ],
   ),
   _tab(
     trainerMessagesPath,

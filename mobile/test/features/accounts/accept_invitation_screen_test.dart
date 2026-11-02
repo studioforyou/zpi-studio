@@ -11,6 +11,7 @@ import 'package:mobile/core/auth/auth_failure.dart';
 import 'package:mobile/core/auth/auth_repository.dart';
 import 'package:mobile/core/auth/session.dart';
 import 'package:mobile/features/accounts/data/invitation_api.dart';
+import 'package:mobile/features/trainings/data/group_classes_api.dart';
 
 const _session = Session(
   accountId: 'a1',
@@ -98,6 +99,7 @@ void main() {
       overrides: [
         authRepositoryProvider.overrideWithValue(auth ?? _AuthRepository()),
         invitationApiProvider.overrideWithValue(api),
+        groupClassesProvider.overrideWith((ref, query) async => const []),
         appConfigProvider.overrideWithValue(
           const AppConfig(
             flavor: AppFlavor.dev,
@@ -284,6 +286,7 @@ void main() {
           _AuthRepository(restored: restored.future),
         ),
         invitationApiProvider.overrideWithValue(api),
+        groupClassesProvider.overrideWith((ref, query) async => const []),
         appConfigProvider.overrideWithValue(
           const AppConfig(
             flavor: AppFlavor.dev,

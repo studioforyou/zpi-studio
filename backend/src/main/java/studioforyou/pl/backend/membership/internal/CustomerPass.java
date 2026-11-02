@@ -129,6 +129,18 @@ public class CustomerPass {
 		return this.entriesRemaining;
 	}
 
+	void reserveEntry() {
+		if (this.entriesRemaining != null) {
+			this.entriesRemaining = (short) (this.entriesRemaining - 1);
+		}
+	}
+
+	void returnEntries(short count) {
+		if (this.entriesRemaining != null) {
+			this.entriesRemaining = (short) (this.entriesRemaining + count);
+		}
+	}
+
 	public BigDecimal getPricePaid() {
 		return this.pricePaid;
 	}
