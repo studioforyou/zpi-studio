@@ -288,7 +288,7 @@
   "scheduleFilterRoleAssistant": "Asystuję",
   "scheduleFilterRoom": "Sala",
   "scheduleFilterNoRooms": "Brak sal w tym okresie",
-  "scheduleFilterShowCancelled": "Pokaż odwołane"
+  "scheduleFilterShowCancelled": "Pokaż odwołane",
   "classesTitle": "Zajęcia grupowe",
   "classesNoProfile": "To konto nie ma profilu uczestnika zajęć.",
   "classesProfileChanged": "Zmieniono profil uczestnika. Wróć do grafiku, aby wybrać zajęcia dla aktualnego profilu.",
@@ -353,7 +353,7 @@
   "classesParticipantsError": "Nie udało się pobrać listy uczestników.",
   "classesParticipantSelf": "{name} (wybrany profil)",
   "@classesParticipantSelf": {"placeholders": {"name": {"type": "String"}}},
-  "classesSwipeParallel": "Przesuń w bok, by zobaczyć równoległe zajęcia"
+  "classesSwipeParallel": "Przesuń w bok, by zobaczyć równoległe zajęcia",
   "trainingsTabTrainees": "Podopieczni",
   "trainingsTabGroups": "Grupy",
   "traineesNewCooperation": "Zarejestruj nową współpracę",
