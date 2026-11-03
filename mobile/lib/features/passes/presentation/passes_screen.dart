@@ -75,8 +75,9 @@ class _OwnPassesTab extends ConsumerWidget {
             final profileName = _profileName(session, profileId);
             Widget card(OwnPass pass) => _OwnPassCard(
               pass,
-              nextBought: _hasNextPass(pass, passes),
-              onBuyNext: pass.variantId == null
+              onBuyNext:
+                  pass.variantId == null ||
+                      pass.status == PassStatus.pendingPayment
                   ? null
                   : () => _buyNext(context, ref, pass, profileId, profileName),
             );
@@ -124,24 +125,6 @@ String? _profileName(Session session, String profileId) {
       : null;
 }
 
-/// Whether another pass of the profile starts after [pass] ends, e.g. one
-/// already bought to follow it.
-bool _hasNextPass(OwnPass pass, List<OwnPass> passes) {
-  final validUntil = pass.validUntil;
-  if (validUntil == null) {
-    return false;
-  }
-  return passes.any(
-    (other) =>
-        other.id != pass.id &&
-        (other.status == PassStatus.active ||
-            other.status == PassStatus.scheduled ||
-            other.status == PassStatus.pendingPayment) &&
-        other.validFrom != null &&
-        other.validFrom!.isAfter(validUntil),
-  );
-}
-
 /// Opens the purchase of the same variant as [pass], if it is still on sale.
 Future<void> _buyNext(
   BuildContext context,
@@ -182,14 +165,12 @@ Future<void> _buyNext(
 }
 
 class _OwnPassCard extends StatelessWidget {
-  const _OwnPassCard(this.pass, {this.nextBought = false, this.onBuyNext});
+  const _OwnPassCard(this.pass, {this.onBuyNext});
 
   final OwnPass pass;
 
-  /// Whether a pass following this one is already bought.
-  final bool nextBought;
-
-  /// Buys the same variant again; `null` when the pass has no variant.
+  /// Buys the same variant again; `null` when the pass has no variant or
+  /// still waits for its payment.
   final VoidCallback? onBuyNext;
 
   @override
@@ -203,7 +184,6 @@ class _OwnPassCard extends StatelessWidget {
     final colors = Theme.of(context).colorScheme;
     final isRunning =
         pass.status == PassStatus.active || pass.status == PassStatus.suspended;
-    final renewable = pass.expiringSoon || pass.status == PassStatus.expired;
 
     return Card(
       child: Padding(
@@ -253,15 +233,23 @@ class _OwnPassCard extends StatelessWidget {
                   ),
                 ],
               ),
-            if (renewable && nextBought && pass.expiringSoon)
-              Text(l10n.passNextAlreadyBought, style: textTheme.bodySmall),
-            if (renewable && !nextBought && onBuyNext != null)
+            if (onBuyNext != null)
               Align(
                 alignment: Alignment.centerRight,
-                child: FilledButton.tonal(
-                  onPressed: onBuyNext,
-                  child: Text(l10n.passBuyNext),
-                ),
+                child: pass.expiringSoon
+                    ? FilledButton(
+                        key: const Key('pass-buy-next-urgent'),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: colors.error,
+                          foregroundColor: colors.onError,
+                        ),
+                        onPressed: onBuyNext,
+                        child: Text(l10n.passBuyNext),
+                      )
+                    : FilledButton.tonal(
+                        onPressed: onBuyNext,
+                        child: Text(l10n.passBuyNext),
+                      ),
               ),
           ],
         ),

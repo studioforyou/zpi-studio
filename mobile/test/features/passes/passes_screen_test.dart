@@ -251,7 +251,7 @@ void main() {
       ),
     );
 
-    expect(find.text('Zaplanowane'), findsOneWidget);
+    expect(find.text('Nadchodzące'), findsOneWidget);
     expect(find.text('Ważny od 01.11.2030 do 30.11.2030'), findsOneWidget);
     expect(find.text('Wygasłe (1)'), findsOneWidget);
     expect(find.text('Old'), findsNothing);
@@ -438,38 +438,47 @@ void main() {
     );
   });
 
-  testWidgets('a pass followed by a bought one does not offer buying again', (
-    tester,
-  ) async {
-    final today = _today();
-    await pumpScreen(
-      tester,
-      _FakePassesApi(
-        passes: {
-          'self': [
-            _pass(
-              'Current',
-              PassStatus.active,
-              validFrom: DateTime(today.year, today.month, today.day - 26),
-              validUntil: DateTime(today.year, today.month, today.day + 3),
-              variantId: 'v1',
-              expiringSoon: true,
-            ),
-            _pass(
-              'Next',
-              PassStatus.scheduled,
-              validFrom: DateTime(today.year, today.month, today.day + 4),
-              validUntil: DateTime(today.year, today.month, today.day + 33),
-              variantId: 'v1',
-            ),
-          ],
-        },
-      ),
-    );
+  testWidgets(
+    'every pass offers buying the next one, in red when it expires soon',
+    (tester) async {
+      final today = _today();
+      await pumpScreen(
+        tester,
+        _FakePassesApi(
+          passes: {
+            'self': [
+              _pass(
+                'Current',
+                PassStatus.active,
+                validFrom: DateTime(today.year, today.month, today.day - 26),
+                validUntil: DateTime(today.year, today.month, today.day + 3),
+                variantId: 'v1',
+                expiringSoon: true,
+              ),
+              _pass(
+                'Next',
+                PassStatus.scheduled,
+                validFrom: DateTime(today.year, today.month, today.day + 4),
+                validUntil: DateTime(today.year, today.month, today.day + 33),
+                variantId: 'v1',
+              ),
+              _pass(
+                'Unpaid',
+                PassStatus.pendingPayment,
+                validFrom: DateTime(today.year, today.month, today.day + 34),
+                validUntil: DateTime(today.year, today.month, today.day + 63),
+                variantId: 'v1',
+              ),
+            ],
+          },
+        ),
+      );
 
-    expect(find.text('Kolejny karnet już kupiony'), findsOneWidget);
-    expect(find.text('Kup kolejny'), findsNothing);
-  });
+      expect(find.text('Karnet niedługo się kończy'), findsOneWidget);
+      expect(find.text('Kup kolejny'), findsNWidgets(2));
+      expect(find.byKey(const Key('pass-buy-next-urgent')), findsOneWidget);
+    },
+  );
 
   testWidgets(
     'renewing a variant that is no longer on sale points to the offer',

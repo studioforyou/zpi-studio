@@ -128,13 +128,6 @@ class _PassCheckoutScreenState extends ConsumerState<PassCheckoutScreen> {
                 : (value) => setState(() => _termsAccepted = value ?? false),
             title: Text(l10n.checkoutTermsAccept),
           ),
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Text(
-              l10n.checkoutMockPaymentInfo,
-              style: textTheme.bodySmall,
-            ),
-          ),
           if (_failed)
             Padding(
               padding: const EdgeInsets.only(bottom: 8),

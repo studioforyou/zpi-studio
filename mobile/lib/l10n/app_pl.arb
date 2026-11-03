@@ -153,7 +153,7 @@
   "passesNoProfile": "To konto nie ma profilu klienta, więc nie ma karnetów.",
   "passesEmpty": "Nie masz jeszcze karnetu. Sprawdź ofertę studia.",
   "passesSectionCurrent": "Aktualne",
-  "passesSectionUpcoming": "Zaplanowane",
+  "passesSectionUpcoming": "Nadchodzące",
   "passesSectionExpired": "Wygasłe ({count})",
   "@passesSectionExpired": {
     "placeholders": {
@@ -255,7 +255,6 @@
   "passSuspensionNotAllowed": "Bez możliwości zawieszenia",
   "passExpiringSoon": "Karnet niedługo się kończy",
   "passBuyNext": "Kup kolejny",
-  "passNextAlreadyBought": "Kolejny karnet już kupiony",
   "passBuyNextUnavailable": "Ten karnet nie jest już w sprzedaży. Wybierz karnet w zakładce Oferta.",
   "passOfferBuy": "Kup",
   "checkoutTitle": "Zakup karnetu",
@@ -281,7 +280,6 @@
   },
   "checkoutStartDate": "Data rozpoczęcia",
   "checkoutTermsAccept": "Akceptuję regulamin studia i warunki zakupu karnetu",
-  "checkoutMockPaymentInfo": "Płatności online nie są jeszcze podłączone. Po kliknięciu „Zapłać” karnet zostanie od razu uznany za opłacony.",
   "checkoutPay": "Zapłać {price}",
   "@checkoutPay": {
     "placeholders": {
