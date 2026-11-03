@@ -1,6 +1,8 @@
 package studioforyou.pl.backend.membership.internal;
 
 import java.net.URI;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -25,7 +27,7 @@ import studioforyou.pl.backend.identity.CurrentAccount;
 import studioforyou.pl.backend.shared.api.ApiProblem;
 
 /**
- * Passes held by a participant. For now only administrators read and assign them.
+ * Passes held by a participant. For now only administrators read, assign, extend and suspend them.
  */
 @RestController
 @RequestMapping("/api/v1/customers/{customerId}/passes")
@@ -49,9 +51,11 @@ public class CustomerPassController {
 	@ApiResponse(responseCode = "404", description = "No such participant.", content = @Content(
 			mediaType = "application/problem+json", schema = @Schema(implementation = ApiProblem.class)))
 	public CustomerPassListResponse list(@PathVariable UUID customerId) {
-		String currency = studio.currency();
-		return new CustomerPassListResponse(
-				passes.list(customerId).stream().map((pass) -> CustomerPassResponse.from(pass, currency)).toList());
+		List<CustomerPass> held = passes.list(customerId);
+		Map<UUID, List<PassSuspension>> suspensions = passes.suspensionsOf(held);
+		return new CustomerPassListResponse(held.stream()
+			.map((pass) -> response(pass, suspensions.getOrDefault(pass.getId(), List.of())))
+			.toList());
 	}
 
 	@GetMapping("/{passId}")
@@ -60,7 +64,7 @@ public class CustomerPassController {
 	@ApiResponse(responseCode = "404", description = "No such pass of this participant.", content = @Content(
 			mediaType = "application/problem+json", schema = @Schema(implementation = ApiProblem.class)))
 	public CustomerPassResponse get(@PathVariable UUID customerId, @PathVariable UUID passId) {
-		return CustomerPassResponse.from(passes.get(customerId, passId), studio.currency());
+		return response(passes.get(customerId, passId));
 	}
 
 	@PostMapping
@@ -80,7 +84,81 @@ public class CustomerPassController {
 			@Valid @RequestBody AssignPassRequest request, Authentication authentication) {
 		CustomerPass pass = passes.assign(customerId, request.toCommand(), CurrentAccount.of(authentication).id());
 		return ResponseEntity.created(URI.create("/api/v1/customers/" + customerId + "/passes/" + pass.getId()))
-			.body(CustomerPassResponse.from(pass, studio.currency()));
+			.body(response(pass, List.of()));
+	}
+
+	@PostMapping("/{passId}/extend")
+	@Operation(summary = "Extend a participant's pass", operationId = "extendCustomerPass",
+			description = "Moves the pass's last day to a later date, as an exception agreed with the participant. "
+					+ "Allowed for any product. An expired pass becomes usable again. The change is kept in the "
+					+ "pass history.")
+	@ApiResponse(responseCode = "200", description = "The extended pass.")
+	@ApiResponse(responseCode = "400", description = "VALIDATION_FAILED, also when the new last day is not later "
+			+ "than the current one or is in the past.", content = @Content(
+					mediaType = "application/problem+json", schema = @Schema(implementation = ApiProblem.class)))
+	@ApiResponse(responseCode = "404", description = "No such pass of this participant.", content = @Content(
+			mediaType = "application/problem+json", schema = @Schema(implementation = ApiProblem.class)))
+	@ApiResponse(responseCode = "409", description = "VERSION_CONFLICT: the pass has changed.", content = @Content(
+			mediaType = "application/problem+json", schema = @Schema(implementation = ApiProblem.class)))
+	@ApiResponse(responseCode = "422", description = "PASS_NOT_USABLE: the pass waits for its payment or is cancelled.",
+			content = @Content(mediaType = "application/problem+json",
+					schema = @Schema(implementation = ApiProblem.class)))
+	public CustomerPassResponse extend(@PathVariable UUID customerId, @PathVariable UUID passId,
+			@Valid @RequestBody ExtendPassRequest request, Authentication authentication) {
+		passes.extend(customerId, passId, request.toCommand(), CurrentAccount.of(authentication).id());
+		return response(passes.get(customerId, passId));
+	}
+
+	@PostMapping("/{passId}/suspend")
+	@Operation(summary = "Suspend a participant's pass", operationId = "suspendCustomerPass",
+			description = "Suspends the pass for a period from today on, within its validity, if its product allows "
+					+ "suspension. The pass cannot be used to book classes in the period, and its last day moves by "
+					+ "the number of suspended days. Reservations already made are not changed.")
+	@ApiResponse(responseCode = "200", description = "The suspended pass with its suspensions.")
+	@ApiResponse(responseCode = "400", description = "VALIDATION_FAILED, also when the period starts in the past, "
+			+ "ends before it starts or lies outside the pass's validity.", content = @Content(
+					mediaType = "application/problem+json", schema = @Schema(implementation = ApiProblem.class)))
+	@ApiResponse(responseCode = "404", description = "No such pass of this participant.", content = @Content(
+			mediaType = "application/problem+json", schema = @Schema(implementation = ApiProblem.class)))
+	@ApiResponse(responseCode = "409", description = "VERSION_CONFLICT: the pass has changed.", content = @Content(
+			mediaType = "application/problem+json", schema = @Schema(implementation = ApiProblem.class)))
+	@ApiResponse(responseCode = "422", description = "PASS_SUSPENSION_NOT_ALLOWED: the product does not allow "
+			+ "suspension, the period overlaps another suspension or the product's day limit would be exceeded; "
+			+ "PASS_NOT_USABLE: the pass is not active or scheduled.", content = @Content(
+					mediaType = "application/problem+json", schema = @Schema(implementation = ApiProblem.class)))
+	public CustomerPassResponse suspend(@PathVariable UUID customerId, @PathVariable UUID passId,
+			@Valid @RequestBody SuspendPassRequest request, Authentication authentication) {
+		passes.suspend(customerId, passId, request.toCommand(), CurrentAccount.of(authentication).id());
+		return response(passes.get(customerId, passId));
+	}
+
+	@PostMapping("/{passId}/suspensions/{suspensionId}/cancel")
+	@Operation(summary = "Cancel a pass suspension", operationId = "cancelCustomerPassSuspension",
+			description = "Cancels the suspended days from today on: a suspension that has not started is cancelled "
+					+ "as a whole, one in progress ends yesterday. The pass's last day moves back by the days "
+					+ "taken off.")
+	@ApiResponse(responseCode = "200", description = "The pass with its remaining suspensions.")
+	@ApiResponse(responseCode = "404", description = "No such pass or suspension.", content = @Content(
+			mediaType = "application/problem+json", schema = @Schema(implementation = ApiProblem.class)))
+	@ApiResponse(responseCode = "409", description = "VERSION_CONFLICT: the pass has changed.", content = @Content(
+			mediaType = "application/problem+json", schema = @Schema(implementation = ApiProblem.class)))
+	@ApiResponse(responseCode = "422", description = "PASS_SUSPENSION_NOT_ALLOWED: the suspension has already "
+			+ "ended; PASS_NOT_USABLE: the pass is not active or scheduled.", content = @Content(
+					mediaType = "application/problem+json", schema = @Schema(implementation = ApiProblem.class)))
+	public CustomerPassResponse cancelSuspension(@PathVariable UUID customerId, @PathVariable UUID passId,
+			@PathVariable UUID suspensionId, @Valid @RequestBody CancelSuspensionRequest request,
+			Authentication authentication) {
+		passes.cancelSuspension(customerId, passId, suspensionId, request.version(),
+				CurrentAccount.of(authentication).id());
+		return response(passes.get(customerId, passId));
+	}
+
+	private CustomerPassResponse response(CustomerPass pass) {
+		return response(pass, passes.suspensionsOf(List.of(pass)).getOrDefault(pass.getId(), List.of()));
+	}
+
+	private CustomerPassResponse response(CustomerPass pass, List<PassSuspension> suspensions) {
+		return CustomerPassResponse.from(pass, studio.currency(), suspensions, studio.today());
 	}
 
 }

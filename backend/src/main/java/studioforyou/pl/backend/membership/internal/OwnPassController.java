@@ -1,6 +1,8 @@
 package studioforyou.pl.backend.membership.internal;
 
 import java.time.LocalDate;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -40,16 +42,18 @@ public class OwnPassController {
 	@GetMapping
 	@Operation(summary = "List my passes", operationId = "listOwnPasses",
 			description = "Passes of the account's own profile or of a child it is a guardian of, newest first, "
-					+ "without cancelled ones. The status is the one today: past its last day a pass is EXPIRED.")
+					+ "without cancelled ones. The status is the one today: during a suspension a pass is SUSPENDED, "
+						+ "past its last day it is EXPIRED.")
 	@ApiResponse(responseCode = "200", description = "The profile's passes.")
 	@ApiResponse(responseCode = "404", description = "No such profile, or the account does not act for it.",
 			content = @Content(mediaType = "application/problem+json",
 					schema = @Schema(implementation = ApiProblem.class)))
 	public OwnPassListResponse list(@PathVariable UUID profileId, Authentication authentication) {
 		LocalDate today = studio.today();
-		return new OwnPassListResponse(passes.listOwn(CurrentAccount.of(authentication).id(), profileId)
-			.stream()
-			.map((pass) -> OwnPassResponse.from(pass, today))
+		List<CustomerPass> own = passes.listOwn(CurrentAccount.of(authentication).id(), profileId);
+		Map<UUID, List<PassSuspension>> suspensions = passes.suspensionsOf(own);
+		return new OwnPassListResponse(own.stream()
+			.map((pass) -> OwnPassResponse.from(pass, suspensions.getOrDefault(pass.getId(), List.of()), today))
 			.toList());
 	}
 

@@ -10,9 +10,11 @@ import {
   Textarea,
   TextInput,
 } from '@mantine/core';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useDebouncedValue } from '@mantine/hooks';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { pl } from '@/shared/i18n/pl';
-import { assignCustomerPass, type Customer } from './customerPassesApi';
+import { CustomerContact } from './CustomerContact';
+import { assignCustomerPass, searchCustomers, type Customer } from './customerPassesApi';
 import {
   addDays,
   customerPassErrorMessage,
@@ -25,10 +27,17 @@ import {
 import { listPassProducts, type PassProduct } from './passesApi';
 
 type Props = {
-  /** The participant the pass is assigned to; `null` keeps the modal closed. */
-  customer: Customer | null;
+  opened: boolean;
   onClose: () => void;
 };
+
+function customerLabel(customer: Customer): string {
+  const name =
+    customer.kind === 'CHILD'
+      ? `${customer.displayName} (${pl.customerPasses.child})`
+      : customer.displayName;
+  return customer.email ? `${name} · ${customer.email}` : name;
+}
 
 /** Products on sale that can be assigned to the participant: matching audience, with an active variant. */
 function assignableProducts(products: PassProduct[], customer: Customer): PassProduct[] {
@@ -39,8 +48,12 @@ function assignableProducts(products: PassProduct[], customer: Customer): PassPr
   );
 }
 
-export function AssignPassModal({ customer, onClose }: Props) {
+/** Assigns a pass to a participant chosen by searching their name or e-mail address. */
+export function AssignPassModal({ opened, onClose }: Props) {
   const queryClient = useQueryClient();
+  const [search, setSearch] = useState('');
+  const [debouncedSearch] = useDebouncedValue(search, 300);
+  const [customer, setCustomer] = useState<Customer | null>(null);
   const [productId, setProductId] = useState<string | null>(null);
   const [variantId, setVariantId] = useState<string | null>(null);
   const [validFrom, setValidFrom] = useState(todayIsoDate);
@@ -48,10 +61,21 @@ export function AssignPassModal({ customer, onClose }: Props) {
   const [reason, setReason] = useState('');
   const [submitted, setSubmitted] = useState(false);
 
+  const customers = useQuery({
+    queryKey: ['customers', debouncedSearch],
+    queryFn: () => searchCustomers(debouncedSearch),
+    enabled: opened,
+    placeholderData: keepPreviousData,
+  });
+  // The chosen participant stays an option even when the current search no longer matches them.
+  const found = customers.data?.items ?? [];
+  const customerOptions =
+    customer && !found.some((item) => item.id === customer.id) ? [customer, ...found] : found;
+
   const products = useQuery({
     queryKey: ['pass-products', 'active'],
     queryFn: () => listPassProducts(true),
-    enabled: customer !== null,
+    enabled: opened,
   });
   const options = customer ? assignableProducts(products.data ?? [], customer) : [];
   const product = options.find((candidate) => candidate.id === productId) ?? null;
@@ -70,12 +94,14 @@ export function AssignPassModal({ customer, onClose }: Props) {
         reason: reason.trim() || null,
       }),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['customer-passes', customer!.id] });
+      await queryClient.invalidateQueries({ queryKey: ['customer-passes'] });
       close();
     },
   });
 
   function close() {
+    setSearch('');
+    setCustomer(null);
     setProductId(null);
     setVariantId(null);
     setValidFrom(todayIsoDate());
@@ -84,6 +110,13 @@ export function AssignPassModal({ customer, onClose }: Props) {
     setSubmitted(false);
     assign.reset();
     onClose();
+  }
+
+  function selectCustomer(id: string | null) {
+    setCustomer(customerOptions.find((item) => item.id === id) ?? null);
+    // Another participant may not suit the chosen product.
+    setProductId(null);
+    selectVariant(null, []);
   }
 
   function selectProduct(id: string | null) {
@@ -101,7 +134,7 @@ export function AssignPassModal({ customer, onClose }: Props) {
 
   function submit() {
     setSubmitted(true);
-    if (variant !== null && validFrom !== '' && price !== null && price >= 0) {
+    if (customer !== null && variant !== null && validFrom !== '' && price !== null && price >= 0) {
       assign.mutate();
     }
   }
@@ -110,13 +143,40 @@ export function AssignPassModal({ customer, onClose }: Props) {
     submitted && missing ? pl.customerPasses.form.required : undefined;
 
   return (
-    <Modal
-      opened={customer !== null}
-      onClose={close}
-      title={customer ? pl.customerPasses.form.title(customer.displayName) : ''}
-      size="lg"
-    >
+    <Modal opened={opened} onClose={close} title={pl.customerPasses.form.title} size="lg">
       <Stack>
+        <Select
+          label={pl.customerPasses.form.customer}
+          placeholder={pl.customerPasses.form.customerPlaceholder}
+          required
+          searchable
+          clearable
+          searchValue={search}
+          onSearchChange={setSearch}
+          // The server filters by name, phone and e-mail; the options are not filtered again here.
+          filter={({ options: all }) => all}
+          data={customerOptions.map((item) => ({ value: item.id, label: customerLabel(item) }))}
+          renderOption={({ option }) => {
+            const item = customerOptions.find((candidate) => candidate.id === option.value);
+            return item ? (
+              <CustomerContact
+                displayName={
+                  item.kind === 'CHILD'
+                    ? `${item.displayName} (${pl.customerPasses.child})`
+                    : item.displayName
+                }
+                email={item.email}
+                emailOfGuardian={item.emailOfGuardian}
+              />
+            ) : (
+              option.label
+            );
+          }}
+          value={customer?.id ?? null}
+          onChange={selectCustomer}
+          nothingFoundMessage={pl.customerPasses.noCustomers}
+          error={required(customer === null)}
+        />
         <Select
           label={pl.customerPasses.form.product}
           required
@@ -124,8 +184,8 @@ export function AssignPassModal({ customer, onClose }: Props) {
           value={productId}
           onChange={selectProduct}
           nothingFoundMessage={pl.customerPasses.form.noProducts}
-          disabled={products.isPending}
-          error={required(product === null)}
+          disabled={products.isPending || customer === null}
+          error={required(customer !== null && product === null)}
         />
         <Select
           label={pl.customerPasses.form.variant}
