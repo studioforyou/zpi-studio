@@ -178,9 +178,12 @@ String? validatePhone(String? value, AppLocalizations l10n) {
       : l10n.personalDetailsPhoneInvalid;
 }
 
-/// Whether a save changes the name or phone, the details the account's own
-/// customer profile and its trainer profile share.
-bool sharedDetailsChanged({
+/// Which of the details the account's own customer profile and its trainer
+/// profile share go to the other profile as well.
+typedef SharedDetails = ({bool firstName, bool lastName, bool phone});
+
+/// The shared details a save changes.
+SharedDetails changedSharedDetails({
   required String firstName,
   required String lastName,
   required String? phone,
@@ -188,16 +191,82 @@ bool sharedDetailsChanged({
   required String newLastName,
   required String newPhone,
 }) {
-  return firstName != newFirstName.trim() ||
-      lastName != newLastName.trim() ||
-      (phone ?? '') != newPhone.trim();
+  return (
+    firstName: firstName != newFirstName.trim(),
+    lastName: lastName != newLastName.trim(),
+    phone: (phone ?? '') != newPhone.trim(),
+  );
 }
 
-/// Asks whether a changed name and phone should also be saved in the
-/// account's other profile: the trainer profile when [otherIsTrainer], the own
-/// customer profile otherwise. `null` when the dialog is dismissed, which
-/// cancels the save.
-Future<bool?> askToUpdateOtherProfile(
+/// Which [changed] details to copy to the account's other profile: the
+/// trainer profile when [otherIsTrainer], the own customer profile otherwise.
+/// A changed name is always copied, after a notice; a changed phone only if
+/// the user agrees. `null` when a dialog is dismissed, which cancels the save.
+Future<SharedDetails?> confirmOtherProfileUpdate(
+  BuildContext context, {
+  required SharedDetails changed,
+  required bool otherIsTrainer,
+}) async {
+  if (changed.firstName || changed.lastName) {
+    final acknowledged = await _showNameSyncNotice(
+      context,
+      changed: changed,
+      otherIsTrainer: otherIsTrainer,
+    );
+    if (acknowledged != true || !context.mounted) {
+      return null;
+    }
+  }
+  var copyPhone = false;
+  if (changed.phone) {
+    final answer = await _askToCopyPhone(
+      context,
+      otherIsTrainer: otherIsTrainer,
+    );
+    if (answer == null) {
+      return null;
+    }
+    copyPhone = answer;
+  }
+  return (
+    firstName: changed.firstName,
+    lastName: changed.lastName,
+    phone: copyPhone,
+  );
+}
+
+Future<bool?> _showNameSyncNotice(
+  BuildContext context, {
+  required SharedDetails changed,
+  required bool otherIsTrainer,
+}) {
+  final l10n = AppLocalizations.of(context);
+  final fields = switch (changed) {
+    (firstName: true, lastName: true, phone: _) => 'both',
+    (firstName: true, lastName: false, phone: _) => 'firstName',
+    _ => 'lastName',
+  };
+  return showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: Text(l10n.personalDetailsNameSyncTitle),
+      content: Text(
+        l10n.personalDetailsNameSyncMessage(
+          fields,
+          otherIsTrainer ? 'trainer' : 'client',
+        ),
+      ),
+      actions: [
+        FilledButton(
+          onPressed: () => Navigator.of(context).pop(true),
+          child: Text(l10n.personalDetailsNameSyncOk),
+        ),
+      ],
+    ),
+  );
+}
+
+Future<bool?> _askToCopyPhone(
   BuildContext context, {
   required bool otherIsTrainer,
 }) {

@@ -44,18 +44,18 @@ class CustomerProfileApi {
     });
   }
 
-  /// Changes only the name and phone, which the account's own profile shares
-  /// with its trainer profile; other details stay as they are.
-  Future<CustomerProfile> updateNameAndPhone(
+  /// Changes only the given name and phone, which the account's own profile
+  /// shares with its trainer profile; `null` leaves a detail as it is.
+  Future<CustomerProfile> updateSharedDetails(
     String profileId, {
-    required String firstName,
-    required String lastName,
-    required String phone,
+    String? firstName,
+    String? lastName,
+    String? phone,
   }) {
     return _patch(profileId, {
-      'firstName': firstName.trim(),
-      'lastName': lastName.trim(),
-      'phone': _blankToNull(phone),
+      if (firstName != null) 'firstName': firstName.trim(),
+      if (lastName != null) 'lastName': lastName.trim(),
+      if (phone != null) 'phone': _blankToNull(phone),
     });
   }
 

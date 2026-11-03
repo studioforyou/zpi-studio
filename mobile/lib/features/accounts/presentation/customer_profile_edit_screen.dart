@@ -57,8 +57,8 @@ class _CustomerProfileEditScreenState
       return;
     }
     FocusScope.of(context).unfocus();
-    final updateTrainer = await _askToUpdateTrainer(key);
-    if (updateTrainer == null || !mounted) {
+    final copy = await _confirmTrainerUpdate(key);
+    if (copy == null || !mounted) {
       return;
     }
     setState(() {
@@ -77,14 +77,14 @@ class _CustomerProfileEditScreenState
             emergencyContactName: _emergencyNameController.text,
             emergencyPhone: _emergencyPhoneController.text,
           );
-      if (updateTrainer) {
+      if (copy.firstName || copy.lastName || copy.phone) {
         try {
           await ref
               .read(staffProfileApiProvider)
-              .updateProfile(
-                firstName: profile.firstName,
-                lastName: profile.lastName,
-                phone: profile.phone ?? '',
+              .updateSharedDetails(
+                firstName: copy.firstName ? profile.firstName : null,
+                lastName: copy.lastName ? profile.lastName : null,
+                phone: copy.phone ? profile.phone ?? '' : null,
               );
         } catch (e) {
           auth.renameProfile(profile.id, profile.displayName);
@@ -119,27 +119,34 @@ class _CustomerProfileEditScreenState
     }
   }
 
-  /// Whether the changed name and phone of the client's own profile should
-  /// also go to their trainer profile; `null` cancels the save.
-  Future<bool?> _askToUpdateTrainer(CustomerProfileKey key) async {
+  /// Which changed details of the client's own profile also go to their
+  /// trainer profile; `null` cancels the save.
+  Future<SharedDetails?> _confirmTrainerUpdate(CustomerProfileKey key) async {
+    const nothing = (firstName: false, lastName: false, phone: false);
     final loaded = ref.read(customerProfileProvider(key)).requireValue;
     final hasTrainerProfile = switch (ref.read(authControllerProvider)) {
       Authenticated(:final session) => session.staffProfileId != null,
       _ => false,
     };
-    if (loaded.isChild ||
-        !hasTrainerProfile ||
-        !sharedDetailsChanged(
-          firstName: loaded.firstName,
-          lastName: loaded.lastName,
-          phone: loaded.phone,
-          newFirstName: _firstNameController.text,
-          newLastName: _lastNameController.text,
-          newPhone: _phoneController.text,
-        )) {
-      return false;
+    if (loaded.isChild || !hasTrainerProfile) {
+      return nothing;
     }
-    return askToUpdateOtherProfile(context, otherIsTrainer: true);
+    final changed = changedSharedDetails(
+      firstName: loaded.firstName,
+      lastName: loaded.lastName,
+      phone: loaded.phone,
+      newFirstName: _firstNameController.text,
+      newLastName: _lastNameController.text,
+      newPhone: _phoneController.text,
+    );
+    if (changed == nothing) {
+      return nothing;
+    }
+    return confirmOtherProfileUpdate(
+      context,
+      changed: changed,
+      otherIsTrainer: true,
+    );
   }
 
   Future<void> _pickBirthDate() async {

@@ -122,9 +122,22 @@
   "personalDetailsAccessError": "Nie masz dostępu do edycji danych osobowych.",
   "personalDetailsNotFound": "Nie znaleziono profilu. Skontaktuj się z obsługą studia.",
   "personalDetailsValidationError": "Sprawdź wpisane dane i spróbuj ponownie.",
+  "personalDetailsNameSyncTitle": "Zmiana na obu profilach",
+  "personalDetailsNameSyncMessage": "{fields, select, firstName{Nowe imię zostanie zapisane} lastName{Nowe nazwisko zostanie zapisane} other{Nowe imię i nazwisko zostaną zapisane}} również w Twoim profilu {profile, select, trainer{trenera} other{klienta}}.",
+  "@personalDetailsNameSyncMessage": {
+    "placeholders": {
+      "fields": {
+        "type": "String"
+      },
+      "profile": {
+        "type": "String"
+      }
+    }
+  },
+  "personalDetailsNameSyncOk": "OK",
   "personalDetailsSyncTitle": "Zmienić też drugi profil?",
-  "personalDetailsSyncTrainerQuestion": "Masz też profil trenera. Zapisać nowe imię, nazwisko i telefon również w nim?",
-  "personalDetailsSyncClientQuestion": "Masz też profil klienta. Zapisać nowe imię, nazwisko i telefon również w nim?",
+  "personalDetailsSyncTrainerQuestion": "Masz też profil trenera. Zapisać nowy numer telefonu również w nim?",
+  "personalDetailsSyncClientQuestion": "Masz też profil klienta. Zapisać nowy numer telefonu również w nim?",
   "personalDetailsSyncOnlyThis": "Tylko ten profil",
   "personalDetailsSyncBoth": "Oba profile",
   "personalDetailsSyncFailed": "Zmiany w tym profilu zostały zapisane, ale nie udało się zaktualizować drugiego profilu. Spróbuj ponownie.",

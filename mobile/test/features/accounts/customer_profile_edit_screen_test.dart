@@ -305,42 +305,82 @@ void main() {
       activeProfileId: 'self',
     );
 
-    testWidgets('copies a new name and phone to the trainer profile', (
+    testWidgets('always copies a new name to the trainer profile', (
       tester,
     ) async {
       await openEditor(tester, session: trainerSession);
 
       await tester.enterText(field('Imię'), 'Alicja');
+      await tester.enterText(field('Nazwisko'), 'Nowak');
       await tapSave(tester);
-      expect(find.text('Zmienić też drugi profil?'), findsOneWidget);
-      await tester.tap(find.text('Oba profile'));
+      expect(
+        find.text(
+          'Nowe imię i nazwisko zostaną zapisane również w Twoim profilu '
+          'trenera.',
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('Tylko ten profil'), findsNothing);
+      await tester.tap(find.text('OK'));
       await tester.pumpAndSettle();
 
+      expect(find.text('Zmienić też drugi profil?'), findsNothing);
       expect(adapter.patches.single['firstName'], 'Alicja');
       expect(adapter.staffPatches.single, {
         'firstName': 'Alicja',
-        'lastName': 'Kowalska',
-        'phone': '600100200',
+        'lastName': 'Nowak',
       });
       expect(find.byType(CustomerProfileEditScreen), findsNothing);
     });
 
-    testWidgets('keeps the trainer profile when asked to', (tester) async {
+    testWidgets('asks about the phone after the name notice', (tester) async {
       await openEditor(tester, session: trainerSession);
 
-      await tester.enterText(field('Imię'), 'Alicja');
+      await tester.enterText(field('Nazwisko'), 'Nowak');
+      await tester.enterText(field('Telefon (opcjonalnie)'), '600700800');
       await tapSave(tester);
+      expect(
+        find.text(
+          'Nowe nazwisko zostanie zapisane również w Twoim profilu trenera.',
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('Zmienić też drugi profil?'), findsNothing);
+      await tester.tap(find.text('OK'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text(
+          'Masz też profil trenera. Zapisać nowy numer telefonu również w nim?',
+        ),
+        findsOneWidget,
+      );
+      await tester.tap(find.text('Oba profile'));
+      await tester.pumpAndSettle();
+
+      expect(adapter.staffPatches.single, {
+        'lastName': 'Nowak',
+        'phone': '600700800',
+      });
+    });
+
+    testWidgets('keeps the trainer phone when asked to', (tester) async {
+      await openEditor(tester, session: trainerSession);
+
+      await tester.enterText(field('Telefon (opcjonalnie)'), '600700800');
+      await tapSave(tester);
+      expect(find.text('Zmiana na obu profilach'), findsNothing);
       await tester.tap(find.text('Tylko ten profil'));
       await tester.pumpAndSettle();
 
-      expect(adapter.patches.single['firstName'], 'Alicja');
+      expect(adapter.patches.single['phone'], '600700800');
       expect(adapter.staffPatches, isEmpty);
     });
 
     testWidgets('dismissing the question cancels the save', (tester) async {
       await openEditor(tester, session: trainerSession);
 
-      await tester.enterText(field('Imię'), 'Alicja');
+      await tester.enterText(field('Telefon (opcjonalnie)'), '600700800');
       await tapSave(tester);
       await tester.tapAt(const Offset(5, 5));
       await tester.pumpAndSettle();

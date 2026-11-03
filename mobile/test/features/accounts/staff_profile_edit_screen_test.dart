@@ -101,7 +101,14 @@ class _ProfileAdapter implements HttpClientAdapter {
     if (options.path != staffProfilePath) {
       otherPatches[options.path] = patch;
       return ResponseBody.fromString(
-        jsonEncode({'id': 'self', 'kind': 'ADULT', ...patch}),
+        jsonEncode({
+          'id': 'self',
+          'kind': 'ADULT',
+          'firstName': 'Client',
+          'lastName': 'Name',
+          'phone': null,
+          ...patch,
+        }),
         200,
         headers: {
           Headers.contentTypeHeader: [Headers.jsonContentType],
@@ -166,12 +173,17 @@ void main() {
 
   Finder field(int index) => find.byType(TextFormField).at(index);
 
-  /// Saves; when asked about the account's customer profile, keeps it as is
-  /// unless [bothProfiles].
+  /// Saves; acknowledges the notice about a name copied to the account's
+  /// customer profile and, when asked about the phone, keeps the customer
+  /// profile's phone unless [bothProfiles].
   Future<void> save(WidgetTester tester, {bool bothProfiles = false}) async {
     await tester.ensureVisible(find.byType(FilledButton));
     await tester.tap(find.byType(FilledButton));
     await tester.pumpAndSettle();
+    if (find.text('OK').evaluate().isNotEmpty) {
+      await tester.tap(find.text('OK'));
+      await tester.pumpAndSettle();
+    }
     final answer = find.text(bothProfiles ? 'Oba profile' : 'Tylko ten profil');
     if (answer.evaluate().isNotEmpty) {
       await tester.tap(answer);
@@ -195,8 +207,15 @@ void main() {
       expect(adapter.patches, [
         {'firstName': 'Maria', 'lastName': 'Kowalska', 'phone': null},
       ]);
+      // The new name goes to the customer profile too, the phone does not.
+      expect(adapter.otherPatches, {
+        '/api/v1/me/customer-profiles/self': {
+          'firstName': 'Maria',
+          'lastName': 'Kowalska',
+        },
+      });
       expect(find.byType(StaffProfileEditScreen), findsNothing);
-      expect(find.text('MARIA KOWALSKA'), findsOneWidget);
+      expect(find.text('Maria Kowalska'), findsOneWidget);
       expect(find.text('Zmiany zostały zapisane.'), findsOneWidget);
 
       final context = tester.element(find.byType(NavigationBar));
@@ -205,9 +224,9 @@ void main() {
           (container.read(authControllerProvider) as Authenticated).session;
       expect(session.activeRole, AppRole.trainer);
       expect(session.activeProfileId, 'child');
-      expect(session.displayName, 'Client Name');
+      expect(session.displayName, 'Maria Kowalska');
       expect(session.profiles.map((profile) => profile.displayName), [
-        'Client Name',
+        'Maria Kowalska',
         'Child Name',
       ]);
 
@@ -216,7 +235,7 @@ void main() {
       await tester.tap(find.text('Child'));
       await tester.pumpAndSettle();
       // Back on the profile tab, now as the child.
-      expect(find.text('CHILD NAME'), findsOneWidget);
+      expect(find.text('Child Name'), findsOneWidget);
       // The child's details editor, not the trainer's.
       expect(find.text('Dane osobowe'), findsOneWidget);
       final active = tester.widget<ChoiceTile>(
@@ -245,28 +264,113 @@ void main() {
     },
   );
 
-  testWidgets('copies a new name and phone to the own customer profile', (
+  testWidgets('always copies a new name to the own customer profile', (
     tester,
   ) async {
     await openEditor(tester);
     await tester.enterText(field(0), 'Maria');
-    await save(tester, bothProfiles: true);
+    await tester.tap(find.byType(FilledButton));
+    await tester.pumpAndSettle();
 
+    expect(find.text('Zmiana na obu profilach'), findsOneWidget);
+    expect(
+      find.text('Nowe imię zostanie zapisane również w Twoim profilu klienta.'),
+      findsOneWidget,
+    );
+    expect(find.text('Tylko ten profil'), findsNothing);
+    await tester.tap(find.text('OK'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Zmienić też drugi profil?'), findsNothing);
     expect(adapter.patches.single['firstName'], 'Maria');
     expect(adapter.otherPatches, {
-      '/api/v1/me/customer-profiles/self': {
-        'firstName': 'Maria',
-        'lastName': 'Nowak',
-        'phone': '123456789',
-      },
+      '/api/v1/me/customer-profiles/self': {'firstName': 'Maria'},
     });
     final container = ProviderScope.containerOf(
       tester.element(find.byType(NavigationBar)),
     );
     final session =
         (container.read(authControllerProvider) as Authenticated).session;
-    expect(session.displayName, 'Maria Nowak');
-    expect(session.profiles.first.displayName, 'Maria Nowak');
+    // Only the first name changed, so the customer profile keeps its last name.
+    expect(session.displayName, 'Maria Name');
+    expect(session.profiles.first.displayName, 'Maria Name');
+  });
+
+  testWidgets('a changed phone is only asked about', (tester) async {
+    await openEditor(tester);
+    await tester.enterText(field(2), '600700800');
+    await tester.tap(find.byType(FilledButton));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Zmiana na obu profilach'), findsNothing);
+    expect(
+      find.text(
+        'Masz też profil klienta. Zapisać nowy numer telefonu również w nim?',
+      ),
+      findsOneWidget,
+    );
+    await tester.tap(find.text('Oba profile'));
+    await tester.pumpAndSettle();
+
+    expect(adapter.otherPatches, {
+      '/api/v1/me/customer-profiles/self': {'phone': '600700800'},
+    });
+  });
+
+  testWidgets('a changed name and phone: notice first, then the question', (
+    tester,
+  ) async {
+    await openEditor(tester);
+    await tester.enterText(field(0), 'Maria');
+    await tester.enterText(field(1), 'Kowalska');
+    await tester.enterText(field(2), '600700800');
+    await tester.tap(find.byType(FilledButton));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text(
+        'Nowe imię i nazwisko zostaną zapisane również w Twoim profilu klienta.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('Zmienić też drugi profil?'), findsNothing);
+    await tester.tap(find.text('OK'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Zmienić też drugi profil?'), findsOneWidget);
+    await tester.tap(find.text('Tylko ten profil'));
+    await tester.pumpAndSettle();
+
+    expect(adapter.patches.single, {
+      'firstName': 'Maria',
+      'lastName': 'Kowalska',
+      'phone': '600700800',
+    });
+    expect(adapter.otherPatches, {
+      '/api/v1/me/customer-profiles/self': {
+        'firstName': 'Maria',
+        'lastName': 'Kowalska',
+      },
+    });
+  });
+
+  testWidgets('dismissing the name notice cancels the save', (tester) async {
+    await openEditor(tester);
+    await tester.enterText(field(1), 'Kowalska');
+    await tester.tap(find.byType(FilledButton));
+    await tester.pumpAndSettle();
+    expect(
+      find.text(
+        'Nowe nazwisko zostanie zapisane również w Twoim profilu klienta.',
+      ),
+      findsOneWidget,
+    );
+    await tester.tapAt(const Offset(5, 5));
+    await tester.pumpAndSettle();
+
+    expect(adapter.patches, isEmpty);
+    expect(adapter.otherPatches, isEmpty);
+    expect(find.byType(StaffProfileEditScreen), findsOneWidget);
   });
 
   testWidgets('rejects digits in names and letters in the phone', (
@@ -310,7 +414,7 @@ void main() {
     adapter.saveStatus = 200;
     await save(tester);
     expect(adapter.patches, hasLength(2));
-    expect(find.text('MARIA NOWAK'), findsOneWidget);
+    expect(find.text('Maria Nowak'), findsOneWidget);
     expect(find.text('Zmiany zostały zapisane.'), findsOneWidget);
   });
 
@@ -378,7 +482,7 @@ void main() {
 
       expect(find.byType(StaffProfileEditScreen), findsNothing);
       expect(find.text('Dane osobowe'), findsOneWidget);
-      expect(find.text('ANNA NOWAK'), findsOneWidget);
+      expect(find.text('Anna Nowak'), findsOneWidget);
       expect(find.text('Zmiany zostały zapisane.'), findsNothing);
     },
   );

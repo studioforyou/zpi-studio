@@ -43,8 +43,8 @@ class _StaffProfileEditScreenState
     }
     FocusScope.of(context).unfocus();
     final ownProfile = _ownCustomerProfile();
-    final updateClient = await _askToUpdateClient(accountId, ownProfile);
-    if (updateClient == null || !mounted) {
+    final copy = await _confirmClientUpdate(accountId, ownProfile);
+    if (copy == null || !mounted) {
       return;
     }
     setState(() {
@@ -61,18 +61,20 @@ class _StaffProfileEditScreenState
             phone: _phoneController.text,
           );
       String? renamedProfileId;
-      if (updateClient) {
+      String? renamedTo;
+      if (copy.firstName || copy.lastName || copy.phone) {
         final customerKey = (accountId: accountId, profileId: ownProfile!.id);
         try {
-          await ref
+          final client = await ref
               .read(customerProfileApiProvider)
-              .updateNameAndPhone(
+              .updateSharedDetails(
                 ownProfile.id,
-                firstName: profile.firstName,
-                lastName: profile.lastName,
-                phone: profile.phone ?? '',
+                firstName: copy.firstName ? profile.firstName : null,
+                lastName: copy.lastName ? profile.lastName : null,
+                phone: copy.phone ? profile.phone ?? '' : null,
               );
           renamedProfileId = ownProfile.id;
+          renamedTo = client.displayName;
         } catch (e) {
           throw OtherProfileNotUpdated(e);
         } finally {
@@ -82,8 +84,8 @@ class _StaffProfileEditScreenState
         }
       }
       void rename() {
-        if (renamedProfileId != null) {
-          auth.renameProfile(renamedProfileId, profile.displayName);
+        if (renamedProfileId != null && renamedTo != null) {
+          auth.renameProfile(renamedProfileId, renamedTo);
         }
       }
 
@@ -120,25 +122,33 @@ class _StaffProfileEditScreenState
     };
   }
 
-  /// Whether the changed name and phone should also go to the trainer's own
-  /// customer profile; `null` cancels the save.
-  Future<bool?> _askToUpdateClient(
+  /// Which changed details also go to the trainer's own customer profile;
+  /// `null` cancels the save.
+  Future<SharedDetails?> _confirmClientUpdate(
     String accountId,
     Profile? ownProfile,
   ) async {
-    final loaded = ref.read(staffProfileProvider(accountId)).requireValue;
-    if (ownProfile == null ||
-        !sharedDetailsChanged(
-          firstName: loaded.firstName,
-          lastName: loaded.lastName,
-          phone: loaded.phone,
-          newFirstName: _firstNameController.text,
-          newLastName: _lastNameController.text,
-          newPhone: _phoneController.text,
-        )) {
-      return false;
+    const nothing = (firstName: false, lastName: false, phone: false);
+    if (ownProfile == null) {
+      return nothing;
     }
-    return askToUpdateOtherProfile(context, otherIsTrainer: false);
+    final loaded = ref.read(staffProfileProvider(accountId)).requireValue;
+    final changed = changedSharedDetails(
+      firstName: loaded.firstName,
+      lastName: loaded.lastName,
+      phone: loaded.phone,
+      newFirstName: _firstNameController.text,
+      newLastName: _lastNameController.text,
+      newPhone: _phoneController.text,
+    );
+    if (changed == nothing) {
+      return nothing;
+    }
+    return confirmOtherProfileUpdate(
+      context,
+      changed: changed,
+      otherIsTrainer: false,
+    );
   }
 
   @override
