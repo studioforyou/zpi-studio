@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:intl/intl.dart';
 import 'package:mobile/core/auth/auth_controller.dart';
 import 'package:mobile/core/auth/auth_state.dart';
+import 'package:mobile/core/auth/session.dart';
 import 'package:mobile/features/passes/data/passes_api.dart';
+import 'package:mobile/features/passes/presentation/pass_checkout_screen.dart';
+import 'package:mobile/features/passes/presentation/pass_format.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
 
 /// The client's passes: those of the active customer profile and the studio's
@@ -70,12 +72,14 @@ class _OwnPassesTab extends ConsumerWidget {
               for (final pass in passes)
                 if (pass.status == PassStatus.expired) pass,
             ];
-            final profileName = session.profiles.length > 1
-                ? session.profiles
-                      .where((p) => p.id == profileId)
-                      .firstOrNull
-                      ?.displayName
-                : null;
+            final profileName = _profileName(session, profileId);
+            Widget card(OwnPass pass) => _OwnPassCard(
+              pass,
+              nextBought: _hasNextPass(pass, passes),
+              onBuyNext: pass.variantId == null
+                  ? null
+                  : () => _buyNext(context, ref, pass, profileId, profileName),
+            );
 
             return RefreshIndicator(
               onRefresh: () => ref.refresh(provider.future),
@@ -90,19 +94,17 @@ class _OwnPassesTab extends ConsumerWidget {
                   if (passes.isEmpty) _Message(l10n.passesEmpty),
                   if (current.isNotEmpty) ...[
                     _SectionTitle(l10n.passesSectionCurrent),
-                    for (final pass in current) _OwnPassCard(pass),
+                    for (final pass in current) card(pass),
                   ],
                   if (upcoming.isNotEmpty) ...[
                     _SectionTitle(l10n.passesSectionUpcoming),
-                    for (final pass in upcoming) _OwnPassCard(pass),
+                    for (final pass in upcoming) card(pass),
                   ],
                   if (expired.isNotEmpty)
                     ExpansionTile(
                       title: Text(l10n.passesSectionExpired(expired.length)),
                       tilePadding: EdgeInsets.zero,
-                      children: [
-                        for (final pass in expired) _OwnPassCard(pass),
-                      ],
+                      children: [for (final pass in expired) card(pass)],
                     ),
                 ],
               ),
@@ -112,10 +114,83 @@ class _OwnPassesTab extends ConsumerWidget {
   }
 }
 
+/// The active profile's name, when the account acts for more than one.
+String? _profileName(Session session, String profileId) {
+  return session.profiles.length > 1
+      ? session.profiles
+            .where((p) => p.id == profileId)
+            .firstOrNull
+            ?.displayName
+      : null;
+}
+
+/// Whether another pass of the profile starts after [pass] ends, e.g. one
+/// already bought to follow it.
+bool _hasNextPass(OwnPass pass, List<OwnPass> passes) {
+  final validUntil = pass.validUntil;
+  if (validUntil == null) {
+    return false;
+  }
+  return passes.any(
+    (other) =>
+        other.id != pass.id &&
+        (other.status == PassStatus.active ||
+            other.status == PassStatus.scheduled ||
+            other.status == PassStatus.pendingPayment) &&
+        other.validFrom != null &&
+        other.validFrom!.isAfter(validUntil),
+  );
+}
+
+/// Opens the purchase of the same variant as [pass], if it is still on sale.
+Future<void> _buyNext(
+  BuildContext context,
+  WidgetRef ref,
+  OwnPass pass,
+  String profileId,
+  String? profileName,
+) async {
+  final l10n = AppLocalizations.of(context);
+  final messenger = ScaffoldMessenger.of(context);
+  final navigator = Navigator.of(context);
+  final PassOffer offer;
+  try {
+    offer = await ref.read(passesApiProvider).fetchOffer();
+  } on Exception {
+    messenger.showSnackBar(SnackBar(content: Text(l10n.passesLoadError)));
+    return;
+  }
+  for (final product in offer.products) {
+    for (final variant in product.variants) {
+      if (variant.id == pass.variantId) {
+        await navigator.push<PassOrder>(
+          MaterialPageRoute(
+            builder: (_) => PassCheckoutScreen(
+              profileId: profileId,
+              profileName: profileName,
+              product: product,
+              variant: variant,
+              renewedPass: pass,
+            ),
+          ),
+        );
+        return;
+      }
+    }
+  }
+  messenger.showSnackBar(SnackBar(content: Text(l10n.passBuyNextUnavailable)));
+}
+
 class _OwnPassCard extends StatelessWidget {
-  const _OwnPassCard(this.pass);
+  const _OwnPassCard(this.pass, {this.nextBought = false, this.onBuyNext});
 
   final OwnPass pass;
+
+  /// Whether a pass following this one is already bought.
+  final bool nextBought;
+
+  /// Buys the same variant again; `null` when the pass has no variant.
+  final VoidCallback? onBuyNext;
 
   @override
   Widget build(BuildContext context) {
@@ -125,8 +200,10 @@ class _OwnPassCard extends StatelessWidget {
     final total = pass.entriesTotal;
     final validFrom = pass.validFrom;
     final validUntil = pass.validUntil;
+    final colors = Theme.of(context).colorScheme;
     final isRunning =
         pass.status == PassStatus.active || pass.status == PassStatus.suspended;
+    final renewable = pass.expiringSoon || pass.status == PassStatus.expired;
 
     return Card(
       child: Padding(
@@ -155,15 +232,36 @@ class _OwnPassCard extends StatelessWidget {
               Text(
                 validFrom != null && pass.status == PassStatus.scheduled
                     ? l10n.passValidFromUntil(
-                        _formatDate(validFrom),
-                        _formatDate(validUntil),
+                        formatPassDate(validFrom),
+                        formatPassDate(validUntil),
                       )
-                    : l10n.passValidUntil(_formatDate(validUntil)),
+                    : l10n.passValidUntil(formatPassDate(validUntil)),
               ),
             if (validUntil != null && isRunning)
               Text(
                 l10n.passDaysLeft(_daysLeft(validUntil)),
                 style: textTheme.bodySmall,
+              ),
+            if (pass.expiringSoon)
+              Row(
+                spacing: 4,
+                children: [
+                  Icon(Icons.warning_amber, size: 18, color: colors.error),
+                  Text(
+                    l10n.passExpiringSoon,
+                    style: textTheme.bodyMedium?.copyWith(color: colors.error),
+                  ),
+                ],
+              ),
+            if (renewable && nextBought && pass.expiringSoon)
+              Text(l10n.passNextAlreadyBought, style: textTheme.bodySmall),
+            if (renewable && !nextBought && onBuyNext != null)
+              Align(
+                alignment: Alignment.centerRight,
+                child: FilledButton.tonal(
+                  onPressed: onBuyNext,
+                  child: Text(l10n.passBuyNext),
+                ),
               ),
           ],
         ),
@@ -201,6 +299,41 @@ class _OfferTab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
+    final session = switch (ref.watch(authControllerProvider)) {
+      Authenticated(:final session) => session,
+      _ => null,
+    };
+    final profileId = session?.activeProfileId;
+    final profile = session?.profiles
+        .where((p) => p.id == profileId)
+        .firstOrNull;
+
+    /// Opens the purchase of [variant], or `null` when the active profile
+    /// cannot buy [product].
+    VoidCallback? Function(PassVariant) buyFor(PassProduct product) {
+      final allowed =
+          session != null &&
+          profileId != null &&
+          profile != null &&
+          switch (product.audience) {
+            PassAudience.any => true,
+            PassAudience.adult => !profile.isChild,
+            PassAudience.child => profile.isChild,
+          };
+      return (variant) => !allowed
+          ? null
+          : () => Navigator.of(context).push<PassOrder>(
+              MaterialPageRoute(
+                builder: (_) => PassCheckoutScreen(
+                  profileId: profileId,
+                  profileName: _profileName(session, profileId),
+                  product: product,
+                  variant: variant,
+                ),
+              ),
+            );
+    }
+
     return ref
         .watch(passOfferProvider)
         .when(
@@ -214,7 +347,11 @@ class _OfferTab extends ConsumerWidget {
               children: [
                 if (offer.products.isEmpty) _Message(l10n.passesOfferEmpty),
                 for (final product in offer.products)
-                  _PassProductCard(product, offer.serviceNames),
+                  _PassProductCard(
+                    product,
+                    offer.serviceNames,
+                    onBuy: buyFor(product),
+                  ),
               ],
             ),
           ),
@@ -223,10 +360,17 @@ class _OfferTab extends ConsumerWidget {
 }
 
 class _PassProductCard extends StatelessWidget {
-  const _PassProductCard(this.product, this.serviceNames);
+  const _PassProductCard(
+    this.product,
+    this.serviceNames, {
+    required this.onBuy,
+  });
 
   final PassProduct product;
   final Map<String, String> serviceNames;
+
+  /// Opens the purchase of a variant; returns `null` when it cannot be bought.
+  final VoidCallback? Function(PassVariant) onBuy;
 
   @override
   Widget build(BuildContext context) {
@@ -279,10 +423,15 @@ class _PassProductCard extends StatelessWidget {
                       }}, ${l10n.passVariantValidity(variant.validityDays)}',
                     ),
                   ),
-                  Text(
-                    _formatMoney(variant.price),
-                    style: textTheme.titleSmall,
-                  ),
+                  Text(formatMoney(variant.price), style: textTheme.titleSmall),
+                  if (onBuy(variant) case final buy?)
+                    Padding(
+                      padding: const EdgeInsets.only(left: 8),
+                      child: TextButton(
+                        onPressed: buy,
+                        child: Text(l10n.passOfferBuy),
+                      ),
+                    ),
                 ],
               ),
           ],
@@ -352,13 +501,4 @@ class _LoadError extends StatelessWidget {
       ),
     );
   }
-}
-
-/// `2026-11-01` → `01.11.2026`.
-String _formatDate(DateTime date) => DateFormat('dd.MM.yyyy').format(date);
-
-/// `26000 PLN` → `260,00 PLN`, as on the web.
-String _formatMoney(Money money) {
-  final amount = NumberFormat('#,##0.00', 'pl').format(money.amountMinor / 100);
-  return '$amount ${money.currency}';
 }

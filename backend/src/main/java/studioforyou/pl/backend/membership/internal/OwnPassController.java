@@ -43,7 +43,8 @@ public class OwnPassController {
 	@Operation(summary = "List my passes", operationId = "listOwnPasses",
 			description = "Passes of the account's own profile or of a child it is a guardian of, newest first, "
 					+ "without cancelled ones. The status is the one today: during a suspension a pass is SUSPENDED, "
-						+ "past its last day it is EXPIRED.")
+						+ "past its last day it is EXPIRED. "
+						+ "expiringSoon marks an active or suspended pass with at most 7 days or at most 2 entries left.")
 	@ApiResponse(responseCode = "200", description = "The profile's passes.")
 	@ApiResponse(responseCode = "404", description = "No such profile, or the account does not act for it.",
 			content = @Content(mediaType = "application/problem+json",

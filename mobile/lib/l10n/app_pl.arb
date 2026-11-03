@@ -253,6 +253,55 @@
     }
   },
   "passSuspensionNotAllowed": "Bez możliwości zawieszenia",
+  "passExpiringSoon": "Karnet niedługo się kończy",
+  "passBuyNext": "Kup kolejny",
+  "passNextAlreadyBought": "Kolejny karnet już kupiony",
+  "passBuyNextUnavailable": "Ten karnet nie jest już w sprzedaży. Wybierz karnet w zakładce Oferta.",
+  "passOfferBuy": "Kup",
+  "checkoutTitle": "Zakup karnetu",
+  "checkoutFor": "Dla: {name}",
+  "@checkoutFor": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "checkoutStartAfterCurrent": "Rozpocznij po zakończeniu obecnego karnetu",
+  "checkoutStartAfterCurrentHint": "{name} jest ważny do {date}",
+  "@checkoutStartAfterCurrentHint": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "checkoutStartDate": "Data rozpoczęcia",
+  "checkoutTermsAccept": "Akceptuję regulamin studia i warunki zakupu karnetu",
+  "checkoutMockPaymentInfo": "Płatności online nie są jeszcze podłączone. Po kliknięciu „Zapłać” karnet zostanie od razu uznany za opłacony.",
+  "checkoutPay": "Zapłać {price}",
+  "@checkoutPay": {
+    "placeholders": {
+      "price": {
+        "type": "String"
+      }
+    }
+  },
+  "checkoutError": "Nie udało się kupić karnetu. Spróbuj ponownie.",
+  "checkoutSuccess": "Karnet opłacony. Ważny od {from} do {until}.",
+  "@checkoutSuccess": {
+    "placeholders": {
+      "from": {
+        "type": "String"
+      },
+      "until": {
+        "type": "String"
+      }
+    }
+  },
   "scheduleViewDay": "Dzień",
   "scheduleViewWeek": "Tydzień",
   "scheduleViewMonth": "Miesiąc",

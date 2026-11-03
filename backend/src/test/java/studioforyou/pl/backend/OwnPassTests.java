@@ -103,6 +103,7 @@ class OwnPassTests {
 			.andExpect(jsonPath("$.items", hasSize(1)))
 			.andExpect(jsonPath("$.items[0].id").value(pass.toString()))
 			.andExpect(jsonPath("$.items[0].customerId").value(parent.toString()))
+			.andExpect(jsonPath("$.items[0].variantId").value(variant.toString()))
 			.andExpect(jsonPath("$.items[0].productName").value("Karnet Pole Dance"))
 			.andExpect(jsonPath("$.items[0].entriesTotal").value(8))
 			.andExpect(jsonPath("$.items[0].entriesRemaining").value(5))
@@ -128,6 +129,28 @@ class OwnPassTests {
 			.andExpect(jsonPath("$.items[?(@.validFrom == '%s')].status".formatted(today())).value("ACTIVE"))
 			.andExpect(jsonPath("$.items[?(@.validFrom == '%s')].status".formatted(today().plusDays(1)))
 				.value("SCHEDULED"));
+	}
+
+	@Test
+	void aUsablePassWithFewDaysOrEntriesLeftIsExpiringSoon() throws Exception {
+		insertPass(parent, "ACTIVE", today().minusDays(20), today().plusDays(6), (short) 5);
+		insertPass(parent, "ACTIVE", today().minusDays(20), today().plusDays(7), (short) 3);
+		insertPass(parent, "ACTIVE", today().minusDays(20), today().plusDays(20), (short) 2);
+		insertPass(parent, "SCHEDULED", today().plusDays(1), today().plusDays(5), (short) 1);
+		insertPass(parent, "ACTIVE", today().minusDays(30), today().minusDays(1), (short) 1);
+
+		perform(PARENT_TOKEN, passesOf(parent))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.items[?(@.validUntil == '%s')].expiringSoon".formatted(today().plusDays(6)))
+				.value(true))
+			.andExpect(jsonPath("$.items[?(@.validUntil == '%s')].expiringSoon".formatted(today().plusDays(7)))
+				.value(false))
+			.andExpect(jsonPath("$.items[?(@.validUntil == '%s')].expiringSoon".formatted(today().plusDays(20)))
+				.value(true))
+			.andExpect(jsonPath("$.items[?(@.validUntil == '%s')].expiringSoon".formatted(today().plusDays(5)))
+				.value(false))
+			.andExpect(jsonPath("$.items[?(@.validUntil == '%s')].expiringSoon".formatted(today().minusDays(1)))
+				.value(false));
 	}
 
 	@Test

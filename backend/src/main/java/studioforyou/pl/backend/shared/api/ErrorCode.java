@@ -44,6 +44,10 @@ public enum ErrorCode {
 	/** The product does not allow suspension, or the suspension breaks its rules. */
 	PASS_SUSPENSION_NOT_ALLOWED(HttpStatus.UNPROCESSABLE_CONTENT),
 
+	// payments
+	/** The order is not waiting for a payment, e.g. it has already been paid. */
+	ORDER_NOT_PAYABLE(HttpStatus.UNPROCESSABLE_CONTENT),
+
 	// booking: client group-class participation
 	EVENT_NOT_BOOKABLE(HttpStatus.UNPROCESSABLE_CONTENT),
 	BOOKING_NOT_OPEN(HttpStatus.UNPROCESSABLE_CONTENT),
