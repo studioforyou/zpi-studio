@@ -2,6 +2,8 @@ package studioforyou.pl.backend.identity;
 
 import java.time.OffsetDateTime;
 
+import org.jspecify.annotations.Nullable;
+
 /**
  * Published inside the transaction that creates an invited account. Listeners (the invitation
  * e-mail) run in the same transaction: if one fails, the account and invitation are rolled back.
@@ -12,6 +14,9 @@ import java.time.OffsetDateTime;
  * @param role the role code the account was invited with, e.g. {@code CLIENT}
  * @param link the invitation link with the token
  * @param expiresAt when the link stops working
+ * @param invitedByTrainer the name of the trainer who created the account for the person, or
+ * {@code null} when the studio sent the invitation
  */
-public record AccountInvited(String email, String firstName, String role, String link, OffsetDateTime expiresAt) {
+public record AccountInvited(String email, String firstName, String role, String link, OffsetDateTime expiresAt,
+		@Nullable String invitedByTrainer) {
 }

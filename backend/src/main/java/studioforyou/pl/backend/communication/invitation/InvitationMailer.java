@@ -47,29 +47,37 @@ class InvitationMailer {
 		String studioName = studio != null ? studio.getName() : APP_NAME;
 		ZoneId zone = ZoneId.of(studio != null ? studio.getTimeZone() : "Europe/Warsaw");
 		String validUntil = event.expiresAt().atZoneSameInstant(zone).format(DATE);
+		String trainer = event.invitedByTrainer();
+		String intro = trainer == null
+				? "studio %s zaprasza Cię do aplikacji %s.".formatted(studioName, APP_NAME)
+				: "Twój trener %s założył Ci konto w aplikacji %s studia %s.".formatted(trainer, APP_NAME, studioName);
+		String introHtml = trainer == null
+				? "studio <strong>%s</strong> zaprasza Cię do aplikacji %s.".formatted(esc(studioName), APP_NAME)
+				: "Twój trener <strong>%s</strong> założył Ci konto w aplikacji %s studia <strong>%s</strong>."
+					.formatted(esc(trainer), APP_NAME, esc(studioName));
 
 		String text = """
 				Cześć %s,
 
-				studio %s zaprasza Cię do aplikacji %s.
+				%s
 
 				Aktywuj konto, ustawiając hasło pod tym adresem (link jest ważny do %s):
 				%s
 
 				Jeśli nie spodziewasz się tego zaproszenia, zignoruj tę wiadomość.
-				""".formatted(event.firstName(), studioName, APP_NAME, validUntil, event.link());
+				""".formatted(event.firstName(), intro, validUntil, event.link());
 		String html = """
 				<!DOCTYPE html>
 				<html lang="pl"><body style="margin:0;padding:24px;background:#f4f7f8;font-family:Arial,Helvetica,sans-serif;color:#1f2d33">
 				<div style="max-width:480px;margin:0 auto;background:#ffffff;border-radius:12px;padding:32px">
 				<p style="font-size:13px;letter-spacing:2px;color:#0e7c86;margin:0 0 24px">%s</p>
 				<p style="font-size:16px;margin:0 0 16px">Cześć %s,</p>
-				<p style="font-size:16px;line-height:1.5;margin:0 0 24px">studio <strong>%s</strong> zaprasza Cię do aplikacji %s.</p>
+				<p style="font-size:16px;line-height:1.5;margin:0 0 24px">%s</p>
 				<p style="text-align:center;margin:50px 0 25px"><a href="%s" style="display:inline-block;padding:14px 28px;border-radius:8px;background:linear-gradient(90deg,#0e7c86,#2bb3a3);background-color:#0e7c86;color:#ffffff;text-decoration:none;font-weight:bold">Aktywuj konto</a></p>
 				<p style="font-size:11px;line-height:1.5;color:#5b6b70;margin:50px 0 8px">Link jest ważny do %s. Jeśli przycisk nie działa, skopiuj adres:<br><a href="%s" style="color:#0e7c86;word-break:break-all">%s</a></p>
 				<p style="font-size:11px;color:#5b6b70;margin:10px 0 0">Jeśli nie spodziewasz się tego zaproszenia, zignoruj tę wiadomość.</p>
 				</div></body></html>
-				""".formatted(APP_NAME.toUpperCase(), esc(event.firstName()), esc(studioName), APP_NAME, esc(event.link()),
+				""".formatted(APP_NAME.toUpperCase(), esc(event.firstName()), introHtml, esc(event.link()),
 				validUntil, esc(event.link()), esc(event.link()));
 
 		try {

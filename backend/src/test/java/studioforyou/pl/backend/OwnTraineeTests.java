@@ -115,6 +115,7 @@ class OwnTraineeTests {
 			.andExpect(jsonPath("$.lastName").value("Zielińska"))
 			.andExpect(jsonPath("$.displayName").value("Katarzyna Zielińska"))
 			.andExpect(jsonPath("$.isActive").value(true))
+			.andExpect(jsonPath("$.isAwaitingActivation").value(false))
 			.andExpect(jsonPath("$.assignedBy").value(trainerAccount.toString()))
 			.andExpect(jsonPath("$.assignedAt").isNotEmpty());
 		perform(TRAINER_TOKEN, post(TRAINEES), assignJson(child)).andExpect(status().isCreated());

@@ -17,17 +17,19 @@ import studioforyou.pl.backend.customer.internal.TrainerAssignmentService.Assign
  * @param birthDate the date of birth, or {@code null} if unknown
  * @param isActive whether the participant's profile is still active
  * @param assignedBy the account that made the assignment
+ * @param isAwaitingActivation whether the participant's account was invited and the person has not
+ * set a password yet
  */
 @Schema(name = "Trainee")
 public record TraineeResponse(UUID customerId, CustomerKind kind, @Schema(example = "Katarzyna") String firstName,
 		@Schema(example = "Zielińska") String lastName, @Schema(example = "Katarzyna Zielińska") String displayName,
-		LocalDate birthDate, boolean isActive, UUID assignedBy, Instant assignedAt) {
+		LocalDate birthDate, boolean isActive, UUID assignedBy, Instant assignedAt, boolean isAwaitingActivation) {
 
 	static TraineeResponse from(AssignedTrainee assigned) {
 		ProfileDetails customer = assigned.customer();
 		return new TraineeResponse(customer.id(), customer.kind(), customer.firstName(), customer.lastName(),
 				customer.displayName(), customer.birthDate(), customer.active(), assigned.assignedBy(),
-				assigned.assignedAt());
+				assigned.assignedAt(), assigned.awaitingActivation());
 	}
 
 }
