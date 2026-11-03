@@ -13,6 +13,7 @@ import 'package:mobile/core/auth/auth_repository.dart';
 import 'package:mobile/core/auth/auth_state.dart';
 import 'package:mobile/core/auth/session.dart';
 import 'package:mobile/core/network/dio_provider.dart';
+import 'package:mobile/features/accounts/data/staff_profile_api.dart';
 import 'package:mobile/features/accounts/presentation/staff_profile_edit_screen.dart';
 import 'package:mobile/features/accounts/presentation/widgets/choice_tile.dart';
 import 'package:mobile/features/accounts/presentation/widgets/profile_header.dart';
@@ -53,6 +54,9 @@ class _ProfileAdapter implements HttpClientAdapter {
   int saveStatus = 200;
   int fetchCount = 0;
   final patches = <Map<String, dynamic>>[];
+
+  /// Patches of other profiles, by path.
+  final otherPatches = <String, Map<String, dynamic>>{};
   Completer<ResponseBody>? pendingFetch;
   Completer<ResponseBody>? pendingSave;
   Map<String, dynamic> profile = {
@@ -94,6 +98,16 @@ class _ProfileAdapter implements HttpClientAdapter {
       return response(fetchStatus);
     }
     final patch = Map<String, dynamic>.from(options.data as Map);
+    if (options.path != staffProfilePath) {
+      otherPatches[options.path] = patch;
+      return ResponseBody.fromString(
+        jsonEncode({'id': 'self', 'kind': 'ADULT', ...patch}),
+        200,
+        headers: {
+          Headers.contentTypeHeader: [Headers.jsonContentType],
+        },
+      );
+    }
     patches.add(patch);
     if (saveStatus == 200) {
       profile = {...profile, ...patch};
@@ -152,10 +166,17 @@ void main() {
 
   Finder field(int index) => find.byType(TextFormField).at(index);
 
-  Future<void> save(WidgetTester tester) async {
+  /// Saves; when asked about the account's customer profile, keeps it as is
+  /// unless [bothProfiles].
+  Future<void> save(WidgetTester tester, {bool bothProfiles = false}) async {
     await tester.ensureVisible(find.byType(FilledButton));
     await tester.tap(find.byType(FilledButton));
     await tester.pumpAndSettle();
+    final answer = find.text(bothProfiles ? 'Oba profile' : 'Tylko ten profil');
+    if (answer.evaluate().isNotEmpty) {
+      await tester.tap(answer);
+      await tester.pumpAndSettle();
+    }
   }
 
   testWidgets(
@@ -196,7 +217,8 @@ void main() {
       await tester.pumpAndSettle();
       // Back on the profile tab, now as the child.
       expect(find.text('CHILD NAME'), findsOneWidget);
-      expect(find.text('Dane osobowe'), findsNothing);
+      // The child's details editor, not the trainer's.
+      expect(find.text('Dane osobowe'), findsOneWidget);
       final active = tester.widget<ChoiceTile>(
         find.descendant(
           of: find.byType(ProfileHeader),
@@ -222,6 +244,50 @@ void main() {
       expect(adapter.patches, isEmpty);
     },
   );
+
+  testWidgets('copies a new name and phone to the own customer profile', (
+    tester,
+  ) async {
+    await openEditor(tester);
+    await tester.enterText(field(0), 'Maria');
+    await save(tester, bothProfiles: true);
+
+    expect(adapter.patches.single['firstName'], 'Maria');
+    expect(adapter.otherPatches, {
+      '/api/v1/me/customer-profiles/self': {
+        'firstName': 'Maria',
+        'lastName': 'Nowak',
+        'phone': '123456789',
+      },
+    });
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(NavigationBar)),
+    );
+    final session =
+        (container.read(authControllerProvider) as Authenticated).session;
+    expect(session.displayName, 'Maria Nowak');
+    expect(session.profiles.first.displayName, 'Maria Nowak');
+  });
+
+  testWidgets('rejects digits in names and letters in the phone', (
+    tester,
+  ) async {
+    await openEditor(tester);
+    await tester.enterText(field(0), 'Anna2');
+    await tester.enterText(field(1), '12345');
+    await tester.enterText(field(2), 'abcdef');
+    await save(tester);
+
+    expect(
+      find.text('Używaj tylko liter, spacji, myślników i apostrofów.'),
+      findsNWidgets(2),
+    );
+    expect(
+      find.text('Wpisz numer z cyframi, np. +48 600 100 200.'),
+      findsOneWidget,
+    );
+    expect(adapter.patches, isEmpty);
+  });
 
   testWidgets('a failed save keeps typed values and can be retried', (
     tester,

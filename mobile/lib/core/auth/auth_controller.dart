@@ -66,6 +66,35 @@ class AuthController extends Notifier<AuthState> {
     }
   }
 
+  /// Shows a customer profile's new name after its details were saved. The
+  /// account's own profile also gives the session its display name.
+  void renameProfile(String profileId, String displayName) {
+    if (state case final Authenticated current) {
+      final session = current.session;
+      final renamed = session.profiles.where((p) => p.id == profileId);
+      if (renamed.isEmpty) {
+        return;
+      }
+      state = Authenticated(
+        choosingRole: current.choosingRole,
+        switchingRole: current.switchingRole,
+        session.copyWith(
+          displayName: renamed.first.isChild ? null : displayName,
+          profiles: [
+            for (final p in session.profiles)
+              p.id == profileId
+                  ? Profile(
+                      id: p.id,
+                      displayName: displayName,
+                      isChild: p.isChild,
+                    )
+                  : p,
+          ],
+        ),
+      );
+    }
+  }
+
   /// Uses the app as [choice], one of [Session.choices], closes the role
   /// picker and remembers the choice for the next app start.
   void choose(SessionChoice choice) {

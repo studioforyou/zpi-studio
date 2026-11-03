@@ -24,6 +24,17 @@ class ProfileScreen extends ConsumerWidget {
           children: [
             // Full width, so its line can run from edge to edge.
             ProfileHeader(session: session),
+            if (session.activeRole == AppRole.client &&
+                session.activeProfileId != null)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: ListTile(
+                  leading: const Icon(Icons.edit_outlined),
+                  title: Text(l10n.personalDetailsEditTitle),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => context.push('/client/profile/edit'),
+                ),
+              ),
             if (session.activeRole == AppRole.trainer)
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -32,7 +43,7 @@ class ProfileScreen extends ConsumerWidget {
                   children: [
                     ListTile(
                       leading: const Icon(Icons.edit_outlined),
-                      title: Text(l10n.staffProfileEditTitle),
+                      title: Text(l10n.personalDetailsEditTitle),
                       trailing: const Icon(Icons.chevron_right),
                       onTap: () => context.push('/trainer/profile/edit'),
                     ),

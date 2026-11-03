@@ -9,6 +9,7 @@ import 'package:mobile/core/auth/app_role.dart';
 import 'package:mobile/core/auth/auth_controller.dart';
 import 'package:mobile/core/auth/auth_state.dart';
 import 'package:mobile/features/accounts/presentation/accept_invitation_screen.dart';
+import 'package:mobile/features/accounts/presentation/customer_profile_edit_screen.dart';
 import 'package:mobile/features/accounts/presentation/login_screen.dart';
 import 'package:mobile/features/accounts/presentation/profile_screen.dart';
 import 'package:mobile/features/accounts/presentation/reset_password_screen.dart';
@@ -40,6 +41,7 @@ const clientPassesPath = '/client/passes';
 const clientReservationsPath = '/client/reservations';
 const clientMessagesPath = '/client/messages';
 const clientProfilePath = '/client/profile';
+const clientProfileEditSubPath = 'edit';
 const clientTrainingHistorySubPath = 'history';
 const clientTrainingHistoryPath =
     '$clientReservationsPath/$clientTrainingHistorySubPath';
@@ -145,6 +147,12 @@ StatefulShellRoute _clientShell() => _roleShell([
     const ProfileScreen(),
     Icons.person,
     (l10n) => l10n.navProfile,
+    routes: [
+      GoRoute(
+        path: clientProfileEditSubPath,
+        builder: (_, _) => const CustomerProfileEditScreen(),
+      ),
+    ],
   ),
 ]);
 
