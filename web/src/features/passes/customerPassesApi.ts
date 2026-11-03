@@ -11,6 +11,31 @@ export type Customer = {
   displayName: string;
   /** `yyyy-MM-dd`, or `null` if unknown. */
   birthDate: string | null;
+  /**
+   * For administrators: the address of the participant's account or, for a child, of its
+   * guardian's account; `null` when there is none (and always for trainers).
+   */
+  email: string | null;
+  /** Whether `email` belongs to the child's guardian. */
+  emailOfGuardian: boolean;
+};
+
+/** The participant holding a pass. */
+export type PassHolder = {
+  id: string;
+  kind: CustomerKind;
+  firstName: string;
+  lastName: string;
+  displayName: string;
+  /** The participant's address or, for a child, its guardian's; `null` when there is none. */
+  email: string | null;
+  emailOfGuardian: boolean;
+};
+
+/** A pass found by a pass search, with its holder. */
+export type HeldPass = {
+  holder: PassHolder;
+  pass: CustomerPass;
 };
 
 export type Page<T> = {
@@ -75,7 +100,10 @@ export type AssignPass = {
   reason: string | null;
 };
 
-/** Active participants (adults and children) matching part of their name or phone number. */
+/**
+ * Active participants (adults and children) matching part of their name, phone number or, for
+ * administrators, e-mail address.
+ */
 export function searchCustomers(query: string, size = 20, page = 0): Promise<Page<Customer>> {
   const params = new URLSearchParams({ size: String(size) });
   if (page > 0) {
@@ -85,6 +113,18 @@ export function searchCustomers(query: string, size = 20, page = 0): Promise<Pag
     params.set('query', query.trim());
   }
   return apiFetch<Page<Customer>>(`/api/v1/customers?${params.toString()}`);
+}
+
+/**
+ * Passes of all active participants matching part of their name, phone number or e-mail
+ * address, by participant and newest first.
+ */
+export function searchCustomerPasses(query: string, size = 20, page = 0): Promise<Page<HeldPass>> {
+  const params = new URLSearchParams({ query: query.trim(), size: String(size) });
+  if (page > 0) {
+    params.set('page', String(page));
+  }
+  return apiFetch<Page<HeldPass>>(`/api/v1/customer-passes?${params.toString()}`);
 }
 
 export async function listCustomerPasses(customerId: string): Promise<CustomerPass[]> {

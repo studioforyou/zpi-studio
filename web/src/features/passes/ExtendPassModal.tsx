@@ -26,7 +26,7 @@ export function ExtendPassModal({ pass, onClose }: Props) {
         version: pass!.version,
       }),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['customer-passes', pass!.customerId] });
+      await queryClient.invalidateQueries({ queryKey: ['customer-passes'] });
       close();
     },
   });

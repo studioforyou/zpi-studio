@@ -1,5 +1,6 @@
 package studioforyou.pl.backend.membership.internal;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -15,6 +16,8 @@ import studioforyou.pl.backend.membership.CustomerPassStatus;
 public interface CustomerPassRepository extends JpaRepository<CustomerPass, UUID> {
 
 	List<CustomerPass> findByCustomerIdOrderByCreatedAtDesc(UUID customerId);
+
+	List<CustomerPass> findByCustomerIdInOrderByCreatedAtDesc(Collection<UUID> customerIds);
 
 	List<CustomerPass> findByCustomerIdAndStatusNotOrderByCreatedAtDesc(UUID customerId, CustomerPassStatus status);
 
