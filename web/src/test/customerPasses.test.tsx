@@ -14,7 +14,25 @@ const katarzyna: Customer = {
   lastName: 'Zielińska',
   displayName: 'Katarzyna Zielińska',
   birthDate: '1995-04-12',
+  email: 'katarzyna@example.com',
+  emailOfGuardian: false,
 };
+
+const zosia: Customer = {
+  id: 'customer-2',
+  kind: 'CHILD',
+  firstName: 'Zosia',
+  lastName: 'Zielińska',
+  displayName: 'Zosia Zielińska',
+  birthDate: null,
+  email: 'katarzyna@example.com',
+  emailOfGuardian: true,
+};
+
+function holderOf(customer: Customer) {
+  const { id, kind, firstName, lastName, displayName, email, emailOfGuardian } = customer;
+  return { id, kind, firstName, lastName, displayName, email, emailOfGuardian };
+}
 
 const adultProduct: PassProduct = {
   id: 'product-1',
@@ -82,8 +100,14 @@ function mockApi(
     if (init?.method === 'POST') {
       return Promise.resolve(onPost(url, JSON.parse(String(init.body ?? 'null'))));
     }
-    if (url.startsWith('/api/v1/customers/customer-1/passes')) {
-      return Promise.resolve(json({ items: passes }));
+    if (url.startsWith('/api/v1/customer-passes')) {
+      const items = passes.map((pass) => ({
+        holder: holderOf(pass.customerId === zosia.id ? zosia : katarzyna),
+        pass,
+      }));
+      return Promise.resolve(
+        json({ items, page: 0, size: 20, totalItems: items.length, totalPages: 1 }),
+      );
     }
     if (url.startsWith('/api/v1/customers')) {
       return Promise.resolve(
@@ -103,26 +127,56 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-async function chooseKatarzyna() {
+async function openParticipantsPasses() {
   renderWithProviders(<PassesPage />);
   await userEvent.click(screen.getByRole('tab', { name: 'Karnety uczestników' }));
-  await userEvent.click(screen.getByRole('combobox', { name: 'Uczestnik' }));
-  await userEvent.click(
-    await screen.findByRole('option', { name: 'Katarzyna Zielińska', hidden: true }),
-  );
 }
 
-test('shows the passes of the chosen participant', async () => {
+async function searchFor(text: string) {
+  await openParticipantsPasses();
+  await userEvent.type(screen.getByRole('textbox', { name: 'Szukaj uczestnika' }), text);
+}
+
+async function chooseKatarzynaIn(dialog: HTMLElement) {
+  await userEvent.click(within(dialog).getByRole('combobox', { name: /^Uczestnik/ }));
+  const option = await screen.findByRole('option', { name: /Katarzyna Zielińska/, hidden: true });
+  // The e-mail tells participants with the same name apart.
+  expect(within(option).getByText('katarzyna@example.com')).toBeInTheDocument();
+  await userEvent.click(option);
+}
+
+test('asks for a search before showing any passes', async () => {
   const fetchMock = mockApi();
-  await chooseKatarzyna();
+  await openParticipantsPasses();
+
+  expect(screen.getByText('Wyszukaj uczestnika, aby zobaczyć jego karnety.')).toBeInTheDocument();
+  expect(fetchMock).not.toHaveBeenCalledWith(
+    expect.stringContaining('/api/v1/customer-passes'),
+    expect.anything(),
+  );
+});
+
+test('shows the passes of every matching participant with their e-mail', async () => {
+  const fetchMock = mockApi(undefined, [
+    assignedPass,
+    { ...assignedPass, id: 'pass-2', customerId: zosia.id },
+  ]);
+  await searchFor('Zielińska');
 
   const panel = screen.getByRole('tabpanel');
-  const row = (await within(panel).findByText('Karnet Pole Dance')).closest('tr');
+  const row = (await within(panel).findByText('Katarzyna Zielińska')).closest('tr');
   expect(row).not.toBeNull();
+  expect(within(row!).getByText('katarzyna@example.com')).toBeInTheDocument();
+  expect(within(row!).getByText('Karnet Pole Dance')).toBeInTheDocument();
   expect(within(row!).getByText('5 z 8')).toBeInTheDocument();
   expect(within(row!).getByText('01.10.2026 – 30.10.2026')).toBeInTheDocument();
   expect(within(row!).getByText('Aktywny')).toBeInTheDocument();
-  expect(fetchMock).toHaveBeenCalledWith('/api/v1/customers/customer-1/passes', expect.anything());
+  const childRow = within(panel).getByText('Zosia Zielińska').closest('tr');
+  expect(within(childRow!).getByText('dziecko · katarzyna@example.com')).toBeInTheDocument();
+  expect(fetchMock).toHaveBeenCalledWith(
+    '/api/v1/customer-passes?query=Zieli%C5%84ska&size=20',
+    expect.anything(),
+  );
 });
 
 test('assigns a pass suited to the participant with the variant price', async () => {
@@ -133,9 +187,10 @@ test('assigns a pass suited to the participant with the variant price', async ()
     sent = body;
     return json(assignedPass, 201);
   });
-  await chooseKatarzyna();
+  await openParticipantsPasses();
   await userEvent.click(screen.getByRole('button', { name: 'Przypisz karnet' }));
   const dialog = await screen.findByRole('dialog');
+  await chooseKatarzynaIn(dialog);
 
   await userEvent.click(within(dialog).getByRole('combobox', { name: /^Karnet/ }));
   expect(
@@ -160,9 +215,10 @@ test('assigns a pass suited to the participant with the variant price', async ()
 
 test('shows why the server rejected the assignment', async () => {
   mockApi(() => json({ status: 422, code: 'PASS_AUDIENCE_MISMATCH', detail: 'mismatch' }, 422));
-  await chooseKatarzyna();
+  await openParticipantsPasses();
   await userEvent.click(screen.getByRole('button', { name: 'Przypisz karnet' }));
   const dialog = await screen.findByRole('dialog');
+  await chooseKatarzynaIn(dialog);
 
   await userEvent.click(within(dialog).getByRole('combobox', { name: /^Karnet/ }));
   await userEvent.click(
@@ -186,7 +242,7 @@ function currentPass(overrides: Partial<CustomerPass> = {}): CustomerPass {
 }
 
 async function openPassAction(name: string) {
-  await chooseKatarzyna();
+  await searchFor('Katarzyna');
   const panel = screen.getByRole('tabpanel');
   const row = (await within(panel).findByText('Karnet Pole Dance')).closest('tr');
   await userEvent.click(within(row!).getByRole('button', { name }));

@@ -39,7 +39,7 @@ export function SuspendPassModal({ pass, product, onClose }: Props) {
   const [submitted, setSubmitted] = useState(false);
 
   async function refresh() {
-    await queryClient.invalidateQueries({ queryKey: ['customer-passes', pass!.customerId] });
+    await queryClient.invalidateQueries({ queryKey: ['customer-passes'] });
   }
 
   const suspend = useMutation({

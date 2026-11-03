@@ -1,6 +1,7 @@
 package studioforyou.pl.backend.scheduling.internal;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -38,16 +39,14 @@ class DefaultGroupClassSchedule implements GroupClassSchedule {
 
 	@Override
 	public List<Occurrence> list(Instant from, Instant to) {
-		List<ScheduleEventResponse> events = queries.findEvents(new TimetableFilter(from, to, List.of(EventKind.CLASS), null,
+		return occurrences(queries.findEvents(new TimetableFilter(from, to, List.of(EventKind.CLASS), null,
 				List.of(EventVisibility.PUBLIC), null, null, null, null, null))
-			.stream().filter(e -> e.serviceTypeId() != null).toList();
-		Map<UUID, ServiceTypeSummary> definitions = services
-			.findAllById(events.stream().map(ScheduleEventResponse::serviceTypeId).distinct().toList())
-			.stream().collect(Collectors.toMap(ServiceTypeSummary::id, definition -> definition));
-		return events.stream().map(event -> {
-			ServiceTypeSummary definition = definitions.get(event.serviceTypeId());
-			return occurrence(event, definition == null ? null : definition.calendarColor());
-		}).toList();
+			.stream().filter(e -> e.serviceTypeId() != null).toList());
+	}
+
+	@Override
+	public List<Occurrence> findStartingBetween(Collection<UUID> ids, Instant from, Instant to) {
+		return occurrences(queries.findEventsStartingBetween(ids, from, to));
 	}
 
 	@Override
@@ -65,6 +64,16 @@ class DefaultGroupClassSchedule implements GroupClassSchedule {
 			.param("id", id).query(UUID.class).optional()
 			.orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "Group class not found."));
 		return find(id).orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "Group class not found."));
+	}
+
+	private List<Occurrence> occurrences(List<ScheduleEventResponse> events) {
+		Map<UUID, ServiceTypeSummary> definitions = services
+			.findAllById(events.stream().map(ScheduleEventResponse::serviceTypeId).filter(id -> id != null).distinct().toList())
+			.stream().collect(Collectors.toMap(ServiceTypeSummary::id, definition -> definition));
+		return events.stream().map(event -> {
+			ServiceTypeSummary definition = definitions.get(event.serviceTypeId());
+			return occurrence(event, definition == null ? null : definition.calendarColor());
+		}).toList();
 	}
 
 	private static Occurrence occurrence(ScheduleEventResponse event, String calendarColor) {

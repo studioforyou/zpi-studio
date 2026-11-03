@@ -59,6 +59,16 @@ final class GroupClassDtos {
 			Boolean entryReturned) {
 	}
 
+	@Schema(name = "TrainingHistoryEntry")
+	record HistoryEntryResponse(UUID reservationId, UUID eventId, String title, String serviceTypeName,
+			@Schema(description = "The service definition's configured #RRGGBB color, or null when unset.") String calendarColor,
+			Instant startsAt, Instant endsAt, List<InstructorResponse> staff, List<RoomResponse> resources,
+			@Schema(description = "PRESENT, ABSENT, UNMARKED (attendance not recorded yet), CANCELLED (in time), LATE_CANCELLED, or CLASS_CANCELLED (by the studio).")
+			String outcome,
+			@Schema(description = "Whether the customer's cancellation returned the pass entry; null without one.")
+			Boolean entryReturned) {
+	}
+
 	@Schema(name = "BookGroupClassRequest")
 	record BookRequest(@NotNull UUID customerPassId) {
 	}

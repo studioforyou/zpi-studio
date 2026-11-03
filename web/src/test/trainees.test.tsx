@@ -13,6 +13,8 @@ const katarzyna: Customer = {
   lastName: 'Zielińska',
   displayName: 'Katarzyna Zielińska',
   birthDate: '1995-04-12',
+  email: null,
+  emailOfGuardian: false,
 };
 
 const zosia: Customer = {
@@ -22,6 +24,8 @@ const zosia: Customer = {
   lastName: 'Dąbrowska',
   displayName: 'Zosia Dąbrowska',
   birthDate: null,
+  email: null,
+  emailOfGuardian: false,
 };
 
 const marek: AssignableTrainer = {

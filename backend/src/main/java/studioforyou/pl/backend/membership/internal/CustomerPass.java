@@ -199,17 +199,6 @@ public class CustomerPass {
 		}
 	}
 
-	/**
-	 * Activates a pass whose order has been paid: scheduled when it starts after today, active
-	 * otherwise.
-	 */
-	void activatePaid(LocalDate today) {
-		if (this.status != CustomerPassStatus.PENDING_PAYMENT) {
-			throw new IllegalStateException("Pass " + this.id + " is not waiting for a payment.");
-		}
-		this.status = this.validFrom.isAfter(today) ? CustomerPassStatus.SCHEDULED : CustomerPassStatus.ACTIVE;
-	}
-
 	public LocalDate getValidFrom() {
 		return this.validFrom;
 	}

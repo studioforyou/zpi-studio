@@ -8,6 +8,7 @@ import 'package:mobile/features/schedule/data/schedule_api.dart';
 import 'package:mobile/features/schedule/presentation/trainer_schedule_filter.dart';
 import 'package:mobile/features/schedule/presentation/widgets/schedule_calendar.dart';
 import 'package:mobile/features/schedule/presentation/widgets/trainer_schedule_filters.dart';
+import 'package:mobile/features/trainings/presentation/trainer_event_details_screen.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
 
 /// The trainer's own classes and trainings, to plan the working day, with a
@@ -46,8 +47,18 @@ class _TrainerScheduleScreenState extends ConsumerState<TrainerScheduleScreen> {
             rooms: {for (final event in events) ...event.roomNames}.toList(),
             onChanged: (filter) => setState(() => _filter = filter),
           ),
+          eventBuilder: (context, event) =>
+              ScheduleEventTile(event, onTap: () => _openEvent(event)),
         ),
       },
+    );
+  }
+
+  void _openEvent(ScheduleEvent event) {
+    Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => TrainerEventDetailsScreen(eventId: event.id),
+      ),
     );
   }
 }

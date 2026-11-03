@@ -35,6 +35,7 @@ public record OwnPassResponse(UUID id, UUID customerId, UUID variantId,
 
 	/**
 	 * @param suspensions the pass's suspensions that were not cancelled
+	 * @param suspensions the pass's suspensions that were not cancelled
 	 * @param today today's date in the studio's time zone
 	 */
 	static OwnPassResponse from(CustomerPass pass, List<PassSuspension> suspensions, LocalDate today) {

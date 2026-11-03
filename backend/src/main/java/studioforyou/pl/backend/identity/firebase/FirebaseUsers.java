@@ -22,6 +22,13 @@ public interface FirebaseUsers {
 	 */
 	Optional<String> createNew(String email, String password);
 
+	/**
+	 * Changes a user's e-mail (the login), keeping it marked as verified.
+	 *
+	 * @return {@code false} if another Firebase user already has this e-mail
+	 */
+	boolean updateEmail(String uid, String email);
+
 	/** Deletes a user created by {@link #createOrUpdate} or {@link #createNew}, e.g. when the database change is rolled back. */
 	void delete(String uid);
 

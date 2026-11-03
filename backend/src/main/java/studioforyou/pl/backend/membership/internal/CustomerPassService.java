@@ -3,6 +3,8 @@ package studioforyou.pl.backend.membership.internal;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Collection;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -15,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 import studioforyou.pl.backend.configuration.StudioSettings;
 import studioforyou.pl.backend.customer.CustomerKind;
 import studioforyou.pl.backend.customer.CustomerProfiles;
+import studioforyou.pl.backend.customer.CustomerProfiles.ParticipantContact;
 import studioforyou.pl.backend.customer.CustomerProfiles.ProfileDetails;
 import studioforyou.pl.backend.membership.CustomerPassStatus;
 import studioforyou.pl.backend.offering.PassProductAudience;
@@ -23,6 +26,7 @@ import studioforyou.pl.backend.offering.PassVariantTerms;
 import studioforyou.pl.backend.shared.api.ApiException;
 import studioforyou.pl.backend.shared.api.ErrorCode;
 import studioforyou.pl.backend.shared.api.FieldErrorCode;
+import studioforyou.pl.backend.shared.api.PageResponse;
 
 /**
  * Passes held by participants. The studio staff assign a pass directly, outside of an order:
@@ -33,6 +37,9 @@ import studioforyou.pl.backend.shared.api.FieldErrorCode;
 @Service
 @Transactional
 public class CustomerPassService {
+
+	/** The most participants a pass search looks at; a longer list needs a more precise query. */
+	static final int MAX_SEARCHED_PARTICIPANTS = 500;
 
 	private final CustomerPassRepository passes;
 
@@ -64,6 +71,34 @@ public class CustomerPassService {
 	public List<CustomerPass> list(UUID customerId) {
 		requireCustomer(customerId);
 		return passes.findByCustomerIdOrderByCreatedAtDesc(customerId);
+	}
+
+	/**
+	 * Passes of the active participants matching the query (part of the name, phone number or
+	 * e-mail address), ordered by participant as the participant search orders them and newest
+	 * first within a participant, with each holder's name and contact e-mail address.
+	 */
+	@Transactional(readOnly = true)
+	public PageResponse<HeldPass> search(String query, int page, int size) {
+		List<UUID> customerIds = customers.findActiveIds(query, MAX_SEARCHED_PARTICIPANTS);
+		if (customerIds.isEmpty()) {
+			return PageResponse.of(List.of(), page, size, 0);
+		}
+		Map<UUID, Integer> order = new HashMap<>();
+		for (int i = 0; i < customerIds.size(); i++) {
+			order.put(customerIds.get(i), i);
+		}
+		List<CustomerPass> found = passes.findByCustomerIdInOrderByCreatedAtDesc(customerIds)
+			.stream()
+			.sorted(Comparator.comparing((CustomerPass pass) -> order.get(pass.getCustomerId())))
+			.toList();
+		List<CustomerPass> onPage = found.stream().skip((long) page * size).limit(size).toList();
+		Map<UUID, ParticipantContact> holders = customers
+			.contacts(onPage.stream().map(CustomerPass::getCustomerId).collect(Collectors.toSet()));
+		List<HeldPass> items = onPage.stream()
+			.map((pass) -> new HeldPass(pass, holders.get(pass.getCustomerId())))
+			.toList();
+		return PageResponse.of(items, page, size, found.size());
 	}
 
 	@Transactional(readOnly = true)
@@ -252,7 +287,7 @@ public class CustomerPassService {
 		return pass;
 	}
 
-	static void requireStatus(CustomerPass pass, CustomerPassStatus... allowed) {
+	private static void requireStatus(CustomerPass pass, CustomerPassStatus... allowed) {
 		if (!List.of(allowed).contains(pass.getStatus()) || pass.getValidUntil() == null) {
 			throw new ApiException(ErrorCode.PASS_NOT_USABLE,
 					"The operation is not available for a pass with status " + pass.getStatus() + ".");
@@ -314,6 +349,12 @@ public class CustomerPassService {
 	 * @param version the pass version the change is based on
 	 */
 	public record Suspension(LocalDate startsOn, LocalDate endsOn, String reason, long version) {
+	}
+
+	/**
+	 * A pass with the participant holding it.
+	 */
+	public record HeldPass(CustomerPass pass, ParticipantContact holder) {
 	}
 
 }

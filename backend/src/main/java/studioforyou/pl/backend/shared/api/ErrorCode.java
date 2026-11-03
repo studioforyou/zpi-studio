@@ -23,6 +23,12 @@ public enum ErrorCode {
 	INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR),
 	EMAIL_NOT_SENT(HttpStatus.BAD_GATEWAY),
 
+	// identity: account management by administrators
+	/** The account's status does not allow the change, e.g. suspending an account that is not active. */
+	ACCOUNT_STATUS_CONFLICT(HttpStatus.CONFLICT),
+	/** Administrators cannot suspend or close their own account. */
+	OWN_ACCOUNT_CHANGE(HttpStatus.UNPROCESSABLE_CONTENT),
+
 	// customer
 	CUSTOMER_NOT_ACTIVE(HttpStatus.UNPROCESSABLE_CONTENT),
 	/** The trainer already has an active assignment to the participant. */
