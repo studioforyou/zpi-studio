@@ -175,6 +175,18 @@
     }
   },
   "passesTabMine": "Moje karnety",
+  "passesTabMakeup": "Do odrobienia",
+  "makeupAvailable": "{count, plural, =1{zajęcie do odrobienia} few{zajęcia do odrobienia} other{zajęć do odrobienia}}",
+  "@makeupAvailable": {"placeholders": {"count": {"type": "int"}}},
+  "makeupInfoTitle": "Jak działa odrabianie?",
+  "makeupInfoBody": "Jedna odróbka pozwala odrobić jedne zajęcia.\n\nKażda ma własny termin ważności. Nazwa karnetu pokazuje, z którego pochodzi.\n\nMożliwość wykorzystania zależy od zasad wybranych zajęć.",
+  "makeupExpiresAt": "Do {date}",
+  "@makeupExpiresAt": {"placeholders": {"date": {"type": "String"}}},
+  "makeupLoadError": "Nie udało się pobrać odróbek. Spróbuj ponownie.",
+  "makeupPrevious": "Poprzednie",
+  "makeupNext": "Następne",
+  "makeupPage": "{page} z {total}",
+  "@makeupPage": {"placeholders": {"page": {"type": "int"}, "total": {"type": "int"}}},
   "passesTabOffer": "Oferta",
   "passesProfile": "Profil: {name}",
   "@passesProfile": {
