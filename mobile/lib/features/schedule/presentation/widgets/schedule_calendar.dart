@@ -544,9 +544,12 @@ class _MonthDay extends StatelessWidget {
 /// One event: its time, name, kind and rooms, marked with the colour of its
 /// kind, or red when it is cancelled.
 class ScheduleEventTile extends StatelessWidget {
-  const ScheduleEventTile(this.event, {super.key});
+  const ScheduleEventTile(this.event, {this.onTap, super.key});
 
   final ScheduleEvent event;
+
+  /// Opens the event's details; the tile is not tappable when `null`.
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -560,58 +563,61 @@ class ScheduleEventTile extends StatelessWidget {
 
     return Card(
       clipBehavior: Clip.antiAlias,
-      child: IntrinsicHeight(
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Container(width: 6, color: color),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  spacing: 2,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            '${time.format(event.startsAt)}–'
-                            '${time.format(event.endsAt)}',
-                            style: textTheme.labelLarge,
-                          ),
-                        ),
-                        if (cancelled)
-                          Text(
-                            l10n.eventStatusCancelled,
-                            style: textTheme.labelMedium?.copyWith(
-                              color: scheme.error,
-                            ),
-                          )
-                        else if (event.status == EventStatus.completed)
-                          Text(
-                            l10n.eventStatusCompleted,
-                            style: textTheme.labelMedium?.copyWith(
-                              color: scheme.outline,
+      child: InkWell(
+        onTap: onTap,
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Container(width: 6, color: color),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    spacing: 2,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              '${time.format(event.startsAt)}–'
+                              '${time.format(event.endsAt)}',
+                              style: textTheme.labelLarge,
                             ),
                           ),
-                      ],
-                    ),
-                    Text(
-                      event.name ?? eventKindLabel(l10n, event.kind),
-                      style: textTheme.titleMedium?.copyWith(
-                        decoration: cancelled
-                            ? TextDecoration.lineThrough
-                            : null,
-                        color: cancelled ? scheme.error : null,
+                          if (cancelled)
+                            Text(
+                              l10n.eventStatusCancelled,
+                              style: textTheme.labelMedium?.copyWith(
+                                color: scheme.error,
+                              ),
+                            )
+                          else if (event.status == EventStatus.completed)
+                            Text(
+                              l10n.eventStatusCompleted,
+                              style: textTheme.labelMedium?.copyWith(
+                                color: scheme.outline,
+                              ),
+                            ),
+                        ],
                       ),
-                    ),
-                    Text(details.join(' · '), style: textTheme.bodySmall),
-                  ],
+                      Text(
+                        event.name ?? eventKindLabel(l10n, event.kind),
+                        style: textTheme.titleMedium?.copyWith(
+                          decoration: cancelled
+                              ? TextDecoration.lineThrough
+                              : null,
+                          color: cancelled ? scheme.error : null,
+                        ),
+                      ),
+                      Text(details.join(' · '), style: textTheme.bodySmall),
+                    ],
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

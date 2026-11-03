@@ -10,6 +10,7 @@ import 'package:mobile/features/schedule/data/schedule_api.dart';
 import 'package:mobile/features/schedule/presentation/trainer_schedule_filter.dart';
 import 'package:mobile/features/schedule/presentation/trainer_schedule_screen.dart';
 import 'package:mobile/features/schedule/presentation/widgets/schedule_calendar.dart';
+import 'package:mobile/features/trainings/data/event_participants_api.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
 
 const _session = Session(
@@ -46,6 +47,20 @@ class _FakeScheduleApi implements ScheduleApi {
             event.endsAt.isAfter(window.from))
           event,
     ];
+  }
+
+  @override
+  Future<ScheduleEvent> fetchOwnEvent(String eventId) async =>
+      events.singleWhere((event) => event.id == eventId);
+}
+
+class _FakeParticipantsApi implements EventParticipantsApi {
+  final eventIds = <String>[];
+
+  @override
+  Future<List<EventParticipant>> fetch(String eventId) async {
+    eventIds.add(eventId);
+    return const [];
   }
 }
 
@@ -88,6 +103,9 @@ ScheduleEvent _event(
 void main() {
   final today = _today();
   final tomorrow = DateTime(today.year, today.month, today.day + 1);
+  late _FakeParticipantsApi participantsApi;
+
+  setUp(() => participantsApi = _FakeParticipantsApi());
 
   Future<_FakeScheduleApi> pumpScreen(
     WidgetTester tester,
@@ -104,6 +122,7 @@ void main() {
         overrides: [
           authControllerProvider.overrideWith(_SignedInAuthController.new),
           scheduleApiProvider.overrideWithValue(api),
+          eventParticipantsApiProvider.overrideWithValue(participantsApi),
         ],
         child: const MaterialApp(
           localizationsDelegates: AppLocalizations.localizationsDelegates,
@@ -144,6 +163,25 @@ void main() {
     expect(find.text('Odwołane'), findsWidgets);
     expect(find.text('18:00–19:00'), findsOneWidget);
     expect(find.text('Zajęcia grupowe · Pole room'), findsOneWidget);
+  });
+
+  testWidgets('tapping an event opens its details with participants', (
+    tester,
+  ) async {
+    await pumpScreen(tester, [
+      _event(
+        'Pole dance',
+        EventKind.groupClass,
+        DateTime(today.year, today.month, today.day, 18),
+      ),
+    ]);
+
+    await tester.tap(find.text('Pole dance'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Szczegóły zajęć'), findsOneWidget);
+    expect(find.text('Uczestnicy (0)'), findsOneWidget);
+    expect(participantsApi.eventIds, ['Pole dance']);
   });
 
   testWidgets('the day view shows one day and moves between days', (

@@ -9,6 +9,8 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,10 +20,12 @@ import studioforyou.pl.backend.booking.internal.GroupClassDtos.CancelRequest;
 import studioforyou.pl.backend.booking.internal.GroupClassDtos.CancellationAvailability;
 import studioforyou.pl.backend.booking.internal.GroupClassDtos.EligiblePassResponse;
 import studioforyou.pl.backend.booking.internal.GroupClassDtos.GroupClassResponse;
+import studioforyou.pl.backend.booking.internal.GroupClassDtos.HistoryEntryResponse;
 import studioforyou.pl.backend.booking.internal.GroupClassDtos.InstructorResponse;
 import studioforyou.pl.backend.booking.internal.GroupClassDtos.ReservationResponse;
 import studioforyou.pl.backend.booking.internal.GroupClassDtos.RoomResponse;
 import studioforyou.pl.backend.booking.internal.GroupClassDtos.ParticipantResponse;
+import studioforyou.pl.backend.booking.internal.ReservationStore.PastReservation;
 import studioforyou.pl.backend.booking.internal.ReservationStore.Reservation;
 import studioforyou.pl.backend.configuration.BookingPolicies;
 import studioforyou.pl.backend.configuration.StudioSettings;
@@ -89,6 +93,22 @@ class GroupClassBookingService {
 		Map<UUID, Integer> counts = this.reservations.activeCounts(ids);
 		return occurrences.stream().filter(event -> !onlyOwn || own.containsKey(event.id()))
 			.map(event -> project(profile, event, own.get(event.id()), counts.getOrDefault(event.id(), 0), now))
+			.toList();
+	}
+
+	/** Booked events that started in [from, to), latest first, with what became of each booking. */
+	@Transactional(readOnly = true)
+	List<HistoryEntryResponse> history(UUID actorId, UUID profileId, Instant from, Instant to) {
+		requireProfile(actorId, profileId);
+		requireWindow(from, to);
+		Instant now = this.clock.instant();
+		if (!from.isBefore(now)) {
+			return List.of();
+		}
+		Map<UUID, PastReservation> booked = this.reservations.history(profileId).stream()
+			.collect(Collectors.toMap(PastReservation::eventId, Function.identity()));
+		return this.schedule.findStartingBetween(booked.keySet(), from, to.isAfter(now) ? now : to).stream()
+			.map(event -> historyEntry(event, booked.get(event.id())))
 			.toList();
 	}
 
@@ -197,6 +217,28 @@ class GroupClassBookingService {
 				event.resources().stream().map(room -> new RoomResponse(room.resourceId(), room.name())).toList(),
 				own == null ? null : reservationResponse(own, event, now),
 				availability(profile, event, own, activeCount, date, policy, now), event.version());
+	}
+
+	private static HistoryEntryResponse historyEntry(Occurrence event, PastReservation reservation) {
+		return new HistoryEntryResponse(reservation.id(), event.id(), event.title(), event.serviceTypeName(),
+				event.calendarColor(), event.startsAt(), event.endsAt(),
+				event.staff().stream().map(staff -> new InstructorResponse(staff.staffId(), staff.displayName(), staff.role())).toList(),
+				event.resources().stream().map(room -> new RoomResponse(room.resourceId(), room.name())).toList(),
+				outcome(reservation, event), reservation.entryReturned());
+	}
+
+	/** The customer's own cancellation outranks the studio's, which outranks attendance. */
+	static String outcome(PastReservation reservation, Occurrence event) {
+		if ("CANCELLED".equals(reservation.status())) {
+			return "LATE".equals(reservation.cancelKind()) ? "LATE_CANCELLED" : "CANCELLED";
+		}
+		if ("CANCELLED".equals(event.status())) {
+			return "CLASS_CANCELLED";
+		}
+		return switch (reservation.attendance()) {
+			case "PRESENT", "ABSENT" -> reservation.attendance();
+			case null, default -> "UNMARKED";
+		};
 	}
 
 	private BookingAvailability availability(ProfileDetails profile, Occurrence event, Reservation own,

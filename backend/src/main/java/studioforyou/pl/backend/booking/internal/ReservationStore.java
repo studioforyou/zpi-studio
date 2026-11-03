@@ -64,6 +64,17 @@ class ReservationStore {
 			.param("event", eventId).query(UUID.class).list();
 	}
 
+	/** Active reservations of the event, earliest booking first. */
+	List<ActiveReservation> activeReservations(UUID eventId) {
+		return this.jdbc.sql("""
+				SELECT id, customer_id, created_at FROM reservation
+				WHERE event_id = :event AND status = 'ACTIVE' ORDER BY created_at, id
+				""").param("event", eventId)
+			.query((rs, row) -> new ActiveReservation(rs.getObject("id", UUID.class),
+					rs.getObject("customer_id", UUID.class), instant(rs, "created_at")))
+			.list();
+	}
+
 	/** Authorization and the active roster use one statement snapshot of booking-owned rows. */
 	List<UUID> activeParticipantIdsForBookedProfile(UUID profileId, UUID eventId) {
 		return this.jdbc.sql("""
@@ -96,6 +107,19 @@ class ReservationStore {
 				WHERE customer_id = :customer AND event_id IN (:events) AND status = 'ACTIVE'
 				""").param("customer", customerId).param("events", eventIds).query(MAPPER).list()
 			.stream().collect(Collectors.toMap(Reservation::eventId, Function.identity()));
+	}
+
+	/** One reservation per event the customer booked: the active one, otherwise the latest cancelled. */
+	List<PastReservation> history(UUID customerId) {
+		return this.jdbc.sql("""
+				SELECT DISTINCT ON (event_id) id, event_id, status, cancel_kind, entry_returned, attendance
+				FROM reservation WHERE customer_id = :customer
+				ORDER BY event_id, status = 'ACTIVE' DESC, created_at DESC, id
+				""").param("customer", customerId)
+			.query((rs, row) -> new PastReservation(rs.getObject("id", UUID.class),
+					rs.getObject("event_id", UUID.class), rs.getString("status"), rs.getString("cancel_kind"),
+					rs.getObject("entry_returned", Boolean.class), rs.getString("attendance")))
+			.list();
 	}
 
 	Reservation insert(UUID reservationId, UUID eventId, UUID customerId, UUID actorId, String source,
@@ -140,6 +164,13 @@ class ReservationStore {
 	record Reservation(UUID id, UUID eventId, UUID customerId, String status, UUID customerPassId,
 			Instant freeCancelUntil, Instant cancelledAt, String cancelKind, Boolean entryReturned,
 			Boolean cancellationAllowed, Boolean lateCancelAllowed, Boolean lateCancelForfeitsEntry, int version) {
+	}
+
+	record PastReservation(UUID id, UUID eventId, String status, String cancelKind, Boolean entryReturned,
+			String attendance) {
+	}
+
+	record ActiveReservation(UUID id, UUID customerId, Instant bookedAt) {
 	}
 
 }
