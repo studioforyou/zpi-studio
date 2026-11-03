@@ -32,10 +32,23 @@ public interface StaffProfiles {
 	 */
 	StaffProfile updateByAccount(UUID accountId, ProfileChanges changes);
 
+	/**
+	 * Replaces the description clients see; blank text clears it. Does nothing without a profile.
+	 * The caller validates the length.
+	 */
+	void updateBioByAccount(UUID accountId, @Nullable String bio);
+
 	/** Creates the staff profile of a new account and returns its id. */
 	UUID create(UUID accountId, String firstName, String lastName);
+
 	/** The login account of each given staff member, whatever their status; unknown ids are left out. */
 	Map<UUID, UUID> findAccountIds(Collection<UUID> staffIds);
+
+	/**
+	 * Marks the account's staff profile {@code INACTIVE}, e.g. when the account is closed, so the
+	 * staff member is no longer offered for new events. Does nothing without a profile.
+	 */
+	void deactivateByAccount(UUID accountId);
 
 	/** The given staff members, whatever their status; unknown ids are left out. */
 	List<StaffMember> findAllById(Collection<UUID> ids);

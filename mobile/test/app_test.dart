@@ -146,14 +146,14 @@ void main() {
     expect(tile.labels, (name: 'Anna', role: 'Klient'));
     expect(tile.size, ProfileHeaderStyle.tileSize);
     expect(tile.onTap, isNull);
-    expect(find.text('ANNA KOWALSKA'), findsOneWidget);
+    expect(find.text('Anna Kowalska'), findsOneWidget);
     expect(find.text('ZMIEŃ PROFIL'), findsOneWidget);
     expect(find.text('WYLOGUJ SIĘ'), findsOneWidget);
 
     // The text block is centred on the square, or starts at its top when it
     // is taller than the square.
     final squareTop = tester.getTopLeft(find.byType(ChoiceTile)).dy;
-    final textTop = tester.getTopLeft(find.text('ANNA KOWALSKA')).dy;
+    final textTop = tester.getTopLeft(find.text('Anna Kowalska')).dy;
     final textBottom = tester.getBottomLeft(find.text('WYLOGUJ SIĘ')).dy;
     if (textBottom - textTop <= ProfileHeaderStyle.tileSize) {
       expect(

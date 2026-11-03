@@ -70,6 +70,16 @@ public class JdbcStaffProfiles implements StaffProfiles {
 	}
 
 	@Override
+	public void deactivateByAccount(UUID accountId) {
+		jdbc.sql("""
+				UPDATE staff_profile SET status = 'INACTIVE', updated_at = clock_timestamp()
+				WHERE account_id = :accountId AND status <> 'INACTIVE'
+				""")
+			.param("accountId", accountId)
+			.update();
+	}
+
+	@Override
 	public StaffProfile updateByAccount(UUID accountId, ProfileChanges changes) {
 		// Lock while merging a partial update so concurrent edits preserve omitted fields.
 		StaffProfile current = findProfile(accountId, true);
@@ -93,6 +103,17 @@ public class JdbcStaffProfiles implements StaffProfiles {
 			.param("accountId", accountId)
 			.update();
 		return updated;
+	}
+
+	@Override
+	public void updateBioByAccount(UUID accountId, @Nullable String bio) {
+		jdbc.sql("""
+				UPDATE staff_profile SET bio = :bio, updated_at = clock_timestamp()
+				WHERE account_id = :accountId
+				""")
+			.param("bio", UserText.trimToNull(bio))
+			.param("accountId", accountId)
+			.update();
 	}
 
 	@Override

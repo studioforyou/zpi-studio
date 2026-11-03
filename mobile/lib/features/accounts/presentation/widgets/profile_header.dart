@@ -77,7 +77,7 @@ class ProfileHeader extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       ShrinkToFitText(
-                        fullName.toUpperCase(),
+                        fullName,
                         minFontSize: ProfileHeaderStyle.nameMinSize,
                         maxLines: ProfileHeaderStyle.nameMaxLines,
                         style: const TextStyle(

@@ -72,6 +72,20 @@ class FirebaseAdminUsers implements FirebaseUsers {
 	}
 
 	@Override
+	public boolean updateEmail(String uid, String email) {
+		try {
+			auth().updateUser(new UserRecord.UpdateRequest(uid).setEmail(email).setEmailVerified(true));
+			return true;
+		}
+		catch (FirebaseAuthException ex) {
+			if (ex.getAuthErrorCode() == AuthErrorCode.EMAIL_ALREADY_EXISTS) {
+				return false;
+			}
+			throw new IllegalStateException("Could not change the e-mail of the Firebase user " + uid, ex);
+		}
+	}
+
+	@Override
 	public void delete(String uid) {
 		try {
 			auth().deleteUser(uid);
