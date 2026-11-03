@@ -91,6 +91,22 @@ class ScheduleQueries {
 		return assemble(this.jdbc.sql(sql.toString()).params(params).query(EVENT_ROW).list());
 	}
 
+	/** The given events that start in {@code [from, to)}, latest first. */
+	List<ScheduleEventResponse> findEventsStartingBetween(Collection<UUID> ids, Instant from, Instant to) {
+		if (ids.isEmpty()) {
+			return List.of();
+		}
+		return assemble(this.jdbc.sql(EVENT_COLUMNS + """
+				WHERE e.id IN (:ids) AND e.starts_at >= :from AND e.starts_at < :to
+				ORDER BY e.starts_at DESC, e.ends_at DESC, e.id
+				""")
+			.param("ids", ids)
+			.param("from", utc(from))
+			.param("to", utc(to))
+			.query(EVENT_ROW)
+			.list());
+	}
+
 	Optional<ScheduleEventResponse> findEvent(UUID id) {
 		List<EventRow> rows = this.jdbc.sql(EVENT_COLUMNS + "WHERE e.id = :id").param("id", id).query(EVENT_ROW).list();
 		return assemble(rows).stream().findFirst();

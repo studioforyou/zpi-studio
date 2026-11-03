@@ -19,10 +19,12 @@ class ClientScheduleScreen extends ConsumerWidget {
   const ClientScheduleScreen({
     this.reservationsOnly = false,
     this.today,
+    this.actions = const [],
     super.key,
   });
   final bool reservationsOnly;
   final DateTime? today;
+  final List<Widget> actions;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -35,6 +37,7 @@ class ClientScheduleScreen extends ConsumerWidget {
         title: Text(
           reservationsOnly ? l10n.navMySchedule : l10n.classesOfferTitle,
         ),
+        actions: actions,
       ),
       body: scope == null || session == null
           ? ClassMessage(l10n.classesNoProfile)

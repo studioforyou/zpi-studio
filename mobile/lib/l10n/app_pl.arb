@@ -550,6 +550,28 @@
   "planIssueLeaveRequested": "Masz wtedy wniosek urlopowy czekający na decyzję.",
   "planIssueOutsideHours": "Termin jest poza Twoimi godzinami pracy.",
   "planIssueNotQualified": "Nie masz kwalifikacji do prowadzenia tego rodzaju zajęć.",
-  "planIssueUnknown": "Termin ma nieznany problem."
+  "planIssueUnknown": "Termin ma nieznany problem.",
+  "trainingHistoryTitle": "Historia treningów",
+  "trainingHistoryPreviousMonth": "Poprzedni miesiąc",
+  "trainingHistoryNextMonth": "Następny miesiąc",
+  "trainingHistoryEmpty": "W tym miesiącu nie było treningów, na które się zapisano.",
+  "trainingHistoryPresent": "Obecności",
+  "trainingHistoryAbsent": "Nieobecności",
+  "trainingHistoryCancelled": "Odwołane",
+  "trainingHistoryAttendanceRate": "Frekwencja: {percent}%",
+  "@trainingHistoryAttendanceRate": {
+    "placeholders": {
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
+  "trainingHistoryEntryNotReturned": "Wejście z karnetu nie zostało zwrócone.",
+  "trainingOutcomePresent": "Obecność",
+  "trainingOutcomeAbsent": "Nieobecność",
+  "trainingOutcomeUnmarked": "Obecność jeszcze nie potwierdzona",
+  "trainingOutcomeCancelled": "Odwołano w terminie",
+  "trainingOutcomeLateCancelled": "Odwołano po terminie",
+  "trainingOutcomeClassCancelled": "Zajęcia odwołane przez studio"
 }
 
