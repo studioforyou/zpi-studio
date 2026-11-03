@@ -71,6 +71,21 @@ class OpenApiDocsTest {
 	}
 
 	@Test
+	void documentsTrainerEventParticipants() throws Exception {
+		String json = apiDocs();
+
+		assertThat((String) JsonPath.read(json, "$.paths['/api/v1/me/schedule-events/{eventId}'].get.operationId"))
+			.isEqualTo("getOwnScheduleEvent");
+		String path = "$.paths['/api/v1/me/schedule-events/{eventId}/participants'].get";
+		assertThat((String) JsonPath.read(json, path + ".operationId")).isEqualTo("listOwnEventParticipants");
+		Map<String, Object> responses = JsonPath.read(json, path + ".responses");
+		assertThat(responses).containsKeys("200", "401", "403", "404");
+		Map<String, Object> fields = JsonPath.read(json, "$.components.schemas.EventParticipant.properties");
+		assertThat(fields).containsOnlyKeys("reservationId", "customerId", "kind", "firstName", "lastName",
+				"displayName", "birthDate", "bookedAt");
+	}
+
+	@Test
 	void sessionOperationsGetAuthErrors() throws Exception {
 		Map<String, Object> responses = JsonPath.read(apiDocs(), "$.paths['/api/v1/studio'].get.responses");
 

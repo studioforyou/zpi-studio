@@ -98,3 +98,11 @@ The screens use the profile-scoped group-class booking API. They support choosin
 The history icon in **Mój grafik** opens the training history (`/client/reservations/history`, #97): the selected participant's past bookings month by month, with attendance, cancellations and a monthly attendance rate.
 
 
+
+## Trainer class details
+
+Tapping an event in the trainer's **Grafik** opens `TrainerEventDetailsScreen`
+(`lib/features/trainings/presentation/`): the time, rooms, lead and assistants,
+occupancy against capacity, and the participants with an active reservation,
+each with a child marker and their age on the day of the class. The event and
+its participants are cached per account, like the trainer's schedule.

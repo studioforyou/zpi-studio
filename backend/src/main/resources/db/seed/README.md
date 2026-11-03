@@ -14,8 +14,11 @@ Test accounts created by the seed in this directory. Loaded on dev and stage onl
 | `julia.kaminska@seed.studioforyou.pl` | Julia Kamińska | CLIENT | INVITED | no | Invited by the studio, has not logged in yet (no Firebase user) |
 | `adam.mazur@seed.studioforyou.pl` | Adam Mazur | CLIENT | SUSPENDED | yes* | Suspended for an overdue payment |
 | `beata.lis@seed.studioforyou.pl` | Beata Lis | ADMIN | ACTIVE | yes | Studio administrator, the only seed account that can log in to the web panel |
+| `karolina.szymanska@seed.studioforyou.pl` | Karolina Szymańska | TRAINER, CLIENT | ACTIVE | yes** | Trainer (kids pole dance) and client at the same time, **parent** of Kuba: tests role switching |
 
 \* Logs in to Firebase, but the backend gives access to studio features only to ACTIVE accounts.
+
+\*\* Needs a Firebase user with UID `seed-uid-karolina-szymanska`, like the other seed accounts.
 
 The timetable showcase seed also completes the known cancellation terms of the original Katarzyna and Zosia reservation fixtures. With a fresh seed, Katarzyna can cancel and rebook the upcoming Tuesday class; Monika can act for Zosia on the kids class. Other historical reservations without known snapshots remain readable but cannot be cancelled through this workflow. Events retain the dates from the week the seed first ran.
 
@@ -24,6 +27,7 @@ Customer profiles without an account:
 | Name | Notes |
 | --- | --- |
 | Zosia Dąbrowska | **Child** profile (born 2016), guardian: Monika Dąbrowska; kids pole dance group |
+| Kuba Szymański | **Child** profile (born 2017), guardian: Karolina Szymańska |
 | Krzysztof Wrona | Adult added by the studio without an account, archived |
 
 ## Timetable showcase (seed 08)

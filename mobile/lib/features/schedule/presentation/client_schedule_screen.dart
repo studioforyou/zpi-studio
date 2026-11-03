@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:mobile/core/auth/app_role.dart';
 import 'package:mobile/core/auth/auth_controller.dart';
 import 'package:mobile/core/auth/session.dart';
 import 'package:mobile/features/schedule/data/client_schedule_api.dart';
@@ -167,8 +168,15 @@ class _ClientCalendarState extends ConsumerState<_ClientCalendar> {
                   ),
               ],
               onChanged: (id) {
-                if (id != null) {
-                  ref.read(authControllerProvider.notifier).selectProfile(id);
+                final profile = widget.session.profiles
+                    .where((profile) => profile.id == id)
+                    .firstOrNull;
+                if (profile != null) {
+                  ref
+                      .read(authControllerProvider.notifier)
+                      .choose(
+                        SessionChoice(role: AppRole.client, profile: profile),
+                      );
                 }
               },
             ),

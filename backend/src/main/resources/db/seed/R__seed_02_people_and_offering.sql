@@ -4,7 +4,9 @@
 -- Customer profiles (07...NN):
 --   01 Katarzyna Zielińska   02 Tomasz Lewandowski   03 Monika Dąbrowska   04 Zosia Dąbrowska (child of 03)
 --   05 Piotr Wójcik          06 Adam Mazur           07 Krzysztof Wrona (no account)   08 Julia Kamińska
--- Staff profiles (08...NN): 01 Anna Kowalska, 02 Marek Nowak, 03 Ewa Wiśniewska, 04 Beata Lis (admin)
+--   09 Karolina Szymańska    10 Kuba Szymański (child of 09)
+-- Staff profiles (08...NN): 01 Anna Kowalska, 02 Marek Nowak, 03 Ewa Wiśniewska, 04 Beata Lis (admin),
+--   05 Karolina Szymańska
 -- Service types (10...NN):
 --   01 Pole dance beginners   02 Pole dance intermediate   03 Calisthenics
 --   04 Personal training      05 Pole dance kids           06 Stretching workshop
@@ -17,18 +19,22 @@ INSERT INTO customer_profile (id, account_id, kind, first_name, last_name, birth
     ('07000000-0000-0000-0000-000000000005', '03000000-0000-0000-0000-000000000007', 'ADULT', 'Piotr',     'Wójcik',      '2000-11-02', '+48600100105', NULL,                NULL,           'ACTIVE', NULL),
     ('07000000-0000-0000-0000-000000000006', '03000000-0000-0000-0000-000000000009', 'ADULT', 'Adam',      'Mazur',       '1992-03-14', '+48600100106', NULL,                NULL,           'ACTIVE', NULL),
     ('07000000-0000-0000-0000-000000000007', NULL,                                   'ADULT', 'Krzysztof', 'Wrona',       '1979-07-19', '+48600100107', NULL,                NULL,           'ARCHIVED', '03000000-0000-0000-0000-000000000001'),
-    ('07000000-0000-0000-0000-000000000008', '03000000-0000-0000-0000-000000000008', 'ADULT', 'Julia',     'Kamińska',    '1998-08-08', '+48600100108', NULL,                NULL,           'ACTIVE', '03000000-0000-0000-0000-000000000001')
+    ('07000000-0000-0000-0000-000000000008', '03000000-0000-0000-0000-000000000008', 'ADULT', 'Julia',     'Kamińska',    '1998-08-08', '+48600100108', NULL,                NULL,           'ACTIVE', '03000000-0000-0000-0000-000000000001'),
+    ('07000000-0000-0000-0000-000000000009', '03000000-0000-0000-0000-000000000011', 'ADULT', 'Karolina',  'Szymańska',   '1990-02-17', '+48600100109', 'Michał Szymański',  '+48600100197', 'ACTIVE', '03000000-0000-0000-0000-000000000001'),
+    ('07000000-0000-0000-0000-000000000010', NULL,                                   'CHILD', 'Kuba',      'Szymański',   '2017-10-09', NULL,           'Karolina Szymańska', '+48600100109', 'ACTIVE', '03000000-0000-0000-0000-000000000011')
 ON CONFLICT DO NOTHING;
 
 INSERT INTO guardianship (guardian_id, child_id, relation, is_payer) VALUES
-    ('07000000-0000-0000-0000-000000000003', '07000000-0000-0000-0000-000000000004', 'PARENT', TRUE)
+    ('07000000-0000-0000-0000-000000000003', '07000000-0000-0000-0000-000000000004', 'PARENT', TRUE),
+    ('07000000-0000-0000-0000-000000000009', '07000000-0000-0000-0000-000000000010', 'PARENT', TRUE)
 ON CONFLICT DO NOTHING;
 
 INSERT INTO staff_profile (id, account_id, first_name, last_name, phone, bio, photo_file_id, calendar_color, status) VALUES
     ('08000000-0000-0000-0000-000000000001', '03000000-0000-0000-0000-000000000001', 'Anna', 'Kowalska',   '+48600200201', 'Właścicielka studia, instruktorka pole dance od 10 lat.', '02000000-0000-0000-0000-000000000001', '#E91E63', 'ACTIVE'),
     ('08000000-0000-0000-0000-000000000002', '03000000-0000-0000-0000-000000000002', 'Marek', 'Nowak',     '+48600200202', 'Trener personalny i calisthenics.',                      NULL,                                   '#2196F3', 'ACTIVE'),
     ('08000000-0000-0000-0000-000000000003', '03000000-0000-0000-0000-000000000003', 'Ewa',   'Wiśniewska','+48600200203', 'Instruktorka pole dance i stretchingu.',                 NULL,                                   '#4CAF50', 'ACTIVE'),
-    ('08000000-0000-0000-0000-000000000004', '03000000-0000-0000-0000-000000000010', 'Beata', 'Lis',       '+48600200204', 'Administratorka studia: grafik, karnety i konta klientów.', NULL,                                 NULL,      'ACTIVE')
+    ('08000000-0000-0000-0000-000000000004', '03000000-0000-0000-0000-000000000010', 'Beata', 'Lis',       '+48600200204', 'Administratorka studia: grafik, karnety i konta klientów.', NULL,                                 NULL,      'ACTIVE'),
+    ('08000000-0000-0000-0000-000000000005', '03000000-0000-0000-0000-000000000011', 'Karolina', 'Szymańska', '+48600200205', 'Instruktorka zajęć dla dzieci, sama też trenuje w studiu.', NULL,                         '#FF5722', 'ACTIVE')
 ON CONFLICT DO NOTHING;
 
 INSERT INTO service_type (id, name, description, category, level, min_age, max_age, default_duration_minutes, min_participants, max_participants, calendar_color, is_active) VALUES
@@ -56,7 +62,8 @@ INSERT INTO staff_qualification (staff_id, service_type_id) VALUES
     ('08000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000004'),
     ('08000000-0000-0000-0000-000000000003', '10000000-0000-0000-0000-000000000001'),
     ('08000000-0000-0000-0000-000000000003', '10000000-0000-0000-0000-000000000004'),
-    ('08000000-0000-0000-0000-000000000003', '10000000-0000-0000-0000-000000000006')
+    ('08000000-0000-0000-0000-000000000003', '10000000-0000-0000-0000-000000000006'),
+    ('08000000-0000-0000-0000-000000000005', '10000000-0000-0000-0000-000000000005')
 ON CONFLICT DO NOTHING;
 
 INSERT INTO staff_assignment (id, customer_id, staff_id, scope, can_view_health, assigned_by, started_at, ended_at, end_reason) VALUES
