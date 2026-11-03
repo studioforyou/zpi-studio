@@ -32,6 +32,12 @@ public interface StaffProfiles {
 	 */
 	StaffProfile updateByAccount(UUID accountId, ProfileChanges changes);
 
+	/**
+	 * Replaces the description clients see; blank text clears it. Does nothing without a profile.
+	 * The caller validates the length.
+	 */
+	void updateBioByAccount(UUID accountId, @Nullable String bio);
+
 	/** Creates the staff profile of a new account and returns its id. */
 	UUID create(UUID accountId, String firstName, String lastName);
 

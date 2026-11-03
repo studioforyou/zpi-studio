@@ -11,6 +11,8 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import org.jspecify.annotations.Nullable;
+
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
@@ -82,6 +84,64 @@ public class CustomerProfiles {
 			.param("firstName", firstName.strip())
 			.param("lastName", lastName.strip())
 			.param("phone", (phone == null || phone.isBlank()) ? null : phone.strip())
+			.update() > 0;
+	}
+
+	/** Changes only the name of the account's own profile, whatever its status. */
+	public void renameOwnProfile(UUID accountId, String firstName, String lastName) {
+		jdbc.sql("""
+				UPDATE customer_profile
+				SET first_name = :firstName, last_name = :lastName, updated_at = now()
+				WHERE account_id = :accountId
+				""")
+			.param("accountId", accountId)
+			.param("firstName", firstName.strip())
+			.param("lastName", lastName.strip())
+			.update();
+	}
+
+	/**
+	 * Active children the account's own profile is a current guardian of, sorted by first name, with
+	 * the details an administrator may change.
+	 */
+	public List<ChildDetails> findChildrenOfAccount(UUID accountId) {
+		return jdbc.sql("""
+				SELECT c.id, c.first_name, c.last_name, c.birth_date, c.emergency_contact_name, c.emergency_phone
+				FROM customer_profile guardian
+				JOIN guardianship g ON g.guardian_id = guardian.id AND g.ended_at IS NULL
+				JOIN customer_profile c ON c.id = g.child_id AND c.status = 'ACTIVE'
+				WHERE guardian.account_id = :accountId
+				ORDER BY c.first_name, c.last_name, c.id
+				""")
+			.param("accountId", accountId)
+			.query(ChildDetails.class)
+			.list();
+	}
+
+	/**
+	 * Replaces the details of an active child the account's own profile is a current guardian of.
+	 * The caller validates and trims the details.
+	 *
+	 * @return {@code false} if there is no such child
+	 */
+	public boolean updateChildOfAccount(UUID accountId, ChildDetails child) {
+		return jdbc.sql("""
+				UPDATE customer_profile c
+				SET first_name = :firstName, last_name = :lastName, birth_date = :birthDate,
+				    emergency_contact_name = :emergencyContactName, emergency_phone = :emergencyPhone,
+				    updated_at = now()
+				FROM guardianship g
+				JOIN customer_profile guardian ON guardian.id = g.guardian_id
+				WHERE c.id = :childId AND c.status = 'ACTIVE' AND g.child_id = c.id AND g.ended_at IS NULL
+				  AND guardian.account_id = :accountId
+				""")
+			.param("accountId", accountId)
+			.param("childId", child.id())
+			.param("firstName", child.firstName())
+			.param("lastName", child.lastName())
+			.param("birthDate", child.birthDate())
+			.param("emergencyContactName", child.emergencyContactName())
+			.param("emergencyPhone", child.emergencyPhone())
 			.update() > 0;
 	}
 
@@ -233,6 +293,12 @@ public class CustomerProfiles {
 			.param("profileId", profileId)
 			.query(Boolean.class)
 			.single();
+	}
+
+	/** A child's personal details; {@code null} for an unknown birth date or missing emergency contact. */
+	public record ChildDetails(UUID id, String firstName, String lastName, @Nullable LocalDate birthDate,
+			@Nullable String emergencyContactName, @Nullable String emergencyPhone) {
+
 	}
 
 	public record ProfileSummary(UUID id, String firstName, String lastName) {

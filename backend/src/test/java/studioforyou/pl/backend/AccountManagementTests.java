@@ -12,6 +12,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -68,6 +70,13 @@ class AccountManagementTests {
 
 	private UUID invited;
 
+	/** A trainer who is also a client and the guardian of {@link #child}. */
+	private UUID parent;
+
+	private UUID child;
+
+	private final List<UUID> children = new ArrayList<>();
+
 	@BeforeEach
 	void setUp() {
 		admin = addAccount("beata" + DOMAIN, "ACTIVE", "ADMIN", "uid-accounts-admin", ADMIN_TOKEN);
@@ -86,10 +95,22 @@ class AccountManagementTests {
 			.param("hash", "a".repeat(64))
 			.param("admin", admin)
 			.update();
+		parent = addAccount("ola" + DOMAIN, "ACTIVE", "TRAINER", null, null);
+		addStaffProfile(parent, "Ola", "Wiśniewska");
+		jdbc.sql("UPDATE staff_profile SET phone = '+48 500 100 100', bio = 'Joga' WHERE account_id = :id")
+			.param("id", parent)
+			.update();
+		addCustomerProfile(parent, "Ola", "Wiśniewska", "+48 500 200 200");
+		child = addChild(parent, "Staś", "Wiśniewski");
 	}
 
 	@AfterEach
 	void tearDown() {
+		for (UUID id : children) {
+			jdbc.sql("DELETE FROM guardianship WHERE child_id = :id").param("id", id).update();
+			jdbc.sql("DELETE FROM customer_profile WHERE id = :id").param("id", id).update();
+		}
+		children.clear();
 		String accounts = "(SELECT id FROM account WHERE email ILIKE '%" + DOMAIN + "' OR email ILIKE '%@closed.invalid')";
 		for (String table : new String[] { "staff_profile", "customer_profile", "account_invitation",
 				"account_status_change", "account_role", "identity_link" }) {
@@ -102,13 +123,40 @@ class AccountManagementTests {
 	void listsAccountsWithTheirNamesAndRoles() throws Exception {
 		mvc.perform(as(ADMIN_TOKEN, get("/api/v1/accounts").param("query", DOMAIN)))
 			.andExpect(status().isOk())
-			.andExpect(jsonPath("$.totalItems").value(4))
-			// Sorted by last name: Kamińska, Lis, Nowak, Zielińska.
+			.andExpect(jsonPath("$.totalItems").value(6))
+			// Sorted by last name: Kamińska, Lis, Nowak, Wiśniewska, Wiśniewski, Zielińska.
 			.andExpect(jsonPath("$.items[0].displayName").value("Julia Kamińska"))
 			.andExpect(jsonPath("$.items[0].status").value("INVITED"))
 			.andExpect(jsonPath("$.items[1].roles[0]").value("ADMIN"))
 			.andExpect(jsonPath("$.items[2].firstName").value("Marek"))
-			.andExpect(jsonPath("$.items[3].phone").value("+48600100101"));
+			.andExpect(jsonPath("$.items[5].phone").value("+48600100101"));
+	}
+
+	@Test
+	void listsTheOwnerOnceAndEachChildSeparately() throws Exception {
+		UUID clientProfile = jdbc.sql("SELECT id FROM customer_profile WHERE account_id = :id")
+			.param("id", parent)
+			.query(UUID.class)
+			.single();
+		mvc.perform(as(ADMIN_TOKEN, get("/api/v1/accounts").param("query", "ola" + DOMAIN)))
+			.andExpect(jsonPath("$.totalItems").value(2))
+			// The client and staff profile of the account are one person.
+			.andExpect(jsonPath("$.items[0].displayName").value("Ola Wiśniewska"))
+			.andExpect(jsonPath("$.items[0].profileId").value(clientProfile.toString()))
+			.andExpect(jsonPath("$.items[0].roles[0]").value("TRAINER"))
+			.andExpect(jsonPath("$.items[0].phone").value("+48 500 200 200"))
+			.andExpect(jsonPath("$.items[1].id").value(parent.toString()))
+			.andExpect(jsonPath("$.items[1].profileId").value(child.toString()))
+			.andExpect(jsonPath("$.items[1].displayName").value("Staś Wiśniewski"))
+			.andExpect(jsonPath("$.items[1].roles[0]").value("CHILD"))
+			.andExpect(jsonPath("$.items[1].phone").isEmpty())
+			.andExpect(jsonPath("$.items[1].email").value("ola" + DOMAIN));
+		mvc.perform(as(ADMIN_TOKEN, get("/api/v1/accounts").param("query", "wiśniewski staś")))
+			.andExpect(jsonPath("$.totalItems").value(1))
+			.andExpect(jsonPath("$.items[0].profileId").value(child.toString()));
+		mvc.perform(as(ADMIN_TOKEN, get("/api/v1/accounts").param("query", DOMAIN).param("role", "CHILD")))
+			.andExpect(jsonPath("$.totalItems").value(1))
+			.andExpect(jsonPath("$.items[0].firstName").value("Staś"));
 	}
 
 	@Test
@@ -196,6 +244,98 @@ class AccountManagementTests {
 	}
 
 	@Test
+	void showsEveryProfileOfAnAccount() throws Exception {
+		mvc.perform(as(ADMIN_TOKEN, get("/api/v1/accounts/{id}", parent)))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.profiles.length()").value(3))
+			.andExpect(jsonPath("$.profiles[0].kind").value("CLIENT"))
+			.andExpect(jsonPath("$.profiles[0].phone").value("+48 500 200 200"))
+			.andExpect(jsonPath("$.profiles[1].kind").value("STAFF"))
+			.andExpect(jsonPath("$.profiles[1].bio").value("Joga"))
+			.andExpect(jsonPath("$.profiles[2].kind").value("CHILD"))
+			.andExpect(jsonPath("$.profiles[2].id").value(child.toString()))
+			.andExpect(jsonPath("$.profiles[2].firstName").value("Staś"))
+			.andExpect(jsonPath("$.profiles[2].birthDate").value("2016-04-01"));
+		mvc.perform(as(ADMIN_TOKEN, get("/api/v1/accounts/{id}", trainer)))
+			.andExpect(jsonPath("$.profiles.length()").value(1))
+			.andExpect(jsonPath("$.profiles[0].kind").value("STAFF"));
+	}
+
+	@Test
+	void accountDetailsKeepTheStaffPhoneOfAClient() throws Exception {
+		mvc.perform(as(ADMIN_TOKEN, put("/api/v1/accounts/{id}", parent)).contentType(MediaType.APPLICATION_JSON)
+			.content("""
+					{ "email": "ola%s", "firstName": "Aleksandra", "lastName": "Wiśniewska", "phone": "+48 500 300 300" }
+					""".formatted(DOMAIN)))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.profiles[0].firstName").value("Aleksandra"))
+			.andExpect(jsonPath("$.profiles[0].phone").value("+48 500 300 300"))
+			.andExpect(jsonPath("$.profiles[1].firstName").value("Aleksandra"))
+			.andExpect(jsonPath("$.profiles[1].phone").value("+48 500 100 100"));
+	}
+
+	@Test
+	void updatesTheStaffProfileAndSharesTheName() throws Exception {
+		mvc.perform(as(ADMIN_TOKEN, put("/api/v1/accounts/{id}/staff-profile", parent))
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("""
+					{ "firstName": "Ola", "lastName": "Nowak", "phone": "", "bio": " Pilates i joga " }
+					"""))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.displayName").value("Ola Nowak"))
+			.andExpect(jsonPath("$.profiles[0].lastName").value("Nowak"))
+			.andExpect(jsonPath("$.profiles[0].phone").value("+48 500 200 200"))
+			.andExpect(jsonPath("$.profiles[1].lastName").value("Nowak"))
+			.andExpect(jsonPath("$.profiles[1].phone").isEmpty())
+			.andExpect(jsonPath("$.profiles[1].bio").value("Pilates i joga"));
+
+		// The list shows the shared name too.
+		mvc.perform(as(ADMIN_TOKEN, get("/api/v1/accounts").param("query", "ola nowak")))
+			.andExpect(jsonPath("$.items[0].id").value(parent.toString()));
+		mvc.perform(as(ADMIN_TOKEN, put("/api/v1/accounts/{id}/staff-profile", client))
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{ \"firstName\": \"Kasia\", \"lastName\": \"Nowa\" }"))
+			.andExpect(status().isNotFound());
+	}
+
+	@Test
+	void updatesAChildOfTheAccount() throws Exception {
+		mvc.perform(as(ADMIN_TOKEN, put("/api/v1/accounts/{id}/children/{childId}", parent, child))
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("""
+					{ "firstName": "Stanisław", "lastName": "Wiśniewski", "birthDate": "2016-05-02",
+					  "emergencyContactName": "Jan Wiśniewski", "emergencyPhone": "+48 500 400 400" }
+					"""))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.profiles[2].firstName").value("Stanisław"))
+			.andExpect(jsonPath("$.profiles[2].birthDate").value("2016-05-02"))
+			.andExpect(jsonPath("$.profiles[2].emergencyPhone").value("+48 500 400 400"))
+			// A child's name is not shared with the guardian.
+			.andExpect(jsonPath("$.profiles[0].firstName").value("Ola"));
+	}
+
+	@Test
+	void updatesOnlyChildrenOfTheAccount() throws Exception {
+		String details = """
+				{ "firstName": "Staś", "lastName": "Wiśniewski" }
+				""";
+		mvc.perform(as(ADMIN_TOKEN, put("/api/v1/accounts/{id}/children/{childId}", client, child))
+			.contentType(MediaType.APPLICATION_JSON)
+			.content(details))
+			.andExpect(status().isNotFound());
+		mvc.perform(as(ADMIN_TOKEN, put("/api/v1/accounts/{id}/children/{childId}", parent, child))
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("""
+					{ "firstName": "Staś", "lastName": "Wiśniewski", "emergencyContactName": "Jan Wiśniewski" }
+					"""))
+			.andExpect(status().isBadRequest());
+		mvc.perform(as(TRAINER_TOKEN, put("/api/v1/accounts/{id}/children/{childId}", parent, child))
+			.contentType(MediaType.APPLICATION_JSON)
+			.content(details))
+			.andExpect(status().isForbidden());
+	}
+
+	@Test
 	void suspendsAndReactivatesAnAccount() throws Exception {
 		mvc.perform(as(ADMIN_TOKEN, post("/api/v1/accounts/{id}/suspend", client))
 			.contentType(MediaType.APPLICATION_JSON)
@@ -243,7 +383,7 @@ class AccountManagementTests {
 
 		// Closed accounts drop off the list, and the e-mail is free for a new invitation.
 		mvc.perform(as(ADMIN_TOKEN, get("/api/v1/accounts").param("query", DOMAIN)))
-			.andExpect(jsonPath("$.totalItems").value(3));
+			.andExpect(jsonPath("$.totalItems").value(5));
 		mvc.perform(as(ADMIN_TOKEN, delete("/api/v1/accounts/{id}", trainer))).andExpect(status().isConflict());
 	}
 
@@ -307,6 +447,27 @@ class AccountManagementTests {
 			.param("first", firstName)
 			.param("last", lastName)
 			.update();
+	}
+
+	private UUID addChild(UUID guardianAccountId, String firstName, String lastName) {
+		UUID id = jdbc.sql("""
+				INSERT INTO customer_profile (kind, first_name, last_name, birth_date)
+				VALUES ('CHILD', :first, :last, DATE '2016-04-01')
+				RETURNING id
+				""")
+			.param("first", firstName)
+			.param("last", lastName)
+			.query(UUID.class)
+			.single();
+		children.add(id);
+		jdbc.sql("""
+				INSERT INTO guardianship (guardian_id, child_id)
+				SELECT id, :child FROM customer_profile WHERE account_id = :guardian
+				""")
+			.param("child", id)
+			.param("guardian", guardianAccountId)
+			.update();
+		return id;
 	}
 
 	private void addCustomerProfile(UUID accountId, String firstName, String lastName, String phone) {

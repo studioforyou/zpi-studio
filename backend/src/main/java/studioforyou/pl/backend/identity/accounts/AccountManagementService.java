@@ -4,6 +4,7 @@ import java.sql.Array;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
@@ -21,12 +22,14 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import studioforyou.pl.backend.customer.CustomerProfiles;
+import studioforyou.pl.backend.customer.CustomerProfiles.ChildDetails;
 import studioforyou.pl.backend.identity.AccountLookup;
 import studioforyou.pl.backend.identity.AccountStatus;
 import studioforyou.pl.backend.identity.firebase.FirebaseUsers;
 import studioforyou.pl.backend.shared.api.ApiException;
 import studioforyou.pl.backend.shared.api.ErrorCode;
 import studioforyou.pl.backend.shared.api.PageResponse;
+import studioforyou.pl.backend.shared.api.UserText;
 import studioforyou.pl.backend.staff.StaffProfiles;
 import studioforyou.pl.backend.staff.StaffProfiles.ProfileChanges;
 
@@ -57,6 +60,29 @@ class AccountManagementService {
 			LEFT JOIN staff_profile s ON s.account_id = a.id
 			""";
 
+	/**
+	 * One row per person: the owner of each account (its own customer profile and staff profile are
+	 * the same person) and each active child the account's own profile is a current guardian of.
+	 */
+	private static final String PEOPLE = """
+			SELECT a.id, COALESCE(c.id, s.id) AS profile_id, a.email, a.status, a.created_at,
+			       COALESCE(c.first_name, s.first_name) AS first_name,
+			       COALESCE(c.last_name, s.last_name) AS last_name,
+			       COALESCE(c.phone, s.phone) AS phone,
+			       ARRAY(SELECT r.code::text FROM account_role ar JOIN role r ON r.id = ar.role_id
+			             WHERE ar.account_id = a.id ORDER BY r.code) AS roles
+			FROM account a
+			LEFT JOIN customer_profile c ON c.account_id = a.id
+			LEFT JOIN staff_profile s ON s.account_id = a.id
+			UNION ALL
+			SELECT a.id, child.id, a.email, a.status, a.created_at, child.first_name, child.last_name, NULL,
+			       ARRAY['CHILD']
+			FROM account a
+			JOIN customer_profile guardian ON guardian.account_id = a.id
+			JOIN guardianship g ON g.guardian_id = guardian.id AND g.ended_at IS NULL
+			JOIN customer_profile child ON child.id = g.child_id AND child.status = 'ACTIVE'
+			""";
+
 	private final JdbcClient jdbc;
 
 	private final FirebaseUsers firebaseUsers;
@@ -74,10 +100,11 @@ class AccountManagementService {
 	}
 
 	/**
-	 * Accounts sorted by last and first name; accounts without a profile come last.
+	 * People with accounts and the children of those accounts, sorted by last and first name; accounts
+	 * without a profile come last.
 	 *
-	 * @param query part of the name (in any order), e-mail or phone; all accounts when blank
-	 * @param role only accounts with this role code; all when {@code null}
+	 * @param query part of the name (in any order), the account's e-mail or the phone; everyone when blank
+	 * @param role only people with this role code, {@code CHILD} for children; everyone when {@code null}
 	 * @param status only accounts with this status; all but {@code CLOSED} when {@code null}
 	 */
 	@Transactional(readOnly = true)
@@ -98,11 +125,11 @@ class AccountManagementService {
 		if (role != null) {
 			where.append(" AND :role = ANY (roles)");
 		}
-		String accounts = "WITH accounts AS (" + ACCOUNTS + ") ";
+		String accounts = "WITH accounts AS (" + PEOPLE + ") ";
 		var count = jdbc.sql(accounts + "SELECT count(*) FROM accounts " + where);
 		var select = jdbc.sql(accounts + """
 				SELECT * FROM accounts %s
-				ORDER BY last_name NULLS LAST, first_name, lower(email), id
+				ORDER BY last_name NULLS LAST, first_name, lower(email), id, profile_id
 				LIMIT :limit OFFSET :offset
 				""".formatted(where))
 			.param("limit", size)
@@ -121,7 +148,7 @@ class AccountManagementService {
 		}
 		long total = count.query(Long.class).single();
 		List<AccountSummary> items = select.query((rs, rowNum) -> new AccountSummary(rs.getObject("id", UUID.class),
-				rs.getString("email"), AccountStatus.valueOf(rs.getString("status")), roles(rs), displayName(rs),
+				rs.getObject("profile_id", UUID.class), rs.getString("email"), AccountStatus.valueOf(rs.getString("status")), roles(rs), displayName(rs),
 				rs.getString("first_name"), rs.getString("last_name"), rs.getString("phone"),
 				rs.getObject("created_at", OffsetDateTime.class)))
 			.list();
@@ -133,6 +160,7 @@ class AccountManagementService {
 	 */
 	@Transactional(readOnly = true)
 	public AccountDetails get(UUID accountId) {
+		List<AccountProfile> profiles = profiles(accountId);
 		return jdbc.sql("WITH accounts AS (" + ACCOUNTS + """
 				)
 				SELECT accounts.*,
@@ -150,14 +178,16 @@ class AccountManagementService {
 					rs.getObject("created_at", OffsetDateTime.class),
 					rs.getObject("activated_at", OffsetDateTime.class),
 					rs.getObject("customer_profile_id", UUID.class), rs.getObject("staff_profile_id", UUID.class),
-					rs.getObject("invitation_expires_at", OffsetDateTime.class), rs.getBoolean("has_login")))
+					rs.getObject("invitation_expires_at", OffsetDateTime.class), rs.getBoolean("has_login"),
+					profiles))
 			.optional()
 			.orElseThrow(AccountManagementService::notFound);
 	}
 
 	/**
-	 * Replaces the e-mail, names and phone. Names and phone are saved in every profile of the account;
-	 * a new e-mail is also set on the linked Firebase user, and set back if the transaction rolls back.
+	 * Replaces the e-mail, names and phone. Names are saved in the own client profile and the staff
+	 * profile; the phone in the client profile, or the staff profile when there is no client profile.
+	 * A new e-mail is also set on the linked Firebase user, and set back if the transaction rolls back.
 	 *
 	 * @throws ApiException {@code NOT_FOUND}; {@code ACCOUNT_STATUS_CONFLICT} for a closed account;
 	 * {@code ACCOUNT_ALREADY_EXISTS} if another account or Firebase user has the e-mail
@@ -177,11 +207,51 @@ class AccountManagementService {
 				request.phone());
 		if (staffProfiles.findByAccount(accountId).isPresent()) {
 			staffProfiles.updateByAccount(accountId, new ProfileChanges(true, request.firstName(), true,
-					request.lastName(), true, request.phone()));
+					request.lastName(), !hasProfile, request.phone()));
 			hasProfile = true;
 		}
 		if (!hasProfile) {
 			logger.warn("Account {} has no profile; only its e-mail was updated", accountId);
+		}
+		return get(accountId);
+	}
+
+	/**
+	 * Replaces the details of the account's staff profile. The names are also saved in the own client
+	 * profile, so both profiles keep the same name; phone and description stay per profile.
+	 *
+	 * @throws ApiException {@code NOT_FOUND} without the account or its staff profile;
+	 * {@code ACCOUNT_STATUS_CONFLICT} for a closed account
+	 */
+	@Transactional
+	public AccountDetails updateStaffProfile(UUID accountId, UpdateStaffDetailsRequest request) {
+		requireOpen(lock(accountId));
+		if (staffProfiles.findByAccount(accountId).isEmpty()) {
+			throw new ApiException(ErrorCode.NOT_FOUND, "Staff profile not found.");
+		}
+		staffProfiles.updateByAccount(accountId, new ProfileChanges(true, request.firstName(), true,
+				request.lastName(), true, request.phone()));
+		staffProfiles.updateBioByAccount(accountId, request.bio());
+		customerProfiles.renameOwnProfile(accountId, UserText.trim(request.firstName()),
+				UserText.trim(request.lastName()));
+		return get(accountId);
+	}
+
+	/**
+	 * Replaces the details of a child the account's own profile is a current guardian of.
+	 *
+	 * @throws ApiException {@code NOT_FOUND} without the account or such a child;
+	 * {@code ACCOUNT_STATUS_CONFLICT} for a closed account
+	 */
+	@Transactional
+	public AccountDetails updateChild(UUID accountId, UUID childId, UpdateChildRequest request) {
+		requireOpen(lock(accountId));
+		boolean updated = customerProfiles.updateChildOfAccount(accountId,
+				new ChildDetails(childId, UserText.trim(request.firstName()), UserText.trim(request.lastName()),
+						request.birthDate(), UserText.trimToNull(request.emergencyContactName()),
+						UserText.trimToNull(request.emergencyPhone())));
+		if (!updated) {
+			throw new ApiException(ErrorCode.NOT_FOUND, "Child profile not found.");
 		}
 		return get(accountId);
 	}
@@ -302,6 +372,37 @@ class AccountManagementService {
 			.query(LockedAccount.class)
 			.optional()
 			.orElseThrow(AccountManagementService::notFound);
+	}
+
+	private static void requireOpen(LockedAccount account) {
+		if (account.status() == AccountStatus.CLOSED) {
+			throw new ApiException(ErrorCode.ACCOUNT_STATUS_CONFLICT, "A closed account cannot be changed.");
+		}
+	}
+
+	/** The own client profile, the staff profile and the active children, each if there is one. */
+	private List<AccountProfile> profiles(UUID accountId) {
+		List<AccountProfile> profiles = new ArrayList<>();
+		jdbc.sql("SELECT id, first_name, last_name, phone FROM customer_profile WHERE account_id = :id")
+			.param("id", accountId)
+			.query((rs, rowNum) -> new AccountProfile(rs.getObject("id", UUID.class), AccountProfile.Kind.CLIENT,
+					rs.getString("first_name"), rs.getString("last_name"), rs.getString("phone"), null, null, null,
+					null))
+			.optional()
+			.ifPresent(profiles::add);
+		jdbc.sql("SELECT id, first_name, last_name, phone, bio FROM staff_profile WHERE account_id = :id")
+			.param("id", accountId)
+			.query((rs, rowNum) -> new AccountProfile(rs.getObject("id", UUID.class), AccountProfile.Kind.STAFF,
+					rs.getString("first_name"), rs.getString("last_name"), rs.getString("phone"),
+					rs.getString("bio"), null, null, null))
+			.optional()
+			.ifPresent(profiles::add);
+		for (ChildDetails child : customerProfiles.findChildrenOfAccount(accountId)) {
+			profiles.add(new AccountProfile(child.id(), AccountProfile.Kind.CHILD, child.firstName(),
+					child.lastName(), null, null, child.birthDate(), child.emergencyContactName(),
+					child.emergencyPhone()));
+		}
+		return profiles;
 	}
 
 	private void recordStatusChange(UUID accountId, AccountStatus from, AccountStatus to, UUID changedBy,

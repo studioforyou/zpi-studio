@@ -46,13 +46,13 @@ public class AccountsController {
 	}
 
 	@GetMapping
-	@Operation(summary = "Search accounts", operationId = "searchAccounts",
-			description = "Accounts sorted by last and first name. Closed accounts only when asked for with status=CLOSED.")
+	@Operation(summary = "Search people with accounts", operationId = "searchAccounts",
+			description = "Account owners and the children of their accounts, one row per person, sorted by last and first name. Closed accounts only when asked for with status=CLOSED.")
 	public PageResponse<AccountSummary> search(
 			@Parameter(description = "Part of the first and/or last name, the e-mail or the phone number.")
 			@RequestParam(required = false) @Nullable String query,
-			@Parameter(description = "Only accounts with this role.")
-			@RequestParam(required = false) @Nullable @Pattern(regexp = "CLIENT|TRAINER|ADMIN") String role,
+			@Parameter(description = "Only people with this role; CHILD for children.")
+			@RequestParam(required = false) @Nullable @Pattern(regexp = "CLIENT|TRAINER|ADMIN|CHILD") String role,
 			@Parameter(description = "Only accounts with this status; all but CLOSED when missing.")
 			@RequestParam(required = false) @Nullable AccountStatus status,
 			@RequestParam(defaultValue = "0") @Min(0) int page,
@@ -74,6 +74,28 @@ public class AccountsController {
 	@Operation(summary = "Update an account's personal and contact details", operationId = "updateAccount")
 	public AccountDetails update(@PathVariable UUID accountId, @Valid @RequestBody UpdateAccountRequest request) {
 		return accounts.update(accountId, request);
+	}
+
+	/**
+	 * 404 without a staff profile, 409 {@code ACCOUNT_STATUS_CONFLICT} for a closed account.
+	 */
+	@PutMapping("/{accountId}/staff-profile")
+	@Operation(summary = "Update an account's staff profile", operationId = "updateAccountStaffProfile",
+			description = "The names are also saved in the account's own client profile.")
+	public AccountDetails updateStaffProfile(@PathVariable UUID accountId,
+			@Valid @RequestBody UpdateStaffDetailsRequest request) {
+		return accounts.updateStaffProfile(accountId, request);
+	}
+
+	/**
+	 * 404 unless the account is the child's guardian, 409 {@code ACCOUNT_STATUS_CONFLICT} for a closed
+	 * account.
+	 */
+	@PutMapping("/{accountId}/children/{childProfileId}")
+	@Operation(summary = "Update a child of an account", operationId = "updateAccountChild")
+	public AccountDetails updateChild(@PathVariable UUID accountId, @PathVariable UUID childProfileId,
+			@Valid @RequestBody UpdateChildRequest request) {
+		return accounts.updateChild(accountId, childProfileId, request);
 	}
 
 	/**

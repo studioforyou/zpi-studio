@@ -106,6 +106,17 @@ public class JdbcStaffProfiles implements StaffProfiles {
 	}
 
 	@Override
+	public void updateBioByAccount(UUID accountId, @Nullable String bio) {
+		jdbc.sql("""
+				UPDATE staff_profile SET bio = :bio, updated_at = clock_timestamp()
+				WHERE account_id = :accountId
+				""")
+			.param("bio", UserText.trimToNull(bio))
+			.param("accountId", accountId)
+			.update();
+	}
+
+	@Override
 	@Transactional(readOnly = true)
 	public Map<UUID, UUID> findAccountIds(Collection<UUID> staffIds) {
 		if (staffIds.isEmpty()) {
