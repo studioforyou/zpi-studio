@@ -32,14 +32,20 @@ String classTime(GroupClass event) =>
     '${DateFormat('HH:mm').format(event.startsAt)}–'
     '${DateFormat('HH:mm').format(event.endsAt)}';
 
-String classPlaces(AppLocalizations l10n, GroupClass event) {
-  if (event.capacity == null) return l10n.classesUnlimited;
-  if (event.isFull) return l10n.classesFull;
-  return l10n.classesPlaces(event.availablePlaces ?? 0, event.capacity!);
+String classPlaces(AppLocalizations l10n, GroupClass event) =>
+    _places(l10n, event.activeReservations, event.capacity);
+
+String _places(AppLocalizations l10n, int reserved, int? capacity) {
+  if (capacity == null) return l10n.classesUnlimited;
+  if (reserved >= capacity) return l10n.classesFull;
+  return l10n.classesPlaces(capacity - reserved, capacity);
 }
 
-Color classServiceColor(GroupClass event, ColorScheme scheme) {
-  final color = event.calendarColor;
+Color classServiceColor(GroupClass event, ColorScheme scheme) =>
+    serviceColor(event.calendarColor, scheme);
+
+/// A service's configured `#RRGGBB` color, or the theme's primary color.
+Color serviceColor(String? color, ColorScheme scheme) {
   if (color != null && RegExp(r'^#[0-9a-fA-F]{6}$').hasMatch(color)) {
     return Color(0xff000000 | int.parse(color.substring(1), radix: 16));
   }
@@ -47,20 +53,34 @@ Color classServiceColor(GroupClass event, ColorScheme scheme) {
 }
 
 class ClassOccupancy extends StatelessWidget {
-  const ClassOccupancy(this.event, {this.compact = false, super.key});
+  ClassOccupancy(GroupClass event, {this.compact = false, super.key})
+    : reserved = event.activeReservations,
+      capacity = event.capacity;
 
-  final GroupClass event;
+  /// Occupancy of a class known only by its counts, e.g. from its roster.
+  const ClassOccupancy.counts({
+    required this.reserved,
+    required this.capacity,
+    this.compact = false,
+    super.key,
+  });
+
+  /// Places taken by active reservations.
+  final int reserved;
+
+  /// Maximum number of participants, or `null` without a limit.
+  final int? capacity;
   final bool compact;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
-    final capacity = event.capacity;
-    final full = event.isFull;
+    final capacity = this.capacity;
+    final full = capacity != null && reserved >= capacity;
     final color = full ? theme.colorScheme.error : Colors.green.shade700;
     return Semantics(
-      label: classPlaces(l10n, event),
+      label: _places(l10n, reserved, capacity),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
@@ -69,7 +89,7 @@ class ClassOccupancy extends StatelessWidget {
           Text(
             capacity == null
                 ? l10n.classesUnlimited
-                : '${l10n.classesOccupied(event.activeReservations, capacity)}'
+                : '${l10n.classesOccupied(reserved, capacity)}'
                       '${full ? ' · ${l10n.classesNoPlacesShort}' : ''}',
             maxLines: compact ? 2 : null,
             overflow: compact ? TextOverflow.ellipsis : null,
@@ -81,7 +101,7 @@ class ClassOccupancy extends StatelessWidget {
           ),
           if (capacity != null && capacity > 0)
             LinearProgressIndicator(
-              value: (event.activeReservations / capacity).clamp(0, 1),
+              value: (reserved / capacity).clamp(0, 1),
               minHeight: compact ? 3 : 5,
               borderRadius: BorderRadius.circular(4),
               color: color,

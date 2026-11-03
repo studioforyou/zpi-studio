@@ -1,6 +1,7 @@
 package studioforyou.pl.backend.customer.internal;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
@@ -15,6 +16,7 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import studioforyou.pl.backend.customer.CustomerKind;
 import studioforyou.pl.backend.customer.CustomerProfiles;
 import studioforyou.pl.backend.customer.CustomerProfiles.ProfileDetails;
 import studioforyou.pl.backend.customer.TrainerAccounts;
@@ -23,11 +25,6 @@ import studioforyou.pl.backend.shared.api.ErrorCode;
 import studioforyou.pl.backend.staff.StaffProfiles;
 import studioforyou.pl.backend.staff.StaffProfiles.StaffMember;
 
-/**
- * Trainers assigned to a participant ({@code staff_assignment}). A participant can have several
- * trainers at once. Ending an assignment keeps it as history instead of deleting it. For now
- * every assignment has the default scope, {@code PERSONAL_TRAINING}, and no access to health data.
- */
 @Service
 @Transactional
 public class TrainerAssignmentService {
@@ -130,6 +127,86 @@ public class TrainerAssignmentService {
 	}
 
 	/**
+	 * Active participants the signed-in trainer works with, sorted by last and first name.
+	 */
+	@Transactional(readOnly = true)
+	public List<AssignedTrainee> listOwnTrainees(UUID trainerAccountId) {
+		return jdbc.sql("""
+				SELECT c.id, c.kind, c.first_name, c.last_name, c.birth_date, c.status = 'ACTIVE' AS active,
+				       a.assigned_by, a.started_at
+				FROM staff_assignment a
+				JOIN customer_profile c ON c.id = a.customer_id
+				WHERE a.staff_id = :staffId AND a.scope = :scope AND a.ended_at IS NULL
+				ORDER BY c.last_name, c.first_name, c.id
+				""")
+			.param("staffId", ownStaffId(trainerAccountId))
+			.param("scope", SCOPE)
+			.query(TraineeRow.class)
+			.list()
+			.stream()
+			.map(TraineeRow::toTrainee)
+			.toList();
+	}
+
+	@Transactional(readOnly = true)
+	public AssignedTrainee getOwnTrainee(UUID customerId, UUID trainerAccountId) {
+		ProfileDetails customer = requireCustomer(customerId);
+		AssignmentRow row = findActive(customerId, ownStaffId(trainerAccountId))
+			.orElseThrow(TrainerAssignmentService::notAssigned);
+		return row.toTrainee(customer);
+	}
+
+	/**
+	 * Assigns an active participant to the signed-in trainer, who is also recorded as the one
+	 * who made the assignment. The rules are the same as when an administrator assigns them.
+	 */
+	public AssignedTrainee assignToSelf(UUID customerId, UUID trainerAccountId) {
+		ProfileDetails customer = requireCustomer(customerId);
+		StaffMember member = staff.findAllById(List.of(ownStaffId(trainerAccountId))).getFirst();
+		return insert(customer, member, trainerAccountId).toTrainee(customer);
+	}
+
+	/**
+	 * Ends the signed-in trainer's active assignment to the participant. The assignment stays as
+	 * history.
+	 */
+	public void unassignFromSelf(UUID customerId, UUID trainerAccountId) {
+		unassign(customerId, ownStaffId(trainerAccountId));
+	}
+
+	private AssignmentRow insert(ProfileDetails customer, StaffMember member, UUID actorAccountId) {
+		if (!customer.active()) {
+			throw new ApiException(ErrorCode.CUSTOMER_NOT_ACTIVE, "The participant's profile is not active.");
+		}
+		if (!member.active()) {
+			throw staffUnavailable();
+		}
+		if (onlyTrainers(List.of(member)).isEmpty()) {
+			throw new ApiException(ErrorCode.STAFF_NOT_TRAINER, "Only a trainer can be assigned to a participant.");
+		}
+		if (findActive(customer.id(), member.id()).isPresent()) {
+			throw alreadyAssigned();
+		}
+		try {
+			return jdbc.sql("""
+					INSERT INTO staff_assignment (customer_id, staff_id, scope, assigned_by)
+					VALUES (:customerId, :staffId, :scope, :assignedBy)
+					RETURNING staff_id, assigned_by, started_at
+					""")
+				.param("customerId", customer.id())
+				.param("staffId", member.id())
+				.param("scope", SCOPE)
+				.param("assignedBy", actorAccountId)
+				.query(AssignmentRow.class)
+				.single();
+		}
+		catch (DuplicateKeyException ex) {
+			// The same trainer was assigned by another request at the same moment.
+			throw alreadyAssigned();
+		}
+	}
+
+	/**
 	 * Ends the trainer's active assignment to the participant. The assignment stays as history.
 	 */
 	public void unassign(UUID customerId, UUID staffId) {
@@ -144,7 +221,7 @@ public class TrainerAssignmentService {
 			.param("scope", SCOPE)
 			.update();
 		if (ended == 0) {
-			throw new ApiException(ErrorCode.NOT_FOUND, "The trainer is not assigned to the participant.");
+			throw notAssigned();
 		}
 	}
 
@@ -167,9 +244,22 @@ public class TrainerAssignmentService {
 		return members.stream().filter((member) -> trainers.contains(accountIds.get(member.id()))).toList();
 	}
 
+	/** The staff profile of the signed-in trainer, or {@code NOT_FOUND} if the account has none. */
+	private UUID ownStaffId(UUID trainerAccountId) {
+		return staff.getByAccount(trainerAccountId).id();
+	}
+
 	private ProfileDetails requireCustomer(UUID customerId) {
 		return customers.findById(customerId)
 			.orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "Participant not found."));
+	}
+
+	private static ApiException staffUnavailable() {
+		return new ApiException(ErrorCode.STAFF_UNAVAILABLE, "The staff member does not exist or is not active.");
+	}
+
+	private static ApiException notAssigned() {
+		return new ApiException(ErrorCode.NOT_FOUND, "The trainer is not assigned to the participant.");
 	}
 
 	private static ApiException alreadyAssigned() {
@@ -183,6 +273,20 @@ public class TrainerAssignmentService {
 			return new AssignedTrainer(member, assignedBy, startedAt.toInstant());
 		}
 
+		AssignedTrainee toTrainee(ProfileDetails customer) {
+			return new AssignedTrainee(customer, assignedBy, startedAt.toInstant());
+		}
+
+	}
+
+	private record TraineeRow(UUID id, CustomerKind kind, String firstName, String lastName, LocalDate birthDate,
+			boolean active, UUID assignedBy, OffsetDateTime startedAt) {
+
+		AssignedTrainee toTrainee() {
+			return new AssignedTrainee(new ProfileDetails(id, kind, firstName, lastName, birthDate, active),
+					assignedBy, startedAt.toInstant());
+		}
+
 	}
 
 	/**
@@ -193,4 +297,15 @@ public class TrainerAssignmentService {
 
 	}
 
+	/**
+	 * A participant assigned to a trainer.
+	 *
+	 * @param assignedBy the account that made the assignment
+	 * @param assignedAt when the assignment started
+	 */
+	public record AssignedTrainee(ProfileDetails customer, UUID assignedBy, Instant assignedAt) {
+
+	}
+
 }
+

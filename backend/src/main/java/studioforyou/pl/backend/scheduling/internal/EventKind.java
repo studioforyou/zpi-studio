@@ -19,10 +19,10 @@ enum EventKind {
 	/** A consultation, possibly with a guest without an account. */
 	CONSULTATION,
 
-	/** Time when a room or a staff member is blocked, e.g. for maintenance. */
+	/** Time when a room is blocked, e.g. for maintenance. */
 	BLOCK;
 
-	/** Kinds an administrator plans as a part of the studio's offer. */
-	static final Set<EventKind> PLANNABLE = EnumSet.of(CLASS, PERSONAL_TRAINING, WORKSHOP);
+	/** Kinds an administrator plans in the schedule, as one-off events or recurring series. */
+	static final Set<EventKind> PLANNABLE = EnumSet.of(CLASS, PERSONAL_TRAINING, WORKSHOP, BLOCK);
 
 }

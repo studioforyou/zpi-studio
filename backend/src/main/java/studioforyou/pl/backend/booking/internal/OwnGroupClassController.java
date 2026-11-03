@@ -21,6 +21,7 @@ import org.springframework.web.bind.annotation.RestController;
 import studioforyou.pl.backend.booking.internal.GroupClassDtos.BookRequest;
 import studioforyou.pl.backend.booking.internal.GroupClassDtos.CancelRequest;
 import studioforyou.pl.backend.booking.internal.GroupClassDtos.GroupClassResponse;
+import studioforyou.pl.backend.booking.internal.GroupClassDtos.HistoryEntryResponse;
 import studioforyou.pl.backend.booking.internal.GroupClassDtos.ReservationResponse;
 import studioforyou.pl.backend.booking.internal.GroupClassDtos.ParticipantResponse;
 import studioforyou.pl.backend.shared.api.AccountAuthentication;
@@ -61,6 +62,14 @@ class OwnGroupClassController {
 	ListResponse<GroupClassResponse> reservations(@PathVariable UUID profileId, @RequestParam Instant from,
 			@RequestParam Instant to, Authentication authentication) {
 		return new ListResponse<>(this.bookings.list(actor(authentication), profileId, from, to, true));
+	}
+
+	@GetMapping("/training-history")
+	@Operation(summary = "List my training history", operationId = "listOwnTrainingHistory",
+			description = "The profile's booked events that started in [from, to) before now, latest first, each with its attendance or cancellation outcome. Maximum window: 93 days.")
+	ListResponse<HistoryEntryResponse> history(@PathVariable UUID profileId, @RequestParam Instant from,
+			@RequestParam Instant to, Authentication authentication) {
+		return new ListResponse<>(this.bookings.history(actor(authentication), profileId, from, to));
 	}
 
 	@GetMapping("/group-classes/{eventId}/participants")

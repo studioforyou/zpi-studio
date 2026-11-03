@@ -144,6 +144,18 @@ class ScheduleApi {
       throw ApiException.fromDio(e);
     }
   }
+
+  /// An event the signed-in trainer runs or assists.
+  Future<ScheduleEvent> fetchOwnEvent(String eventId) async {
+    try {
+      final response = await _dio.get<Map<String, dynamic>>(
+        '$ownScheduleEventsPath/$eventId',
+      );
+      return ScheduleEvent.fromJson(response.data!);
+    } on DioException catch (e) {
+      throw ApiException.fromDio(e);
+    }
+  }
 }
 
 final scheduleApiProvider = Provider<ScheduleApi>(
@@ -156,4 +168,12 @@ final ownScheduleProvider = FutureProvider.autoDispose
     .family<List<ScheduleEvent>, ({String accountId, ScheduleWindow window})>(
       (ref, query) =>
           ref.watch(scheduleApiProvider).fetchOwnEvents(query.window),
+    );
+
+/// One of the signed-in trainer's events, keyed by account like
+/// [ownScheduleProvider].
+final ownScheduleEventProvider = FutureProvider.autoDispose
+    .family<ScheduleEvent, ({String accountId, String eventId})>(
+      (ref, query) =>
+          ref.watch(scheduleApiProvider).fetchOwnEvent(query.eventId),
     );

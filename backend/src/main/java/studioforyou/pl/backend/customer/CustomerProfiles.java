@@ -127,6 +127,24 @@ public class CustomerProfiles {
 	}
 
 	/**
+	 * A caller-authorized set of participant profiles, whatever their status; unknown ids are left
+	 * out. No contacts.
+	 */
+	public List<ProfileDetails> findAllById(Collection<UUID> profileIds) {
+		if (profileIds.isEmpty()) {
+			return List.of();
+		}
+		return jdbc.sql("""
+				SELECT id, kind, first_name, last_name, birth_date, status = 'ACTIVE' AS active
+				FROM customer_profile
+				WHERE id IN (:ids)
+				""")
+			.param("ids", profileIds)
+			.query(ProfileDetails.class)
+			.list();
+	}
+
+	/**
 	 * Active participants, adults and children, sorted by last and first name.
 	 *
 	 * @param query part of the first and/or last name, in any order, or of the phone number;
