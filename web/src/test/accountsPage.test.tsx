@@ -4,6 +4,15 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { AccountsPage } from '@/features/accounts/AccountsPage';
 import { renderWithProviders } from './renderWithProviders';
 
+const emptyPage = { items: [], page: 0, size: 20, totalItems: 0, totalPages: 0 };
+
+function renderAccountsPage() {
+  return renderWithProviders(null, {
+    routes: [{ path: '/accounts', element: <AccountsPage /> }],
+    initialEntry: '/accounts',
+  });
+}
+
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -29,6 +38,9 @@ function stubApi(active = 12, fresh = 3) {
         previous: { from: '2026-08-27', to: '2026-09-25', activeCustomers: 8, newCustomers: 3 },
       });
     }
+    if (url.startsWith('/api/v1/accounts?')) {
+      return json(emptyPage);
+    }
     throw new Error(`Unexpected request: ${url}`);
   });
   vi.stubGlobal('fetch', fetchMock);
@@ -53,7 +65,7 @@ afterEach(() => {
 
 test('shows active and new customers of the last 30 days against the 30 days before', async () => {
   const fetchMock = stubApi();
-  renderWithProviders(<AccountsPage />);
+  renderAccountsPage();
 
   const active = await screen.findByRole('group', { name: 'Aktywni klienci' });
   expect(await within(active).findByText('12')).toBeInTheDocument();
@@ -70,7 +82,7 @@ test('shows active and new customers of the last 30 days against the 30 days bef
 
 test('reports fewer customers as a decrease', async () => {
   stubApi(6);
-  renderWithProviders(<AccountsPage />);
+  renderAccountsPage();
 
   const active = await screen.findByRole('group', { name: 'Aktywni klienci' });
   expect(await within(active).findByText('▼ −2 (−25%)')).toBeInTheDocument();
@@ -78,7 +90,7 @@ test('reports fewer customers as a decrease', async () => {
 
 test('asks for the period of the chosen preset', async () => {
   const fetchMock = stubApi();
-  renderWithProviders(<AccountsPage />);
+  renderAccountsPage();
   await screen.findByText('▲ +4 (+50%)');
 
   await userEvent.click(screen.getByText('Ten miesiąc'));
@@ -93,7 +105,7 @@ test('asks for the period of the chosen preset', async () => {
 
 test('does not ask for a custom period that ends before it starts', async () => {
   const fetchMock = stubApi();
-  renderWithProviders(<AccountsPage />);
+  renderAccountsPage();
   await screen.findByText('▲ +4 (+50%)');
 
   await userEvent.click(screen.getByText('Własny'));

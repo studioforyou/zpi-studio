@@ -230,7 +230,11 @@ class StaffProfileTests {
 				Arguments.of("{\"lastName\":\"\\u00a0\\ufeff\"}", "lastName", "REQUIRED"),
 				Arguments.of("{\"firstName\":\"" + "a".repeat(81) + "\"}", "firstName", "TOO_LONG"),
 				Arguments.of("{\"lastName\":\"" + "b".repeat(81) + "\"}", "lastName", "TOO_LONG"),
-				Arguments.of("{\"firstName\":\"Changed\",\"phone\":\"" + "1".repeat(21) + "\"}", "phone", "TOO_LONG"));
+				Arguments.of("{\"firstName\":\"Changed\",\"phone\":\"" + "1".repeat(21) + "\"}", "phone", "TOO_LONG"),
+				Arguments.of("{\"firstName\":\"Anna2\"}", "firstName", "INVALID_FORMAT"),
+				Arguments.of("{\"lastName\":\"12345\"}", "lastName", "INVALID_FORMAT"),
+				Arguments.of("{\"lastName\":\"Nowak!\"}", "lastName", "INVALID_FORMAT"),
+				Arguments.of("{\"phone\":\"abcdef\"}", "phone", "INVALID_FORMAT"));
 	}
 
 	@ParameterizedTest

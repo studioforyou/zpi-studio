@@ -11,9 +11,10 @@ import {
   Text,
   TextInput,
 } from '@mantine/core';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ApiError } from '@/shared/api/ApiError';
 import { pl } from '@/shared/i18n/pl';
+import { accountKeys } from './accountsApi';
 import { createAdminAccount, type NewAdminAccount } from './adminAccountsApi';
 import { inviteAccount, type InvitedRole, type NewInvitation } from './invitationsApi';
 
@@ -57,7 +58,12 @@ export function InviteAccountModal({ opened, onClose }: InviteAccountModalProps)
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [submitted, setSubmitted] = useState(false);
-  const add = useMutation({ mutationFn: addPerson });
+  const queryClient = useQueryClient();
+  const add = useMutation({
+    mutationFn: addPerson,
+    // The new person shows up on the accounts list.
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: accountKeys.all }),
+  });
 
   function reset() {
     setRole('CLIENT');

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Button, Group, Stack, Title } from '@mantine/core';
 import { pl } from '@/shared/i18n/pl';
+import { AccountsList } from './AccountsList';
 import { CustomerActivitySection } from './CustomerActivitySection';
 import { InviteAccountModal } from './InviteAccountModal';
 
@@ -14,6 +15,7 @@ export function AccountsPage() {
         <Button onClick={() => setInviteOpened(true)}>{pl.accounts.inviteButton}</Button>
       </Group>
       <CustomerActivitySection />
+      <AccountsList />
       <InviteAccountModal opened={inviteOpened} onClose={() => setInviteOpened(false)} />
     </Stack>
   );

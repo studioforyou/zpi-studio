@@ -29,6 +29,12 @@ const _session = Session(
   activeProfileId: 'self',
 );
 
+/// The child profile of [_session] as a picker choice.
+final _child = SessionChoice(
+  role: AppRole.client,
+  profile: _session.profiles[1],
+);
+
 class _Auth extends AuthController {
   @override
   AuthState build() => const Authenticated(_session);
@@ -364,7 +370,7 @@ void main() {
       final api = _Api();
       final container = await pump(tester, api, details: true);
       await tapVisible(tester, find.widgetWithText(FilledButton, 'Zapisz się'));
-      container.read(authControllerProvider.notifier).selectProfile('child');
+      container.read(authControllerProvider.notifier).choose(_child);
       await tester.pumpAndSettle();
       await tester.tap(find.widgetWithText(FilledButton, 'Zapisz się').last);
       await tester.pumpAndSettle();
@@ -382,7 +388,7 @@ void main() {
     final pending = Completer<List<GroupClass>>();
     final api = _Api()..pendingSelf = pending;
     final container = await pump(tester, api);
-    container.read(authControllerProvider.notifier).selectProfile('child');
+    container.read(authControllerProvider.notifier).choose(_child);
     await tester.pumpAndSettle();
     expect(find.text('Zajęcia dziecięce'), findsOneWidget);
     pending.complete([
