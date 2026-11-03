@@ -11,6 +11,9 @@ import 'package:mobile/l10n/generated/app_localizations.dart';
 /// Opens the search of participants to start working with.
 const newCooperationLocation = '/trainer/trainings/new-cooperation';
 
+/// Opens the form that creates a client account for a new trainee.
+const newClientAccountLocation = '/trainer/trainings/new-client';
+
 /// Participants the signed-in trainer works with.
 class TraineesTab extends ConsumerWidget {
   const TraineesTab({super.key});
@@ -44,6 +47,12 @@ class TraineesTab extends ConsumerWidget {
                   onPressed: () => context.push(newCooperationLocation),
                   icon: const Icon(Icons.person_add_alt_1),
                   label: Text(l10n.traineesNewCooperation),
+                ),
+                const SizedBox(height: 8),
+                OutlinedButton.icon(
+                  onPressed: () => context.push(newClientAccountLocation),
+                  icon: const Icon(Icons.mark_email_unread_outlined),
+                  label: Text(l10n.traineesNewClientAccount),
                 ),
                 const SizedBox(height: 16),
                 if (trainees.isEmpty)
@@ -126,12 +135,40 @@ class _TraineeCard extends StatelessWidget {
       ),
       if (!trainee.isActive) l10n.traineesInactive,
     ];
+    final theme = Theme.of(context);
 
     return Card(
       child: ListTile(
         leading: CircleAvatar(child: Text(_initials(trainee.displayName))),
         title: Text(trainee.displayName),
-        subtitle: Text(details.join(' · ')),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(details.join(' · ')),
+            if (trainee.isAwaitingActivation)
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Row(
+                  spacing: 4,
+                  children: [
+                    Icon(
+                      Icons.schedule_send_outlined,
+                      size: 16,
+                      color: theme.colorScheme.tertiary,
+                    ),
+                    Flexible(
+                      child: Text(
+                        l10n.traineesAwaitingActivation,
+                        style: theme.textTheme.labelMedium?.copyWith(
+                          color: theme.colorScheme.tertiary,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
         trailing: PopupMenuButton<void>(
           tooltip: l10n.traineesActions,
           itemBuilder: (_) => [

@@ -152,19 +152,50 @@ class _NewCooperationScreenState extends ConsumerState<NewCooperationScreen> {
                       ),
                     ),
                   ),
-                  data: (customers) => customers.isEmpty
-                      ? Center(child: Text(l10n.newCooperationNoResults))
-                      : ListView(
-                          children: [
-                            for (final customer in customers)
-                              _customerTile(
-                                customer,
-                                assigned: assignedIds.contains(customer.id),
-                                l10n: l10n,
-                              ),
-                          ],
+                  data: (customers) => ListView(
+                    children: [
+                      if (customers.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
+                          child: Text(
+                            l10n.newCooperationNoResults,
+                            textAlign: TextAlign.center,
+                          ),
                         ),
+                      for (final customer in customers)
+                        _customerTile(
+                          customer,
+                          assigned: assignedIds.contains(customer.id),
+                          l10n: l10n,
+                        ),
+                      _newClientAccountLink(l10n),
+                    ],
+                  ),
                 ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Leads to the form that creates an account for a person who is not in
+  /// the studio yet.
+  Widget _newClientAccountLink(AppLocalizations l10n) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+      child: Column(
+        spacing: 4,
+        children: [
+          Text(
+            l10n.newCooperationNotListed,
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          TextButton.icon(
+            onPressed: _savingCustomerId == null
+                ? () => context.pushReplacement(newClientAccountLocation)
+                : null,
+            icon: const Icon(Icons.mark_email_unread_outlined),
+            label: Text(l10n.traineesNewClientAccount),
           ),
         ],
       ),

@@ -74,6 +74,68 @@ void main() {
     expect(trainee.assignedAt.isUtc, isFalse);
   });
 
+  test('reads whether a trainee still has to activate the account', () async {
+    adapter.body = {
+      'items': [
+        {..._trainee, 'isAwaitingActivation': true},
+        _trainee,
+      ],
+    };
+
+    final [invited, older] = await api.fetchOwnTrainees();
+
+    expect(invited.isAwaitingActivation, isTrue);
+    // Responses without the field mean an activated or account-less profile.
+    expect(older.isAwaitingActivation, isFalse);
+  });
+
+  test('creates a client account with trimmed data', () async {
+    adapter
+      ..statusCode = 201
+      ..body = {
+        'invitationId': 'invitation-1',
+        'accountId': 'account-2',
+        'customerId': 'customer-2',
+        'email': 'julia@example.com',
+        'displayName': 'Julia Kamińska',
+        'expiresAt': '2026-11-10T01:00:00Z',
+      };
+
+    final created = await api.createClientAccount(
+      email: ' julia@example.com ',
+      firstName: ' Julia',
+      lastName: 'Kamińska ',
+    );
+
+    expect(adapter.request?.method, 'POST');
+    expect(adapter.request?.path, '/api/v1/me/trainees/invitations');
+    expect(adapter.request?.data, {
+      'email': 'julia@example.com',
+      'firstName': 'Julia',
+      'lastName': 'Kamińska',
+    });
+    expect(created.customerId, 'customer-2');
+    expect(created.displayName, 'Julia Kamińska');
+    expect(created.expiresAt, DateTime.utc(2026, 11, 10, 1).toLocal());
+  });
+
+  test('maps a taken e-mail to ApiException 409', () async {
+    adapter
+      ..statusCode = 409
+      ..body = {'code': 'ACCOUNT_ALREADY_EXISTS'};
+
+    await expectLater(
+      api.createClientAccount(
+        email: 'julia@example.com',
+        firstName: 'Julia',
+        lastName: 'Kamińska',
+      ),
+      throwsA(
+        isA<ApiException>().having((e) => e.statusCode, 'statusCode', 409),
+      ),
+    );
+  });
+
   test('searches customers by a trimmed query', () async {
     adapter.body = {
       'items': [
