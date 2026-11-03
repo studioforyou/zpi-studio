@@ -15,6 +15,7 @@ const roleColors: Record<string, string> = {
   CLIENT: 'teal',
   TRAINER: 'grape',
   ADMIN: 'indigo',
+  CHILD: 'orange',
 };
 
 export function StatusBadge({ status }: { status: AccountStatus }) {

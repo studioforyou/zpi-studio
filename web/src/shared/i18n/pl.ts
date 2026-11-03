@@ -82,6 +82,7 @@ export const pl = {
       CLIENT: 'Klient',
       TRAINER: 'Trener',
       ADMIN: 'Administrator',
+      CHILD: 'Dziecko',
     },
     activity: {
       title: 'Klienci',
@@ -154,7 +155,7 @@ export const pl = {
       CLOSED: 'Usunięte',
     },
     list: {
-      title: 'Osoby',
+      title: 'Profile',
       search: 'Szukaj',
       searchPlaceholder: 'Imię, nazwisko, e-mail lub telefon',
       roleFilter: 'Rola',
@@ -163,22 +164,23 @@ export const pl = {
         CLIENT: 'Klienci',
         TRAINER: 'Trenerzy',
         ADMIN: 'Administratorzy',
+        CHILD: 'Dzieci',
       },
       statusFilter: 'Status',
       allStatuses: 'Wszystkie oprócz usuniętych',
       columns: {
         name: 'Imię i nazwisko',
-        email: 'E-mail',
+        email: 'E-mail konta',
         phone: 'Telefon',
-        roles: 'Role',
+        roles: 'Profil',
         status: 'Status',
         createdAt: 'Utworzone',
       },
       loading: 'Wczytywanie…',
-      loadError: 'Nie udało się wczytać listy kont.',
+      loadError: 'Nie udało się wczytać listy profili.',
       retry: 'Spróbuj ponownie',
-      empty: 'Brak kont.',
-      noResults: 'Brak kont pasujących do wyszukiwania.',
+      empty: 'Brak profili.',
+      noResults: 'Brak profili pasujących do wyszukiwania.',
       total: (count: number) => `Znaleziono: ${count}`,
       open: (name: string) => `Otwórz konto: ${name}`,
     },
@@ -187,7 +189,13 @@ export const pl = {
       loading: 'Wczytywanie konta…',
       loadError: 'Nie udało się wczytać konta.',
       notFound: 'To konto nie istnieje.',
-      tabsLabel: 'Sekcje konta',
+      tabsLabel: 'Sekcje profilu',
+      profilesLabel: 'Profile powiązane z tym samym kontem',
+      profileKinds: {
+        CLIENT: 'Klient',
+        STAFF: 'Trener',
+        CHILD: 'Dziecko',
+      },
       tabs: {
         data: 'Dane',
         access: 'Role i uprawnienia',
@@ -205,6 +213,26 @@ export const pl = {
         reset: 'Cofnij zmiany',
         saved: 'Zapisano zmiany.',
         closedHint: 'Konto jest usunięte, jego danych nie można już zmienić.',
+        bio: 'Opis widoczny dla klientów',
+        birthDate: 'Data urodzenia',
+        emergencyContactName: 'Kontakt awaryjny',
+        emergencyPhone: 'Telefon awaryjny',
+        invalidName: 'Używaj tylko liter, spacji, myślników i apostrofów.',
+        futureBirthDate: 'Data urodzenia musi być w przeszłości.',
+        emergencyIncomplete:
+          'Podaj imię i nazwisko oraz telefon osoby do kontaktu albo zostaw oba pola puste.',
+        nameSync: {
+          title: 'Zmiana na obu profilach',
+          message: (fields: 'firstName' | 'lastName' | 'both', other: 'CLIENT' | 'STAFF') =>
+            `${
+              fields === 'firstName'
+                ? 'Nowe imię zostanie zapisane'
+                : fields === 'lastName'
+                  ? 'Nowe nazwisko zostanie zapisane'
+                  : 'Nowe imię i nazwisko zostaną zapisane'
+            } również w profilu ${other === 'STAFF' ? 'trenera' : 'klienta'}.`,
+          ok: 'OK',
+        },
         errors: {
           accountExists: 'Ten adres ma już inne konto w studiu.',
           unknown: 'Nie udało się zapisać zmian. Spróbuj ponownie.',
@@ -212,6 +240,7 @@ export const pl = {
       },
       info: {
         title: 'Konto',
+        email: 'Login',
         createdAt: 'Utworzone',
         activatedAt: 'Aktywowane',
         notActivated: 'jeszcze nie',
@@ -245,6 +274,10 @@ export const pl = {
         closeTypeName: 'Aby potwierdzić, wpisz imię i nazwisko',
         closeSubmit: 'Usuń na stałe',
         closed: 'Konto zostało usunięte.',
+        otherProfiles: 'Z tym kontem powiązane są też inne profile.',
+        affected: 'Operacja dotknie również:',
+        affectedProfile: (name: string, kind: 'CLIENT' | 'STAFF' | 'CHILD') =>
+          `${name} (${kind === 'CLIENT' ? 'klient' : kind === 'STAFF' ? 'trener' : 'dziecko'})`,
         errors: {
           statusChanged: 'Status konta zmienił się w międzyczasie. Odśwież stronę.',
           unknown: 'Nie udało się zmienić statusu konta. Spróbuj ponownie.',

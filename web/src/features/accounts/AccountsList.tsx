@@ -32,7 +32,10 @@ import { RoleBadges, StatusBadge } from './accountBadges';
 
 const texts = pl.accounts.list;
 
-/** Every account of the studio, searchable and filtered by role and status; a row opens the account. */
+/**
+ * Every person with an account and every child of an account, searchable and filtered by role and
+ * status; a row opens the account at that person's profile.
+ */
 export function AccountsList() {
   const navigate = useNavigate();
   const [query, setQuery] = useState('');
@@ -128,9 +131,11 @@ export function AccountsList() {
               <Table.Tbody>
                 {items.map((account) => (
                   <AccountRow
-                    key={account.id}
+                    key={`${account.id}-${account.profileId}`}
                     account={account}
-                    onOpen={() => void navigate(paths.accountDetails(account.id))}
+                    onOpen={() =>
+                      void navigate(paths.accountDetails(account.id, account.profileId))
+                    }
                   />
                 ))}
               </Table.Tbody>

@@ -4,6 +4,8 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ApiError } from '@/shared/api/ApiError';
 import { pl } from '@/shared/i18n/pl';
 import { accountKeys, updateAccount, type AccountDetails } from './accountsApi';
+import { NameSyncModal } from './ProfileForms';
+import { changedNames, FIELDS_MIN_HEIGHT, type NameFields } from './profileValidation';
 
 // Same limits as the backend's UpdateAccountRequest.
 const NAME_MAX_LENGTH = 80;
@@ -14,8 +16,15 @@ const PHONE_PATTERN = /^[+0-9 ()-]*$/;
 
 const texts = pl.accounts.details.form;
 
-/** The account's name, e-mail (login) and phone, saved in all of its profiles. */
+/**
+ * The account owner's name, e-mail (login) and phone. The name is also saved in the staff profile;
+ * the phone only in the client profile, or the staff profile without one.
+ */
 export function AccountDataForm({ account }: { account: AccountDetails }) {
+  const hasStaffProfile =
+    account.profiles.some((profile) => profile.kind === 'CLIENT') &&
+    account.profiles.some((profile) => profile.kind === 'STAFF');
+  const [confirming, setConfirming] = useState<NameFields | null>(null);
   const queryClient = useQueryClient();
   const initial = {
     firstName: account.firstName ?? '',
@@ -75,6 +84,11 @@ export function AccountDataForm({ account }: { account: AccountDetails }) {
     if (Object.values(errors).some((error) => error !== undefined)) {
       return;
     }
+    const names = hasStaffProfile ? changedNames(initial, values) : null;
+    if (names) {
+      setConfirming(names);
+      return;
+    }
     save.mutate();
   }
 
@@ -82,52 +96,46 @@ export function AccountDataForm({ account }: { account: AccountDetails }) {
     <form onSubmit={handleSubmit} noValidate>
       <Stack maw={560}>
         {closed && <Alert color="gray">{texts.closedHint}</Alert>}
-        {saved && !changed && (
-          <Alert color="green" role="status">
-            {texts.saved}
-          </Alert>
-        )}
-        {save.isError && !accountExists && (
-          <Alert color="red" role="alert">
-            {texts.errors.unknown}
-          </Alert>
-        )}
-        <Group grow align="flex-start">
+        <Stack mih={FIELDS_MIN_HEIGHT}>
+          <Group grow align="flex-start">
+            <TextInput
+              label={texts.firstName}
+              withAsterisk
+              disabled={closed}
+              value={values.firstName}
+              onChange={(event) => change('firstName', event.currentTarget.value)}
+              error={submitted ? errors.firstName : undefined}
+            />
+            <TextInput
+              label={texts.lastName}
+              withAsterisk
+              disabled={closed}
+              value={values.lastName}
+              onChange={(event) => change('lastName', event.currentTarget.value)}
+              error={submitted ? errors.lastName : undefined}
+            />
+          </Group>
           <TextInput
-            label={texts.firstName}
+            label={texts.email}
             withAsterisk
+            type="email"
             disabled={closed}
-            value={values.firstName}
-            onChange={(event) => change('firstName', event.currentTarget.value)}
-            error={submitted ? errors.firstName : undefined}
+            value={values.email}
+            onChange={(event) => change('email', event.currentTarget.value)}
+            error={
+              accountExists ? texts.errors.accountExists : submitted ? errors.email : undefined
+            }
           />
           <TextInput
-            label={texts.lastName}
-            withAsterisk
+            label={texts.phone}
+            type="tel"
             disabled={closed}
-            value={values.lastName}
-            onChange={(event) => change('lastName', event.currentTarget.value)}
-            error={submitted ? errors.lastName : undefined}
+            value={values.phone}
+            onChange={(event) => change('phone', event.currentTarget.value)}
+            error={submitted ? errors.phone : undefined}
+            w={{ base: '100%', sm: 260 }}
           />
-        </Group>
-        <TextInput
-          label={texts.email}
-          withAsterisk
-          type="email"
-          disabled={closed}
-          value={values.email}
-          onChange={(event) => change('email', event.currentTarget.value)}
-          error={accountExists ? texts.errors.accountExists : submitted ? errors.email : undefined}
-        />
-        <TextInput
-          label={texts.phone}
-          type="tel"
-          disabled={closed}
-          value={values.phone}
-          onChange={(event) => change('phone', event.currentTarget.value)}
-          error={submitted ? errors.phone : undefined}
-          w={{ base: '100%', sm: 260 }}
-        />
+        </Stack>
         {!closed && (
           <Group>
             <Button type="submit" loading={save.isPending} disabled={!changed}>
@@ -146,7 +154,28 @@ export function AccountDataForm({ account }: { account: AccountDetails }) {
             </Button>
           </Group>
         )}
+        {saved && !changed && (
+          <Alert color="green" role="status">
+            {texts.saved}
+          </Alert>
+        )}
+        {save.isError && !accountExists && (
+          <Alert color="red" role="alert">
+            {texts.errors.unknown}
+          </Alert>
+        )}
       </Stack>
+      {hasStaffProfile && (
+        <NameSyncModal
+          fields={confirming}
+          other="STAFF"
+          onCancel={() => setConfirming(null)}
+          onConfirm={() => {
+            setConfirming(null);
+            save.mutate();
+          }}
+        />
+      )}
     </form>
   );
 }

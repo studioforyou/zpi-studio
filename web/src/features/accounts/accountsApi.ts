@@ -11,12 +11,19 @@ export const accountStatuses = [
 ] as const;
 export type AccountStatus = (typeof accountStatuses)[number];
 
-export const accountRoles = ['CLIENT', 'TRAINER', 'ADMIN'] as const;
+/** Role filters of the list; `CHILD` finds the children of accounts. */
+export const accountRoles = ['CLIENT', 'TRAINER', 'ADMIN', 'CHILD'] as const;
 export type AccountRole = (typeof accountRoles)[number];
 
-/** An account on the list; name and phone come from its customer or staff profile. */
+/**
+ * A person on the list: the owner of an account (its client and staff profile are one person) or a
+ * child of the account. E-mail, status and creation date are the account's.
+ */
 export type AccountSummary = {
+  /** The account. */
   id: string;
+  /** The person's profile; `null` for an account without a profile. */
+  profileId: string | null;
   email: string;
   status: AccountStatus;
   roles: string[];
@@ -36,6 +43,24 @@ export type AccountDetails = AccountSummary & {
   invitationExpiresAt: string | null;
   /** Whether the person has a login (password) yet. */
   hasLogin: boolean;
+  /** The own client profile, the staff profile, then the children, each if there is one. */
+  profiles: AccountProfile[];
+};
+
+export type ProfileKind = 'CLIENT' | 'STAFF' | 'CHILD';
+
+/** One profile of an account; fields its kind does not have are `null`. */
+export type AccountProfile = {
+  id: string;
+  kind: ProfileKind;
+  firstName: string;
+  lastName: string;
+  phone: string | null;
+  bio: string | null;
+  /** `YYYY-MM-DD`. */
+  birthDate: string | null;
+  emergencyContactName: string | null;
+  emergencyPhone: string | null;
 };
 
 export type AccountSearch = {
@@ -52,6 +77,21 @@ export type UpdateAccount = {
   lastName: string;
   /** `null` clears the phone number. */
   phone: string | null;
+};
+
+export type UpdateStaffProfile = {
+  firstName: string;
+  lastName: string;
+  phone: string | null;
+  bio: string | null;
+};
+
+export type UpdateChild = {
+  firstName: string;
+  lastName: string;
+  birthDate: string | null;
+  emergencyContactName: string | null;
+  emergencyPhone: string | null;
 };
 
 export const ACCOUNTS_PAGE_SIZE = 20;
@@ -85,6 +125,28 @@ export function getAccount(accountId: string): Promise<AccountDetails> {
 
 export function updateAccount(accountId: string, update: UpdateAccount): Promise<AccountDetails> {
   return apiFetch<AccountDetails>(`/api/v1/accounts/${accountId}`, { method: 'PUT', body: update });
+}
+
+/** Also saves the names in the account's own client profile. */
+export function updateStaffProfile(
+  accountId: string,
+  update: UpdateStaffProfile,
+): Promise<AccountDetails> {
+  return apiFetch<AccountDetails>(`/api/v1/accounts/${accountId}/staff-profile`, {
+    method: 'PUT',
+    body: update,
+  });
+}
+
+export function updateChild(
+  accountId: string,
+  childId: string,
+  update: UpdateChild,
+): Promise<AccountDetails> {
+  return apiFetch<AccountDetails>(`/api/v1/accounts/${accountId}/children/${childId}`, {
+    method: 'PUT',
+    body: update,
+  });
 }
 
 export function suspendAccount(accountId: string, reason: string | null): Promise<AccountDetails> {

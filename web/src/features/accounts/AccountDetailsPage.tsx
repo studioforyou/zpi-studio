@@ -1,12 +1,13 @@
 import { useState, type ReactNode } from 'react';
 import {
-  ActionIcon,
   Alert,
   Anchor,
+  Box,
   Button,
   Grid,
   Group,
   Paper,
+  SegmentedControl,
   Stack,
   Tabs,
   Text,
@@ -14,7 +15,7 @@ import {
   Tooltip,
 } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
-import { Link, useParams } from 'react-router';
+import { Link, useParams, useSearchParams } from 'react-router';
 import { paths } from '@/app/paths';
 import { useAuth } from '@/features/auth/AuthProvider';
 import { ApiError } from '@/shared/api/ApiError';
@@ -22,13 +23,24 @@ import { pl } from '@/shared/i18n/pl';
 import { AccountDataForm } from './AccountDataForm';
 import { AccountStatusModal, type StatusAction } from './AccountStatusModal';
 import { RoleBadges, StatusBadge } from './accountBadges';
-import { accountKeys, formatTimestampDate, getAccount, type AccountDetails } from './accountsApi';
+import {
+  accountKeys,
+  formatTimestampDate,
+  getAccount,
+  type AccountDetails,
+  type AccountProfile,
+} from './accountsApi';
+import { ChildProfileForm, StaffProfileForm } from './ProfileForms';
 
 const texts = pl.accounts.details;
 
-/** One account: its personal data, roles and permissions, and the status actions. */
+/**
+ * One profile of an account (`?profile=`, by default the client profile): its data and roles, a
+ * bar to switch to the account's other profiles, and the account-wide status actions.
+ */
 export function AccountDetailsPage() {
   const { accountId = '' } = useParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const account = useQuery({
     queryKey: accountKeys.details(accountId),
     queryFn: () => getAccount(accountId),
@@ -58,45 +70,127 @@ export function AccountDetailsPage() {
     );
   }
 
+  const profiles = account.data.profiles;
+  const selected = selectedProfile(profiles, searchParams.get('profile'));
+  const otherProfiles = profiles.filter((profile) => profile !== selected);
+
   return (
     <Stack gap="lg">
       {back}
       <Group gap="sm" align="center">
-        <Title order={2}>{account.data.displayName}</Title>
+        <Title order={2}>
+          {selected ? `${selected.firstName} ${selected.lastName}` : account.data.displayName}
+        </Title>
         <StatusBadge status={account.data.status} />
-        <RoleBadges roles={account.data.roles} />
+        <RoleBadges roles={profileRoles(account.data, selected)} />
       </Group>
       <Grid gap="xl">
         <Grid.Col span={{ base: 12, md: 8 }}>
-          <Tabs defaultValue="data" keepMounted={false}>
-            <Tabs.List aria-label={texts.tabsLabel}>
-              <Tabs.Tab value="data">{texts.tabs.data}</Tabs.Tab>
-              <Tabs.Tab value="access">{texts.tabs.access}</Tabs.Tab>
-            </Tabs.List>
-            <Tabs.Panel value="data" pt="md">
-              {/* A status change (e.g. closing) starts a fresh form from the stored values. */}
-              <AccountDataForm
-                key={`${account.data.id}-${account.data.status}`}
-                account={account.data}
-              />
-            </Tabs.Panel>
-            <Tabs.Panel value="access" pt="md">
-              {/* Will render the account's roles and permission overrides once they can be managed. */}
-              <Text c="dimmed" maw={560}>
-                {texts.accessPlaceholder}
-              </Text>
-            </Tabs.Panel>
-          </Tabs>
+          <Stack gap="md">
+            {selected && profiles.length > 1 && (
+              <Stack gap={4}>
+                <Text size="sm" c="dimmed">
+                  {texts.profilesLabel}
+                </Text>
+                <SegmentedControl
+                  aria-label={texts.profilesLabel}
+                  fullWidth
+                  size="md"
+                  value={selected.id}
+                  onChange={(profileId) => setSearchParams({ profile: profileId })}
+                  data={profiles.map((profile) => ({
+                    value: profile.id,
+                    label: (
+                      <Stack gap={0} align="center">
+                        <Text size="sm" fw={600}>
+                          {profile.firstName} {profile.lastName}
+                        </Text>
+                        <Text size="xs" c="dimmed">
+                          {texts.profileKinds[profile.kind]}
+                        </Text>
+                      </Stack>
+                    ),
+                  }))}
+                />
+              </Stack>
+            )}
+            {/* Each profile starts on its data, from its stored values. */}
+            <Tabs
+              key={`${selected?.id}-${account.data.status}`}
+              defaultValue="data"
+              keepMounted={false}
+            >
+              <Tabs.List aria-label={texts.tabsLabel}>
+                <Tabs.Tab value="data">{texts.tabs.data}</Tabs.Tab>
+                <Tabs.Tab value="access" disabled={selected?.kind === 'CHILD'}>
+                  {texts.tabs.access}
+                </Tabs.Tab>
+              </Tabs.List>
+              <Tabs.Panel value="data" pt="md">
+                <ProfileForm account={account.data} profile={selected} />
+              </Tabs.Panel>
+              <Tabs.Panel value="access" pt="md">
+                {/* Will render the account's roles and permission overrides once they can be managed. */}
+                <Text c="dimmed" maw={560}>
+                  {texts.accessPlaceholder}
+                </Text>
+              </Tabs.Panel>
+            </Tabs>
+          </Stack>
         </Grid.Col>
         <Grid.Col span={{ base: 12, md: 4 }}>
           <Stack>
             <AccountInfo account={account.data} />
-            <AccountActions account={account.data} />
+            <AccountActions account={account.data} otherProfiles={otherProfiles} />
           </Stack>
         </Grid.Col>
       </Grid>
     </Stack>
   );
+}
+
+/** The asked-for profile, else the client profile, else the staff profile. */
+function selectedProfile(
+  profiles: AccountProfile[],
+  profileId: string | null,
+): AccountProfile | undefined {
+  return (
+    profiles.find((profile) => profile.id === profileId) ??
+    profiles.find((profile) => profile.kind === 'CLIENT') ??
+    profiles.find((profile) => profile.kind === 'STAFF') ??
+    profiles[0]
+  );
+}
+
+/** The roles of the person behind a profile: a client, the account's staff roles, or a child. */
+function profileRoles(account: AccountDetails, profile: AccountProfile | undefined): string[] {
+  switch (profile?.kind) {
+    case 'CLIENT':
+      return account.roles.includes('CLIENT') ? ['CLIENT'] : [];
+    case 'STAFF':
+      return account.roles.filter((role) => role !== 'CLIENT');
+    case 'CHILD':
+      return ['CHILD'];
+    default:
+      return account.roles;
+  }
+}
+
+function ProfileForm({
+  account,
+  profile,
+}: {
+  account: AccountDetails;
+  profile: AccountProfile | undefined;
+}) {
+  if (profile?.kind === 'CHILD') {
+    return <ChildProfileForm account={account} profile={profile} />;
+  }
+  if (profile?.kind === 'STAFF' && account.profiles.length > 1) {
+    return <StaffProfileForm account={account} profile={profile} />;
+  }
+  // The client profile, or the only profile of the account, also holds the login e-mail.
+  return <AccountDataForm account={account} />;
 }
 
 function AccountInfo({ account }: { account: AccountDetails }) {
@@ -112,6 +206,7 @@ function AccountInfo({ account }: { account: AccountDetails }) {
   if (account.invitationExpiresAt) {
     rows.push([info.invitation, formatTimestampDate(account.invitationExpiresAt)]);
   }
+  rows.unshift([info.email, account.email]);
   return (
     <Paper withBorder radius="md" p="md">
       <Stack gap="xs">
@@ -131,7 +226,13 @@ function AccountInfo({ account }: { account: AccountDetails }) {
   );
 }
 
-function AccountActions({ account }: { account: AccountDetails }) {
+function AccountActions({
+  account,
+  otherProfiles,
+}: {
+  account: AccountDetails;
+  otherProfiles: AccountProfile[];
+}) {
   const actions = texts.actions;
   const { session } = useAuth();
   const [action, setAction] = useState<StatusAction | null>(null);
@@ -153,7 +254,7 @@ function AccountActions({ account }: { account: AccountDetails }) {
           <>
             {account.status === 'ACTIVE' && (
               <ActionItem hint={actions.suspendHint}>
-                <Button variant="default" color="orange" onClick={() => setAction('suspend')}>
+                <Button variant="default" onClick={() => setAction('suspend')}>
                   {actions.suspend}
                 </Button>
               </ActionItem>
@@ -174,7 +275,12 @@ function AccountActions({ account }: { account: AccountDetails }) {
         )}
       </Stack>
       {action && (
-        <AccountStatusModal account={account} action={action} onClose={() => setAction(null)} />
+        <AccountStatusModal
+          account={account}
+          action={action}
+          otherProfiles={otherProfiles}
+          onClose={() => setAction(null)}
+        />
       )}
     </Paper>
   );
@@ -191,15 +297,18 @@ function ActionItem({ hint, children }: { hint: string; children: ReactNode }) {
         withArrow
         events={{ hover: true, focus: true, touch: true }}
       >
-        <ActionIcon
-          variant="subtle"
-          color="gray"
-          radius="xl"
-          size="sm"
+        {/* Only explains the action, so it does not look or act like a button. */}
+        <Box
+          component="span"
+          tabIndex={0}
+          role="img"
           aria-label={`${texts.actions.hintLabel}: ${hint}`}
+          c="dimmed"
+          display="inline-flex"
+          style={{ cursor: 'default' }}
         >
           <InfoIcon />
-        </ActionIcon>
+        </Box>
       </Tooltip>
     </Group>
   );

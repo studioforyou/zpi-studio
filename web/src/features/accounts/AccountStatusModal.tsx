@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Alert, Button, Group, Modal, Stack, Text, Textarea, TextInput } from '@mantine/core';
+import { Alert, Button, Group, List, Modal, Stack, Text, Textarea, TextInput } from '@mantine/core';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router';
 import { paths } from '@/app/paths';
@@ -11,6 +11,7 @@ import {
   reactivateAccount,
   suspendAccount,
   type AccountDetails,
+  type AccountProfile,
 } from './accountsApi';
 
 export type StatusAction = 'suspend' | 'reactivate' | 'close';
@@ -22,6 +23,8 @@ const REASON_MAX_LENGTH = 500;
 type AccountStatusModalProps = {
   account: AccountDetails;
   action: StatusAction;
+  /** The account's profiles other than the one shown; suspending and closing affect them too. */
+  otherProfiles?: AccountProfile[];
   onClose: () => void;
 };
 
@@ -29,7 +32,12 @@ type AccountStatusModalProps = {
  * Confirms suspending, reactivating or closing an account, with an optional reason for its
  * history. Closing cannot be undone, so it also asks for the account's name to be typed in.
  */
-export function AccountStatusModal({ account, action, onClose }: AccountStatusModalProps) {
+export function AccountStatusModal({
+  account,
+  action,
+  otherProfiles = [],
+  onClose,
+}: AccountStatusModalProps) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [reason, setReason] = useState('');
@@ -62,7 +70,7 @@ export function AccountStatusModal({ account, action, onClose }: AccountStatusMo
       title: texts.suspendTitle,
       message: texts.suspendConfirm(account.displayName),
       submit: texts.suspend,
-      color: 'orange',
+      color: 'red',
     },
     reactivate: {
       title: texts.reactivateTitle,
@@ -92,6 +100,21 @@ export function AccountStatusModal({ account, action, onClose }: AccountStatusMo
           </Alert>
         )}
         <Text size="sm">{content.message}</Text>
+        {action !== 'reactivate' && otherProfiles.length > 0 && (
+          <Stack gap={4}>
+            <Text size="sm" fw={700}>
+              {texts.otherProfiles}
+            </Text>
+            <Text size="sm">{texts.affected}</Text>
+            <List size="sm">
+              {otherProfiles.map((profile) => (
+                <List.Item key={profile.id}>
+                  {texts.affectedProfile(`${profile.firstName} ${profile.lastName}`, profile.kind)}
+                </List.Item>
+              ))}
+            </List>
+          </Stack>
+        )}
         <Textarea
           label={texts.reason}
           placeholder={texts.reasonPlaceholder}
