@@ -287,7 +287,7 @@ public class CustomerPassService {
 		return pass;
 	}
 
-	private static void requireStatus(CustomerPass pass, CustomerPassStatus... allowed) {
+	static void requireStatus(CustomerPass pass, CustomerPassStatus... allowed) {
 		if (!List.of(allowed).contains(pass.getStatus()) || pass.getValidUntil() == null) {
 			throw new ApiException(ErrorCode.PASS_NOT_USABLE,
 					"The operation is not available for a pass with status " + pass.getStatus() + ".");

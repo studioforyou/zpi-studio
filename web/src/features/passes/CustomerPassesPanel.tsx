@@ -17,17 +17,10 @@ import { pl } from '@/shared/i18n/pl';
 import { AssignPassModal } from './AssignPassModal';
 import { CustomerContact } from './CustomerContact';
 import {
-  listCustomerPasses,
-  searchCustomers,
-  type Customer,
+  searchCustomerPasses,
   type CustomerPass,
-   searchCustomerPasses,
   type CustomerPassStatus,
 } from './customerPassesApi';
-import { ExtendPassModal } from './ExtendPassModal';
-import { formatDate, formatMoney, todayIsoDate } from './passFormat';
-import { listPassProducts } from './passesApi';
-import { SuspendPassModal } from './SuspendPassModal';
 import { ExtendPassModal } from './ExtendPassModal';
 import { formatDate, formatMoney, todayIsoDate } from './passFormat';
 import { listPassProducts } from './passesApi';
@@ -48,19 +41,7 @@ const extendable: CustomerPassStatus[] = ['SCHEDULED', 'ACTIVE', 'SUSPENDED', 'E
 /** Only a pass that is still valid can be suspended. */
 const suspendable: CustomerPassStatus[] = ['SCHEDULED', 'ACTIVE', 'SUSPENDED'];
 
-/** A pass waiting for its payment or cancelled cannot be extended. */
-const extendable: CustomerPassStatus[] = ['SCHEDULED', 'ACTIVE', 'SUSPENDED', 'EXPIRED'];
-
-/** Only a pass that is still valid can be suspended. */
-const suspendable: CustomerPassStatus[] = ['SCHEDULED', 'ACTIVE', 'SUSPENDED'];
-
 const PAGE_SIZE = 20;
-
-function customerLabel(customer: Customer): string {
-  return customer.kind === 'CHILD'
-    ? `${customer.displayName} (${pl.customerPasses.child})`
-    : customer.displayName;
-}
 
 /**
  * Passes of all participants matching a search of their name, phone number or e-mail address,
@@ -81,12 +62,11 @@ export function CustomerPassesPanel() {
     enabled: searching,
     placeholderData: keepPreviousData,
   });
-
   // All products, also archived ones: a pass keeps the suspension rules of its product.
   const products = useQuery({
     queryKey: ['pass-products', 'all'],
     queryFn: () => listPassProducts(),
-    enabled: customer !== null,
+    enabled: searching,
   });
   const productOf = (pass: CustomerPass) =>
     products.data?.find((product) =>
