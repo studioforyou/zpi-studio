@@ -674,6 +674,72 @@
   "trainingOutcomeUnmarked": "Obecność jeszcze nie potwierdzona",
   "trainingOutcomeCancelled": "Odwołano w terminie",
   "trainingOutcomeLateCancelled": "Odwołano po terminie",
-  "trainingOutcomeClassCancelled": "Zajęcia odwołane przez studio"
+  "trainingOutcomeClassCancelled": "Zajęcia odwołane przez studio",
+  "traineeOverviewTitle": "Podopieczny",
+  "traineeOverviewPackages": "Pakiety",
+  "traineeOverviewTrainings": "Treningi",
+  "traineeOverviewInfo": "Pakiety i rozliczenia",
+  "traineeOverviewInfoText": "Pakiet pokazuje wolne wejścia. Wejścia przypisane do rezerwacji są już odjęte.\n\nZnaczniki trenera i uczestnika oznaczają potwierdzenie odbycia treningu. Rozliczenie dotyczy konkretnej sesji. Spór wymaga wyjaśnienia. „Poza pakietem” może oznaczać np. płatność na miejscu.",
+  "traineeOverviewClose": "Zamknij",
+  "traineeOverviewRefresh": "Odśwież pakiety i treningi",
+  "traineeOverviewLoadError": "Nie udało się pobrać pakietów i treningów.",
+  "traineeOverviewSummaryError": "Nie udało się pobrać podsumowań pakietów.",
+  "traineeOverviewNoPackages": "Brak pakietów na treningi personalne.",
+  "traineeOverviewNoQualifiedServices": "Brak kwalifikacji do treningów personalnych",
+  "traineeOverviewNoAvailablePass": "Brak dostępnego pakietu",
+  "traineeOverviewAvailable": "Pakiet dostępny",
+  "traineeOverviewNoEntries": "Brak wejść",
+  "traineeOverviewNext": "Najbliższy trening",
+  "traineeOverviewNoNext": "Brak zaplanowanego treningu",
+  "traineeOverviewAttention": "Wymaga uwagi",
+  "traineeOverviewPlanned": "Zaplanowany",
+  "traineeOverviewInProgress": "W trakcie",
+  "traineeOverviewTrainer": "Trener",
+  "traineeOverviewParticipant": "Uczestnik",
+  "traineeOverviewConfirmed": "Potwierdzone",
+  "traineeOverviewWaiting": "Oczekuje",
+  "traineeOverviewDisputed": "Spór",
+  "traineeOverviewSettled": "Rozliczony",
+  "traineeOverviewConsumed": "Wejście pobrane",
+  "traineeOverviewReserved": "Wejście zarezerwowane",
+  "traineeOverviewReturned": "Wejście zwrócone",
+  "traineeOverviewMakeup": "Odróbka",
+  "traineeOverviewOutsidePass": "Poza pakietem",
+  "traineeOverviewReview": "Do sprawdzenia",
+  "traineeOverviewLowBalance": "Kończy się pakiet",
+  "traineeOverviewPackage": "Pakiet",
+  "traineeOverviewSummaryUnavailable": "Podsumowanie niedostępne",
+  "traineeOverviewUntil": "do {date}",
+  "@traineeOverviewUntil": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "traineeOverviewCheckedOn": "Stan na {date}",
+  "@traineeOverviewCheckedOn": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "traineeOverviewEntries": "{count, plural, =1{1 wejście} few{{count} wejścia} many{{count} wejść} other{{count} wejścia}}",
+  "@traineeOverviewEntries": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "traineeOverviewHistory": "Historia",
+  "traineeOverviewOtherPackages": "Pozostałe pakiety ({count})",
+  "@traineeOverviewOtherPackages": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  }
 }
-

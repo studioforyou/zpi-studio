@@ -96,6 +96,57 @@ class SeedDataTests {
 			.execute(dataSource);
 	}
 
+	@Test
+	@Transactional
+	void personalTrainingExamplesBalanceTheirLedgerAndPreserveTesterChanges() {
+		String lowPass = "28000000-0000-0000-0000-000000010001";
+		String nextEvent = "19000000-0000-0000-0000-000000010004";
+		assertThat(jdbc.sql("SELECT sum(entries_delta) FROM pass_ledger WHERE pass_id = CAST(:id AS UUID)")
+			.param("id", lowPass).query(Integer.class).single()).isEqualTo(3);
+		assertThat(jdbc.sql("SELECT entries_remaining FROM customer_pass WHERE id = CAST(:id AS UUID)")
+			.param("id", lowPass).query(Integer.class).single()).isEqualTo(3);
+		assertThat(jdbc.sql("""
+				SELECT count(*) FROM reservation
+				WHERE id = '30000000-0000-0000-0000-000000010001'
+				  AND trainer_confirmed_at IS NOT NULL AND client_confirmed_at IS NOT NULL
+				  AND settlement_status = 'FINAL'
+				""").query(Integer.class).single()).isEqualTo(1);
+		Map<String, Object> originalCredit = makeupExample();
+		Map<String, Long> counts = rowCounts();
+		jdbc.sql("UPDATE customer_pass SET entries_remaining = 2, version = version + 1 WHERE id = CAST(:id AS UUID)")
+			.param("id", lowPass).update();
+		jdbc.sql("""
+				UPDATE schedule_event SET title = 'Termin uzgodniony przez testera',
+				  starts_at = starts_at + INTERVAL '2 hours', ends_at = ends_at + INTERVAL '2 hours',
+				  version = version + 1 WHERE id = CAST(:id AS UUID)
+				""").param("id", nextEvent).update();
+		Map<String, Object> changedPass = jdbc.sql("SELECT * FROM customer_pass WHERE id = CAST(:id AS UUID)")
+			.param("id", lowPass).query().singleRow();
+		Map<String, Object> changedEvent = jdbc.sql("SELECT * FROM schedule_event WHERE id = CAST(:id AS UUID)")
+			.param("id", nextEvent).query().singleRow();
+		jdbc.sql("UPDATE event_staff SET staff_id = '08000000-0000-0000-0000-000000000003' WHERE event_id = CAST(:id AS UUID)")
+			.param("id", nextEvent).update();
+		jdbc.sql("UPDATE event_resource SET resource_id = '15000000-0000-0000-0000-000000000003' WHERE event_id = CAST(:id AS UUID)")
+			.param("id", nextEvent).update();
+
+		Resource script = new ClassPathResource("db/seed/R__seed_10_personal_training.sql");
+		new ResourceDatabasePopulator(script).execute(dataSource);
+		new ResourceDatabasePopulator(script).execute(dataSource);
+
+		assertThat(jdbc.sql("SELECT * FROM customer_pass WHERE id = CAST(:id AS UUID)")
+			.param("id", lowPass).query().singleRow()).isEqualTo(changedPass);
+		assertThat(jdbc.sql("SELECT * FROM schedule_event WHERE id = CAST(:id AS UUID)")
+			.param("id", nextEvent).query().singleRow()).isEqualTo(changedEvent);
+		assertThat(jdbc.sql("SELECT staff_id::TEXT FROM event_staff WHERE event_id = CAST(:id AS UUID)")
+			.param("id", nextEvent).query(String.class).list())
+			.containsExactly("08000000-0000-0000-0000-000000000003");
+		assertThat(jdbc.sql("SELECT resource_id::TEXT FROM event_resource WHERE event_id = CAST(:id AS UUID)")
+			.param("id", nextEvent).query(String.class).list())
+			.containsExactly("15000000-0000-0000-0000-000000000003");
+		assertThat(makeupExample()).isEqualTo(originalCredit);
+		assertThat(rowCounts()).isEqualTo(counts);
+	}
+
 	private Map<String, Object> makeupExample() {
 		return jdbc.sql("""
 				SELECT * FROM makeup_credit WHERE id = '33000000-0000-0000-0000-000000000002'
