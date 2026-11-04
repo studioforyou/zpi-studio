@@ -87,12 +87,6 @@ INSERT INTO account_invitation (id, account_id, token_hash, sent_by, sent_at, ex
      '03000000-0000-0000-0000-000000000001', now() - interval '62 days', now() - interval '55 days', NULL, now() - interval '61 days')
 ON CONFLICT DO NOTHING;
 
--- The permissions come from a migration. Placeholder permissions loaded by earlier versions
--- of this seed (ids >= 900, SEED_ prefix) are removed together with their assignments.
-DELETE FROM account_permission_override WHERE permission_id IN (SELECT id FROM permission WHERE id >= 900 AND code LIKE 'SEED\_%');
-DELETE FROM role_permission WHERE permission_id IN (SELECT id FROM permission WHERE id >= 900 AND code LIKE 'SEED\_%');
-DELETE FROM permission WHERE id >= 900 AND code LIKE 'SEED\_%';
-
 -- Default permissions of the roles in this test studio. A real studio sets up its own;
 -- ADMIN always has every permission, so it needs no rows here.
 -- TRAINER: SCHEDULE_EDIT_OWN, AVAILABILITY_EDIT_OWN, ATTENDANCE_CORRECT.
