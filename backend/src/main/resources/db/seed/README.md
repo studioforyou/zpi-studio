@@ -47,3 +47,9 @@ The seed changes data only. Fixture values use query-scoped CTEs without creatin
 Use the same Firebase seed logins and passwords. No Firebase accounts or passwords are created or modified. This repeatable migration runs automatically with the dev/stage seed profile, including against an existing local database. It only inserts missing fixtures. For a date refresh on an old database, use a separate fresh development database rather than overwriting tester data.
 
 This feature adds one seed file: `R__seed_08_timetable_showcase.sql`. The earlier local prototype and its one-off cleanup are not part of the shared seed. The showcase creates no obsolete participant or substitute accounts.
+
+## Make-up credits (seed 09)
+
+Monika's original manually granted available credit incorrectly pointed at her Open pass, whose product has no make-up policy. `R__seed_09_makeup_credits.sql` adds a separate expired four-entry Pole Dance pass with its activation ledger and relinks only that known, unused seed credit. The source product has a make-up policy; the credit can remain valid after the source pass expires.
+
+This is a scoped repair of the original fixture, rather than a change to granting rules. Existing credit dates, status and usage are preserved. Used credits and credits already linked elsewhere are left alone. The new pass is not a purchase, and Monika's existing Open pass, its balance and reservations are untouched. Re-running the seed neither renews credit validity nor adds duplicates. No schema or Firebase account changes are involved.

@@ -4,6 +4,7 @@ import 'package:mobile/core/auth/auth_controller.dart';
 import 'package:mobile/core/auth/auth_state.dart';
 import 'package:mobile/core/auth/session.dart';
 import 'package:mobile/features/passes/data/passes_api.dart';
+import 'package:mobile/features/passes/presentation/makeup_credits_tab.dart';
 import 'package:mobile/features/passes/presentation/pass_checkout_screen.dart';
 import 'package:mobile/features/passes/presentation/pass_format.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
@@ -17,18 +18,21 @@ class PassesScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return DefaultTabController(
-      length: 2,
+      length: 3,
       child: Scaffold(
         appBar: AppBar(
           title: Text(l10n.navPasses),
           bottom: TabBar(
             tabs: [
               Tab(text: l10n.passesTabMine),
+              Tab(text: l10n.passesTabMakeup),
               Tab(text: l10n.passesTabOffer),
             ],
           ),
         ),
-        body: const TabBarView(children: [_OwnPassesTab(), _OfferTab()]),
+        body: const TabBarView(
+          children: [_OwnPassesTab(), MakeupCreditsTab(), _OfferTab()],
+        ),
       ),
     );
   }

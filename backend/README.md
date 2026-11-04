@@ -18,6 +18,12 @@ The [Docker Compose configuration](../docker-compose.yml) defines the local back
 - API address: `http://localhost:8080`.
 - Connection check: `GET /api/ping`.
 
+## Own make-up credits
+
+`GET /api/v1/me/profiles/{profileId}/makeup-credits` lists unused make-up credits for the active account's own participant profile or a child it currently represents. It returns a standard page (`page`, default 0; `size`, default 20, maximum 100). `totalItems` is the full available count; items are ordered by expiry and ID, with the source pass's saved product name, `grantedAt` and exact UTC `expiresAt`.
+
+Only `AVAILABLE` credits with a future expiry and no usage markers are included. An expired source pass does not invalidate an otherwise valid credit. This read does not grant credits or determine eligibility for a particular class. It uses the existing `makeup_credit` and `customer_pass` tables without a schema migration. Dev/stage seed 09 repairs the original unused Monika example's misleading Open-pass link, using a separate expired four-entry Pole Dance pass with a make-up policy. It preserves the credit's status and dates and leaves used or reassigned credits alone. Katarzyna also has used and expired examples.
+
 ## Tests
 
 Requires JDK 21. From `backend/`, run only the module architecture test without a Spring context, database, or Docker:

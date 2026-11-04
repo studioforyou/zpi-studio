@@ -87,6 +87,12 @@ profiles (listed in `Session.profiles`), not a separate role.
 | `communication` | communication (conversations, messages, notifications, device tokens) |
 | `statistics` | no dedicated tables in the current schema |
 
+## Available make-up credits
+
+The client **Karnety → Do odrobienia** tab shows a compact count with the selected participant's name. Each credit puts its exact expiry first (converted from UTC to the device's local time), with the source pass name underneath. The blue information button opens the explanation in a bottom sheet. Soonest expiry comes first. It supports pagination, pull-to-refresh, empty/error states and retry. Responses and page selection are separated by account and participant; returning to the app or reaching a displayed credit's expiry refreshes the list.
+
+The screen reads `GET /api/v1/me/profiles/{profileId}/makeup-credits`. Only unused, unexpired credits count. Booking a make-up class is a separate workflow. For dev/stage preview, Monika Dąbrowska has an available seed credit from an expired four-entry Pole Dance pass, while Katarzyna Zielińska has used/expired examples that should not appear. Existing seed dates stay fixed when the backend restarts.
+
 ## Client group classes
 
 The client **Oferta** and **Mój grafik** tabs directly reuse the trainer's `ScheduleCalendar` with day, week and month navigation. Oferta shows public group classes; Mój grafik shows the selected participant's upcoming bookings. The day view uses an hourly timeline with parallel columns for overlapping classes. Week and month views use client booking cards, service colors and a legend. Filters follow the trainer calendar's bottom-sheet and chip style.
