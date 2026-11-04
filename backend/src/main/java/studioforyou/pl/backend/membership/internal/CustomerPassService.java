@@ -287,7 +287,7 @@ public class CustomerPassService {
 		return pass;
 	}
 
-	private static void requireStatus(CustomerPass pass, CustomerPassStatus... allowed) {
+	static void requireStatus(CustomerPass pass, CustomerPassStatus... allowed) {
 		if (!List.of(allowed).contains(pass.getStatus()) || pass.getValidUntil() == null) {
 			throw new ApiException(ErrorCode.PASS_NOT_USABLE,
 					"The operation is not available for a pass with status " + pass.getStatus() + ".");
@@ -299,7 +299,7 @@ public class CustomerPassService {
 			.orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "Participant not found."));
 	}
 
-	private static void requireOnSale(PassVariantTerms terms) {
+	static void requireOnSale(PassVariantTerms terms) {
 		if (!terms.productActive()) {
 			throw new ApiException(ErrorCode.PASS_PRODUCT_ARCHIVED, "The pass product is archived.");
 		}
@@ -308,7 +308,7 @@ public class CustomerPassService {
 		}
 	}
 
-	private static void requireAudience(PassProductAudience audience, CustomerKind kind) {
+	static void requireAudience(PassProductAudience audience, CustomerKind kind) {
 		boolean allowed = switch (audience) {
 			case ANY -> true;
 			case ADULT -> kind == CustomerKind.ADULT;

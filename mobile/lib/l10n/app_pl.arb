@@ -212,7 +212,7 @@
   "passesNoProfile": "To konto nie ma profilu klienta, więc nie ma karnetów.",
   "passesEmpty": "Nie masz jeszcze karnetu. Sprawdź ofertę studia.",
   "passesSectionCurrent": "Aktualne",
-  "passesSectionUpcoming": "Zaplanowane",
+  "passesSectionUpcoming": "Nadchodzące",
   "passesSectionExpired": "Wygasłe ({count})",
   "@passesSectionExpired": {
     "placeholders": {
@@ -312,6 +312,53 @@
     }
   },
   "passSuspensionNotAllowed": "Bez możliwości zawieszenia",
+  "passExpiringSoon": "Karnet niedługo się kończy",
+  "passBuyNext": "Kup kolejny",
+  "passBuyNextUnavailable": "Ten karnet nie jest już w sprzedaży. Wybierz karnet w zakładce Oferta.",
+  "passOfferBuy": "Kup",
+  "checkoutTitle": "Zakup karnetu",
+  "checkoutFor": "Dla: {name}",
+  "@checkoutFor": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "checkoutStartAfterCurrent": "Rozpocznij po zakończeniu obecnego karnetu",
+  "checkoutStartAfterCurrentHint": "{name} jest ważny do {date}",
+  "@checkoutStartAfterCurrentHint": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "checkoutStartDate": "Data rozpoczęcia",
+  "checkoutTermsAccept": "Akceptuję regulamin studia i warunki zakupu karnetu",
+  "checkoutPay": "Zapłać {price}",
+  "@checkoutPay": {
+    "placeholders": {
+      "price": {
+        "type": "String"
+      }
+    }
+  },
+  "checkoutError": "Nie udało się kupić karnetu. Spróbuj ponownie.",
+  "checkoutSuccess": "Karnet opłacony. Ważny od {from} do {until}.",
+  "@checkoutSuccess": {
+    "placeholders": {
+      "from": {
+        "type": "String"
+      },
+      "until": {
+        "type": "String"
+      }
+    }
+  },
   "scheduleViewDay": "Dzień",
   "scheduleViewWeek": "Tydzień",
   "scheduleViewMonth": "Miesiąc",

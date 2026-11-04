@@ -98,6 +98,19 @@ public class CustomerPass {
 		this.createdBy = createdBy;
 	}
 
+	/**
+	 * A pass bought with an order line, waiting for the payment of the order.
+	 *
+	 * @param entries number of entries, or {@code null} for unlimited entries
+	 */
+	static CustomerPass pendingPayment(UUID customerId, UUID variantId, UUID orderItemId, String productName,
+			Short entries, BigDecimal pricePaid, LocalDate validFrom, LocalDate validUntil, UUID createdBy) {
+		CustomerPass pass = new CustomerPass(customerId, variantId, productName, entries, pricePaid,
+				CustomerPassStatus.PENDING_PAYMENT, validFrom, validUntil, createdBy);
+		pass.orderItemId = orderItemId;
+		return pass;
+	}
+
 	public UUID getId() {
 		return this.id;
 	}
@@ -184,6 +197,17 @@ public class CustomerPass {
 			this.status = (this.validFrom != null && this.validFrom.isAfter(today)) ? CustomerPassStatus.SCHEDULED
 					: CustomerPassStatus.ACTIVE;
 		}
+	}
+
+	/**
+	 * Activates a pass whose order has been paid: scheduled when it starts after today, active
+	 * otherwise.
+	 */
+	void activatePaid(LocalDate today) {
+		if (this.status != CustomerPassStatus.PENDING_PAYMENT) {
+			throw new IllegalStateException("Pass " + this.id + " is not waiting for a payment.");
+		}
+		this.status = this.validFrom.isAfter(today) ? CustomerPassStatus.SCHEDULED : CustomerPassStatus.ACTIVE;
 	}
 
 	public LocalDate getValidFrom() {
