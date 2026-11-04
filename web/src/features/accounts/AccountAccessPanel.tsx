@@ -28,8 +28,10 @@ import {
   type RoleCode,
 } from './accessApi';
 import { accountKeys } from './accountsApi';
+import { NotEnforcedBadge } from './NotEnforcedBadge';
 import {
   accountPermissionRows,
+  enforcedPermissions,
   groupByCategory,
   shownEffect,
   type AccountPermissionRow,
@@ -99,7 +101,11 @@ export function AccountAccessPanel({ accountId }: { accountId: string }) {
   const heldRoles = accountRoles.data.map((role) => role.code);
   const isAdmin = heldRoles.includes(ADMIN);
   const rows = accountPermissionRows(permissions.data, roles.data, heldRoles, overrides.data);
-  const busy = toggleRole.isPending || changePermission.isPending;
+  // Only the role or permission being saved is locked, so the rest of the table stays still.
+  const savingRole = toggleRole.isPending ? (toggleRole.variables?.code ?? null) : null;
+  const savingPermission = changePermission.isPending
+    ? (changePermission.variables?.permission ?? null)
+    : null;
   const error = toggleRole.error ?? changePermission.error;
 
   function setDefault(row: AccountPermissionRow, useDefault: boolean) {
@@ -149,7 +155,7 @@ export function AccountAccessPanel({ accountId }: { accountId: string }) {
               >
                 <Switch
                   checked={held}
-                  disabled={busy}
+                  disabled={role.code === savingRole}
                   onChange={() => toggleRole.mutate({ code: role.code, held })}
                   label={<Text fw={600}>{role.displayName}</Text>}
                   description={role.code === ADMIN ? texts.roles.adminDescription : undefined}
@@ -194,11 +200,14 @@ export function AccountAccessPanel({ accountId }: { accountId: string }) {
                   texts.names[code as keyof typeof texts.names] ?? row.permission.description;
                 const isDefault = row.override === null;
                 const effect = shownEffect(row);
-                const locked = isAdmin || busy;
+                const locked = isAdmin || code === savingPermission;
                 return (
                   <Table.Tr key={code}>
                     <Table.Td>
-                      <Text size="sm">{label}</Text>
+                      <Group gap="xs" wrap="nowrap">
+                        <Text size="sm">{label}</Text>
+                        {!enforcedPermissions.has(code) && <NotEnforcedBadge />}
+                      </Group>
                       <Text size="xs" c="dimmed" ff="monospace">
                         {code}
                       </Text>
@@ -221,6 +230,7 @@ export function AccountAccessPanel({ accountId }: { accountId: string }) {
                         <Checkbox
                           aria-label={`${texts.permissions.columns.grant}: ${label}`}
                           icon={CrossIcon}
+                          color="green"
                           checked={effect === 'GRANT'}
                           disabled={locked || isDefault}
                           onChange={() => setEffect(row, 'GRANT')}
@@ -232,6 +242,7 @@ export function AccountAccessPanel({ accountId }: { accountId: string }) {
                         <Checkbox
                           aria-label={`${texts.permissions.columns.revoke}: ${label}`}
                           icon={CrossIcon}
+                          color="red"
                           checked={effect === 'REVOKE'}
                           disabled={locked || isDefault}
                           onChange={() => setEffect(row, 'REVOKE')}

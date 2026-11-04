@@ -16,6 +16,12 @@ export const categoryOrder = [
   'BOOKING',
 ];
 
+/**
+ * Permissions that some feature of the application already checks. The others are in the
+ * dictionary but do not change anything yet; add a code here when a feature starts to check it.
+ */
+export const enforcedPermissions: ReadonlySet<string> = new Set(['CUSTOMER_ACCOUNT_CREATE']);
+
 export type PermissionGroup<T> = { category: string; rows: T[] };
 
 export type AccountPermissionRow = {

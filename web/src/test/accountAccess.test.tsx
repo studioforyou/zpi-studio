@@ -21,6 +21,7 @@ const permissions = [
   { code: 'SCHEDULE_EDIT_OWN', category: 'SCHEDULING', description: 'Edit own classes' },
   { code: 'PASS_ADJUST', category: 'MEMBERSHIP', description: 'Adjust passes' },
   { code: 'ACCOUNT_APPROVE', category: 'IDENTITY', description: 'Approve accounts' },
+  { code: 'CUSTOMER_ACCOUNT_CREATE', category: 'IDENTITY', description: 'Invite clients' },
 ];
 
 const roles = [
@@ -260,4 +261,46 @@ test('permission rows follow the roles and the overrides', () => {
     'IDENTITY',
     'MEMBERSHIP',
   ]);
+});
+
+test('saving one permission leaves the other rows usable', async () => {
+  stubApi(...dictionaries(), ...account(['TRAINER']), (url, init) =>
+    url === `/api/v1/accounts/${accountId}/permission-overrides` && init.method === 'POST'
+      ? // Never answers, so the first change stays in progress.
+        (new Promise<Response>(() => {}) as unknown as Response)
+      : undefined,
+  );
+  renderWithProviders(<AccountAccessPanel accountId={accountId} />);
+  await screen.findByRole('switch', { name: 'Trener' });
+
+  await userEvent.click(
+    within(row('Ręczna korekta karnetów i wejść')).getByRole('checkbox', { name: /Domyślnie/ }),
+  );
+
+  await waitFor(() =>
+    expect(
+      within(row('Ręczna korekta karnetów i wejść')).getByRole('checkbox', { name: /Domyślnie/ }),
+    ).toBeDisabled(),
+  );
+  expect(
+    within(row('Edycja prowadzonych przez siebie zajęć')).getByRole('checkbox', {
+      name: /Domyślnie/,
+    }),
+  ).toBeEnabled();
+  expect(screen.getByRole('switch', { name: 'Klient' })).toBeEnabled();
+});
+
+test('marks the permissions that nothing checks yet', async () => {
+  stubApi(...dictionaries(), ...account(['TRAINER']));
+  renderWithProviders(<AccountAccessPanel accountId={accountId} />);
+  await screen.findByRole('switch', { name: 'Trener' });
+
+  expect(
+    within(row('Ręczna korekta karnetów i wejść')).getByText('jeszcze bez efektu'),
+  ).toBeInTheDocument();
+  expect(
+    within(row('Zapraszanie klientów (zakładanie kont w ich imieniu)')).queryByText(
+      'jeszcze bez efektu',
+    ),
+  ).not.toBeInTheDocument();
 });

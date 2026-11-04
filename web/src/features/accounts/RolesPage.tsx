@@ -1,10 +1,22 @@
-import { Alert, Anchor, Breadcrumbs, Card, Loader, Stack, Table, Text, Title } from '@mantine/core';
+import {
+  Alert,
+  Anchor,
+  Breadcrumbs,
+  Card,
+  Group,
+  Loader,
+  Stack,
+  Table,
+  Text,
+  Title,
+} from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router';
 import { paths } from '@/app/paths';
 import { pl } from '@/shared/i18n/pl';
 import { accessKeys, listPermissions, listRoles } from './accessApi';
-import { groupByCategory } from './accessRows';
+import { enforcedPermissions, groupByCategory } from './accessRows';
+import { NotEnforcedBadge } from './NotEnforcedBadge';
 
 /** Read-only table of the permissions each role gives by default. */
 export function RolesPage() {
@@ -57,8 +69,13 @@ export function RolesPage() {
                   ...group.rows.map((permission) => (
                     <Table.Tr key={permission.code}>
                       <Table.Td>
-                        {texts.names[permission.code as keyof typeof texts.names] ??
-                          permission.description}
+                        <Group gap="xs" wrap="nowrap">
+                          <Text size="sm">
+                            {texts.names[permission.code as keyof typeof texts.names] ??
+                              permission.description}
+                          </Text>
+                          {!enforcedPermissions.has(permission.code) && <NotEnforcedBadge />}
+                        </Group>
                       </Table.Td>
                       {roles.data.map((role) =>
                         role.permissions.includes(permission.code) ? (

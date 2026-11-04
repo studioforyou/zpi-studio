@@ -102,6 +102,9 @@ export const pl = {
           revoke: 'Odbierz',
         },
       },
+      notEnforced: 'jeszcze bez efektu',
+      notEnforcedHint:
+        'Żadna funkcja aplikacji jeszcze nie sprawdza tego uprawnienia. Można je ustawić, ale na razie niczego nie zmienia.',
       categories: {
         SCHEDULING: 'Grafik',
         STAFF: 'Kadra',
