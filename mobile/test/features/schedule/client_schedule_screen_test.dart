@@ -7,6 +7,7 @@ import 'package:mobile/core/auth/app_role.dart';
 import 'package:mobile/core/auth/auth_controller.dart';
 import 'package:mobile/core/auth/auth_state.dart';
 import 'package:mobile/core/auth/session.dart';
+import 'package:mobile/features/schedule/data/schedule_service_types.dart';
 import 'package:mobile/features/schedule/presentation/client_schedule_screen.dart';
 import 'package:mobile/features/schedule/presentation/widgets/schedule_calendar.dart';
 import 'package:mobile/features/trainings/data/group_classes_api.dart';
@@ -142,6 +143,17 @@ class _Api implements GroupClassesApi {
   }
 }
 
+class _ServiceTypesApi implements ScheduleServiceTypesApi {
+  const _ServiceTypesApi(this.types);
+
+  final List<ScheduleServiceType> types;
+
+  @override
+  Future<Map<String, ScheduleServiceType>> fetchAll() async => {
+    for (final type in types) type.id: type,
+  };
+}
+
 void main() {
   Future<ProviderContainer> pump(
     WidgetTester tester,
@@ -149,6 +161,7 @@ void main() {
     bool details = false,
     bool reservations = false,
     bool phoneSize = false,
+    List<ScheduleServiceType> serviceTypes = const [],
   }) async {
     if (!phoneSize) {
       tester.view.physicalSize = const Size(800, 2400);
@@ -161,6 +174,9 @@ void main() {
       overrides: [
         authControllerProvider.overrideWith(_Auth.new),
         groupClassesApiProvider.overrideWithValue(api),
+        scheduleServiceTypesApiProvider.overrideWithValue(
+          _ServiceTypesApi(serviceTypes),
+        ),
       ],
     );
     addTearDown(container.dispose);
@@ -276,6 +292,65 @@ void main() {
       expect(find.text('Trening siłowy'), findsNothing);
     },
   );
+
+  testWidgets('level and age group filters use the service of each class', (
+    tester,
+  ) async {
+    final api = _Api()
+      ..extraClasses.add({
+        ...groupClassJson(title: 'Akrobatyka dla dzieci'),
+        'id': 'class-2',
+        'serviceTypeId': 'service-2',
+        'serviceTypeName': 'Akrobatyka',
+        'startsAt': '2030-11-02T19:00:00Z',
+        'endsAt': '2030-11-02T20:00:00Z',
+      });
+    await pump(
+      tester,
+      api,
+      serviceTypes: const [
+        ScheduleServiceType(
+          id: 'service-1',
+          level: 'BEGINNER',
+          minAge: 16,
+          maxAge: null,
+        ),
+        ScheduleServiceType(
+          id: 'service-2',
+          level: 'ADVANCED',
+          minAge: 7,
+          maxAge: 12,
+        ),
+      ],
+    );
+    expect(find.text('Pole dance'), findsOneWidget);
+    expect(find.text('Akrobatyka dla dzieci'), findsOneWidget);
+
+    await tapVisible(tester, find.text('Filtry'));
+    await tapVisible(tester, find.widgetWithText(FilterChip, 'Zaawansowany'));
+    await closeFilters(tester);
+    expect(find.text('Pole dance'), findsNothing);
+    expect(find.text('Akrobatyka dla dzieci'), findsOneWidget);
+    expect(find.text('Filtry (1)'), findsOneWidget);
+
+    await tapVisible(tester, find.text('Wyczyść'));
+    await tapVisible(tester, find.text('Filtry'));
+    await tapVisible(tester, find.widgetWithText(FilterChip, 'Dorośli'));
+    await closeFilters(tester);
+    expect(find.text('Pole dance'), findsOneWidget);
+    expect(find.text('Akrobatyka dla dzieci'), findsNothing);
+  });
+
+  testWidgets('level and age group choices are hidden without service types', (
+    tester,
+  ) async {
+    await pump(tester, _Api());
+    await tapVisible(tester, find.text('Filtry'));
+    expect(find.text('Poziom'), findsNothing);
+    expect(find.text('Grupa wiekowa'), findsNothing);
+    await closeFilters(tester);
+    expect(find.text('Pole dance'), findsOneWidget);
+  });
 
   testWidgets(
     'selected filter names remain recognizable in a period without those classes',

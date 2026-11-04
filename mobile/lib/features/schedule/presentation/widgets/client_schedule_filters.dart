@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:mobile/features/schedule/data/schedule_service_types.dart';
 import 'package:mobile/features/schedule/presentation/client_schedule_filter.dart';
+import 'package:mobile/features/schedule/presentation/service_type_filter_labels.dart';
 import 'package:mobile/features/trainings/data/group_classes_api.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
 
@@ -12,6 +14,7 @@ class ClientScheduleFilterBar extends StatelessWidget {
     this.reservationsOnly = false,
     this.selectedServiceLabels = const {},
     this.selectedInstructorLabels = const {},
+    this.serviceTypes = const {},
     super.key,
   });
 
@@ -21,6 +24,9 @@ class ClientScheduleFilterBar extends StatelessWidget {
   final bool reservationsOnly;
   final Map<String, String> selectedServiceLabels;
   final Map<String, String> selectedInstructorLabels;
+
+  /// Service types by id, for the level and age group choices.
+  final Map<String, ScheduleServiceType> serviceTypes;
 
   @override
   Widget build(BuildContext context) {
@@ -68,6 +74,11 @@ class ClientScheduleFilterBar extends StatelessWidget {
           if (person.isLead && person.displayName != null)
             person.staffId: person.displayName!,
     };
+    final serviceTypeOptions = serviceTypeFilterOptions(
+      serviceTypes,
+      selectedLevels: filter.levels,
+      selectedAgeGroups: filter.ageGroups,
+    );
     return showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -76,6 +87,11 @@ class ClientScheduleFilterBar extends StatelessWidget {
         initial: filter,
         services: services,
         instructors: instructors,
+        levels: {
+          for (final level in serviceTypeOptions.levels)
+            level: serviceLevelLabel(l10n, level),
+        },
+        ageGroups: serviceTypeOptions.ageGroups,
         reservationsOnly: reservationsOnly,
         onChanged: onChanged,
       ),
@@ -88,12 +104,18 @@ class _FilterSheet extends StatefulWidget {
     required this.initial,
     required this.services,
     required this.instructors,
+    required this.levels,
+    required this.ageGroups,
     required this.reservationsOnly,
     required this.onChanged,
   });
   final ClientScheduleFilter initial;
   final Map<String, String> services;
   final Map<String, String> instructors;
+
+  /// Level labels by code, from the easiest.
+  final Map<String, String> levels;
+  final List<AgeGroup> ageGroups;
   final bool reservationsOnly;
   final ValueChanged<ClientScheduleFilter> onChanged;
 
@@ -113,10 +135,11 @@ class _FilterSheetState extends State<_FilterSheet> {
     String title,
     Map<String, String> choices,
     Set<String> selected,
-    ValueChanged<Set<String>> onChanged,
-  ) {
-    final sorted = choices.entries.toList()
-      ..sort((a, b) => a.value.compareTo(b.value));
+    ValueChanged<Set<String>> onChanged, {
+    bool sort = true,
+  }) {
+    final sorted = choices.entries.toList();
+    if (sort) sorted.sort((a, b) => a.value.compareTo(b.value));
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -182,6 +205,32 @@ class _FilterSheetState extends State<_FilterSheet> {
                 (instructors) =>
                     _update(_filter.copyWith(instructors: instructors)),
               ),
+              if (widget.levels.isNotEmpty)
+                _choices(
+                  l10n.scheduleFilterLevel,
+                  widget.levels,
+                  _filter.levels,
+                  (levels) => _update(_filter.copyWith(levels: levels)),
+                  sort: false,
+                ),
+              if (widget.ageGroups.isNotEmpty)
+                _choices(
+                  l10n.scheduleFilterAgeGroup,
+                  {
+                    for (final group in widget.ageGroups)
+                      group.name: ageGroupLabel(l10n, group),
+                  },
+                  {for (final group in _filter.ageGroups) group.name},
+                  (names) => _update(
+                    _filter.copyWith(
+                      ageGroups: {
+                        for (final group in widget.ageGroups)
+                          if (names.contains(group.name)) group,
+                      },
+                    ),
+                  ),
+                  sort: false,
+                ),
               if (!widget.reservationsOnly)
                 SwitchListTile.adaptive(
                   contentPadding: EdgeInsets.zero,

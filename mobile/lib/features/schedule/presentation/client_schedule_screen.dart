@@ -5,6 +5,7 @@ import 'package:mobile/core/auth/auth_controller.dart';
 import 'package:mobile/core/auth/session.dart';
 import 'package:mobile/features/schedule/data/client_schedule_api.dart';
 import 'package:mobile/features/schedule/data/schedule_api.dart';
+import 'package:mobile/features/schedule/data/schedule_service_types.dart';
 import 'package:mobile/features/schedule/presentation/client_schedule_filter.dart';
 import 'package:mobile/features/schedule/presentation/widgets/client_schedule_event_tile.dart';
 import 'package:mobile/features/schedule/presentation/widgets/client_schedule_filters.dart';
@@ -111,6 +112,10 @@ class _ClientCalendarState extends ConsumerState<_ClientCalendar> {
     await request;
   }
 
+  /// Service types for the level and age group filters, refreshed on every
+  /// build; none while they load or when they cannot be loaded.
+  Map<String, ScheduleServiceType> _serviceTypes = const {};
+
   Widget _filters(BuildContext context, List<ScheduleEvent> events) {
     final classes = _classes(events);
     final l10n = AppLocalizations.of(context);
@@ -135,6 +140,7 @@ class _ClientCalendarState extends ConsumerState<_ClientCalendar> {
           if (_instructorLabels[id] case final String label) id: label,
       },
       reservationsOnly: widget.reservationsOnly,
+      serviceTypes: _serviceTypes,
       onChanged: (filter) {
         if (mounted && isCurrentBookingScope(ref, widget.scope)) {
           setState(() => _filter = filter);
@@ -146,6 +152,8 @@ class _ClientCalendarState extends ConsumerState<_ClientCalendar> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final serviceTypes = _serviceTypes =
+        ref.watch(scheduleServiceTypesProvider).value ?? const {};
     return Column(
       children: [
         if (widget.session.profiles.length > 1)
@@ -192,7 +200,7 @@ class _ClientCalendarState extends ConsumerState<_ClientCalendar> {
             )),
             where: (event) =>
                 event is ClientScheduleEvent &&
-                _filter.matches(event.groupClass),
+                _filter.matches(event.groupClass, serviceTypes),
             filtersBuilder: _filters,
             eventBuilder: (context, event) {
               final groupClass = (event as ClientScheduleEvent).groupClass;

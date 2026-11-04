@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:mobile/features/schedule/data/schedule_api.dart';
+import 'package:mobile/features/schedule/data/schedule_service_types.dart';
+import 'package:mobile/features/schedule/presentation/service_type_filter_labels.dart';
 import 'package:mobile/features/schedule/presentation/trainer_schedule_filter.dart';
 import 'package:mobile/features/schedule/presentation/widgets/schedule_calendar.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
@@ -21,6 +23,8 @@ class TrainerScheduleFilterBar extends StatelessWidget {
     required this.filter,
     required this.rooms,
     required this.onChanged,
+    this.levels = const [],
+    this.ageGroups = const [],
   });
 
   final TrainerScheduleFilter filter;
@@ -28,6 +32,13 @@ class TrainerScheduleFilterBar extends StatelessWidget {
   /// Rooms of the loaded events, offered as filters.
   final List<String> rooms;
   final ValueChanged<TrainerScheduleFilter> onChanged;
+
+  /// Service levels of the loaded events and the selected ones, from the
+  /// easiest.
+  final List<String> levels;
+
+  /// Age groups of the loaded events and the selected ones.
+  final List<AgeGroup> ageGroups;
 
   @override
   Widget build(BuildContext context) {
@@ -67,6 +78,8 @@ class TrainerScheduleFilterBar extends StatelessWidget {
         // A selected room stays on the list after moving to a period
         // without it, so it can still be turned off.
         rooms: {...rooms, ...filter.rooms}.toList()..sort(),
+        levels: levels,
+        ageGroups: ageGroups,
         onChanged: onChanged,
       ),
     );
@@ -77,11 +90,15 @@ class _FilterSheet extends StatefulWidget {
   const _FilterSheet({
     required this.initial,
     required this.rooms,
+    required this.levels,
+    required this.ageGroups,
     required this.onChanged,
   });
 
   final TrainerScheduleFilter initial;
   final List<String> rooms;
+  final List<String> levels;
+  final List<AgeGroup> ageGroups;
   final ValueChanged<TrainerScheduleFilter> onChanged;
 
   @override
@@ -167,6 +184,48 @@ class _FilterSheetState extends State<_FilterSheet> {
                   ),
               ],
             ),
+          if (widget.levels.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Text(l10n.scheduleFilterLevel, style: textTheme.titleSmall),
+            Wrap(
+              spacing: 8,
+              children: [
+                for (final level in widget.levels)
+                  FilterChip(
+                    label: Text(serviceLevelLabel(l10n, level)),
+                    selected: _filter.levels.contains(level),
+                    onSelected: (selected) => _update(
+                      _filter.copyWith(
+                        levels: selected
+                            ? {..._filter.levels, level}
+                            : ({..._filter.levels}..remove(level)),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ],
+          if (widget.ageGroups.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Text(l10n.scheduleFilterAgeGroup, style: textTheme.titleSmall),
+            Wrap(
+              spacing: 8,
+              children: [
+                for (final group in widget.ageGroups)
+                  FilterChip(
+                    label: Text(ageGroupLabel(l10n, group)),
+                    selected: _filter.ageGroups.contains(group),
+                    onSelected: (selected) => _update(
+                      _filter.copyWith(
+                        ageGroups: selected
+                            ? {..._filter.ageGroups, group}
+                            : ({..._filter.ageGroups}..remove(group)),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ],
           const SizedBox(height: 4),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
