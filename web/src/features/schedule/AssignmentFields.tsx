@@ -14,6 +14,8 @@ type AssignmentFieldsProps = {
   lookups: ScheduleLookups;
   /** Service types allowed in each room; a room without loaded rules is not restricted here. */
   roomRules: ReadonlyMap<string, ServiceTypeRule[]>;
+  /** Assignments of a block: only rooms, always taken whole. */
+  block?: boolean;
 };
 
 /**
@@ -28,6 +30,7 @@ export function AssignmentFields({
   onResourcesChange,
   lookups,
   roomRules,
+  block = false,
 }: AssignmentFieldsProps) {
   const texts = pl.schedule.assignmentFields;
   const leadIds = staff.filter((member) => member.role === 'LEAD').map((member) => member.staffId);
@@ -95,24 +98,28 @@ export function AssignmentFields({
 
   return (
     <Stack gap="sm">
-      <MultiSelect
-        label={texts.leads}
-        placeholder={texts.staffPlaceholder}
-        nothingFoundMessage={texts.nothingFound}
-        searchable
-        data={staffOptions(assistantIds)}
-        value={leadIds}
-        onChange={(ids) => setRole(ids, 'LEAD')}
-      />
-      <MultiSelect
-        label={texts.assistants}
-        placeholder={texts.staffPlaceholder}
-        nothingFoundMessage={texts.nothingFound}
-        searchable
-        data={staffOptions(leadIds)}
-        value={assistantIds}
-        onChange={(ids) => setRole(ids, 'ASSISTANT')}
-      />
+      {!block && (
+        <>
+          <MultiSelect
+            label={texts.leads}
+            placeholder={texts.staffPlaceholder}
+            nothingFoundMessage={texts.nothingFound}
+            searchable
+            data={staffOptions(assistantIds)}
+            value={leadIds}
+            onChange={(ids) => setRole(ids, 'LEAD')}
+          />
+          <MultiSelect
+            label={texts.assistants}
+            placeholder={texts.staffPlaceholder}
+            nothingFoundMessage={texts.nothingFound}
+            searchable
+            data={staffOptions(leadIds)}
+            value={assistantIds}
+            onChange={(ids) => setRole(ids, 'ASSISTANT')}
+          />
+        </>
+      )}
       <MultiSelect
         label={texts.rooms}
         placeholder={texts.roomsPlaceholder}
@@ -122,7 +129,7 @@ export function AssignmentFields({
         value={roomIds}
         onChange={setRooms}
       />
-      {roomIds.length > 0 && (
+      {roomIds.length > 0 && !block && (
         <Stack gap={4}>
           {roomIds.map((roomId) => (
             <Switch

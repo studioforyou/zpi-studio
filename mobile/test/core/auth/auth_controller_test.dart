@@ -4,6 +4,7 @@ import 'package:mobile/core/auth/app_role.dart';
 import 'package:mobile/core/auth/auth_controller.dart';
 import 'package:mobile/core/auth/auth_repository.dart';
 import 'package:mobile/core/auth/auth_state.dart';
+import 'package:mobile/core/auth/choice_store.dart';
 import 'package:mobile/core/auth/fake_auth_repository.dart';
 import 'package:mobile/core/auth/session.dart';
 
@@ -45,40 +46,16 @@ class _ClientOnlyAuthRepository implements AuthRepository {
   Future<void> sendPasswordReset(String email) async {}
 }
 
-/// Returns a trainer-only session without a customer profile.
-class _TrainerOnlyAuthRepository implements AuthRepository {
-  @override
-  Future<Session> login({
-    required String email,
-    required String password,
-  }) async {
-    return const Session(
-      accountId: 'trainer-user',
-      displayName: 'Trainer',
-      roles: [AppRole.trainer],
-      activeRole: AppRole.trainer,
-      staffProfileId: 'trainer-staff',
-      profiles: [],
-      activeProfileId: null,
-    );
-  }
-
-  @override
-  Future<Session?> restore() async => null;
-
-  @override
-  Future<void> logout() async {}
-
-  @override
-  Future<void> sendPasswordReset(String email) async {}
-}
-
 void main() {
   late ProviderContainer container;
+  late InMemoryChoiceStore store;
 
   ProviderContainer createContainer(AuthRepository repository) {
     return ProviderContainer(
-      overrides: [authRepositoryProvider.overrideWithValue(repository)],
+      overrides: [
+        authRepositoryProvider.overrideWithValue(repository),
+        choiceStoreProvider.overrideWithValue(store),
+      ],
     );
   }
 
@@ -88,7 +65,10 @@ void main() {
   Session session() =>
       (container.read(authControllerProvider) as Authenticated).session;
 
-  setUp(() => container = createContainer(FakeAuthRepository()));
+  setUp(() {
+    store = InMemoryChoiceStore();
+    container = createContainer(FakeAuthRepository());
+  });
 
   tearDown(() => container.dispose());
 
@@ -143,44 +123,166 @@ void main() {
     expect(session().activeProfileId, 'self');
   });
 
-  test('selectRole updates the active role', () async {
+  bool choosingRole() =>
+      (container.read(authControllerProvider) as Authenticated).choosingRole;
+
+  test('login with several choices opens the role picker', () async {
     await controller().login('a@b.c', 'secret');
 
-    controller().selectRole(AppRole.trainer);
-
-    expect(session().activeRole, AppRole.trainer);
+    expect(choosingRole(), isTrue);
   });
 
-  test('selectRole ignores a role the user does not have', () async {
+  test('login with a single choice skips the role picker', () async {
+    container.dispose();
+    container = createContainer(_ClientOnlyAuthRepository());
+
+    await controller().login('a@b.c', 'secret');
+
+    expect(choosingRole(), isFalse);
+  });
+
+  test(
+    'a restored session with several choices opens the role picker',
+    () async {
+      container.dispose();
+      container = createContainer(
+        _RestoringAuthRepository(
+          await FakeAuthRepository().login(email: '', password: ''),
+        ),
+      );
+      container.read(authControllerProvider);
+
+      await pumpEventQueue();
+
+      expect(choosingRole(), isTrue);
+    },
+  );
+
+  test('choose a child sets the client role and that profile', () async {
+    await controller().login('a@b.c', 'secret');
+    final child = session().choices.firstWhere(
+      (choice) => choice.profile?.id == 'child-1',
+    );
+
+    controller().choose(child);
+
+    expect(choosingRole(), isFalse);
+    expect(session().activeRole, AppRole.client);
+    expect(session().activeProfileId, 'child-1');
+    expect(session().activeChoice, child);
+  });
+
+  test('choose the trainer keeps the last client profile', () async {
+    await controller().login('a@b.c', 'secret');
+
+    controller().choose(const SessionChoice(role: AppRole.trainer));
+
+    expect(choosingRole(), isFalse);
+    expect(session().activeRole, AppRole.trainer);
+    expect(session().activeProfileId, 'self');
+    expect(session().activeChoice, const SessionChoice(role: AppRole.trainer));
+  });
+
+  test('choose ignores a choice the account does not have', () async {
     container.dispose();
     container = createContainer(_ClientOnlyAuthRepository());
     await controller().login('a@b.c', 'secret');
+    final before = container.read(authControllerProvider);
 
-    controller().selectRole(AppRole.trainer);
+    controller().choose(const SessionChoice(role: AppRole.trainer));
 
-    expect(session().activeRole, AppRole.client);
+    expect(container.read(authControllerProvider), same(before));
   });
 
-  test('selectProfile updates the profile and ignores unknown ids', () async {
+  test('openRolePicker shows the picker again as a switch', () async {
     await controller().login('a@b.c', 'secret');
+    controller().choose(session().choices.first);
 
-    controller().selectProfile('child-1');
-    expect(session().activeProfileId, 'child-1');
+    controller().openRolePicker();
 
-    controller().selectProfile('unknown');
-    expect(session().activeProfileId, 'child-1');
+    final state = container.read(authControllerProvider) as Authenticated;
+    expect(state.choosingRole, isTrue);
+    expect(state.switchingRole, isTrue);
   });
 
-  test('selectProfile is ignored without a customer profile', () async {
+  test('openRolePicker is ignored with a single choice', () async {
     container.dispose();
-    container = createContainer(_TrainerOnlyAuthRepository());
+    container = createContainer(_ClientOnlyAuthRepository());
     await controller().login('a@b.c', 'secret');
     final before = container.read(authControllerProvider);
 
-    controller().selectProfile('anything');
+    controller().openRolePicker();
 
     expect(container.read(authControllerProvider), same(before));
-    expect(session().activeProfileId, isNull);
+  });
+
+  test(
+    'cancelRolePicker closes a picker opened from the app unchanged',
+    () async {
+      await controller().login('a@b.c', 'secret');
+      controller().choose(session().choices.first);
+      final before = session();
+      controller().openRolePicker();
+
+      controller().cancelRolePicker();
+
+      final state = container.read(authControllerProvider) as Authenticated;
+      expect(state.choosingRole, isFalse);
+      expect(state.switchingRole, isFalse);
+      expect(state.session, same(before));
+    },
+  );
+
+  test('cancelRolePicker leaves the picker after sign-in open', () async {
+    await controller().login('a@b.c', 'secret');
+    final before = container.read(authControllerProvider);
+
+    controller().cancelRolePicker();
+
+    expect(container.read(authControllerProvider), same(before));
+  });
+
+  test('choose remembers the choice for the account', () async {
+    await controller().login('a@b.c', 'secret');
+
+    controller().choose(const SessionChoice(role: AppRole.trainer));
+    await pumpEventQueue();
+
+    expect(store.values, {'demo-user': 'TRAINER'});
+  });
+
+  test('a restored session reopens as the remembered choice', () async {
+    final saved = await FakeAuthRepository().login(email: '', password: '');
+    container.dispose();
+    store.values['demo-user'] = 'CLIENT:child-1';
+    container = createContainer(_RestoringAuthRepository(saved));
+    container.read(authControllerProvider);
+
+    await pumpEventQueue();
+
+    expect(choosingRole(), isFalse);
+    expect(session().activeRole, AppRole.client);
+    expect(session().activeProfileId, 'child-1');
+  });
+
+  test('a remembered choice the account lost opens the picker', () async {
+    final saved = await FakeAuthRepository().login(email: '', password: '');
+    container.dispose();
+    store.values['demo-user'] = 'CLIENT:removed-child';
+    container = createContainer(_RestoringAuthRepository(saved));
+    container.read(authControllerProvider);
+
+    await pumpEventQueue();
+
+    expect(choosingRole(), isTrue);
+  });
+
+  test('login starts on the picker even with a remembered choice', () async {
+    store.values['demo-user'] = 'TRAINER';
+
+    await controller().login('a@b.c', 'secret');
+
+    expect(choosingRole(), isTrue);
   });
 
   test('logout returns to Unauthenticated', () async {

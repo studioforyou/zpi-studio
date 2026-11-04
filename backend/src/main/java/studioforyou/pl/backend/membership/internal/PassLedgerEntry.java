@@ -76,6 +76,13 @@ class PassLedgerEntry {
 				reason, actorAccountId);
 	}
 
+	/** A change of the last valid day: an extension, a suspension or its cancellation. */
+	static PassLedgerEntry extension(UUID passId, LocalDate validUntilBefore, LocalDate validUntilAfter, String reason,
+			UUID actorAccountId) {
+		return new PassLedgerEntry(passId, PassLedgerKind.EXTENSION, (short) 0, validUntilBefore, validUntilAfter, reason,
+				actorAccountId);
+	}
+
 	static PassLedgerEntry reservation(UUID passId, UUID reservationId, PassLedgerKind kind, short entriesDelta,
 			UUID actorAccountId) {
 		PassLedgerEntry entry = new PassLedgerEntry(passId, kind, entriesDelta, null, null, null, actorAccountId);

@@ -61,6 +61,7 @@ export function AssignmentsModal({ event, lookups, onClose }: AssignmentsModalPr
           onResourcesChange={setResources}
           lookups={lookups}
           roomRules={roomRules}
+          block={event.kind === 'BLOCK'}
         />
         {event.seriesId && (
           <Radio.Group

@@ -13,11 +13,13 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.jdbc.datasource.init.ResourceDatabasePopulator;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * The dev/stage seed ({@code db/seed}) applies on top of all migrations, fills every table
@@ -48,6 +50,56 @@ class SeedDataTests {
 		new ResourceDatabasePopulator(scripts).execute(dataSource);
 
 		assertThat(rowCounts()).isEqualTo(before);
+	}
+
+	@Test
+	@Transactional
+	void makeupExampleRepairsTheLegacyOpenLinkWithoutRenewingTheCredit() {
+		assertThat(jdbc.sql("""
+				SELECT count(*) FROM makeup_credit credit
+				JOIN customer_pass pass ON pass.id = credit.source_pass_id
+				JOIN pass_product_variant variant ON variant.id = pass.variant_id
+				JOIN pass_product product ON product.id = variant.product_id
+				WHERE credit.id = '33000000-0000-0000-0000-000000000002'
+				  AND pass.customer_id = credit.customer_id AND variant.entries_count = 4
+				  AND product.makeup_policy_id IS NOT NULL AND pass.status = 'EXPIRED'
+				  AND credit.status = 'AVAILABLE'
+				""").query(Integer.class).single()).isEqualTo(1);
+		Map<String, Object> before = makeupExample();
+		Map<String, Long> counts = rowCounts();
+		jdbc.sql("""
+				UPDATE makeup_credit SET source_pass_id = '28000000-0000-0000-0000-000000000005'
+				WHERE id = '33000000-0000-0000-0000-000000000002'
+				""").update();
+		runMakeupExample();
+		assertThat(makeupExample()).isEqualTo(before);
+		runMakeupExample();
+		assertThat(makeupExample()).isEqualTo(before);
+		assertThat(rowCounts()).isEqualTo(counts);
+	}
+
+	@Test
+	@Transactional
+	void makeupExampleLeavesAnAlreadyUsedCreditUntouched() {
+		jdbc.sql("""
+				UPDATE makeup_credit SET source_pass_id = '28000000-0000-0000-0000-000000000005',
+				  status = 'USED', used_at = CURRENT_TIMESTAMP
+				WHERE id = '33000000-0000-0000-0000-000000000002'
+				""").update();
+		Map<String, Object> before = makeupExample();
+		runMakeupExample();
+		assertThat(makeupExample()).isEqualTo(before);
+	}
+
+	private void runMakeupExample() {
+		new ResourceDatabasePopulator(new ClassPathResource("db/seed/R__seed_09_makeup_credits.sql"))
+			.execute(dataSource);
+	}
+
+	private Map<String, Object> makeupExample() {
+		return jdbc.sql("""
+				SELECT * FROM makeup_credit WHERE id = '33000000-0000-0000-0000-000000000002'
+				""").query().singleRow();
 	}
 
 	private Map<String, Long> rowCounts() {

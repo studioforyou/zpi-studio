@@ -22,7 +22,7 @@ import {
 } from './customerPassesApi';
 
 type Props = {
-  customer: Customer;
+  customer: Pick<Customer, 'id' | 'displayName'>;
   pass: CustomerPass;
   onClose: () => void;
 };
@@ -63,7 +63,7 @@ export function CorrectPassEntriesModal({ customer, pass, onClose }: Props) {
     mutationFn: (request: CorrectPassEntries) => correctPassEntries(customer.id, pass.id, request),
     retry: false,
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['customer-passes', customer.id] });
+      await queryClient.invalidateQueries({ queryKey: ['customer-passes'] });
       onClose();
     },
   });
@@ -77,7 +77,7 @@ export function CorrectPassEntriesModal({ customer, pass, onClose }: Props) {
       setSubmitted(false);
       setRefreshed(true);
       correction.reset();
-      await queryClient.invalidateQueries({ queryKey: ['customer-passes', customer.id] });
+      await queryClient.invalidateQueries({ queryKey: ['customer-passes'] });
     },
   });
 

@@ -104,8 +104,10 @@ backend found; dates of a recurring event can be left out before saving. An even
 
 ## Participant pass corrections
 
-In **Karnety → Karnety uczestników**, select a participant and choose **Koryguj wejścia**
-next to a pass with a finite entry count. Enter the intended remaining balance in one field,
+In **Karnety → Karnety uczestników**, search for a participant and choose **Koryguj wejścia**
+in the matching pass row with a finite entry count. Corrections sit alongside extension and suspension
+actions, and the response retains the pass's suspension details and effective status.
+Enter the intended remaining balance in one field,
 optionally give a reason, and compare the current and intended counts before confirming. A green
 or red badge shows the signed difference; an unchanged count is neutral and cannot be submitted. The panel
 calculates the signed adjustment from the displayed current balance; setting it to zero is

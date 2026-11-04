@@ -157,9 +157,12 @@ public class CustomerPass {
 	/**
 	 * The status on the given day. Nothing updates the stored status when the dates pass yet,
 	 * so a scheduled pass counts as active from its first day and an active or scheduled pass
-	 * counts as expired after its last day.
+	 * counts as expired after its last day. An active pass counts as suspended on a day of
+	 * one of its suspensions.
+	 *
+	 * @param suspended whether the day falls within a suspension of the pass
 	 */
-	public CustomerPassStatus statusOn(LocalDate day) {
+	public CustomerPassStatus statusOn(LocalDate day, boolean suspended) {
 		boolean running = this.status == CustomerPassStatus.ACTIVE || this.status == CustomerPassStatus.SCHEDULED;
 		if (!running) {
 			return this.status;
@@ -170,7 +173,22 @@ public class CustomerPass {
 		if (this.validFrom == null) {
 			return this.status;
 		}
-		return day.isBefore(this.validFrom) ? CustomerPassStatus.SCHEDULED : CustomerPassStatus.ACTIVE;
+		if (day.isBefore(this.validFrom)) {
+			return CustomerPassStatus.SCHEDULED;
+		}
+		return suspended ? CustomerPassStatus.SUSPENDED : CustomerPassStatus.ACTIVE;
+	}
+
+	/**
+	 * Moves the last valid day. An expired pass becomes usable again, active or scheduled
+	 * depending on its first day.
+	 */
+	void changeValidUntil(LocalDate validUntil, LocalDate today) {
+		this.validUntil = validUntil;
+		if (this.status == CustomerPassStatus.EXPIRED) {
+			this.status = (this.validFrom != null && this.validFrom.isAfter(today)) ? CustomerPassStatus.SCHEDULED
+					: CustomerPassStatus.ACTIVE;
+		}
 	}
 
 	public LocalDate getValidFrom() {

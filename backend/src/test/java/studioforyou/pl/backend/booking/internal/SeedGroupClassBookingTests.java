@@ -69,9 +69,10 @@ class SeedGroupClassBookingTests {
 				AND p.entries_remaining IS NOT NULL AND p.entries_remaining <>
 				    (SELECT coalesce(sum(entries_delta), 0) FROM pass_ledger WHERE pass_id = p.id)
 				""").query(Integer.class).single()).isZero();
-		assertThat(jdbc.sql("SELECT count(*) FROM account").query(Integer.class).single()).isEqualTo(10);
-		assertThat(jdbc.sql("SELECT count(*) FROM customer_profile").query(Integer.class).single()).isEqualTo(8);
-		assertThat(jdbc.sql("SELECT count(*) FROM staff_profile").query(Integer.class).single()).isEqualTo(4);
+		// Only the accounts and profiles of seeds 01-02; the showcase adds none.
+		assertThat(jdbc.sql("SELECT count(*) FROM account").query(Integer.class).single()).isEqualTo(11);
+		assertThat(jdbc.sql("SELECT count(*) FROM customer_profile").query(Integer.class).single()).isEqualTo(10);
+		assertThat(jdbc.sql("SELECT count(*) FROM staff_profile").query(Integer.class).single()).isEqualTo(5);
 		assertThat(jdbc.sql("""
 				SELECT count(*) FROM reservation r JOIN schedule_event e ON e.id = r.event_id
 				WHERE e.id BETWEEN '19000000-0000-0000-0000-000000000101'::uuid

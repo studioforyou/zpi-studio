@@ -1,6 +1,7 @@
 package studioforyou.pl.backend.scheduling;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -11,6 +12,13 @@ public interface GroupClassSchedule {
 	List<Occurrence> list(Instant from, Instant to);
 
 	Optional<Occurrence> find(UUID id);
+
+	/**
+	 * The given events that start in {@code [from, to)}, latest first, for a participant's history.
+	 * The caller passes only events it holds participation for, so neither kind nor visibility is
+	 * restricted.
+	 */
+	List<Occurrence> findStartingBetween(Collection<UUID> ids, Instant from, Instant to);
 
 	/** Holds the same occurrence row lock as schedule edits until the caller's transaction ends. */
 	Occurrence lock(UUID id);

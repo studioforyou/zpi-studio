@@ -31,6 +31,9 @@ import org.hibernate.annotations.CreationTimestamp;
 @Table(name = "schedule_event")
 class ScheduleEvent {
 
+	/** The reason of every block; the database has no dictionary of block reasons to choose from. */
+	static final String BLOCK_REASON = "MAINTENANCE";
+
 	@Id
 	@GeneratedValue(strategy = GenerationType.UUID)
 	private UUID id;
@@ -69,6 +72,9 @@ class ScheduleEvent {
 
 	@Enumerated(EnumType.STRING)
 	private EventStatus status;
+
+	@Column(name = "block_reason", updatable = false)
+	private String blockReason;
 
 	@Column(name = "created_by", updatable = false)
 	private UUID createdBy;
@@ -111,6 +117,7 @@ class ScheduleEvent {
 		this.capacity = capacity;
 		this.visibility = visibility;
 		this.status = EventStatus.SCHEDULED;
+		this.blockReason = (kind == EventKind.BLOCK) ? BLOCK_REASON : null;
 		this.startsAt = startsAt;
 		this.endsAt = endsAt;
 		this.createdBy = createdBy;

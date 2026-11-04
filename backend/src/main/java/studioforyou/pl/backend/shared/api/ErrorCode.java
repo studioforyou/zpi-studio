@@ -23,8 +23,18 @@ public enum ErrorCode {
 	INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR),
 	EMAIL_NOT_SENT(HttpStatus.BAD_GATEWAY),
 
+	// identity: account management by administrators
+	/** The account's status does not allow the change, e.g. suspending an account that is not active. */
+	ACCOUNT_STATUS_CONFLICT(HttpStatus.CONFLICT),
+	/** Administrators cannot suspend or close their own account. */
+	OWN_ACCOUNT_CHANGE(HttpStatus.UNPROCESSABLE_CONTENT),
+
 	// customer
 	CUSTOMER_NOT_ACTIVE(HttpStatus.UNPROCESSABLE_CONTENT),
+	/** The trainer already has an active assignment to the participant. */
+	TRAINER_ALREADY_ASSIGNED(HttpStatus.CONFLICT),
+	/** The staff member's account does not have the TRAINER role. */
+	STAFF_NOT_TRAINER(HttpStatus.UNPROCESSABLE_CONTENT),
 
 	// offering
 	PASS_VARIANT_ALREADY_EXISTS(HttpStatus.CONFLICT),
@@ -37,6 +47,8 @@ public enum ErrorCode {
 	PASS_NOT_USABLE(HttpStatus.UNPROCESSABLE_CONTENT),
 	PASS_ENTRIES_EXHAUSTED(HttpStatus.UNPROCESSABLE_CONTENT),
 	PASS_SERVICE_MISMATCH(HttpStatus.UNPROCESSABLE_CONTENT),
+	/** The product does not allow suspension, or the suspension breaks its rules. */
+	PASS_SUSPENSION_NOT_ALLOWED(HttpStatus.UNPROCESSABLE_CONTENT),
 
 	// booking: client group-class participation
 	EVENT_NOT_BOOKABLE(HttpStatus.UNPROCESSABLE_CONTENT),

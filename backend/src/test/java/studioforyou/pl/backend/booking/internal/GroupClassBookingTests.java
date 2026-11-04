@@ -471,6 +471,65 @@ class GroupClassBookingTests {
 				ErrorCode.VALIDATION_FAILED);
 	}
 
+	@Test
+	void historyShowsStartedBookingsLatestFirstWithOneOutcomePerEvent() {
+		Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
+		UUID attended = pastEvent(now.minus(Duration.ofDays(2)), "CLASS", "PUBLIC", "COMPLETED");
+		UUID absent = pastEvent(now.minus(Duration.ofDays(3)), "CLASS", "PUBLIC", "COMPLETED");
+		UUID lateCancelled = pastEvent(now.minus(Duration.ofDays(4)), "CLASS", "PUBLIC", "SCHEDULED");
+		UUID rebooked = pastEvent(now.minus(Duration.ofDays(5)), "CLASS", "PUBLIC", "COMPLETED");
+		UUID studioCancelled = pastEvent(now.minus(Duration.ofDays(6)), "CLASS", "PUBLIC", "CANCELLED");
+		UUID personal = pastEvent(now.minus(Duration.ofDays(7)), "PERSONAL_TRAINING", "PRIVATE", "COMPLETED");
+		UUID outsideWindow = pastEvent(now.minus(Duration.ofDays(40)), "CLASS", "PUBLIC", "COMPLETED");
+		UUID othersOnly = pastEvent(now.minus(Duration.ofDays(2)), "CLASS", "PUBLIC", "COMPLETED");
+		pastReservation(profile, attended, "ACTIVE", null, null, "PRESENT");
+		pastReservation(profile, absent, "ACTIVE", null, null, "ABSENT");
+		pastReservation(profile, lateCancelled, "CANCELLED", "LATE", false, "UNMARKED");
+		pastReservation(profile, rebooked, "CANCELLED", "IN_TIME", true, "UNMARKED");
+		pastReservation(profile, rebooked, "ACTIVE", null, null, "PRESENT");
+		pastReservation(profile, studioCancelled, "ACTIVE", null, null, "UNMARKED");
+		pastReservation(profile, personal, "ACTIVE", null, null, "UNMARKED");
+		pastReservation(profile, outsideWindow, "ACTIVE", null, null, "PRESENT");
+		pastReservation(otherProfile, othersOnly, "ACTIVE", null, null, "PRESENT");
+		bookings.book(actor, profile, event, pass);
+
+		var history = bookings.history(actor, profile, now.minus(Duration.ofDays(30)), now.plus(Duration.ofDays(30)));
+
+		assertThat(history).extracting(GroupClassDtos.HistoryEntryResponse::eventId)
+			.containsExactly(attended, absent, lateCancelled, rebooked, studioCancelled, personal);
+		assertThat(history).extracting(GroupClassDtos.HistoryEntryResponse::outcome)
+			.containsExactly("PRESENT", "ABSENT", "LATE_CANCELLED", "PRESENT", "CLASS_CANCELLED", "UNMARKED");
+		assertThat(history.get(2).entryReturned()).isFalse();
+		assertThat(history.getFirst().title()).isEqualTo("booking-test-class");
+		assertThat(bookings.history(otherActor, otherProfile, now.minus(Duration.ofDays(30)), now))
+			.extracting(GroupClassDtos.HistoryEntryResponse::eventId).containsExactly(othersOnly);
+		assertThat(bookings.history(actor, profile, now.plusSeconds(60), now.plus(Duration.ofDays(30)))).isEmpty();
+		assertError(() -> bookings.history(otherActor, profile, now.minus(Duration.ofDays(30)), now), ErrorCode.NOT_FOUND);
+		assertError(() -> bookings.history(actor, profile, now.minus(Duration.ofDays(94)), now), ErrorCode.VALIDATION_FAILED);
+	}
+
+	@Test
+	void httpHistoryHasTheEntryProjectionAndProtectsProfileData() throws Exception {
+		Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
+		Instant start = now.minus(Duration.ofDays(1));
+		UUID attended = pastEvent(start, "CLASS", "PUBLIC", "COMPLETED");
+		pastReservation(profile, attended, "ACTIVE", null, null, "PRESENT");
+		String path = base(profile) + "/training-history?from=" + now.minus(Duration.ofDays(7)) + "&to=" + now;
+		mvc.perform(get(path).header("Authorization", "Bearer " + PARENT_TOKEN))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.items.length()").value(1))
+			.andExpect(jsonPath("$.items[0].eventId").value(attended.toString()))
+			.andExpect(jsonPath("$.items[0].reservationId").isNotEmpty())
+			.andExpect(jsonPath("$.items[0].startsAt").value(start.toString()))
+			.andExpect(jsonPath("$.items[0].outcome").value("PRESENT"))
+			.andExpect(jsonPath("$.items[0].staff").isArray())
+			.andExpect(jsonPath("$.items[0].resources").isArray())
+			.andExpect(jsonPath("$.items[0].customerId").doesNotExist());
+		mvc.perform(get(path)).andExpect(status().isUnauthorized());
+		mvc.perform(get(path).header("Authorization", "Bearer " + OTHER_TOKEN))
+			.andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("NOT_FOUND"));
+	}
+
 	private Callable<String> competingBooking(UUID customerActor, UUID customerProfile, UUID customerPass,
 			CountDownLatch ready, CountDownLatch start) {
 		return () -> {
@@ -545,6 +604,27 @@ class GroupClassBookingTests {
 				""").param("kind", kind).param("service", service).param("startsAt", utc(startsAt))
 			.param("endsAt", utc(startsAt.plusSeconds(3600))).param("capacity", capacity)
 			.param("visibility", visibility).query(UUID.class).single();
+	}
+
+	private UUID pastEvent(Instant start, String kind, String visibility, String status) {
+		return jdbc.sql("""
+				INSERT INTO schedule_event (kind, service_type_id, title, starts_at, ends_at, capacity, visibility, status)
+				VALUES (:kind, :service, 'booking-test-class', :startsAt, :endsAt, 8, :visibility, :status) RETURNING id
+				""").param("kind", kind).param("service", service).param("startsAt", utc(start))
+			.param("endsAt", utc(start.plusSeconds(3600))).param("visibility", visibility).param("status", status)
+			.query(UUID.class).single();
+	}
+
+	/** Booking refuses started events, so their history is inserted as booking left it. */
+	private void pastReservation(UUID customer, UUID eventId, String status, String cancelKind,
+			Boolean entryReturned, String attendance) {
+		jdbc.sql("""
+				INSERT INTO reservation (event_id, customer_id, booked_by, status, cancel_kind, entry_returned, attendance)
+				VALUES (:event, :customer, :actor, :status, :kind, :returned, :attendance)
+				""").param("event", eventId).param("customer", customer)
+			.param("actor", customer.equals(profile) ? actor : otherActor).param("status", status)
+			.param("kind", cancelKind, java.sql.Types.VARCHAR).param("returned", entryReturned, java.sql.Types.BOOLEAN)
+			.param("attendance", attendance).update();
 	}
 
 	private int balance(UUID passId) {

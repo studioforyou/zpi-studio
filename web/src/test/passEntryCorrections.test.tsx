@@ -13,6 +13,8 @@ const customer: Customer = {
   lastName: 'Zielińska',
   displayName: 'Katarzyna Zielińska',
   birthDate: null,
+  email: null,
+  emailOfGuardian: false,
 };
 
 const pass: CustomerPass = {
@@ -31,6 +33,7 @@ const pass: CustomerPass = {
   createdAt: '2026-10-01T10:00:00Z',
   updatedAt: '2026-10-01T10:00:00Z',
   version: 0,
+  suspensions: [],
 };
 
 function json(body: unknown, status = 200) {
@@ -53,6 +56,14 @@ function api(initial: CustomerPass = pass) {
   const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
     if (init?.method === 'POST') return post(url, JSON.parse(String(init.body)));
     if (url === '/api/v1/customers/customer-1/passes/pass-1') return json(stored);
+    if (url.startsWith('/api/v1/customer-passes?'))
+      return json({
+        items: [{ holder: customer, pass: stored }],
+        page: 0,
+        size: 20,
+        totalItems: 1,
+        totalPages: 1,
+      });
     if (url === '/api/v1/customers/customer-1/passes') return json({ items: [stored] });
     if (url.startsWith('/api/v1/customers?'))
       return json({ items: [customer], page: 0, size: 20, totalItems: 1, totalPages: 1 });
@@ -71,10 +82,7 @@ function api(initial: CustomerPass = pass) {
 async function chooseParticipant() {
   renderWithProviders(<PassesPage />);
   await userEvent.click(screen.getByRole('tab', { name: 'Karnety uczestników' }));
-  await userEvent.click(screen.getByRole('combobox', { name: 'Uczestnik' }));
-  await userEvent.click(
-    await screen.findByRole('option', { name: customer.displayName, hidden: true }),
-  );
+  await userEvent.type(screen.getByRole('textbox', { name: 'Szukaj uczestnika' }), 'Katarzyna');
 }
 
 async function openCorrection() {
@@ -237,6 +245,43 @@ test('blocks duplicate confirmation and closing while a correction is being save
   expect(within(dialog).getByRole('button', { name: 'Anuluj' })).toBeDisabled();
   finish(json({ ...pass, entriesRemaining: 7, version: 1 }));
   await vi.waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+});
+
+test('corrects the holder of the chosen row when the search returns several participants', async () => {
+  const otherCustomer = { ...customer, id: 'customer-2', displayName: 'Anna Nowak' };
+  const otherPass = { ...pass, id: 'pass-2', customerId: otherCustomer.id, version: 7 };
+  const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+    if (init?.method === 'POST') return json({ ...otherPass, entriesRemaining: 7, version: 8 });
+    if (url.startsWith('/api/v1/customer-passes?'))
+      return json({
+        items: [
+          { holder: customer, pass },
+          { holder: otherCustomer, pass: otherPass },
+        ],
+        page: 0,
+        size: 20,
+        totalItems: 2,
+        totalPages: 1,
+      });
+    return json({ items: [] });
+  });
+  vi.stubGlobal('fetch', fetchMock);
+  await chooseParticipant();
+  const row = (await screen.findByText('Anna Nowak')).closest('tr')!;
+  await userEvent.click(within(row).getByRole('button', { name: 'Koryguj wejścia' }));
+  const dialog = await screen.findByRole('dialog');
+  expect(within(dialog).getByText('Anna Nowak')).toBeInTheDocument();
+  await enterBalance(dialog, '7');
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Potwierdź korektę' }));
+  await vi.waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+  const posts = fetchMock.mock.calls.filter(([, init]) => init?.method === 'POST');
+  expect(posts).toHaveLength(1);
+  expect(posts[0][0]).toBe('/api/v1/customers/customer-2/passes/pass-2/correct-entries');
+  expect(JSON.parse(String(posts[0][1]?.body))).toEqual({
+    entriesDelta: 2,
+    reason: null,
+    version: 7,
+  });
 });
 
 test('a late result stays bound to its original participant after the view switches context', async () => {

@@ -91,25 +91,72 @@
   "navProfile": "Profil",
   "roleClient": "Klient",
   "roleTrainer": "Trener",
-  "profileRoleSection": "Rola",
+  "roleChild": "Dziecko",
   "profileActiveProfileSection": "Aktywny profil",
-  "staffProfileEditTitle": "Dane osobowe",
-  "staffProfileFirstName": "Imię",
-  "staffProfileLastName": "Nazwisko",
-  "staffProfilePhone": "Telefon (opcjonalnie)",
+  "rolePickerTitle": "Wybierz profil:",
+  "rolePickerBackToLogin": "Powrót do logowania",
+  "rolePickerBackToProfile": "Powrót do profilu",
+  "profileSwitchProfile": "Zmień profil",
+  "personalDetailsEditTitle": "Dane osobowe",
+  "personalDetailsFirstName": "Imię",
+  "personalDetailsLastName": "Nazwisko",
+  "personalDetailsPhone": "Telefon (opcjonalnie)",
   "staffProfilePhoneHint": "Pozostaw puste, aby usunąć numer telefonu.",
-  "staffProfileSave": "Zapisz zmiany",
-  "staffProfileSaved": "Zmiany zostały zapisane.",
-  "staffProfileRetry": "Spróbuj ponownie",
-  "staffProfileNameRequired": "To pole jest wymagane.",
-  "staffProfileNameTooLong": "Wpisz maksymalnie 80 znaków.",
-  "staffProfilePhoneTooLong": "Wpisz maksymalnie 20 znaków.",
-  "staffProfileLoadError": "Nie udało się pobrać danych osobowych.",
-  "staffProfileSaveError": "Nie udało się zapisać zmian. Spróbuj ponownie.",
-  "staffProfileNetworkError": "Brak połączenia z serwerem. Sprawdź internet i spróbuj ponownie.",
-  "staffProfileAccessError": "Nie masz dostępu do edycji danych osobowych.",
-  "staffProfileNotFound": "Nie znaleziono profilu. Skontaktuj się z obsługą studia.",
-  "staffProfileValidationError": "Sprawdź wpisane dane i spróbuj ponownie.",
+  "personalDetailsSave": "Zapisz zmiany",
+  "personalDetailsSaved": "Zmiany zostały zapisane.",
+  "personalDetailsRetry": "Spróbuj ponownie",
+  "personalDetailsNameRequired": "To pole jest wymagane.",
+  "personalDetailsTooLong": "Wpisz maksymalnie {count} znaków.",
+  "@personalDetailsTooLong": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "personalDetailsNameInvalid": "Używaj tylko liter, spacji, myślników i apostrofów.",
+  "personalDetailsPhoneInvalid": "Wpisz numer z cyframi, np. +48 600 100 200.",
+  "personalDetailsLoadError": "Nie udało się pobrać danych osobowych.",
+  "personalDetailsSaveError": "Nie udało się zapisać zmian. Spróbuj ponownie.",
+  "personalDetailsNetworkError": "Brak połączenia z serwerem. Sprawdź internet i spróbuj ponownie.",
+  "personalDetailsAccessError": "Nie masz dostępu do edycji danych osobowych.",
+  "personalDetailsNotFound": "Nie znaleziono profilu. Skontaktuj się z obsługą studia.",
+  "personalDetailsValidationError": "Sprawdź wpisane dane i spróbuj ponownie.",
+  "personalDetailsNameSyncTitle": "Zmiana na obu profilach",
+  "personalDetailsNameSyncMessage": "{fields, select, firstName{Nowe imię zostanie zapisane} lastName{Nowe nazwisko zostanie zapisane} other{Nowe imię i nazwisko zostaną zapisane}} również w Twoim profilu {profile, select, trainer{trenera} other{klienta}}.",
+  "@personalDetailsNameSyncMessage": {
+    "placeholders": {
+      "fields": {
+        "type": "String"
+      },
+      "profile": {
+        "type": "String"
+      }
+    }
+  },
+  "personalDetailsNameSyncOk": "OK",
+  "personalDetailsSyncTitle": "Zmienić też drugi profil?",
+  "personalDetailsSyncTrainerQuestion": "Masz też profil trenera. Zapisać nowy numer telefonu również w nim?",
+  "personalDetailsSyncClientQuestion": "Masz też profil klienta. Zapisać nowy numer telefonu również w nim?",
+  "personalDetailsSyncOnlyThis": "Tylko ten profil",
+  "personalDetailsSyncBoth": "Oba profile",
+  "personalDetailsSyncFailed": "Zmiany w tym profilu zostały zapisane, ale nie udało się zaktualizować drugiego profilu. Spróbuj ponownie.",
+  "customerProfileChildNotice": "Edytujesz dane dziecka: {name}.",
+  "@customerProfileChildNotice": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "customerProfileBirthDate": "Data urodzenia (opcjonalnie)",
+  "customerProfileClearBirthDate": "Usuń datę urodzenia",
+  "customerProfileEmergencySection": "Kontakt awaryjny",
+  "customerProfileEmergencyHint": "Osoba, z którą studio skontaktuje się w razie wypadku. Podaj imię i telefon albo zostaw oba pola puste.",
+  "customerProfileEmergencyName": "Imię i nazwisko",
+  "customerProfileEmergencyPhone": "Telefon",
+  "customerProfileEmergencyNameRequired": "Podaj imię osoby do kontaktu.",
+  "customerProfileEmergencyPhoneRequired": "Podaj telefon osoby do kontaktu.",
   "logoutButton": "Wyloguj się",
   "placeholderComingSoon": "Wkrótce",
   "pingTitle": "Test połączenia",
@@ -141,6 +188,18 @@
     }
   },
   "passesTabMine": "Moje karnety",
+  "passesTabMakeup": "Do odrobienia",
+  "makeupAvailable": "{count, plural, =1{zajęcie do odrobienia} few{zajęcia do odrobienia} other{zajęć do odrobienia}}",
+  "@makeupAvailable": {"placeholders": {"count": {"type": "int"}}},
+  "makeupInfoTitle": "Jak działa odrabianie?",
+  "makeupInfoBody": "Jedna odróbka pozwala odrobić jedne zajęcia.\n\nKażda ma własny termin ważności. Nazwa karnetu pokazuje, z którego pochodzi.\n\nMożliwość wykorzystania zależy od zasad wybranych zajęć.",
+  "makeupExpiresAt": "Do {date}",
+  "@makeupExpiresAt": {"placeholders": {"date": {"type": "String"}}},
+  "makeupLoadError": "Nie udało się pobrać odróbek. Spróbuj ponownie.",
+  "makeupPrevious": "Poprzednie",
+  "makeupNext": "Następne",
+  "makeupPage": "{page} z {total}",
+  "@makeupPage": {"placeholders": {"page": {"type": "int"}, "total": {"type": "int"}}},
   "passesTabOffer": "Oferta",
   "passesProfile": "Profil: {name}",
   "@passesProfile": {
@@ -353,5 +412,221 @@
   "classesParticipantsError": "Nie udało się pobrać listy uczestników.",
   "classesParticipantSelf": "{name} (wybrany profil)",
   "@classesParticipantSelf": {"placeholders": {"name": {"type": "String"}}},
-  "classesSwipeParallel": "Przesuń w bok, by zobaczyć równoległe zajęcia"
+  "classesSwipeParallel": "Przesuń w bok, by zobaczyć równoległe zajęcia",
+  "trainerEventAssistant": "Asystent",
+  "trainerEventParticipants": "Uczestnicy ({count})",
+  "@trainerEventParticipants": {"placeholders": {"count": {"type": "int"}}},
+  "trainerEventParticipantsEmpty": "Nikt jeszcze nie zapisał się na te zajęcia.",
+  "trainerEventParticipantAge": "{age, plural, =1{1 rok} few{{age} lata} other{{age} lat}}",
+  "@trainerEventParticipantAge": {"placeholders": {"age": {"type": "int"}}},
+  "trainingsTabTrainees": "Podopieczni",
+  "trainingsTabGroups": "Grupy",
+  "traineesNewCooperation": "Zarejestruj nową współpracę",
+  "traineesEmpty": "Nie masz jeszcze podopiecznych. Zarejestruj nową współpracę, aby dodać pierwszą osobę.",
+  "traineesChild": "Dziecko",
+  "traineesBirthDate": "ur. {date}",
+  "@traineesBirthDate": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "traineesSince": "Współpraca od {date}",
+  "@traineesSince": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "traineesInactive": "Profil nieaktywny",
+  "traineesActions": "Więcej",
+  "traineesEndTitle": "Zakończyć współpracę?",
+  "traineesEndText": "{name} zniknie z listy Twoich podopiecznych. Studio zachowa historię współpracy.",
+  "@traineesEndText": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "traineesEndConfirm": "Zakończ współpracę",
+  "traineesEnded": "Zakończono współpracę z: {name}.",
+  "@traineesEnded": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "traineesCancel": "Anuluj",
+  "traineesRetry": "Spróbuj ponownie",
+  "traineesLoadError": "Nie udało się pobrać listy podopiecznych.",
+  "traineesSaveError": "Nie udało się zapisać zmian. Spróbuj ponownie.",
+  "traineesNetworkError": "Brak połączenia z serwerem. Sprawdź internet i spróbuj ponownie.",
+  "traineesAccessError": "Nie masz dostępu do listy podopiecznych.",
+  "traineesNoStaffProfile": "Nie znaleziono profilu trenera. Skontaktuj się z obsługą studia.",
+  "traineesAlreadyAssigned": "Już współpracujesz z tą osobą.",
+  "traineesNotAvailable": "Nie można rozpocząć współpracy z tą osobą, bo jej profil albo Twój profil trenera jest nieaktywny.",
+  "newCooperationSearchLabel": "Szukaj klienta",
+  "newCooperationSearchHint": "Imię, nazwisko lub telefon",
+  "newCooperationNoResults": "Nie znaleziono klientów.",
+  "newCooperationAlreadyAssigned": "Już współpracujecie",
+  "newCooperationConfirmText": "Rozpocząć współpracę z: {name}?",
+  "@newCooperationConfirmText": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "newCooperationConfirm": "Rozpocznij współpracę",
+  "newCooperationRegistered": "Zarejestrowano współpracę z: {name}.",
+  "@newCooperationRegistered": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "addClassButton": "Dodaj zajęcia",
+  "addClassTitle": "Nowe zajęcia",
+  "addClassOnce": "Jednorazowe",
+  "addClassWeekly": "Cykliczne",
+  "addClassServiceType": "Rodzaj zajęć",
+  "addClassNoServiceTypes": "Studio nie ma jeszcze aktywnych zajęć grupowych.",
+  "addClassRoom": "Sala",
+  "addClassRoomWithLimit": "{name} (do {limit} os.)",
+  "@addClassRoomWithLimit": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "limit": {
+        "type": "int"
+      }
+    }
+  },
+  "addClassNoRooms": "Studio nie ma jeszcze aktywnych sal.",
+  "addClassCapacity": "Limit miejsc",
+  "addClassCapacityHint": "Puste pole: bez limitu",
+  "addClassCapacityDefault": "Puste pole: limit rodzaju zajęć ({limit})",
+  "@addClassCapacityDefault": {
+    "placeholders": {
+      "limit": {
+        "type": "int"
+      }
+    }
+  },
+  "addClassCapacityInvalid": "Podaj liczbę większą od zera.",
+  "addClassDay": "Dzień",
+  "addClassStartsOn": "Od",
+  "addClassEndsOn": "Do",
+  "addClassWeekdays": "Dni tygodnia",
+  "addClassWeekdaysRequired": "Wybierz co najmniej jeden dzień.",
+  "addClassStartTime": "Godzina rozpoczęcia",
+  "addClassStartTimeInvalid": "Podaj godzinę od 00:00 do 23:59, np. 18:30.",
+  "addClassDuration": "Czas trwania (min)",
+  "addClassDurationInvalid": "Podaj od 5 do 720 minut.",
+  "addClassPreviewTitle": "Konflikty",
+  "addClassPreviewIncomplete": "Wybierz rodzaj zajęć i salę, aby sprawdzić termin.",
+  "addClassPreviewLoading": "Sprawdzam termin…",
+  "addClassNoConflicts": "Termin jest wolny.",
+  "addClassNoConflictsSeries": "Wszystkie terminy są wolne ({count}).",
+  "@addClassNoConflictsSeries": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "addClassConflicts": "Ten termin koliduje z innymi zajęciami lub dostępnością.",
+  "addClassConflictsSeries": "Terminy z konfliktem: {count}. Zmień termin albo pomiń te daty.",
+  "@addClassConflictsSeries": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "addClassExcluded": "Pominięte",
+  "addClassExcludeDate": "Pomiń ten termin",
+  "addClassIncludeDate": "Przywróć termin",
+  "addClassSave": "Dodaj zajęcia",
+  "addClassSaveSeries": "Dodaj zajęcia ({count})",
+  "@addClassSaveSeries": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "addClassSaved": "Zajęcia dodane do grafiku.",
+  "addClassLoadError": "Nie udało się pobrać rodzajów zajęć i sal.",
+  "addClassPreviewError": "Nie udało się sprawdzić terminu.",
+  "addClassSaveError": "Nie udało się dodać zajęć.",
+  "addClassNetworkError": "Brak połączenia z serwerem. Sprawdź internet i spróbuj ponownie.",
+  "addClassAccessError": "Nie masz uprawnień do dodawania zajęć.",
+  "addClassNoStaffProfile": "Nie znaleziono profilu trenera. Skontaktuj się z obsługą studia.",
+  "addClassErrorRoomNotAllowed": "Te zajęcia nie mogą odbywać się w wybranej sali.",
+  "addClassErrorRoomUnavailable": "Wybrana sala jest niedostępna.",
+  "addClassErrorServiceTypeUnavailable": "Ten rodzaj zajęć jest niedostępny.",
+  "addClassErrorTrainerUnavailable": "Twój profil trenera jest nieaktywny.",
+  "addClassErrorConflict": "Termin został w międzyczasie zajęty. Sprawdź konflikty poniżej.",
+  "addClassErrorPast": "Zajęcia muszą zaczynać się w przyszłości.",
+  "addClassErrorEndsOn": "Koniec musi być po początku i najwyżej rok później.",
+  "addClassErrorCapacity": "Limit miejsc jest większy niż pojemność sali.",
+  "addClassErrorNoOccurrences": "W wybranym okresie nie ma żadnego wybranego dnia tygodnia.",
+  "addClassErrorInvalid": "Sprawdź dane zajęć.",
+  "planIssueRoomBusy": "Sala zajęta: {title} {time}",
+  "@planIssueRoomBusy": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      },
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "planIssueTrainerBusy": "Prowadzisz wtedy inne zajęcia: {title} {time}",
+  "@planIssueTrainerBusy": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      },
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "planIssueTrainerOnLeave": "Masz wtedy zatwierdzony urlop.",
+  "planIssueLeaveRequested": "Masz wtedy wniosek urlopowy czekający na decyzję.",
+  "planIssueOutsideHours": "Termin jest poza Twoimi godzinami pracy.",
+  "planIssueNotQualified": "Nie masz kwalifikacji do prowadzenia tego rodzaju zajęć.",
+  "planIssueUnknown": "Termin ma nieznany problem.",
+  "trainingHistoryTitle": "Historia treningów",
+  "trainingHistoryPreviousMonth": "Poprzedni miesiąc",
+  "trainingHistoryNextMonth": "Następny miesiąc",
+  "trainingHistoryEmpty": "W tym miesiącu nie było treningów, na które się zapisano.",
+  "trainingHistoryPresent": "Obecności",
+  "trainingHistoryAbsent": "Nieobecności",
+  "trainingHistoryCancelled": "Odwołane",
+  "trainingHistoryAttendanceRate": "Frekwencja: {percent}%",
+  "@trainingHistoryAttendanceRate": {
+    "placeholders": {
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
+  "trainingHistoryEntryNotReturned": "Wejście z karnetu nie zostało zwrócone.",
+  "trainingOutcomePresent": "Obecność",
+  "trainingOutcomeAbsent": "Nieobecność",
+  "trainingOutcomeUnmarked": "Obecność jeszcze nie potwierdzona",
+  "trainingOutcomeCancelled": "Odwołano w terminie",
+  "trainingOutcomeLateCancelled": "Odwołano po terminie",
+  "trainingOutcomeClassCancelled": "Zajęcia odwołane przez studio"
 }
+

@@ -11,8 +11,10 @@ import java.util.UUID;
  * @param validityDays how many days a pass with these terms is valid
  * @param productActive whether the product is on sale (not archived)
  * @param variantActive whether the variant is on sale
+ * @param suspensionAllowed whether a pass of the product can be suspended
+ * @param maxSuspensionDays the most days a pass can be suspended in total, or {@code null} without a limit
  */
 public record PassVariantTerms(UUID variantId, UUID productId, String productName, PassProductKind kind,
 		PassProductAudience audience, Short entriesCount, short validityDays, BigDecimal price, String currency,
-		boolean productActive, boolean variantActive) {
+		boolean productActive, boolean variantActive, boolean suspensionAllowed, Short maxSuspensionDays) {
 }
