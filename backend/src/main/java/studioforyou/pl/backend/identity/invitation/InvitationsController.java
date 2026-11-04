@@ -13,11 +13,11 @@ import org.springframework.web.bind.annotation.RestController;
 import studioforyou.pl.backend.identity.security.AccountAuthenticationToken;
 
 /**
- * Sending e-mail invitations. Only for accounts with the {@code ADMIN} role.
+ * Sending e-mail invitations. Clients can be invited by accounts with the
+ * {@code CUSTOMER_ACCOUNT_CREATE} permission, trainers only by administrators.
  */
 @RestController
 @RequestMapping("/api/v1/invitations")
-@PreAuthorize("hasRole('ADMIN')")
 public class InvitationsController {
 
 	private final InvitationService invitationService;
@@ -33,6 +33,7 @@ public class InvitationsController {
 	 */
 	@PostMapping
 	@ResponseStatus(HttpStatus.CREATED)
+	@PreAuthorize("hasRole('ADMIN') or (#request.role().name() == 'CLIENT' and hasAuthority('CUSTOMER_ACCOUNT_CREATE'))")
 	public NewInvitation invite(@Valid @RequestBody InviteRequest request, AccountAuthenticationToken authentication) {
 		return invitationService.invite(request.email(), request.firstName(), request.lastName(), request.role(),
 				authentication.account().orElseThrow().id());

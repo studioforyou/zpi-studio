@@ -32,11 +32,11 @@ public class AccountLookup {
 			.param("provider", FIREBASE_PROVIDER)
 			.param("uid", uid)
 			.query((rs, rowNum) -> new AuthenticatedAccount(rs.getObject("id", UUID.class), rs.getString("email"),
-					AccountStatus.valueOf(rs.getString("status")), Set.of()))
+					AccountStatus.valueOf(rs.getString("status")), Set.of(), Set.of()))
 			.optional()
-			// Roles are read after the account query has given its connection back.
+			// Roles and permissions are read after the account query has given its connection back.
 			.map(account -> new AuthenticatedAccount(account.id(), account.email(), account.status(),
-					findRoleCodes(account.id())));
+					findRoleCodes(account.id()), findPermissionCodes(account.id())));
 	}
 
 	private Set<String> findRoleCodes(UUID accountId) {
@@ -48,6 +48,35 @@ public class AccountLookup {
 				WHERE ar.account_id = :accountId
 				""")
 			.param("accountId", accountId)
+			.query(String.class)
+			.set());
+	}
+
+	/**
+	 * Every permission for an {@code ADMIN}; for other accounts the permissions of their
+	 * roles plus their {@code GRANT} overrides, minus their {@code REVOKE} overrides.
+	 */
+	public Set<String> findPermissionCodes(UUID accountId) {
+		return Set.copyOf(jdbc.sql("""
+				SELECT p.code
+				FROM permission p
+				WHERE EXISTS (SELECT 1
+				              FROM account_role ar
+				              JOIN role r ON r.id = ar.role_id
+				              WHERE ar.account_id = :accountId AND r.code = :adminRole)
+				   OR ((EXISTS (SELECT 1
+				               FROM role_permission rp
+				               JOIN account_role ar ON ar.role_id = rp.role_id
+				               WHERE ar.account_id = :accountId AND rp.permission_id = p.id)
+				       OR EXISTS (SELECT 1
+				                  FROM account_permission_override o
+				                  WHERE o.account_id = :accountId AND o.permission_id = p.id AND o.effect = 'GRANT'))
+				  AND NOT EXISTS (SELECT 1
+				                  FROM account_permission_override o
+				                  WHERE o.account_id = :accountId AND o.permission_id = p.id AND o.effect = 'REVOKE'))
+				""")
+			.param("accountId", accountId)
+			.param("adminRole", AuthenticatedAccount.ADMIN_ROLE)
 			.query(String.class)
 			.set());
 	}

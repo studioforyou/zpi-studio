@@ -14,7 +14,11 @@ import studioforyou.pl.backend.identity.AuthenticatedAccount;
 
 /**
  * Maps a verified Firebase ID token to the linked application account. The token only
- * proves who the user is; status and roles always come from the database.
+ * proves who the user is; status, roles and permissions always come from the database.
+ * <p>
+ * An {@code ACTIVE} account gets {@value #ACTIVE_ACCOUNT}, {@code ROLE_<role code>} for each
+ * role (checked with {@code hasRole}) and the code of each effective permission (checked
+ * with {@code hasAuthority}). Other accounts get no authorities.
  */
 @Component
 public class FirebaseJwtAuthenticationConverter implements Converter<Jwt, AccountAuthenticationToken> {
@@ -39,6 +43,7 @@ public class FirebaseJwtAuthenticationConverter implements Converter<Jwt, Accoun
 		if (account != null && account.isActive()) {
 			authorities.add(new SimpleGrantedAuthority(ACTIVE_ACCOUNT));
 			account.roles().forEach(role -> authorities.add(new SimpleGrantedAuthority("ROLE_" + role)));
+			account.permissions().forEach(permission -> authorities.add(new SimpleGrantedAuthority(permission)));
 		}
 		return authorities;
 	}

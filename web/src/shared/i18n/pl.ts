@@ -78,6 +78,60 @@ export const pl = {
   accounts: {
     title: 'Konta',
     inviteButton: 'Dodaj osobę',
+    access: {
+      title: 'Role i uprawnienia',
+      loadError: 'Nie udało się wczytać ról i uprawnień.',
+      saveError: 'Nie udało się zapisać zmiany. Spróbuj ponownie.',
+      lastAdmin:
+        'Nie można odebrać roli Administrator ostatniemu aktywnemu administratorowi studia.',
+      roles: {
+        title: 'Role',
+        hint: 'Rola daje domyślny zestaw uprawnień. Jedno konto może mieć kilka ról.',
+        adminDescription: 'Pełny dostęp do panelu i wszystkich uprawnień',
+      },
+      permissions: {
+        title: 'Uprawnienia',
+        hint: 'Domyślnie konto ma uprawnienia swoich ról. Dla wybranej osoby możesz dodatkowo nadać lub odebrać pojedyncze uprawnienie.',
+        adminHint:
+          'Administrator ma zawsze wszystkie uprawnienia, więc ustawień pojedynczych uprawnień nie da się dla niego zmienić.',
+        columns: {
+          permission: 'Uprawnienie',
+          inheritedFrom: 'Dziedziczone z',
+          default: 'Domyślnie',
+          grant: 'Nadaj',
+          revoke: 'Odbierz',
+        },
+      },
+      notEnforced: 'jeszcze bez efektu',
+      notEnforcedHint:
+        'Żadna funkcja aplikacji jeszcze nie sprawdza tego uprawnienia. Można je ustawić, ale na razie niczego nie zmienia.',
+      categories: {
+        SCHEDULING: 'Grafik',
+        STAFF: 'Kadra',
+        CUSTOMER: 'Klienci',
+        IDENTITY: 'Konta',
+        MEMBERSHIP: 'Karnety',
+        BOOKING: 'Obecności',
+      },
+      names: {
+        SCHEDULE_MANAGE_ALL: 'Tworzenie i edycja wszystkich zajęć w grafiku',
+        SCHEDULE_EDIT_OWN: 'Edycja prowadzonych przez siebie zajęć',
+        AVAILABILITY_EDIT_OWN: 'Edycja własnej dostępności i urlopów',
+        CUSTOMER_HEALTH_READ: 'Wgląd w dane zdrowotne przypisanych klientów (za ich zgodą)',
+        ACCOUNT_APPROVE: 'Zatwierdzanie i odrzucanie kont klientów',
+        CUSTOMER_ACCOUNT_CREATE: 'Zapraszanie klientów (zakładanie kont w ich imieniu)',
+        PASS_ADJUST: 'Ręczna korekta karnetów i wejść',
+        ATTENDANCE_CORRECT: 'Korekta obecności po zajęciach',
+      },
+      matrix: {
+        link: 'Role',
+        breadcrumb: 'Role',
+        title: 'Role i ich uprawnienia',
+        intro:
+          'Domyślne uprawnienia każdej roli w studiu. Pojedynczej osobie można je zmienić na jej koncie.',
+        adminNote: 'Administrator ma zawsze dostęp do całego panelu i wszystkie uprawnienia.',
+      },
+    },
     roles: {
       CLIENT: 'Klient',
       TRAINER: 'Trener',
@@ -200,8 +254,6 @@ export const pl = {
         data: 'Dane',
         access: 'Role i uprawnienia',
       },
-      accessPlaceholder:
-        'Tu pojawi się przypisywanie ról i nadawanie uprawnień temu kontu. Na razie role nadaje się przy dodawaniu osoby.',
       form: {
         firstName: 'Imię',
         lastName: 'Nazwisko',

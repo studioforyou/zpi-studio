@@ -417,3 +417,42 @@ test('names the other profiles a suspension affects', async () => {
   expect(within(dialog).getByText('Ola Wiśniewska (trener)')).toBeInTheDocument();
   expect(within(dialog).queryByText('Staś Wiśniewski (dziecko)')).not.toBeInTheDocument();
 });
+
+test('shows the roles and permissions of the account in its tab', async () => {
+  stubApi((url) => {
+    if (url === '/api/v1/roles') {
+      return json({
+        items: [
+          { code: 'CLIENT', displayName: 'Klient', permissions: [] },
+          { code: 'TRAINER', displayName: 'Trener', permissions: [] },
+          { code: 'ADMIN', displayName: 'Administrator', permissions: [] },
+        ],
+      });
+    }
+    if (url === '/api/v1/permissions') {
+      return json({ items: [] });
+    }
+    if (url === '/api/v1/accounts/a-kasia/roles') {
+      return json({
+        items: [
+          {
+            code: 'CLIENT',
+            displayName: 'Klient',
+            grantedBy: null,
+            grantedAt: '2026-07-01T10:00:00Z',
+          },
+        ],
+      });
+    }
+    if (url === '/api/v1/accounts/a-kasia/permission-overrides') {
+      return json({ items: [] });
+    }
+    return undefined;
+  });
+  renderAt('/accounts/a-kasia');
+
+  await userEvent.click(await screen.findByRole('tab', { name: 'Role i uprawnienia' }));
+
+  expect(await screen.findByRole('switch', { name: 'Klient' })).toBeChecked();
+  expect(screen.getByRole('switch', { name: 'Trener' })).not.toBeChecked();
+});
