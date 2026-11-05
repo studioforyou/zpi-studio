@@ -2,6 +2,7 @@ package studioforyou.pl.backend.staff.internal;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -64,42 +65,56 @@ class AvailabilitySlots {
 			.toList();
 	}
 
-	AvailabilitySlotResponse create(UUID staffId, CreateAvailabilityRequest request, UUID actorAccountId) {
+	/**
+	 * Adds the same hours on several weekdays (repeating every week) or on several single
+	 * dates, all or nothing.
+	 */
+	List<AvailabilitySlotResponse> create(UUID staffId, CreateAvailabilityRequest request, UUID actorAccountId) {
 		LocalDate today = this.studio.today();
 		requireTimeRange(request.startTime(), request.endTime());
-		Row row;
-		if (request.weekday() != null && request.date() != null) {
-			throw ApiException.invalidField("date", FieldErrorCode.INVALID_VALUE,
-					"Send either weekday or date, not both.");
+		boolean weekly = request.weekdays() != null && !request.weekdays().isEmpty();
+		boolean single = request.dates() != null && !request.dates().isEmpty();
+		List<Row> rows;
+		if (weekly && single) {
+			throw ApiException.invalidField("dates", FieldErrorCode.INVALID_VALUE,
+					"Send either weekdays or dates, not both.");
 		}
-		else if (request.date() != null) {
+		else if (single) {
 			if (request.validFrom() != null || request.validTo() != null) {
 				throw ApiException.invalidField("validFrom", FieldErrorCode.INVALID_VALUE,
 						"validFrom and validTo apply only to weekly hours.");
 			}
-			if (request.date().isBefore(today)) {
-				throw ApiException.invalidField("date", FieldErrorCode.OUT_OF_RANGE, "date must be today or later.");
+			if (request.dates().stream().anyMatch((date) -> date.isBefore(today))) {
+				throw ApiException.invalidField("dates", FieldErrorCode.OUT_OF_RANGE, "Dates must be today or later.");
 			}
-			row = new Row(null, staffId, request.date().getDayOfWeek().getValue(), request.startTime(),
-					request.endTime(), request.date(), request.date());
+			rows = request.dates().stream().distinct()
+				.map((date) -> new Row(null, staffId, date.getDayOfWeek().getValue(), request.startTime(),
+						request.endTime(), date, date))
+				.toList();
 		}
-		else if (request.weekday() != null) {
+		else if (weekly) {
 			LocalDate validFrom = (request.validFrom() != null) ? request.validFrom() : today;
 			if (validFrom.isBefore(today)) {
 				throw ApiException.invalidField("validFrom", FieldErrorCode.OUT_OF_RANGE,
 						"validFrom must be today or later.");
 			}
 			requireWeeklyEnd(validFrom, request.validTo());
-			row = new Row(null, staffId, request.weekday(), request.startTime(), request.endTime(), validFrom,
-					request.validTo());
+			rows = request.weekdays().stream().distinct()
+				.map((weekday) -> new Row(null, staffId, weekday, request.startTime(), request.endTime(), validFrom,
+						request.validTo()))
+				.toList();
 		}
 		else {
-			throw ApiException.invalidField("weekday", FieldErrorCode.REQUIRED,
-					"Send weekday for weekly hours or date for a single day.");
+			throw ApiException.invalidField("weekdays", FieldErrorCode.REQUIRED,
+					"Send weekdays for weekly hours or dates for single days.");
 		}
 		lockStaff(staffId);
-		rejectOverlap(row, null, today);
-		return toResponse(insert(row, actorAccountId));
+		List<AvailabilitySlotResponse> created = new ArrayList<>();
+		for (Row row : rows) {
+			rejectOverlap(row, null, today);
+			created.add(toResponse(insert(row, actorAccountId)));
+		}
+		return created;
 	}
 
 	/**
@@ -111,11 +126,6 @@ class AvailabilitySlots {
 		LocalDate today = this.studio.today();
 		lockStaff(staffId);
 		Row current = findCurrentById(staffId, slotId, today);
-		boolean oneOff = current.oneOff();
-		if (oneOff && request.getValidTo() != null) {
-			throw ApiException.invalidField("validTo", FieldErrorCode.INVALID_VALUE,
-					"A single day has no end date; remove it and add another day instead.");
-		}
 		LocalTime start = (request.getStartTime() != null) ? request.getStartTime() : current.start();
 		LocalTime end = (request.getEndTime() != null) ? request.getEndTime() : current.end();
 		LocalDate validTo = (request.getValidTo() != null) ? request.getValidTo().orElse(null) : current.validTo();
@@ -127,7 +137,8 @@ class AvailabilitySlots {
 		// Only new times split the slot; a new end date is just set on it.
 		boolean split = current.validFrom().isBefore(today)
 				&& (!start.equals(current.start()) || !end.equals(current.end()));
-		if (!oneOff) {
+		// A single day with an end date other than its own date becomes weekly from that day.
+		if (!changed.oneOff()) {
 			if (validTo != null && validTo.isBefore(today)) {
 				throw ApiException.invalidField("validTo", FieldErrorCode.OUT_OF_RANGE,
 						"validTo must be today or later.");
@@ -163,6 +174,85 @@ class AvailabilitySlots {
 		}
 		else {
 			this.jdbc.sql("DELETE FROM trainer_availability WHERE id = :id").param("id", current.id()).update();
+		}
+	}
+
+	/**
+	 * Gives weekly hours other times on a single date only: the date is taken out of the weekly
+	 * hours and gets its own one-off slot, which is returned. A one-off slot is just updated.
+	 */
+	AvailabilitySlotResponse updateOnDate(UUID staffId, UUID slotId, LocalDate date, UpdateAvailabilityRequest request,
+			UUID actorAccountId) {
+		LocalDate today = this.studio.today();
+		lockStaff(staffId);
+		Row current = findCurrentById(staffId, slotId, today);
+		requireAppliesOn(current, date, today);
+		if (current.oneOff()) {
+			return update(staffId, slotId, request, actorAccountId);
+		}
+		if (request.getValidTo() != null) {
+			throw ApiException.invalidField("validTo", FieldErrorCode.INVALID_VALUE,
+					"A change on a single date has no end date.");
+		}
+		LocalTime start = (request.getStartTime() != null) ? request.getStartTime() : current.start();
+		LocalTime end = (request.getEndTime() != null) ? request.getEndTime() : current.end();
+		requireTimeRange(start, end);
+		excludeDate(current, date, actorAccountId);
+		Row day = new Row(null, staffId, current.weekday(), start, end, date, date);
+		rejectOverlap(day, null, today);
+		return toResponse(insert(day, actorAccountId));
+	}
+
+	/** Removes the hours on a single date only; weekly hours stay on the other weeks. */
+	void deleteOnDate(UUID staffId, UUID slotId, LocalDate date, UUID actorAccountId) {
+		LocalDate today = this.studio.today();
+		lockStaff(staffId);
+		Row current = findCurrentById(staffId, slotId, today);
+		requireAppliesOn(current, date, today);
+		if (current.oneOff()) {
+			delete(staffId, slotId);
+		}
+		else {
+			excludeDate(current, date, actorAccountId);
+		}
+	}
+
+	private static void requireAppliesOn(Row row, LocalDate date, LocalDate today) {
+		boolean applies = date.getDayOfWeek().getValue() == row.weekday() && !date.isBefore(row.validFrom())
+				&& (row.validTo() == null || !date.isAfter(row.validTo()));
+		if (date.isBefore(today) || !applies) {
+			throw ApiException.invalidField("date", FieldErrorCode.OUT_OF_RANGE,
+					"date must be today or later and a day on which the hours apply.");
+		}
+	}
+
+	/**
+	 * Splits weekly hours around one of their dates: the part before ends the day before, the
+	 * part after starts a week later. A part without any of its weekdays left is dropped.
+	 */
+	private void excludeDate(Row row, LocalDate date, UUID actorAccountId) {
+		boolean keepBefore = !row.validFrom().isAfter(date.minusDays(7));
+		LocalDate nextWeek = date.plusDays(7);
+		boolean keepAfter = row.validTo() == null || !row.validTo().isBefore(nextWeek);
+		if (keepBefore) {
+			this.jdbc.sql("UPDATE trainer_availability SET valid_to = :validTo WHERE id = :id")
+				.param("validTo", date.minusDays(1))
+				.param("id", row.id())
+				.update();
+			if (keepAfter) {
+				insert(new Row(null, row.staffId(), row.weekday(), row.start(), row.end(), nextWeek, row.validTo()),
+						actorAccountId);
+			}
+		}
+		else if (keepAfter) {
+			// The hours never applied before the date, so moving their start loses no history.
+			this.jdbc.sql("UPDATE trainer_availability SET valid_from = :validFrom WHERE id = :id")
+				.param("validFrom", nextWeek)
+				.param("id", row.id())
+				.update();
+		}
+		else {
+			this.jdbc.sql("DELETE FROM trainer_availability WHERE id = :id").param("id", row.id()).update();
 		}
 	}
 

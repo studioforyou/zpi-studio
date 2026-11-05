@@ -3,14 +3,12 @@ package studioforyou.pl.backend;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.BDDMockito.given;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -68,6 +66,8 @@ class TrainerAvailabilityTests {
 	@MockitoBean
 	private JwtDecoder jwtDecoder;
 
+	private UUID trainerAccountId;
+
 	private UUID trainerStaffId;
 
 	private UUID otherStaffId;
@@ -79,8 +79,11 @@ class TrainerAvailabilityTests {
 		String zone = jdbc.sql("SELECT time_zone FROM studio LIMIT 1").query(String.class).optional()
 			.orElse("Europe/Warsaw");
 		today = LocalDate.now(ZoneId.of(zone));
-		trainerStaffId = addStaffProfile(addAccount("trainer", TRAINER, "TRAINER"), "Anna", "Kowalska");
+		trainerAccountId = addAccount("trainer", TRAINER, "TRAINER");
+		trainerStaffId = addStaffProfile(trainerAccountId, "Anna", "Kowalska");
 		otherStaffId = addStaffProfile(addAccount("other", OTHER_TRAINER, "TRAINER"), "Piotr", "Nowak");
+		grantEditOwn(trainerAccountId);
+		grantEditOwn(otherStaffAccount());
 		addAccount("client", CLIENT, "CLIENT");
 		addAccount("admin", ADMIN, "ADMIN");
 		addAccount("missing", NO_PROFILE, "TRAINER");
@@ -90,6 +93,7 @@ class TrainerAvailabilityTests {
 	void tearDown() {
 		String accounts = "SELECT id FROM account WHERE email LIKE 'availability-%@example.com'";
 		String staff = "SELECT id FROM staff_profile WHERE account_id IN (" + accounts + ")";
+		jdbc.sql("DELETE FROM account_permission_override WHERE account_id IN (" + accounts + ")").update();
 		jdbc.sql("DELETE FROM trainer_availability WHERE staff_id IN (" + staff + ")").update();
 		jdbc.sql("DELETE FROM staff_profile WHERE account_id IN (" + accounts + ")").update();
 		jdbc.sql("DELETE FROM account_role WHERE account_id IN (" + accounts + ")").update();
@@ -102,20 +106,19 @@ class TrainerAvailabilityTests {
 		LocalDate extraDay = today.plusDays(10);
 		perform(TRAINER, post(PATH), weekly(4, "17:00", "21:00"))
 			.andExpect(status().isCreated())
-			.andExpect(header().string("Location", endsWith(PATH + "/" + slotIdOfLast())))
-			.andExpect(jsonPath("$.type").value("WEEKLY"))
-			.andExpect(jsonPath("$.weekday").value(4))
-			.andExpect(jsonPath("$.date").isEmpty())
-			.andExpect(jsonPath("$.startTime").value("17:00"))
-			.andExpect(jsonPath("$.endTime").value("21:00"))
-			.andExpect(jsonPath("$.validFrom").value(today.toString()))
-			.andExpect(jsonPath("$.validTo").isEmpty());
+			.andExpect(jsonPath("$.items[0].type").value("WEEKLY"))
+			.andExpect(jsonPath("$.items[0].weekday").value(4))
+			.andExpect(jsonPath("$.items[0].date").isEmpty())
+			.andExpect(jsonPath("$.items[0].startTime").value("17:00"))
+			.andExpect(jsonPath("$.items[0].endTime").value("21:00"))
+			.andExpect(jsonPath("$.items[0].validFrom").value(today.toString()))
+			.andExpect(jsonPath("$.items[0].validTo").isEmpty());
 		perform(TRAINER, post(PATH), oneOff(extraDay, "09:00", "12:00"))
 			.andExpect(status().isCreated())
-			.andExpect(jsonPath("$.type").value("ONE_OFF"))
-			.andExpect(jsonPath("$.date").value(extraDay.toString()))
-			.andExpect(jsonPath("$.weekday").value(extraDay.getDayOfWeek().getValue()))
-			.andExpect(jsonPath("$.validTo").value(extraDay.toString()));
+			.andExpect(jsonPath("$.items[0].type").value("ONE_OFF"))
+			.andExpect(jsonPath("$.items[0].date").value(extraDay.toString()))
+			.andExpect(jsonPath("$.items[0].weekday").value(extraDay.getDayOfWeek().getValue()))
+			.andExpect(jsonPath("$.items[0].validTo").value(extraDay.toString()));
 		perform(TRAINER, post(PATH), weekly(1, "16:00", "18:00")).andExpect(status().isCreated());
 		perform(TRAINER, post(PATH), weekly(1, "08:00", "10:00")).andExpect(status().isCreated());
 
@@ -150,25 +153,27 @@ class TrainerAvailabilityTests {
 		LocalDate summerEnd = today.plusDays(30);
 		perform(TRAINER, post(PATH), weekly(5, "10:00", "14:00", today.toString(), summerEnd.toString()))
 			.andExpect(status().isCreated())
-			.andExpect(jsonPath("$.validTo").value(summerEnd.toString()));
+			.andExpect(jsonPath("$.items[0].validTo").value(summerEnd.toString()));
 		perform(TRAINER, post(PATH), weekly(5, "12:00", "18:00", summerEnd.plusDays(1).toString(), null))
 			.andExpect(status().isCreated())
-			.andExpect(jsonPath("$.validFrom").value(summerEnd.plusDays(1).toString()));
+			.andExpect(jsonPath("$.items[0].validFrom").value(summerEnd.plusDays(1).toString()));
 		perform(TRAINER, post(PATH), weekly(5, "12:00", "18:00", summerEnd.toString(), null))
 			.andExpect(status().isConflict());
 	}
 
 	@ParameterizedTest
 	@ValueSource(strings = {
-			"{\"weekday\":1,\"date\":\"%s\",\"startTime\":\"10:00\",\"endTime\":\"11:00\"}",
+			"{\"weekdays\":[1],\"dates\":[\"%s\"],\"startTime\":\"10:00\",\"endTime\":\"11:00\"}",
+			"{\"weekdays\":[],\"startTime\":\"10:00\",\"endTime\":\"11:00\"}",
+			"{\"weekdays\":[1,null],\"startTime\":\"10:00\",\"endTime\":\"11:00\"}",
 			"{\"startTime\":\"10:00\",\"endTime\":\"11:00\"}",
-			"{\"weekday\":1,\"startTime\":\"11:00\",\"endTime\":\"11:00\"}",
-			"{\"weekday\":1,\"startTime\":\"12:00\",\"endTime\":\"11:00\"}",
-			"{\"weekday\":8,\"startTime\":\"10:00\",\"endTime\":\"11:00\"}",
-			"{\"weekday\":0,\"startTime\":\"10:00\",\"endTime\":\"11:00\"}",
-			"{\"weekday\":1,\"endTime\":\"11:00\"}",
-			"{\"date\":\"%s\",\"startTime\":\"10:00\",\"endTime\":\"11:00\",\"validTo\":\"%s\"}",
-			"{\"weekday\":1,\"startTime\":\"10:00\",\"endTime\":\"11:00\",\"validFrom\":\"%s\",\"validTo\":\"%s\"}" })
+			"{\"weekdays\":[1],\"startTime\":\"11:00\",\"endTime\":\"11:00\"}",
+			"{\"weekdays\":[1],\"startTime\":\"12:00\",\"endTime\":\"11:00\"}",
+			"{\"weekdays\":[8],\"startTime\":\"10:00\",\"endTime\":\"11:00\"}",
+			"{\"weekdays\":[0],\"startTime\":\"10:00\",\"endTime\":\"11:00\"}",
+			"{\"weekdays\":[1],\"endTime\":\"11:00\"}",
+			"{\"dates\":[\"%s\"],\"startTime\":\"10:00\",\"endTime\":\"11:00\",\"validTo\":\"%s\"}",
+			"{\"weekdays\":[1],\"startTime\":\"10:00\",\"endTime\":\"11:00\",\"validFrom\":\"%s\",\"validTo\":\"%s\"}" })
 	void invalidSlotsAreRejected(String body) throws Exception {
 		String day = today.plusDays(3).toString();
 		perform(TRAINER, post(PATH), body.formatted(day, day))
@@ -183,11 +188,11 @@ class TrainerAvailabilityTests {
 		String yesterday = today.minusDays(1).toString();
 		perform(TRAINER, post(PATH), oneOff(today.minusDays(1), "10:00", "11:00"))
 			.andExpect(status().isBadRequest())
-			.andExpect(jsonPath("$.errors[0].field").value("date"));
+			.andExpect(jsonPath("$.errors[0].field").value("dates"));
 		perform(TRAINER, post(PATH), weekly(1, "10:00", "11:00", yesterday, null))
 			.andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.errors[0].field").value("validFrom"));
-		perform(TRAINER, post(PATH), "{\"weekday\":1,\"startTime\":\"10:00:30\",\"endTime\":\"11:00\"}")
+		perform(TRAINER, post(PATH), "{\"weekdays\":[1],\"startTime\":\"10:00:30\",\"endTime\":\"11:00\"}")
 			.andExpect(status().isBadRequest());
 	}
 
@@ -236,16 +241,125 @@ class TrainerAvailabilityTests {
 	}
 
 	@Test
-	void singleDaysKeepTheirDate() throws Exception {
-		String id = id(perform(TRAINER, post(PATH), oneOff(today.plusDays(2), "10:00", "12:00"))
+	void singleDaysChangeTimesAndCanBecomeWeekly() throws Exception {
+		LocalDate day = today.plusDays(2);
+		String id = id(perform(TRAINER, post(PATH), oneOff(day, "10:00", "12:00"))
 			.andExpect(status().isCreated()));
-		perform(TRAINER, patch(PATH + "/" + id), "{\"validTo\":\"" + today.plusDays(9) + "\"}")
-			.andExpect(status().isBadRequest())
-			.andExpect(jsonPath("$.errors[0].field").value("validTo"));
 		perform(TRAINER, patch(PATH + "/" + id), "{\"startTime\":\"09:00\"}")
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.type").value("ONE_OFF"))
 			.andExpect(jsonPath("$.startTime").value("09:00"));
+		perform(TRAINER, patch(PATH + "/" + id), "{\"validTo\":\"" + day.minusDays(1) + "\"}")
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.errors[0].field").value("validTo"));
+		perform(TRAINER, patch(PATH + "/" + id), "{\"validTo\":null}")
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.id").value(id))
+			.andExpect(jsonPath("$.type").value("WEEKLY"))
+			.andExpect(jsonPath("$.date").isEmpty())
+			.andExpect(jsonPath("$.weekday").value(day.getDayOfWeek().getValue()))
+			.andExpect(jsonPath("$.validFrom").value(day.toString()))
+			.andExpect(jsonPath("$.validTo").isEmpty());
+	}
+
+	@Test
+	void sameHoursAreAddedOnSeveralDaysAllOrNothing() throws Exception {
+		perform(TRAINER, post(PATH), "{\"weekdays\":[1,3,3],\"startTime\":\"08:00\",\"endTime\":\"10:00\"}")
+			.andExpect(status().isCreated())
+			.andExpect(jsonPath("$.items[*].weekday").value(contains(1, 3)));
+		LocalDate first = today.plusDays(1);
+		LocalDate second = today.plusDays(2);
+		perform(TRAINER, post(PATH), "{\"dates\":[\"%s\",\"%s\"],\"startTime\":\"12:00\",\"endTime\":\"13:00\"}"
+			.formatted(first, second))
+			.andExpect(status().isCreated())
+			.andExpect(jsonPath("$.items[*].date").value(contains(first.toString(), second.toString())));
+		assertThat(countRows(trainerStaffId)).isEqualTo(4);
+
+		// Wednesday overlaps, so Friday is not added either.
+		perform(TRAINER, post(PATH), "{\"weekdays\":[5,3],\"startTime\":\"09:00\",\"endTime\":\"11:00\"}")
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.code").value("AVAILABILITY_OVERLAP"));
+		assertThat(countRows(trainerStaffId)).isEqualTo(4);
+		perform(TRAINER, post(PATH), "{\"dates\":[\"%s\"],\"startTime\":\"12:00\",\"endTime\":\"13:00\"}"
+			.formatted(today.minusDays(1)))
+			.andExpect(status().isBadRequest());
+	}
+
+	@Test
+	void weeklyHoursChangeOnASingleDate() throws Exception {
+		UUID weekly = insertRow(trainerStaffId, 2, "17:00", "21:00", today.minusDays(30), null);
+		LocalDate tuesday = nextWeekday(2);
+		String day = id(perform(TRAINER, patch(PATH + "/" + weekly).param("date", tuesday.toString()),
+				"{\"startTime\":\"18:00\"}")
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.type").value("ONE_OFF"))
+			.andExpect(jsonPath("$.date").value(tuesday.toString()))
+			.andExpect(jsonPath("$.startTime").value("18:00"))
+			.andExpect(jsonPath("$.endTime").value("21:00")));
+
+		assertThat(validTo(weekly)).isEqualTo(tuesday.minusDays(1));
+		perform(TRAINER, get(PATH), null)
+			.andExpect(jsonPath("$.items.length()").value(3))
+			.andExpect(jsonPath("$.items[?(@.type == 'WEEKLY')].validFrom")
+				.value(contains(today.minusDays(30).toString(), tuesday.plusDays(7).toString())))
+			.andExpect(jsonPath("$.items[?(@.type == 'WEEKLY')].startTime").value(contains("17:00", "17:00")))
+			.andExpect(jsonPath("$.items[2].id").value(day));
+
+		perform(TRAINER, patch(PATH + "/" + weekly).param("date", tuesday.plusDays(1).toString()),
+				"{\"startTime\":\"18:00\"}")
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.errors[0].field").value("date"));
+		// Repeating the changed day every week would overlap the weekly hours from the next week.
+		perform(TRAINER, patch(PATH + "/" + day).param("date", tuesday.toString()), "{\"validTo\":null}")
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.code").value("AVAILABILITY_OVERLAP"));
+	}
+
+	@Test
+	void weeklyHoursAreRemovedOnASingleDate() throws Exception {
+		LocalDate monday = nextWeekday(1);
+		// Applied before: the earlier weeks stay, the later ones continue as a new slot.
+		UUID past = insertRow(trainerStaffId, 1, "08:00", "10:00", today.minusDays(30), null);
+		perform(TRAINER, delete(PATH + "/" + past).param("date", monday.toString()), null)
+			.andExpect(status().isNoContent());
+		assertThat(validTo(past)).isEqualTo(monday.minusDays(1));
+		perform(TRAINER, get(PATH), null)
+			.andExpect(jsonPath("$.items[*].validFrom")
+				.value(contains(today.minusDays(30).toString(), monday.plusDays(7).toString())));
+
+		// Starting on the date: the slot just starts a week later.
+		String wednesday = id(perform(TRAINER, post(PATH),
+				weekly(3, "08:00", "10:00", nextWeekday(3).toString(), null)).andExpect(status().isCreated()));
+		perform(TRAINER, delete(PATH + "/" + wednesday).param("date", nextWeekday(3).toString()), null)
+			.andExpect(status().isNoContent());
+		perform(TRAINER, get(PATH), null)
+			.andExpect(jsonPath("$.items[?(@.id == '" + wednesday + "')].validFrom")
+				.value(contains(nextWeekday(3).plusDays(7).toString())));
+
+		// Its only date: the slot is gone.
+		LocalDate friday = nextWeekday(5);
+		String once = id(perform(TRAINER, post(PATH),
+				weekly(5, "08:00", "10:00", friday.toString(), friday.plusDays(3).toString()))
+			.andExpect(status().isCreated()));
+		perform(TRAINER, delete(PATH + "/" + once).param("date", friday.toString()), null)
+			.andExpect(status().isNoContent());
+		assertThat(countRows(trainerStaffId)).isEqualTo(3);
+
+		perform(TRAINER, delete(PATH + "/" + past).param("date", monday.minusDays(7).toString()), null)
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.errors[0].field").value("date"));
+	}
+
+	@Test
+	void changesNeedThePermissionToEditOwnHours() throws Exception {
+		jdbc.sql("DELETE FROM account_permission_override WHERE account_id = :id").param("id", trainerAccountId)
+			.update();
+		UUID slot = insertRow(trainerStaffId, 1, "08:00", "10:00", today, null);
+		perform(TRAINER, get(PATH), null).andExpect(status().isOk());
+		perform(TRAINER, post(PATH), weekly(2, "10:00", "11:00")).andExpect(status().isForbidden());
+		perform(TRAINER, patch(PATH + "/" + slot), "{\"endTime\":\"11:00\"}").andExpect(status().isForbidden());
+		perform(TRAINER, delete(PATH + "/" + slot), null).andExpect(status().isForbidden());
+		assertThat(countRows(trainerStaffId)).isEqualTo(1);
 	}
 
 	@Test
@@ -288,8 +402,7 @@ class TrainerAvailabilityTests {
 	void adminsManageAnyStaffMembersHours() throws Exception {
 		String path = "/api/v1/staff/" + otherStaffId + "/availability";
 		String id = id(perform(ADMIN, post(path), weekly(6, "10:00", "14:00"))
-			.andExpect(status().isCreated())
-			.andExpect(header().string("Location", endsWith(path + "/" + slotIdOfLast()))));
+			.andExpect(status().isCreated()));
 		perform(OTHER_TRAINER, get(PATH), null).andExpect(jsonPath("$.items[*].id").value(contains(id)));
 		perform(ADMIN, get(path), null).andExpect(status().isOk()).andExpect(jsonPath("$.items[*].id").value(contains(id)));
 		perform(ADMIN, patch(path + "/" + id), "{\"endTime\":\"15:00\"}")
@@ -305,16 +418,16 @@ class TrainerAvailabilityTests {
 	}
 
 	private static String weekly(int weekday, String start, String end) {
-		return "{\"weekday\":%d,\"startTime\":\"%s\",\"endTime\":\"%s\"}".formatted(weekday, start, end);
+		return "{\"weekdays\":[%d],\"startTime\":\"%s\",\"endTime\":\"%s\"}".formatted(weekday, start, end);
 	}
 
 	private static String weekly(int weekday, String start, String end, String validFrom, String validTo) {
-		return "{\"weekday\":%d,\"startTime\":\"%s\",\"endTime\":\"%s\",\"validFrom\":\"%s\",\"validTo\":%s}"
+		return "{\"weekdays\":[%d],\"startTime\":\"%s\",\"endTime\":\"%s\",\"validFrom\":\"%s\",\"validTo\":%s}"
 			.formatted(weekday, start, end, validFrom, validTo == null ? "null" : "\"" + validTo + "\"");
 	}
 
 	private static String oneOff(LocalDate date, String start, String end) {
-		return "{\"date\":\"%s\",\"startTime\":\"%s\",\"endTime\":\"%s\"}".formatted(date, start, end);
+		return "{\"dates\":[\"%s\"],\"startTime\":\"%s\",\"endTime\":\"%s\"}".formatted(date, start, end);
 	}
 
 	/** The first day from tomorrow on that falls on the ISO weekday. */
@@ -326,13 +439,9 @@ class TrainerAvailabilityTests {
 		return day;
 	}
 
-	private String slotIdOfLast() {
-		return jdbc.sql("SELECT id::text FROM trainer_availability ORDER BY created_at DESC, id LIMIT 1")
-			.query(String.class).single();
-	}
-
 	private static String id(ResultActions result) throws Exception {
-		return JsonPath.read(result.andReturn().getResponse().getContentAsString(), "$.id");
+		String body = result.andReturn().getResponse().getContentAsString();
+		return JsonPath.read(body, body.contains("\"items\"") ? "$.items[0].id" : "$.id");
 	}
 
 	private int countRows(UUID staffId) {
@@ -377,6 +486,18 @@ class TrainerAvailabilityTests {
 		given(jwtDecoder.decode(token))
 			.willReturn(Jwt.withTokenValue(token).header("alg", "RS256").subject(uid).build());
 		return id;
+	}
+
+	private UUID otherStaffAccount() {
+		return jdbc.sql("SELECT account_id FROM staff_profile WHERE id = :id").param("id", otherStaffId)
+			.query(UUID.class).single();
+	}
+
+	private void grantEditOwn(UUID accountId) {
+		jdbc.sql("""
+				INSERT INTO account_permission_override (account_id, permission_id, effect, granted_by)
+				SELECT :id, id, 'GRANT', :id FROM permission WHERE code = 'AVAILABILITY_EDIT_OWN'
+				""").param("id", accountId).update();
 	}
 
 	private UUID addStaffProfile(UUID accountId, String firstName, String lastName) {

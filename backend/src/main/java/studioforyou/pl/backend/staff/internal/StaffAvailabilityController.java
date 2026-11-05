@@ -1,14 +1,18 @@
 package studioforyou.pl.backend.staff.internal;
 
+import java.time.LocalDate;
 import java.util.UUID;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.jspecify.annotations.Nullable;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -19,6 +23,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import studioforyou.pl.backend.shared.api.AccountAuthentication;
@@ -55,35 +60,49 @@ class StaffAvailabilityController {
 	}
 
 	@PostMapping
-	@Operation(summary = "Add a staff member's availability", operationId = "addStaffAvailability")
-	@ApiResponse(responseCode = "201", description = "The added slot.")
+	@Operation(summary = "Add a staff member's availability", operationId = "addStaffAvailability",
+			description = "As addMyAvailability.")
+	@ApiResponse(responseCode = "201", description = "The added slots.")
 	@ApiResponse(responseCode = "400", description = "VALIDATION_FAILED", content = @Content(
 			mediaType = "application/problem+json", schema = @Schema(implementation = ApiProblem.class)))
 	@ApiResponse(responseCode = "409", description = "AVAILABILITY_OVERLAP, with conflictingSlotId.", content = @Content(
 			mediaType = "application/problem+json", schema = @Schema(implementation = ApiProblem.class)))
-	ResponseEntity<AvailabilitySlotResponse> add(AccountAuthentication authentication, @PathVariable UUID staffId,
-			@Valid @RequestBody CreateAvailabilityRequest request) {
-		return OwnAvailabilityController.created(this.slots.create(staffId, request, accountId(authentication)));
+	ResponseEntity<ListResponse<AvailabilitySlotResponse>> add(AccountAuthentication authentication,
+			@PathVariable UUID staffId, @Valid @RequestBody CreateAvailabilityRequest request) {
+		return ResponseEntity.status(HttpStatus.CREATED)
+			.body(new ListResponse<>(this.slots.create(staffId, request, accountId(authentication))));
 	}
 
 	@PatchMapping("/{slotId}")
 	@Operation(summary = "Change a staff member's availability", operationId = "updateStaffAvailability",
-			description = "As updateMyAvailability: past hours are kept and the response may be a new slot.")
+			description = "As updateMyAvailability, including changes on a single date.")
 	@ApiResponse(responseCode = "200", description = "The changed slot.")
 	@ApiResponse(responseCode = "400", description = "VALIDATION_FAILED", content = @Content(
 			mediaType = "application/problem+json", schema = @Schema(implementation = ApiProblem.class)))
 	@ApiResponse(responseCode = "409", description = "AVAILABILITY_OVERLAP, with conflictingSlotId.", content = @Content(
 			mediaType = "application/problem+json", schema = @Schema(implementation = ApiProblem.class)))
 	AvailabilitySlotResponse update(AccountAuthentication authentication, @PathVariable UUID staffId,
-			@PathVariable UUID slotId, @Valid @RequestBody UpdateAvailabilityRequest request) {
-		return this.slots.update(staffId, slotId, request, accountId(authentication));
+			@PathVariable UUID slotId,
+			@Parameter(description = "Change only this date, today or later.") @RequestParam(required = false)
+			@Nullable LocalDate date, @Valid @RequestBody UpdateAvailabilityRequest request) {
+		return (date == null) ? this.slots.update(staffId, slotId, request, accountId(authentication))
+				: this.slots.updateOnDate(staffId, slotId, date, request, accountId(authentication));
 	}
 
 	@DeleteMapping("/{slotId}")
-	@Operation(summary = "Remove a staff member's availability", operationId = "deleteStaffAvailability")
+	@Operation(summary = "Remove a staff member's availability", operationId = "deleteStaffAvailability",
+			description = "As deleteMyAvailability, including removal on a single date.")
 	@ApiResponse(responseCode = "204", description = "Removed.")
-	ResponseEntity<Void> delete(@PathVariable UUID staffId, @PathVariable UUID slotId) {
-		this.slots.delete(staffId, slotId);
+	ResponseEntity<Void> delete(AccountAuthentication authentication, @PathVariable UUID staffId,
+			@PathVariable UUID slotId,
+			@Parameter(description = "Remove only this date, today or later.") @RequestParam(required = false)
+			@Nullable LocalDate date) {
+		if (date == null) {
+			this.slots.delete(staffId, slotId);
+		}
+		else {
+			this.slots.deleteOnDate(staffId, slotId, date, accountId(authentication));
+		}
 		return ResponseEntity.noContent().build();
 	}
 

@@ -1,15 +1,18 @@
 package studioforyou.pl.backend.staff.internal;
 
-import java.net.URI;
+import java.time.LocalDate;
 import java.util.UUID;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.jspecify.annotations.Nullable;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -20,8 +23,8 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 import studioforyou.pl.backend.shared.api.AccountAuthentication;
 import studioforyou.pl.backend.shared.api.ApiProblem;
@@ -43,6 +46,8 @@ import studioforyou.pl.backend.staff.internal.AvailabilityDtos.UpdateAvailabilit
 		content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ApiProblem.class)))
 class OwnAvailabilityController {
 
+	private static final String EDIT_OWN = "hasRole('TRAINER') and hasAuthority('AVAILABILITY_EDIT_OWN')";
+
 	private final AvailabilitySlots slots;
 
 	private final StaffProfiles staffProfiles;
@@ -62,40 +67,56 @@ class OwnAvailabilityController {
 	}
 
 	@PostMapping
+	@PreAuthorize(EDIT_OWN)
 	@Operation(summary = "Add my availability", operationId = "addMyAvailability",
-			description = "Adds weekly hours (weekday) or hours on a single day (date).")
-	@ApiResponse(responseCode = "201", description = "The added slot.")
+			description = "Adds the same hours on several weekdays (weekly) or single dates, all or nothing. "
+					+ "Needs the AVAILABILITY_EDIT_OWN permission.")
+	@ApiResponse(responseCode = "201", description = "The added slots.")
 	@ApiResponse(responseCode = "400", description = "VALIDATION_FAILED", content = @Content(
 			mediaType = "application/problem+json", schema = @Schema(implementation = ApiProblem.class)))
 	@ApiResponse(responseCode = "409", description = "AVAILABILITY_OVERLAP, with conflictingSlotId.", content = @Content(
 			mediaType = "application/problem+json", schema = @Schema(implementation = ApiProblem.class)))
-	ResponseEntity<AvailabilitySlotResponse> add(AccountAuthentication authentication,
+	ResponseEntity<ListResponse<AvailabilitySlotResponse>> add(AccountAuthentication authentication,
 			@Valid @RequestBody CreateAvailabilityRequest request) {
-		AvailabilitySlotResponse created = this.slots.create(staffId(authentication), request,
-				accountId(authentication));
-		return created(created);
+		return ResponseEntity.status(HttpStatus.CREATED)
+			.body(new ListResponse<>(this.slots.create(staffId(authentication), request, accountId(authentication))));
 	}
 
 	@PatchMapping("/{slotId}")
+	@PreAuthorize(EDIT_OWN)
 	@Operation(summary = "Change my availability", operationId = "updateMyAvailability",
 			description = "Changes the times or the end date of a slot. Weekly hours that already applied before "
-					+ "today keep their past times: they end yesterday and the response is a new slot from today.")
+					+ "today keep their past times: they end yesterday and the response is a new slot from today. "
+					+ "With date, weekly hours change on that date only: the response is a new one-off slot.")
 	@ApiResponse(responseCode = "200", description = "The changed slot.")
 	@ApiResponse(responseCode = "400", description = "VALIDATION_FAILED", content = @Content(
 			mediaType = "application/problem+json", schema = @Schema(implementation = ApiProblem.class)))
 	@ApiResponse(responseCode = "409", description = "AVAILABILITY_OVERLAP, with conflictingSlotId.", content = @Content(
 			mediaType = "application/problem+json", schema = @Schema(implementation = ApiProblem.class)))
 	AvailabilitySlotResponse update(AccountAuthentication authentication, @PathVariable UUID slotId,
-			@Valid @RequestBody UpdateAvailabilityRequest request) {
-		return this.slots.update(staffId(authentication), slotId, request, accountId(authentication));
+			@Parameter(description = "Change only this date, today or later.") @RequestParam(required = false)
+			@Nullable LocalDate date, @Valid @RequestBody UpdateAvailabilityRequest request) {
+		UUID staffId = staffId(authentication);
+		return (date == null) ? this.slots.update(staffId, slotId, request, accountId(authentication))
+				: this.slots.updateOnDate(staffId, slotId, date, request, accountId(authentication));
 	}
 
 	@DeleteMapping("/{slotId}")
+	@PreAuthorize(EDIT_OWN)
 	@Operation(summary = "Remove my availability", operationId = "deleteMyAvailability",
-			description = "Removes a slot from today on. Hours that already applied before today stay in the history.")
+			description = "Removes a slot from today on. Hours that already applied before today stay in the history. "
+					+ "With date, weekly hours are removed on that date only.")
 	@ApiResponse(responseCode = "204", description = "Removed.")
-	ResponseEntity<Void> delete(AccountAuthentication authentication, @PathVariable UUID slotId) {
-		this.slots.delete(staffId(authentication), slotId);
+	ResponseEntity<Void> delete(AccountAuthentication authentication, @PathVariable UUID slotId,
+			@Parameter(description = "Remove only this date, today or later.") @RequestParam(required = false)
+			@Nullable LocalDate date) {
+		UUID staffId = staffId(authentication);
+		if (date == null) {
+			this.slots.delete(staffId, slotId);
+		}
+		else {
+			this.slots.deleteOnDate(staffId, slotId, date, accountId(authentication));
+		}
 		return ResponseEntity.noContent().build();
 	}
 
@@ -106,14 +127,6 @@ class OwnAvailabilityController {
 	private static UUID accountId(AccountAuthentication authentication) {
 		return authentication.activeAccountId()
 			.orElseThrow(() -> new AccessDeniedException("An active application account is required."));
-	}
-
-	static ResponseEntity<AvailabilitySlotResponse> created(AvailabilitySlotResponse created) {
-		URI location = ServletUriComponentsBuilder.fromCurrentRequest()
-			.path("/{slotId}")
-			.buildAndExpand(created.id())
-			.toUri();
-		return ResponseEntity.created(location).body(created);
 	}
 
 }

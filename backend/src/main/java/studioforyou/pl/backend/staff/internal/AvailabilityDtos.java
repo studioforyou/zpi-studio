@@ -2,6 +2,7 @@ package studioforyou.pl.backend.staff.internal;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -29,12 +30,13 @@ final class AvailabilityDtos {
 	}
 
 	@Schema(name = "CreateAvailabilityRequest",
-			description = "Send weekday for hours that repeat every week, or date for a single extra day; never both.")
+			description = "Send weekdays for hours that repeat every week, or dates for single days; never both. "
+					+ "The same hours are added on each of them.")
 	record CreateAvailabilityRequest(
-			@Min(1) @Max(7) @Schema(description = "ISO weekday, 1 = Monday. For weekly hours.", example = "2")
-			@Nullable Integer weekday,
-			@Schema(description = "The single day of one-off hours, today or later.", example = "2026-11-07")
-			@Nullable LocalDate date,
+			@Schema(description = "ISO weekdays, 1 = Monday. For weekly hours.", example = "[1, 3]")
+			@Nullable List<@NotNull @Min(1) @Max(7) Integer> weekdays,
+			@Schema(description = "Single days, today or later.", example = "[\"2026-11-07\"]")
+			@Nullable List<@NotNull LocalDate> dates,
 			@NotNull @JsonFormat(pattern = "HH:mm") @Schema(type = "string", example = "17:00") LocalTime startTime,
 			@NotNull @JsonFormat(pattern = "HH:mm") @Schema(type = "string", example = "21:00") LocalTime endTime,
 			@Schema(description = "Weekly hours only: the first day they apply, today or later. Today when missing.")
@@ -56,7 +58,8 @@ final class AvailabilityDtos {
 		@Schema(type = "string", example = "20:30")
 		private LocalTime endTime;
 
-		@Schema(description = "Weekly hours only: the last day they apply; null removes the end.",
+		@Schema(description = "The last day the hours apply; null removes the end. On a single day, any other "
+				+ "value than its own date makes the hours repeat weekly from that day.",
 				types = { "string", "null" }, format = "date")
 		private Optional<LocalDate> validTo;
 
