@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -7,7 +9,13 @@ import 'package:mobile/core/network/api_exception.dart';
 import 'package:mobile/features/schedule/data/availability_api.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
 
-/// The trainer's working hours: a regular week and single extra days.
+/// Today's date without time; overridden in tests.
+final availabilityTodayProvider = Provider<DateTime>(
+  (ref) => DateUtils.dateOnly(DateTime.now()),
+);
+
+/// The trainer's working hours, one week at a time: a column per day with
+/// a bar for each stretch of hours.
 class AvailabilityScreen extends ConsumerWidget {
   const AvailabilityScreen({super.key});
 
@@ -28,7 +36,7 @@ class AvailabilityScreen extends ConsumerWidget {
                   onRetry: () =>
                       ref.invalidate(availabilityProvider(session.accountId)),
                 ),
-                data: (slots) => _AvailabilityList(
+                data: (slots) => AvailabilityWeek(
                   accountId: session.accountId,
                   slots: slots,
                 ),
@@ -67,268 +75,850 @@ class _LoadError extends StatelessWidget {
   }
 }
 
-class _AvailabilityList extends StatelessWidget {
-  const _AvailabilityList({required this.accountId, required this.slots});
+/// A bar the trainer tapped: the slot on one day of the shown week.
+typedef _Selection = ({AvailabilitySlot slot, DateTime day});
+
+/// One week of availability with its navigation, the add button and the
+/// legend.
+class AvailabilityWeek extends ConsumerStatefulWidget {
+  const AvailabilityWeek({
+    super.key,
+    required this.accountId,
+    required this.slots,
+  });
 
   final String accountId;
   final List<AvailabilitySlot> slots;
+
+  @override
+  ConsumerState<AvailabilityWeek> createState() => _AvailabilityWeekState();
+}
+
+class _AvailabilityWeekState extends ConsumerState<AvailabilityWeek> {
+  late DateTime _today;
+  late DateTime _currentWeek;
+  late DateTime _weekStart;
+  _Selection? _selected;
+
+  @override
+  void initState() {
+    super.initState();
+    _today = ref.read(availabilityTodayProvider);
+    _currentWeek = mondayOf(_today);
+    _weekStart = _currentWeek;
+  }
+
+  @override
+  void didUpdateWidget(AvailabilityWeek oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // A reload may have split or removed the selected slot.
+    if (_selected case (
+      :final slot,
+      day: _,
+    ) when !widget.slots.any((other) => other.id == slot.id)) {
+      _selected = null;
+    }
+  }
+
+  void _showWeek(int offset) {
+    setState(() {
+      _weekStart = _addDays(_weekStart, 7 * offset);
+      _selected = null;
+    });
+  }
+
+  void _toggle(AvailabilitySlot slot, DateTime day) {
+    setState(() {
+      final selected = _selected;
+      _selected = selected != null && selected.slot.id == slot.id
+          ? null
+          : (slot: slot, day: day);
+    });
+  }
+
+  AvailabilityController get _controller =>
+      ref.read(availabilityProvider(widget.accountId).notifier);
+
+  Future<void> _openEditor(AvailabilityEditorTarget target) async {
+    // The shell's snack bars would otherwise cover the sheet's lower buttons.
+    final messenger = ScaffoldMessenger.of(context)..hideCurrentSnackBar();
+    final message = await showModalBottomSheet<String>(
+      context: context,
+      useRootNavigator: true,
+      isScrollControlled: true,
+      showDragHandle: true,
+      useSafeArea: true,
+      builder: (_) => AvailabilityEditorSheet(
+        accountId: widget.accountId,
+        target: target,
+        today: _today,
+      ),
+    );
+    if (message != null) {
+      if (mounted) {
+        setState(() => _selected = null);
+      }
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(message)));
+    }
+  }
+
+  Future<void> _remove(_Selection selection) async {
+    final l10n = AppLocalizations.of(context);
+    final messenger = ScaffoldMessenger.of(context)..hideCurrentSnackBar();
+    final scope = await showDialog<_RemoveScope>(
+      context: context,
+      builder: (_) => _RemoveDialog(slot: selection.slot),
+    );
+    if (scope == null) {
+      return;
+    }
+    final slot = selection.slot;
+    String message;
+    try {
+      await _controller.change(
+        (api) => api.remove(
+          slot,
+          onDate: scope == _RemoveScope.day && slot.isWeekly
+              ? selection.day
+              : null,
+        ),
+      );
+      message = l10n.availabilityRemoved;
+      if (mounted) {
+        setState(() => _selected = null);
+      }
+    } catch (e) {
+      message = availabilityErrorMessage(e, l10n);
+    }
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
-    final weekly = slots.where((slot) => slot.isWeekly).toList();
-    final days = slots.where((slot) => !slot.isWeekly).toList();
+    final weekEnd = _addDays(_weekStart, 6);
 
     return SafeArea(
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+      child: Column(
         children: [
-          Text(
-            l10n.availabilityIntro,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ),
-          const SizedBox(height: 16),
-          _SectionHeader(title: l10n.availabilityWeeklySection),
-          Card(
-            margin: EdgeInsets.zero,
-            child: Column(
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              spacing: 16,
               children: [
-                for (var weekday = 1; weekday <= 7; weekday++) ...[
-                  if (weekday > 1) const Divider(height: 1),
-                  _WeekdayRow(
-                    accountId: accountId,
-                    weekday: weekday,
-                    slots: [
-                      for (final slot in weekly)
-                        if (slot.weekday == weekday) slot,
-                    ],
+                IconButton(
+                  tooltip: l10n.availabilityPreviousWeek,
+                  onPressed: _weekStart.isAfter(_currentWeek)
+                      ? () => _showWeek(-1)
+                      : null,
+                  icon: const Icon(Icons.chevron_left),
+                ),
+                Flexible(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(minWidth: 130),
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        weekRange(_weekStart),
+                        key: const Key('availability-week'),
+                        textAlign: TextAlign.center,
+                        style: theme.textTheme.titleMedium,
+                      ),
+                    ),
                   ),
-                ],
+                ),
+                IconButton(
+                  tooltip: l10n.availabilityNextWeek,
+                  onPressed: () => _showWeek(1),
+                  icon: const Icon(Icons.chevron_right),
+                ),
               ],
             ),
           ),
-          const SizedBox(height: 24),
-          _SectionHeader(
-            title: l10n.availabilityExtraSection,
-            action: TextButton.icon(
-              onPressed: () => openAvailabilityEditor(
-                context,
-                accountId: accountId,
-                target: const NewDay(),
-              ),
-              icon: const Icon(Icons.add),
-              label: Text(l10n.availabilityAddDay),
-            ),
-          ),
-          Text(
-            l10n.availabilityExtraHint,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ),
-          const SizedBox(height: 8),
-          if (days.isEmpty)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              child: Text(
-                l10n.availabilityNoExtraDays,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.outline,
-                ),
-              ),
-            )
-          else
-            Card(
-              margin: EdgeInsets.zero,
-              child: Column(
-                children: [
-                  for (final (index, slot) in days.indexed) ...[
-                    if (index > 0) const Divider(height: 1),
-                    ListTile(
-                      leading: const Icon(Icons.event_available),
-                      title: Text(_capitalize(_dayFormat.format(slot.date!))),
-                      subtitle: Text(_timeRange(slot)),
-                      trailing: const Icon(Icons.chevron_right),
-                      onTap: () => openAvailabilityEditor(
-                        context,
-                        accountId: accountId,
-                        target: EditSlot(slot),
-                      ),
-                    ),
-                  ],
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(4, 4, 12, 0),
+              child: _WeekCalendar(
+                weekStart: _weekStart,
+                today: _today,
+                slots: [
+                  for (final slot in widget.slots)
+                    if (_appliesInWeek(slot, _weekStart, weekEnd)) slot,
                 ],
+                selected: _selected,
+                onTapSlot: _toggle,
+                onTapOutside: () => setState(() => _selected = null),
+                onRemove: _remove,
+                onEdit: (selection) =>
+                    _openEditor(EditHours(selection.slot, day: selection.day)),
               ),
             ),
+          ),
+          const SizedBox(height: 20),
+          FloatingActionButton(
+            heroTag: null,
+            backgroundColor: theme.colorScheme.primary,
+            foregroundColor: theme.colorScheme.onPrimary,
+            tooltip: l10n.availabilityAddHours,
+            onPressed: () => _openEditor(NewHours(weekStart: _weekStart)),
+            child: const Icon(Icons.add, size: 30),
+          ),
+          const SizedBox(height: 20),
+          const _Legend(),
+          const SizedBox(height: 12),
         ],
       ),
     );
   }
+
+  static bool _appliesInWeek(
+    AvailabilitySlot slot,
+    DateTime weekStart,
+    DateTime weekEnd,
+  ) {
+    for (var day = weekStart; !day.isAfter(weekEnd); day = _addDays(day, 1)) {
+      if (slot.appliesOn(day)) {
+        return true;
+      }
+    }
+    return false;
+  }
 }
 
-class _SectionHeader extends StatelessWidget {
-  const _SectionHeader({required this.title, this.action});
+/// The hour grid of one week. Days before today stay empty: past hours are
+/// not loaded.
+class _WeekCalendar extends StatelessWidget {
+  const _WeekCalendar({
+    required this.weekStart,
+    required this.today,
+    required this.slots,
+    required this.selected,
+    required this.onTapSlot,
+    required this.onTapOutside,
+    required this.onRemove,
+    required this.onEdit,
+  });
 
-  final String title;
-  final Widget? action;
+  final DateTime weekStart;
+  final DateTime today;
+  final List<AvailabilitySlot> slots;
+  final _Selection? selected;
+  final void Function(AvailabilitySlot slot, DateTime day) onTapSlot;
+  final VoidCallback onTapOutside;
+  final void Function(_Selection selection) onRemove;
+  final void Function(_Selection selection) onEdit;
+
+  static const _axisWidth = 40.0;
+  static const _barWidth = 14.0;
+  static const _edgePadding = 8.0;
+  static const _minRowHeight = 28.0;
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 48,
-      child: Row(
-        children: [
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final days = [for (var i = 0; i < 7; i++) _addDays(weekStart, i)];
+    final selectedDay = selected?.day;
+
+    // Every two hours from 6:00 to 22:00, widened to fit earlier or later hours.
+    var firstHour = 6;
+    var lastHour = 22;
+    for (final slot in slots) {
+      firstHour = math.min(firstHour, slot.start.hour ~/ 2 * 2);
+      lastHour = math.max(lastHour, ((_minutes(slot.end) + 119) ~/ 120) * 2);
+    }
+    final rows = (lastHour - firstHour) ~/ 2;
+
+    Widget dimmed(int index, Widget child) {
+      final dim =
+          selectedDay != null && !DateUtils.isSameDay(selectedDay, days[index]);
+      return AnimatedOpacity(
+        duration: const Duration(milliseconds: 150),
+        opacity: dim ? 0.45 : 1,
+        child: child,
+      );
+    }
+
+    final header = Row(
+      children: [
+        const SizedBox(width: _axisWidth),
+        for (final (index, day) in days.indexed)
           Expanded(
-            child: Text(title, style: Theme.of(context).textTheme.titleMedium),
+            child: dimmed(
+              index,
+              _DayHeader(
+                day: day,
+                past: day.isBefore(today),
+                highlighted:
+                    selectedDay != null &&
+                    DateUtils.isSameDay(selectedDay, day),
+              ),
+            ),
           ),
-          ?action,
+      ],
+    );
+
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onTap: onTapOutside,
+      child: Column(
+        children: [
+          header,
+          Expanded(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final rowHeight = math.max(
+                  _minRowHeight,
+                  (constraints.maxHeight - 2 * _edgePadding) / rows,
+                );
+                final gridHeight = rows * rowHeight;
+                double y(TimeOfDay time) =>
+                    _edgePadding +
+                    (_minutes(time) - firstHour * 60) / 120 * rowHeight;
+                final columnWidth = (constraints.maxWidth - _axisWidth) / 7;
+
+                final children = <Widget>[
+                  // Hour lines and labels.
+                  Positioned.fill(
+                    child: CustomPaint(
+                      painter: _GridPainter(
+                        left: _axisWidth,
+                        top: _edgePadding,
+                        rowHeight: rowHeight,
+                        rows: rows,
+                        color: scheme.outlineVariant,
+                      ),
+                    ),
+                  ),
+                  for (var row = 0; row <= rows; row++)
+                    Positioned(
+                      left: 0,
+                      width: _axisWidth - 6,
+                      top: _edgePadding + row * rowHeight - 8,
+                      height: 16,
+                      child: Text(
+                        '${firstHour + row * 2}:00',
+                        textAlign: TextAlign.right,
+                        textScaler: TextScaler.noScaling,
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: scheme.outline,
+                        ),
+                      ),
+                    ),
+                ];
+
+                for (final (index, day) in days.indexed) {
+                  final left = _axisWidth + index * columnWidth;
+                  final centre = left + columnWidth / 2;
+                  if (selectedDay != null &&
+                      DateUtils.isSameDay(selectedDay, day)) {
+                    children.add(
+                      Positioned(
+                        left: left + 2,
+                        width: columnWidth - 4,
+                        top: 0,
+                        height: gridHeight + 2 * _edgePadding,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: scheme.primaryContainer.withValues(
+                              alpha: 0.6,
+                            ),
+                            borderRadius: const BorderRadius.vertical(
+                              bottom: Radius.circular(14),
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  }
+                  if (day.isBefore(today)) {
+                    continue;
+                  }
+                  for (final slot in slots) {
+                    if (!slot.appliesOn(day)) {
+                      continue;
+                    }
+                    final top = y(slot.start);
+                    final height = math.max(8.0, y(slot.end) - top);
+                    final isSelected =
+                        selected != null &&
+                        selected!.slot.id == slot.id &&
+                        DateUtils.isSameDay(selectedDay, day);
+                    children.add(
+                      Positioned(
+                        left: centre - 16,
+                        width: 32,
+                        top: top - 4,
+                        height: height + 8,
+                        child: dimmed(
+                          index,
+                          _Bar(
+                            key: Key(
+                              'availability-bar-${slot.id}-${formatDate(day)}',
+                            ),
+                            slot: slot,
+                            day: day,
+                            selected: isSelected,
+                            onTap: () => onTapSlot(slot, day),
+                          ),
+                        ),
+                      ),
+                    );
+                  }
+                }
+
+                if (selected case final selection?) {
+                  final index = selection.day.difference(weekStart).inDays;
+                  final centre =
+                      _axisWidth + index * columnWidth + columnWidth / 2;
+                  final top = y(selection.slot.start);
+                  final bottom = y(selection.slot.end);
+                  final totalHeight = gridHeight + 2 * _edgePadding;
+                  const tipWidth = 110.0;
+                  children.add(
+                    Positioned(
+                      left: (centre - tipWidth / 2).clamp(
+                        0,
+                        constraints.maxWidth - tipWidth,
+                      ),
+                      width: tipWidth,
+                      top: math.max(0, top - 34),
+                      child: Center(child: _TimeTip(slot: selection.slot)),
+                    ),
+                  );
+                  final onLeft = index == 6;
+                  const actionsHeight = 84.0;
+                  children.add(
+                    Positioned(
+                      left: onLeft
+                          ? centre - _barWidth / 2 - 10 - 40
+                          : centre + _barWidth / 2 + 10,
+                      top: ((top + bottom) / 2 - actionsHeight / 2).clamp(
+                        0,
+                        math.max(0, totalHeight - actionsHeight),
+                      ),
+                      child: _BarActions(
+                        onRemove: () => onRemove(selection),
+                        onEdit: () => onEdit(selection),
+                      ),
+                    ),
+                  );
+                }
+
+                final grid = SizedBox(
+                  height: gridHeight + 2 * _edgePadding,
+                  child: Stack(clipBehavior: Clip.none, children: children),
+                );
+                return SingleChildScrollView(
+                  physics: gridHeight + 2 * _edgePadding > constraints.maxHeight
+                      ? null
+                      : const NeverScrollableScrollPhysics(),
+                  child: grid,
+                );
+              },
+            ),
+          ),
         ],
       ),
     );
   }
 }
 
-/// One weekday of the regular week, with its hours and a button to add more.
-class _WeekdayRow extends StatelessWidget {
-  const _WeekdayRow({
-    required this.accountId,
-    required this.weekday,
-    required this.slots,
+class _DayHeader extends StatelessWidget {
+  const _DayHeader({
+    required this.day,
+    required this.past,
+    required this.highlighted,
   });
 
-  final String accountId;
-  final int weekday;
-  final List<AvailabilitySlot> slots;
+  final DateTime day;
+  final bool past;
+  final bool highlighted;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 4, 8),
-      child: Row(
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 2),
+      padding: const EdgeInsets.only(top: 6, bottom: 4),
+      decoration: BoxDecoration(
+        color: highlighted
+            ? scheme.primaryContainer.withValues(alpha: 0.6)
+            : null,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
+      ),
+      child: Column(
         children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              spacing: 4,
-              children: [
-                Text(weekdayName(weekday), style: theme.textTheme.titleSmall),
-                if (slots.isEmpty)
-                  Text(
-                    l10n.availabilityDayOff,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: scheme.outline,
-                    ),
-                  )
-                else
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 4,
-                    children: [
-                      for (final slot in slots)
-                        ActionChip(
-                          avatar: Icon(Icons.schedule, color: scheme.primary),
-                          label: Text(_weeklyLabel(slot, l10n)),
-                          tooltip: l10n.availabilityEditHours,
-                          onPressed: () => openAvailabilityEditor(
-                            context,
-                            accountId: accountId,
-                            target: EditSlot(slot),
-                          ),
-                        ),
-                    ],
-                  ),
-              ],
+          Text(
+            l10n.availabilityWeekdayShort('${day.weekday}'),
+            maxLines: 1,
+            style: theme.textTheme.labelLarge?.copyWith(
+              color: past ? scheme.outline : null,
             ),
           ),
-          IconButton(
-            tooltip: l10n.availabilityAddHours,
-            icon: const Icon(Icons.add_circle_outline),
-            onPressed: () => openAvailabilityEditor(
-              context,
-              accountId: accountId,
-              target: NewWeekly(weekday),
-            ),
+          Text(
+            _shortDate.format(day),
+            maxLines: 1,
+            style: theme.textTheme.labelSmall?.copyWith(color: scheme.outline),
           ),
         ],
       ),
     );
   }
+}
 
-  /// The hours, with the period when it does not simply start today and
-  /// run on.
-  static String _weeklyLabel(AvailabilitySlot slot, AppLocalizations l10n) {
-    final today = DateUtils.dateOnly(DateTime.now());
-    return [
-      _timeRange(slot),
-      if (slot.validFrom.isAfter(today))
-        l10n.availabilitySince(_shortDate.format(slot.validFrom)),
-      if (slot.validTo case final validTo?)
-        l10n.availabilityUntil(_shortDate.format(validTo)),
-    ].join(' · ');
+/// A bar for one stretch of hours; striped when it applies on a single day.
+class _Bar extends StatelessWidget {
+  const _Bar({
+    super.key,
+    required this.slot,
+    required this.day,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final AvailabilitySlot slot;
+  final DateTime day;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final bar = ClipRRect(
+      borderRadius: BorderRadius.circular(_WeekCalendar._barWidth / 2),
+      child: CustomPaint(
+        painter: slot.isWeekly ? null : _StripesPainter(color: scheme.primary),
+        child: ColoredBox(
+          color: slot.isWeekly ? scheme.primary : Colors.transparent,
+          child: const SizedBox(
+            width: _WeekCalendar._barWidth,
+            height: double.infinity,
+          ),
+        ),
+      ),
+    );
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: '${_capitalize(_dayFormat.format(day))}, ${_timeRange(slot)}',
+      excludeSemantics: true,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: Center(
+          child: Container(
+            height: double.infinity,
+            padding: const EdgeInsets.all(2),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: selected ? scheme.primary : Colors.transparent,
+                width: 2,
+              ),
+            ),
+            child: bar,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Diagonal stripes in two shades of [color].
+class _StripesPainter extends CustomPainter {
+  const _StripesPainter({required this.color});
+
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.drawRect(
+      Offset.zero & size,
+      Paint()..color = Color.lerp(color, Colors.white, 0.35)!,
+    );
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 4;
+    for (var y = -size.width; y < size.height + size.width; y += 8) {
+      canvas.drawLine(Offset(0, y + size.width), Offset(size.width, y), paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_StripesPainter oldDelegate) => oldDelegate.color != color;
+}
+
+class _GridPainter extends CustomPainter {
+  const _GridPainter({
+    required this.left,
+    required this.top,
+    required this.rowHeight,
+    required this.rows,
+    required this.color,
+  });
+
+  final double left;
+  final double top;
+  final double rowHeight;
+  final int rows;
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 1;
+    for (var row = 0; row <= rows; row++) {
+      final y = top + row * rowHeight;
+      for (var x = left; x < size.width; x += 7) {
+        canvas.drawLine(
+          Offset(x, y),
+          Offset(math.min(x + 4, size.width), y),
+          paint,
+        );
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(_GridPainter oldDelegate) =>
+      oldDelegate.rowHeight != rowHeight ||
+      oldDelegate.rows != rows ||
+      oldDelegate.color != color;
+}
+
+class _TimeTip extends StatelessWidget {
+  const _TimeTip({required this.slot});
+
+  final AvailabilitySlot slot;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: scheme.inverseSurface,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+        child: Text(
+          _timeRange(slot),
+          maxLines: 1,
+          textScaler: TextScaler.noScaling,
+          style: Theme.of(
+            context,
+          ).textTheme.labelSmall?.copyWith(color: scheme.onInverseSurface),
+        ),
+      ),
+    );
+  }
+}
+
+class _BarActions extends StatelessWidget {
+  const _BarActions({required this.onRemove, required this.onEdit});
+
+  final VoidCallback onRemove;
+  final VoidCallback onEdit;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final scheme = Theme.of(context).colorScheme;
+    Widget action(
+      String tooltip,
+      IconData icon,
+      Color color,
+      VoidCallback onPressed,
+    ) {
+      return Material(
+        color: scheme.surfaceContainerLowest,
+        shape: const CircleBorder(),
+        elevation: 2,
+        child: IconButton(
+          tooltip: tooltip,
+          iconSize: 20,
+          constraints: const BoxConstraints.tightFor(width: 40, height: 40),
+          padding: EdgeInsets.zero,
+          color: color,
+          icon: Icon(icon),
+          onPressed: onPressed,
+        ),
+      );
+    }
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      spacing: 4,
+      children: [
+        action(l10n.availabilityRemove, Icons.delete, scheme.error, onRemove),
+        action(
+          l10n.availabilityEditHours,
+          Icons.edit,
+          scheme.onSurfaceVariant,
+          onEdit,
+        ),
+      ],
+    );
+  }
+}
+
+class _Legend extends StatelessWidget {
+  const _Legend();
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final style = theme.textTheme.bodySmall?.copyWith(
+      color: scheme.onSurfaceVariant,
+    );
+    Widget swatch({required bool striped}) => ClipRRect(
+      borderRadius: BorderRadius.circular(5),
+      child: CustomPaint(
+        painter: striped ? _StripesPainter(color: scheme.primary) : null,
+        child: ColoredBox(
+          color: striped ? Colors.transparent : scheme.primary,
+          child: const SizedBox(width: 10, height: 18),
+        ),
+      ),
+    );
+    return Wrap(
+      alignment: WrapAlignment.center,
+      spacing: 20,
+      runSpacing: 4,
+      children: [
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          spacing: 6,
+          children: [
+            swatch(striped: false),
+            Flexible(child: Text(l10n.availabilityLegendWeekly, style: style)),
+          ],
+        ),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          spacing: 6,
+          children: [
+            swatch(striped: true),
+            Flexible(
+              child: Text(l10n.availabilityLegendThisWeek, style: style),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+enum _RemoveScope { day, everyWeek }
+
+/// Asks whether to remove the hours on the tapped day only or every week.
+class _RemoveDialog extends StatelessWidget {
+  const _RemoveDialog({required this.slot});
+
+  final AvailabilitySlot slot;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final scheme = Theme.of(context).colorScheme;
+    Widget option(_RemoveScope scope, IconData icon, String label) {
+      return Expanded(
+        child: OutlinedButton(
+          onPressed: () => Navigator.of(context).pop(scope),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: scheme.onSurface,
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 14),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            spacing: 8,
+            children: [
+              Icon(icon, color: scheme.error, size: 20),
+              Flexible(child: Text(label)),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return AlertDialog(
+      title: Text(l10n.availabilityRemoveTitle),
+      content: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          spacing: 10,
+          children: [
+            option(
+              _RemoveScope.day,
+              Icons.today,
+              l10n.availabilityRemoveThisDay,
+            ),
+            if (slot.isWeekly)
+              option(
+                _RemoveScope.everyWeek,
+                Icons.event_repeat,
+                l10n.availabilityRemoveEveryWeekday('${slot.weekday}'),
+              ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text(l10n.availabilityCancel),
+        ),
+      ],
+    );
   }
 }
 
 /// What the editor sheet works on.
-sealed class AvailabilityTarget {
-  const AvailabilityTarget();
+sealed class AvailabilityEditorTarget {
+  const AvailabilityEditorTarget();
 }
 
-class NewWeekly extends AvailabilityTarget {
-  const NewWeekly(this.weekday);
+/// New hours, added on the chosen days of [weekStart]'s week or every week.
+class NewHours extends AvailabilityEditorTarget {
+  const NewHours({required this.weekStart});
 
-  final int weekday;
+  final DateTime weekStart;
 }
 
-class NewDay extends AvailabilityTarget {
-  const NewDay();
-}
-
-class EditSlot extends AvailabilityTarget {
-  const EditSlot(this.slot);
+/// A tapped bar: the slot on [day].
+class EditHours extends AvailabilityEditorTarget {
+  const EditHours(this.slot, {required this.day});
 
   final AvailabilitySlot slot;
+  final DateTime day;
 }
 
-/// Opens the editor and shows a confirmation once it saved something.
-Future<void> openAvailabilityEditor(
-  BuildContext context, {
-  required String accountId,
-  required AvailabilityTarget target,
-}) async {
-  // The shell's snack bars would otherwise cover the sheet's lower buttons.
-  final messenger = ScaffoldMessenger.of(context)..hideCurrentSnackBar();
-  final message = await showModalBottomSheet<String>(
-    context: context,
-    useRootNavigator: true,
-    isScrollControlled: true,
-    showDragHandle: true,
-    useSafeArea: true,
-    builder: (_) =>
-        AvailabilityEditorSheet(accountId: accountId, target: target),
-  );
-  if (message != null) {
-    messenger
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
-  }
-}
-
-/// Adds, changes or removes one slot. Pops with the confirmation to show.
+/// Adds or changes hours. Pops with the confirmation to show.
 class AvailabilityEditorSheet extends ConsumerStatefulWidget {
   const AvailabilityEditorSheet({
     super.key,
     required this.accountId,
     required this.target,
+    required this.today,
   });
 
   final String accountId;
-  final AvailabilityTarget target;
+  final AvailabilityEditorTarget target;
+  final DateTime today;
 
   @override
   ConsumerState<AvailabilityEditorSheet> createState() =>
@@ -337,9 +927,10 @@ class AvailabilityEditorSheet extends ConsumerStatefulWidget {
 
 class _AvailabilityEditorSheetState
     extends ConsumerState<AvailabilityEditorSheet> {
+  late bool _everyWeek;
+  late Set<int> _weekdays;
   late TimeOfDay _start;
   late TimeOfDay _end;
-  late DateTime _date;
   DateTime? _validTo;
   bool _busy = false;
   String? _error;
@@ -347,81 +938,100 @@ class _AvailabilityEditorSheetState
   @override
   void initState() {
     super.initState();
-    final today = DateUtils.dateOnly(DateTime.now());
     switch (widget.target) {
-      case EditSlot(:final slot):
+      case EditHours(:final slot, :final day):
+        _everyWeek = slot.isWeekly;
+        _weekdays = {day.weekday};
         _start = slot.start;
         _end = slot.end;
-        _date = slot.date ?? today;
-        _validTo = slot.validTo;
-      case NewWeekly() || NewDay():
+        _validTo = slot.isWeekly ? slot.validTo : null;
+      case NewHours():
+        _everyWeek = true;
+        _weekdays = {};
         _start = const TimeOfDay(hour: 16, minute: 0);
         _end = const TimeOfDay(hour: 20, minute: 0);
-        _date = today.add(const Duration(days: 1));
     }
   }
 
-  bool get _isWeekly => switch (widget.target) {
-    NewWeekly() => true,
-    NewDay() => false,
-    EditSlot(:final slot) => slot.isWeekly,
-  };
+  bool get _editing => widget.target is EditHours;
+
+  /// Days of the shown week before today cannot get hours of their own.
+  bool _canPick(int weekday) {
+    if (_editing) {
+      return false;
+    }
+    if (_everyWeek) {
+      return true;
+    }
+    final weekStart = (widget.target as NewHours).weekStart;
+    return !_addDays(weekStart, weekday - 1).isBefore(widget.today);
+  }
+
+  void _setEveryWeek(bool everyWeek) {
+    setState(() {
+      _everyWeek = everyWeek;
+      if (!_editing) {
+        _weekdays.removeWhere((weekday) => !_canPick(weekday));
+      }
+      _error = null;
+    });
+  }
 
   String _title(AppLocalizations l10n) => switch (widget.target) {
-    NewWeekly(:final weekday) => l10n.availabilityNewWeeklyTitle(
-      weekdayName(weekday),
-    ),
-    NewDay() => l10n.availabilityNewDayTitle,
-    EditSlot(:final slot) =>
-      slot.isWeekly
-          ? weekdayName(slot.weekday)
-          : _capitalize(_dayFormat.format(slot.date!)),
+    EditHours() => l10n.availabilityEditHours,
+    NewHours(:final weekStart) =>
+      _everyWeek
+          ? l10n.availabilityNewTitle
+          : l10n.availabilityNewThisWeekTitle(weekRange(weekStart)),
   };
 
-  AvailabilityController get _controller =>
-      ref.read(availabilityProvider(widget.accountId).notifier);
-
   Future<void> _save(AppLocalizations l10n) async {
+    if (_weekdays.isEmpty) {
+      setState(() => _error = l10n.availabilityPickDays);
+      return;
+    }
     if (_minutes(_end) <= _minutes(_start)) {
       setState(() => _error = l10n.availabilityEndBeforeStart);
       return;
     }
-    await _run(l10n, l10n.availabilitySaved, (api) {
-      return switch (widget.target) {
-        NewWeekly(:final weekday) => api.addWeekly(
-          weekday: weekday,
-          start: _start,
-          end: _end,
-          validTo: _validTo,
-        ),
-        NewDay() => api.addDay(date: _date, start: _start, end: _end),
-        EditSlot(:final slot) => api.update(
-          slot,
-          start: _start,
-          end: _end,
-          validTo: _validTo,
-        ),
-      };
-    });
-  }
-
-  Future<void> _remove(AppLocalizations l10n, AvailabilitySlot slot) {
-    return _run(l10n, l10n.availabilityRemoved, (api) => api.remove(slot));
-  }
-
-  Future<void> _run(
-    AppLocalizations l10n,
-    String confirmation,
-    Future<void> Function(AvailabilityApi api) action,
-  ) async {
+    final weekdays = _weekdays.toList()..sort();
     setState(() {
       _busy = true;
       _error = null;
     });
     try {
-      await _controller.change(action);
+      await ref
+          .read(availabilityProvider(widget.accountId).notifier)
+          .change(
+            (api) => switch (widget.target) {
+              NewHours() when _everyWeek => api.add(
+                weekdays: weekdays,
+                start: _start,
+                end: _end,
+                validTo: _validTo,
+              ),
+              NewHours(:final weekStart) => api.add(
+                dates: [
+                  for (final weekday in weekdays)
+                    _addDays(weekStart, weekday - 1),
+                ],
+                start: _start,
+                end: _end,
+              ),
+              // Every week on a single day makes it repeat; this week on
+              // weekly hours changes only that day.
+              EditHours(:final slot, :final day) => api.update(
+                slot,
+                start: _start,
+                end: _end,
+                onDate: slot.isWeekly && !_everyWeek ? day : null,
+                changeValidTo: _everyWeek,
+                validTo: _validTo,
+              ),
+            },
+          );
       if (mounted) {
-        Navigator.of(context).pop(confirmation);
+        Navigator.of(context).pop(l10n.availabilitySaved);
       }
     } catch (e) {
       if (mounted) {
@@ -454,24 +1064,18 @@ class _AvailabilityEditorSheetState
     }
   }
 
-  Future<void> _pickDate({required bool validTo}) async {
-    final today = DateUtils.dateOnly(DateTime.now());
-    final first = validTo ? today.add(const Duration(days: 1)) : today;
-    final current = validTo ? _validTo : _date;
+  Future<void> _pickValidTo() async {
+    final today = widget.today;
     final picked = await showDatePicker(
       context: context,
-      firstDate: first,
-      lastDate: today.add(const Duration(days: 365)),
-      initialDate: current == null || current.isBefore(first) ? first : current,
+      firstDate: today,
+      lastDate: _addDays(today, 365),
+      initialDate: _validTo == null || _validTo!.isBefore(today)
+          ? today
+          : _validTo!,
     );
     if (picked != null && mounted) {
-      setState(() {
-        if (validTo) {
-          _validTo = picked;
-        } else {
-          _date = picked;
-        }
-      });
+      setState(() => _validTo = picked);
     }
   }
 
@@ -479,7 +1083,6 @@ class _AvailabilityEditorSheetState
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
-    final target = widget.target;
 
     return Padding(
       padding: EdgeInsets.fromLTRB(
@@ -494,15 +1097,41 @@ class _AvailabilityEditorSheetState
           crossAxisAlignment: CrossAxisAlignment.stretch,
           spacing: 16,
           children: [
+            SegmentedButton<bool>(
+              segments: [
+                ButtonSegment(
+                  value: true,
+                  label: Text(l10n.availabilityEveryWeek),
+                ),
+                ButtonSegment(
+                  value: false,
+                  label: Text(l10n.availabilityThisWeek),
+                ),
+              ],
+              selected: {_everyWeek},
+              onSelectionChanged: _busy
+                  ? null
+                  : (selection) => _setEveryWeek(selection.single),
+            ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                for (var weekday = 1; weekday <= 7; weekday++)
+                  _DayChip(
+                    label: l10n.availabilityWeekdayShort('$weekday'),
+                    selected: _weekdays.contains(weekday),
+                    onTap: _busy || !_canPick(weekday)
+                        ? null
+                        : () => setState(() {
+                            _error = null;
+                            if (!_weekdays.remove(weekday)) {
+                              _weekdays.add(weekday);
+                            }
+                          }),
+                  ),
+              ],
+            ),
             Text(_title(l10n), style: theme.textTheme.titleLarge),
-            if (target is NewDay)
-              _PickerField(
-                key: const Key('availability-date'),
-                label: l10n.availabilityDate,
-                value: _capitalize(_dayFormat.format(_date)),
-                icon: Icons.calendar_today,
-                onTap: _busy ? null : () => _pickDate(validTo: false),
-              ),
             Row(
               spacing: 12,
               children: [
@@ -526,7 +1155,7 @@ class _AvailabilityEditorSheetState
                 ),
               ],
             ),
-            if (_isWeekly)
+            if (_everyWeek)
               _PickerField(
                 key: const Key('availability-valid-to'),
                 label: l10n.availabilityValidTo,
@@ -534,7 +1163,7 @@ class _AvailabilityEditorSheetState
                     ? l10n.availabilityNoEndDate
                     : _longDate.format(_validTo!),
                 icon: Icons.event_busy,
-                onTap: _busy ? null : () => _pickDate(validTo: true),
+                onTap: _busy ? null : _pickValidTo,
                 onClear: _validTo == null || _busy
                     ? null
                     : () => setState(() => _validTo = null),
@@ -554,16 +1183,69 @@ class _AvailabilityEditorSheetState
                     )
                   : Text(l10n.availabilitySave),
             ),
-            if (target case EditSlot(:final slot))
-              TextButton.icon(
-                onPressed: _busy ? null : () => _remove(l10n, slot),
-                style: TextButton.styleFrom(
-                  foregroundColor: theme.colorScheme.error,
-                ),
-                icon: const Icon(Icons.delete_outline),
-                label: Text(l10n.availabilityRemove),
-              ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A round day toggle; the chosen days are filled.
+class _DayChip extends StatelessWidget {
+  const _DayChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final enabled = onTap != null;
+    final foreground = selected
+        ? scheme.onPrimary
+        : enabled
+        ? scheme.onSurfaceVariant
+        : scheme.onSurface.withValues(alpha: 0.38);
+    return Semantics(
+      button: true,
+      selected: selected,
+      enabled: enabled,
+      child: Material(
+        color: selected ? scheme.primary : Colors.transparent,
+        shape: CircleBorder(
+          side: BorderSide(
+            color: selected
+                ? scheme.primary
+                : enabled
+                ? scheme.outline
+                : scheme.onSurface.withValues(alpha: 0.12),
+          ),
+        ),
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: onTap,
+          child: SizedBox.square(
+            dimension: 38,
+            child: Center(
+              child: FittedBox(
+                child: Padding(
+                  padding: const EdgeInsets.all(4),
+                  child: Text(
+                    label,
+                    style: theme.textTheme.labelLarge?.copyWith(
+                      color: foreground,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
         ),
       ),
     );
@@ -614,9 +1296,12 @@ class _PickerField extends StatelessWidget {
   }
 }
 
-/// The Polish name of an ISO weekday, capitalized: 1 is „Poniedziałek”.
-String weekdayName(int weekday) =>
-    _capitalize(DateFormat('EEEE', 'pl').format(DateTime(2024, 1, weekday)));
+/// The Monday of [day]'s week.
+DateTime mondayOf(DateTime day) => _addDays(day, 1 - day.weekday);
+
+/// The week as „2.11 – 8.11”.
+String weekRange(DateTime weekStart) =>
+    '${_shortDate.format(weekStart)} – ${_shortDate.format(_addDays(weekStart, 6))}';
 
 String availabilityErrorMessage(
   Object error,
@@ -635,6 +1320,10 @@ String availabilityErrorMessage(
   }
   return loading ? l10n.availabilityLoadError : l10n.availabilitySaveError;
 }
+
+// Calendar arithmetic on dates, safe across daylight saving changes.
+DateTime _addDays(DateTime day, int days) =>
+    DateTime(day.year, day.month, day.day + days);
 
 final _dayFormat = DateFormat('EEEE, d MMMM', 'pl');
 final _shortDate = DateFormat('d.MM', 'pl');

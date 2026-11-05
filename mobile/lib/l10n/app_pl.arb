@@ -675,48 +675,50 @@
   "trainingOutcomeCancelled": "Odwołano w terminie",
   "trainingOutcomeLateCancelled": "Odwołano po terminie",
   "trainingOutcomeClassCancelled": "Zajęcia odwołane przez studio",
-  "availabilityIntro": "Godziny, w których możesz prowadzić zajęcia i treningi. Studio widzi je przy układaniu grafiku.",
-  "availabilityWeeklySection": "Stały tydzień",
-  "availabilityExtraSection": "Dodatkowe dni",
-  "availabilityExtraHint": "Jednorazowe godziny poza stałym tygodniem.",
-  "availabilityDayOff": "Niedostępny",
-  "availabilityNoExtraDays": "Brak dodatkowych dni",
+  "availabilityPreviousWeek": "Poprzedni tydzień",
+  "availabilityNextWeek": "Następny tydzień",
+  "availabilityLegendWeekly": "Co tydzień",
+  "availabilityLegendThisWeek": "Tylko ten tydzień",
   "availabilityAddHours": "Dodaj godziny",
-  "availabilityAddDay": "Dodaj dzień",
   "availabilityEditHours": "Zmień godziny",
-  "availabilityNewWeeklyTitle": "Nowe godziny: {day}",
-  "@availabilityNewWeeklyTitle": {
+  "availabilityEveryWeek": "Każdy tydzień",
+  "availabilityThisWeek": "Ten tydzień",
+  "availabilityNewTitle": "Nowe godziny",
+  "availabilityNewThisWeekTitle": "Nowe godziny: {week}",
+  "@availabilityNewThisWeekTitle": {
     "placeholders": {
-      "day": {
+      "week": {
         "type": "String"
       }
     }
   },
-  "availabilityNewDayTitle": "Dodatkowy dzień",
-  "availabilityDate": "Dzień",
+  "availabilityWeekdayShort": "{weekday, select, 1{Pn} 2{Wt} 3{Śr} 4{Cz} 5{Pt} 6{So} other{Nd}}",
+  "@availabilityWeekdayShort": {
+    "placeholders": {
+      "weekday": {
+        "type": "String"
+      }
+    }
+  },
+  "availabilityPickDays": "Wybierz co najmniej jeden dzień.",
   "availabilityStart": "Od",
   "availabilityEnd": "Do",
   "availabilityValidTo": "Obowiązuje do",
   "availabilityNoEndDate": "Bez daty końcowej",
   "availabilityClearEndDate": "Usuń datę końcową",
-  "availabilitySince": "od {date}",
-  "@availabilitySince": {
-    "placeholders": {
-      "date": {
-        "type": "String"
-      }
-    }
-  },
-  "availabilityUntil": "do {date}",
-  "@availabilityUntil": {
-    "placeholders": {
-      "date": {
-        "type": "String"
-      }
-    }
-  },
   "availabilitySave": "Zapisz",
   "availabilityRemove": "Usuń",
+  "availabilityRemoveTitle": "Usunąć dyspozycyjność?",
+  "availabilityRemoveThisDay": "Ten dzień",
+  "availabilityRemoveEveryWeekday": "{weekday, select, 1{Każdy poniedziałek} 2{Każdy wtorek} 3{Każdą środę} 4{Każdy czwartek} 5{Każdy piątek} 6{Każdą sobotę} other{Każdą niedzielę}}",
+  "@availabilityRemoveEveryWeekday": {
+    "placeholders": {
+      "weekday": {
+        "type": "String"
+      }
+    }
+  },
+  "availabilityCancel": "Anuluj",
   "availabilitySaved": "Dyspozycyjność została zapisana.",
   "availabilityRemoved": "Godziny zostały usunięte.",
   "availabilityEndBeforeStart": "Godzina zakończenia musi być późniejsza niż rozpoczęcia.",

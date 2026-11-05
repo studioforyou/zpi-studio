@@ -1,5 +1,5 @@
 import 'package:dio/dio.dart';
-import 'package:flutter/material.dart' show TimeOfDay;
+import 'package:flutter/material.dart' show DateUtils, TimeOfDay;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mobile/core/network/api_exception.dart';
 import 'package:mobile/core/network/dio_provider.dart';
@@ -46,6 +46,16 @@ class AvailabilitySlot {
   final DateTime? validTo;
 
   bool get isWeekly => date == null;
+
+  /// Whether the hours apply on [day], a date without time.
+  bool appliesOn(DateTime day) {
+    if (date case final date?) {
+      return DateUtils.isSameDay(date, day);
+    }
+    return day.weekday == weekday &&
+        !day.isBefore(validFrom) &&
+        (validTo == null || !day.isAfter(validTo!));
+  }
 }
 
 TimeOfDay parseTime(String value) {
@@ -86,8 +96,11 @@ class AvailabilityApi {
     });
   }
 
-  Future<void> addWeekly({
-    required int weekday,
+  /// Adds the same hours on several weekdays, repeating every week from
+  /// today, or on several single [dates]; never both.
+  Future<void> add({
+    List<int> weekdays = const [],
+    List<DateTime> dates = const [],
     required TimeOfDay start,
     required TimeOfDay end,
     DateTime? validTo,
@@ -96,55 +109,51 @@ class AvailabilityApi {
       () => _dio.post<Map<String, dynamic>>(
         myAvailabilityPath,
         data: {
-          'weekday': weekday,
+          if (weekdays.isNotEmpty) 'weekdays': weekdays,
+          if (dates.isNotEmpty)
+            'dates': [for (final date in dates) formatDate(date)],
           'startTime': formatTime(start),
           'endTime': formatTime(end),
-          'validTo': validTo == null ? null : formatDate(validTo),
-        },
-      ),
-    );
-  }
-
-  Future<void> addDay({
-    required DateTime date,
-    required TimeOfDay start,
-    required TimeOfDay end,
-  }) {
-    return _call(
-      () => _dio.post<Map<String, dynamic>>(
-        myAvailabilityPath,
-        data: {
-          'date': formatDate(date),
-          'startTime': formatTime(start),
-          'endTime': formatTime(end),
-        },
-      ),
-    );
-  }
-
-  /// Sends new times; for weekly hours also the end date, where `null`
-  /// removes it.
-  Future<void> update(
-    AvailabilitySlot slot, {
-    required TimeOfDay start,
-    required TimeOfDay end,
-    DateTime? validTo,
-  }) {
-    return _call(
-      () => _dio.patch<Map<String, dynamic>>(
-        '$myAvailabilityPath/${slot.id}',
-        data: {
-          'startTime': formatTime(start),
-          'endTime': formatTime(end),
-          if (slot.isWeekly)
+          if (weekdays.isNotEmpty)
             'validTo': validTo == null ? null : formatDate(validTo),
         },
       ),
     );
   }
 
-  Future<void> remove(AvailabilitySlot slot) {
-    return _call(() => _dio.delete<void>('$myAvailabilityPath/${slot.id}'));
+  /// Sends new times. With [onDate], weekly hours change on that date only.
+  /// With [changeValidTo], also the end date, where `null` removes it; on a
+  /// single day that makes the hours repeat every week.
+  Future<void> update(
+    AvailabilitySlot slot, {
+    required TimeOfDay start,
+    required TimeOfDay end,
+    DateTime? onDate,
+    bool changeValidTo = false,
+    DateTime? validTo,
+  }) {
+    return _call(
+      () => _dio.patch<Map<String, dynamic>>(
+        '$myAvailabilityPath/${slot.id}',
+        queryParameters: {if (onDate != null) 'date': formatDate(onDate)},
+        data: {
+          'startTime': formatTime(start),
+          'endTime': formatTime(end),
+          if (changeValidTo)
+            'validTo': validTo == null ? null : formatDate(validTo),
+        },
+      ),
+    );
+  }
+
+  /// Removes the slot from today on, or with [onDate] on that date only.
+  Future<void> remove(AvailabilitySlot slot, {DateTime? onDate}) {
+    return _call(
+      () => _dio.delete<void>(
+        '$myAvailabilityPath/${slot.id}',
+        queryParameters: {if (onDate != null) 'date': formatDate(onDate)},
+      ),
+    );
   }
 
   static Future<T> _call<T>(Future<T> Function() request) async {

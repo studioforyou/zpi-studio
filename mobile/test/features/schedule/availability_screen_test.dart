@@ -42,12 +42,16 @@ class _SignedInRepository implements AuthRepository {
   Future<void> sendPasswordReset(String email) async {}
 }
 
+/// A Wednesday: Monday and Tuesday of the week are already past.
+final _today = DateTime(2030, 11, 6);
+
 Map<String, dynamic> _weekly(
   String id,
   int weekday,
   String start,
-  String end,
-) => {
+  String end, {
+  String? validTo,
+}) => {
   'id': id,
   'type': 'WEEKLY',
   'weekday': weekday,
@@ -55,28 +59,44 @@ Map<String, dynamic> _weekly(
   'startTime': start,
   'endTime': end,
   'validFrom': '2026-01-05',
-  'validTo': null,
+  'validTo': validTo,
 };
+
+Map<String, dynamic> _oneOff(
+  String id,
+  String date,
+  int weekday,
+  String start,
+  String end,
+) => {
+  'id': id,
+  'type': 'ONE_OFF',
+  'weekday': weekday,
+  'date': date,
+  'startTime': start,
+  'endTime': end,
+  'validFrom': date,
+  'validTo': date,
+};
+
+typedef _Request = ({
+  String method,
+  String path,
+  Map<String, dynamic> query,
+  Object? data,
+});
 
 /// Keeps the trainer's slots in memory and records every change request.
 class _AvailabilityAdapter implements HttpClientAdapter {
   int listStatus = 200;
   int changeStatus = 200;
   int listCount = 0;
-  final requests = <({String method, String path, Object? data})>[];
+  final requests = <_Request>[];
   List<Map<String, dynamic>> slots = [
-    _weekly('slot-tue', 2, '17:00', '21:00'),
-    {..._weekly('slot-thu', 4, '08:00', '10:00'), 'validTo': '2030-06-30'},
-    {
-      'id': 'slot-day',
-      'type': 'ONE_OFF',
-      'weekday': 6,
-      'date': '2030-11-02',
-      'startTime': '09:00',
-      'endTime': '12:00',
-      'validFrom': '2030-11-02',
-      'validTo': '2030-11-02',
-    },
+    _weekly('slot-mon', 1, '08:00', '10:00'),
+    _weekly('slot-thu', 4, '17:00', '21:00'),
+    _weekly('slot-fri', 5, '08:00', '10:00', validTo: '2030-11-15'),
+    _oneOff('slot-day', '2030-11-09', 6, '09:00', '12:00'),
   ];
 
   ResponseBody _json(Object body, int status) => ResponseBody.fromString(
@@ -114,6 +134,7 @@ class _AvailabilityAdapter implements HttpClientAdapter {
     requests.add((
       method: options.method,
       path: options.path,
+      query: options.queryParameters,
       data: options.data,
     ));
     if (changeStatus != 200) {
@@ -122,21 +143,24 @@ class _AvailabilityAdapter implements HttpClientAdapter {
     final data = options.data as Map<String, dynamic>?;
     switch (options.method) {
       case 'POST':
-        slots = [
-          ...slots,
-          _weekly(
-            'slot-new',
-            data!['weekday'] as int,
-            data['startTime'] as String,
-            data['endTime'] as String,
-          ),
+        final added = [
+          for (final weekday in (data!['weekdays'] as List?) ?? const [])
+            _weekly(
+              'slot-new-$weekday',
+              weekday as int,
+              data['startTime'] as String,
+              data['endTime'] as String,
+            ),
         ];
-        return _json(slots.last, 201);
+        slots = [...slots, ...added];
+        return _json({'items': added}, 201);
       case 'DELETE':
-        slots = [
-          for (final slot in slots)
-            if (!options.path.endsWith('/${slot['id']}')) slot,
-        ];
+        if (options.queryParameters.isEmpty) {
+          slots = [
+            for (final slot in slots)
+              if (!options.path.endsWith('/${slot['id']}')) slot,
+          ];
+        }
         return ResponseBody.fromString('', 204);
       default:
         return _json(slots.first, 200);
@@ -164,6 +188,7 @@ void main() {
         overrides: [
           authRepositoryProvider.overrideWithValue(_SignedInRepository()),
           dioProvider.overrideWithValue(dio),
+          availabilityTodayProvider.overrideWithValue(_today),
         ],
         child: const App(),
       ),
@@ -176,55 +201,117 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Dyspozycyjność'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Dyspozycyjność'));
     await tester.pumpAndSettle();
   }
 
-  Finder addButtonOf(String day) => find.descendant(
-    of: find.ancestor(of: find.text(day), matching: find.byType(Row)).first,
-    matching: find.byTooltip('Dodaj godziny'),
+  Finder bar(String id, String date) =>
+      find.byKey(Key('availability-bar-$id-$date'));
+
+  Finder inSheet(Finder finder) => find.descendant(
+    of: find.byType(AvailabilityEditorSheet),
+    matching: finder,
   );
 
-  testWidgets('shows the regular week and the extra days', (tester) async {
+  Future<void> tapAndSettle(WidgetTester tester, Finder finder) async {
+    await tester.tap(finder);
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets('shows a week of hours and follows their period', (tester) async {
     await openAvailability(tester);
 
     expect(find.byType(AvailabilityScreen), findsOneWidget);
-    for (final day in ['Poniedziałek', 'Wtorek', 'Środa', 'Niedziela']) {
-      expect(find.text(day), findsOneWidget);
-    }
-    expect(find.text('Niedostępny'), findsNWidgets(5));
-    expect(find.widgetWithText(ActionChip, '17:00–21:00'), findsOneWidget);
-    expect(
-      find.widgetWithText(ActionChip, '08:00–10:00 · do 30.06'),
-      findsOneWidget,
-    );
-    await tester.scrollUntilVisible(find.text('09:00–12:00'), 100);
-    expect(find.text('Sobota, 2 listopada'), findsOneWidget);
+    expect(find.text('4.11 – 10.11'), findsOneWidget);
+    expect(find.text('Co tydzień'), findsOneWidget);
+    expect(find.text('Tylko ten tydzień'), findsOneWidget);
+    // Monday is already past.
+    expect(bar('slot-mon', '2030-11-04'), findsNothing);
+    expect(bar('slot-thu', '2030-11-07'), findsOneWidget);
+    expect(bar('slot-fri', '2030-11-08'), findsOneWidget);
+    expect(bar('slot-day', '2030-11-09'), findsOneWidget);
+    final previous = find.widgetWithIcon(IconButton, Icons.chevron_left);
+    expect(tester.widget<IconButton>(previous).onPressed, isNull);
+
+    await tapAndSettle(tester, find.byTooltip('Następny tydzień'));
+    expect(find.text('11.11 – 17.11'), findsOneWidget);
+    expect(bar('slot-mon', '2030-11-11'), findsOneWidget);
+    expect(bar('slot-fri', '2030-11-15'), findsOneWidget);
+    expect(bar('slot-day', '2030-11-16'), findsNothing);
+
+    // The Friday hours end on 15.11.
+    await tapAndSettle(tester, find.byTooltip('Następny tydzień'));
+    expect(bar('slot-thu', '2030-11-21'), findsOneWidget);
+    expect(bar('slot-fri', '2030-11-22'), findsNothing);
+
+    await tapAndSettle(tester, find.byTooltip('Poprzedni tydzień'));
+    expect(find.text('11.11 – 17.11'), findsOneWidget);
   });
 
-  testWidgets('adds weekly hours and reloads the list', (tester) async {
+  testWidgets('a tapped bar shows its hours and actions until tapped again', (
+    tester,
+  ) async {
     await openAvailability(tester);
-    await tester.tap(addButtonOf('Poniedziałek'));
-    await tester.pumpAndSettle();
+    expect(find.byTooltip('Usuń'), findsNothing);
 
-    expect(find.text('Nowe godziny: Poniedziałek'), findsOneWidget);
+    await tapAndSettle(tester, bar('slot-thu', '2030-11-07'));
+    expect(find.text('17:00–21:00'), findsOneWidget);
+    expect(find.byTooltip('Usuń'), findsOneWidget);
+    expect(find.byTooltip('Zmień godziny'), findsOneWidget);
+
+    await tapAndSettle(tester, bar('slot-thu', '2030-11-07'));
+    expect(find.text('17:00–21:00'), findsNothing);
+    expect(find.byTooltip('Usuń'), findsNothing);
+  });
+
+  testWidgets('adds weekly hours on the chosen days', (tester) async {
+    await openAvailability(tester);
+    await tapAndSettle(tester, find.byTooltip('Dodaj godziny'));
+
+    expect(find.text('Nowe godziny'), findsOneWidget);
     expect(find.text('Bez daty końcowej'), findsOneWidget);
-    await tester.tap(find.text('Zapisz'));
-    await tester.pumpAndSettle();
+    await tapAndSettle(tester, find.text('Zapisz'));
+    expect(find.text('Wybierz co najmniej jeden dzień.'), findsOneWidget);
+    expect(adapter.requests, isEmpty);
+
+    await tapAndSettle(tester, inSheet(find.text('Pn')));
+    await tapAndSettle(tester, inSheet(find.text('Śr')));
+    await tapAndSettle(tester, find.text('Zapisz'));
 
     expect(adapter.requests.single.method, 'POST');
     expect(adapter.requests.single.path, myAvailabilityPath);
     expect(adapter.requests.single.data, {
-      'weekday': 1,
+      'weekdays': [1, 3],
       'startTime': '16:00',
       'endTime': '20:00',
       'validTo': null,
     });
     expect(adapter.listCount, 2);
     expect(find.byType(AvailabilityEditorSheet), findsNothing);
-    expect(find.widgetWithText(ActionChip, '16:00–20:00'), findsOneWidget);
     expect(find.text('Dyspozycyjność została zapisana.'), findsOneWidget);
-    expect(find.text('Niedostępny'), findsNWidgets(4));
+    expect(bar('slot-new-3', '2030-11-06'), findsOneWidget);
+  });
+
+  testWidgets('adds hours on days of the shown week only', (tester) async {
+    await openAvailability(tester);
+    await tapAndSettle(tester, find.byTooltip('Dodaj godziny'));
+    await tapAndSettle(tester, find.text('Ten tydzień'));
+
+    expect(find.text('Nowe godziny: 4.11 – 10.11'), findsOneWidget);
+    expect(find.text('Obowiązuje do'), findsNothing);
+    // Monday and Tuesday are past and cannot be chosen.
+    await tapAndSettle(tester, inSheet(find.text('Pn')));
+    await tapAndSettle(tester, inSheet(find.text('So')));
+    await tapAndSettle(tester, inSheet(find.text('Nd')));
+    await tapAndSettle(tester, find.text('Zapisz'));
+
+    expect(adapter.requests.single.data, {
+      'dates': ['2030-11-09', '2030-11-10'],
+      'startTime': '16:00',
+      'endTime': '20:00',
+    });
   });
 
   testWidgets('keeps the sheet open with a message when hours overlap', (
@@ -232,10 +319,9 @@ void main() {
   ) async {
     adapter.changeStatus = 409;
     await openAvailability(tester);
-    await tester.tap(addButtonOf('Wtorek'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Zapisz'));
-    await tester.pumpAndSettle();
+    await tapAndSettle(tester, find.byTooltip('Dodaj godziny'));
+    await tapAndSettle(tester, inSheet(find.text('Cz')));
+    await tapAndSettle(tester, find.text('Zapisz'));
 
     expect(find.byType(AvailabilityEditorSheet), findsOneWidget);
     expect(
@@ -245,49 +331,79 @@ void main() {
     expect(adapter.listCount, 1);
   });
 
-  testWidgets('changes and removes existing hours', (tester) async {
+  testWidgets('changes weekly hours on one day or every week', (tester) async {
     await openAvailability(tester);
-    await tester.tap(find.widgetWithText(ActionChip, '08:00–10:00 · do 30.06'));
-    await tester.pumpAndSettle();
+    await tapAndSettle(tester, bar('slot-thu', '2030-11-07'));
+    await tapAndSettle(tester, find.byTooltip('Zmień godziny'));
 
-    expect(find.text('Czwartek'), findsWidgets);
-    expect(find.text('30 czerwca 2030'), findsOneWidget);
-    await tester.tap(find.byTooltip('Usuń datę końcową'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Zapisz'));
-    await tester.pumpAndSettle();
+    expect(inSheet(find.text('Zmień godziny')), findsOneWidget);
+    expect(find.text('Bez daty końcowej'), findsOneWidget);
+    await tapAndSettle(tester, find.text('Ten tydzień'));
+    await tapAndSettle(tester, find.text('Zapisz'));
     expect(adapter.requests.last.method, 'PATCH');
     expect(adapter.requests.last.path, '$myAvailabilityPath/slot-thu');
+    expect(adapter.requests.last.query, {'date': '2030-11-07'});
+    expect(adapter.requests.last.data, {
+      'startTime': '17:00',
+      'endTime': '21:00',
+    });
+
+    await tapAndSettle(tester, bar('slot-fri', '2030-11-08'));
+    await tapAndSettle(tester, find.byTooltip('Zmień godziny'));
+    expect(find.text('15 listopada 2030'), findsOneWidget);
+    await tapAndSettle(tester, find.byTooltip('Usuń datę końcową'));
+    await tapAndSettle(tester, find.text('Zapisz'));
+    expect(adapter.requests.last.path, '$myAvailabilityPath/slot-fri');
+    expect(adapter.requests.last.query, isEmpty);
     expect(adapter.requests.last.data, {
       'startTime': '08:00',
       'endTime': '10:00',
       'validTo': null,
     });
-
-    await tester.tap(find.widgetWithText(ActionChip, '17:00–21:00'));
-    await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('Usuń'));
-    await tester.tap(find.text('Usuń'));
-    await tester.pumpAndSettle();
-    expect(adapter.requests.last.method, 'DELETE');
-    expect(adapter.requests.last.path, '$myAvailabilityPath/slot-tue');
-    expect(find.widgetWithText(ActionChip, '17:00–21:00'), findsNothing);
-    expect(find.text('Godziny zostały usunięte.'), findsOneWidget);
   });
 
-  testWidgets('a single day is edited without an end date', (tester) async {
+  testWidgets('a single day can be made to repeat every week', (tester) async {
     await openAvailability(tester);
-    await tester.scrollUntilVisible(find.text('09:00–12:00'), 100);
-    await tester.tap(find.text('Sobota, 2 listopada'));
-    await tester.pumpAndSettle();
+    await tapAndSettle(tester, bar('slot-day', '2030-11-09'));
+    await tapAndSettle(tester, find.byTooltip('Zmień godziny'));
 
     expect(find.text('Obowiązuje do'), findsNothing);
-    await tester.tap(find.text('Zapisz'));
-    await tester.pumpAndSettle();
+    await tapAndSettle(tester, find.text('Każdy tydzień'));
+    expect(find.text('Obowiązuje do'), findsOneWidget);
+    await tapAndSettle(tester, find.text('Zapisz'));
+    expect(adapter.requests.single.query, isEmpty);
     expect(adapter.requests.single.data, {
       'startTime': '09:00',
       'endTime': '12:00',
+      'validTo': null,
     });
+  });
+
+  testWidgets('removes hours on one day or every week', (tester) async {
+    await openAvailability(tester);
+    await tapAndSettle(tester, bar('slot-thu', '2030-11-07'));
+    await tapAndSettle(tester, find.byTooltip('Usuń'));
+
+    expect(find.text('Usunąć dyspozycyjność?'), findsOneWidget);
+    expect(find.text('Każdy czwartek'), findsOneWidget);
+    await tapAndSettle(tester, find.text('Ten dzień'));
+    expect(adapter.requests.last.method, 'DELETE');
+    expect(adapter.requests.last.path, '$myAvailabilityPath/slot-thu');
+    expect(adapter.requests.last.query, {'date': '2030-11-07'});
+    expect(find.text('Godziny zostały usunięte.'), findsOneWidget);
+
+    await tapAndSettle(tester, bar('slot-fri', '2030-11-08'));
+    await tapAndSettle(tester, find.byTooltip('Usuń'));
+    await tapAndSettle(tester, find.text('Każdy piątek'));
+    expect(adapter.requests.last.path, '$myAvailabilityPath/slot-fri');
+    expect(adapter.requests.last.query, isEmpty);
+    expect(bar('slot-fri', '2030-11-08'), findsNothing);
+
+    await tapAndSettle(tester, bar('slot-day', '2030-11-09'));
+    await tapAndSettle(tester, find.byTooltip('Usuń'));
+    expect(find.textContaining('Każd'), findsNothing);
+    await tapAndSettle(tester, find.text('Anuluj'));
+    expect(adapter.requests, hasLength(2));
   });
 
   testWidgets('a failed load offers retry', (tester) async {
@@ -296,9 +412,8 @@ void main() {
     expect(find.text('Nie udało się pobrać dyspozycyjności.'), findsOneWidget);
 
     adapter.listStatus = 200;
-    await tester.tap(find.text('Spróbuj ponownie'));
-    await tester.pumpAndSettle();
-    expect(find.widgetWithText(ActionChip, '17:00–21:00'), findsOneWidget);
+    await tapAndSettle(tester, find.text('Spróbuj ponownie'));
+    expect(bar('slot-thu', '2030-11-07'), findsOneWidget);
   });
 
   testWidgets('fits a small phone with large text', (tester) async {
@@ -310,35 +425,38 @@ void main() {
     addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
     await openAvailability(tester);
     expect(tester.takeException(), isNull);
+    expect(find.byTooltip('Dodaj godziny').hitTestable(), findsOneWidget);
 
-    final list = find
-        .descendant(
-          of: find.byType(AvailabilityScreen),
-          matching: find.byType(Scrollable),
-        )
-        .first;
-    final chip = find.widgetWithText(ActionChip, '08:00–10:00 · do 30.06');
-    await tester.scrollUntilVisible(chip, 100, scrollable: list);
-    await tester.ensureVisible(chip);
+    final thursday = bar('slot-thu', '2030-11-07');
+    await tester.ensureVisible(thursday);
     await tester.pumpAndSettle();
-    await tester.tap(chip);
-    await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('Usuń'));
+    await tapAndSettle(tester, thursday);
+    await tapAndSettle(tester, find.byTooltip('Zmień godziny'));
+    await tester.ensureVisible(find.text('Zapisz'));
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
-    expect(find.text('Usuń').hitTestable(), findsOneWidget);
+    expect(find.text('Zapisz').hitTestable(), findsOneWidget);
   });
 
-  test('parses slots from the API', () {
-    final slot = AvailabilitySlot.fromJson({
-      ..._weekly('id', 3, '06:30', '09:05'),
-      'validTo': '2030-02-01',
-    });
-    expect(slot.isWeekly, isTrue);
-    expect(slot.start, const TimeOfDay(hour: 6, minute: 30));
-    expect(formatTime(slot.end), '09:05');
-    expect(slot.validTo, DateTime(2030, 2, 1));
-    expect(formatDate(slot.validFrom), '2026-01-05');
-    expect(weekdayName(3), 'Środa');
+  test('parses slots and tells the days they apply on', () {
+    final weekly = AvailabilitySlot.fromJson(
+      _weekly('id', 3, '06:30', '09:05', validTo: '2030-02-13'),
+    );
+    expect(weekly.isWeekly, isTrue);
+    expect(weekly.start, const TimeOfDay(hour: 6, minute: 30));
+    expect(formatTime(weekly.end), '09:05');
+    expect(formatDate(weekly.validFrom), '2026-01-05');
+    expect(weekly.appliesOn(DateTime(2030, 2, 13)), isTrue);
+    expect(weekly.appliesOn(DateTime(2030, 2, 14)), isFalse);
+    expect(weekly.appliesOn(DateTime(2030, 2, 20)), isFalse);
+    expect(weekly.appliesOn(DateTime(2025, 12, 31)), isFalse);
+
+    final day = AvailabilitySlot.fromJson(
+      _oneOff('id', '2030-11-09', 6, '09:00', '12:00'),
+    );
+    expect(day.isWeekly, isFalse);
+    expect(day.appliesOn(DateTime(2030, 11, 9)), isTrue);
+    expect(day.appliesOn(DateTime(2030, 11, 16)), isFalse);
+    expect(weekRange(mondayOf(DateTime(2030, 11, 9))), '4.11 – 10.11');
   });
 }
