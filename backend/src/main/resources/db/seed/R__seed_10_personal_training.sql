@@ -1,9 +1,12 @@
 -- DEV/STAGE ONLY. Personal-training packages, confirmations and accounting examples.
 -- Adds dedicated rows; never resets balances, dates or decisions changed by a tester.
--- Dedicated table-number IDs use suffixes 10001..10022, separate from the timetable showcase.
+-- Dedicated table-number IDs use suffixes 10001..10039, separate from the timetable showcase.
 -- Marek/Tomasz: 3 entries left, several packages and a calendar of meaningful states.
 -- Marek/Monika: an exhausted PT package, separate from her original Open pass/make-up credit.
 -- Ewa/Katarzyna: an unlimited PT package. No existing package or relationship is replaced.
+-- Anna/Piotr: low balance, confirmations, cancellation and a future package.
+-- Anna/Julia: an expired package, make-up training and a session outside a package.
+-- Anna/Adam: no package or reservation; Anna also has an unbooked personal slot.
 
 CREATE OR REPLACE FUNCTION pg_temp.seed_pt_day(day_offset INT)
 RETURNS DATE LANGUAGE sql AS $$
@@ -35,7 +38,20 @@ ON CONFLICT DO NOTHING;
 INSERT INTO staff_assignment (id, customer_id, staff_id, scope, can_view_health, assigned_by, started_at)
 VALUES ('09000000-0000-0000-0000-000000010001', '07000000-0000-0000-0000-000000000003',
         '08000000-0000-0000-0000-000000000002', 'PERSONAL_TRAINING', FALSE,
+        '03000000-0000-0000-0000-000000000001', pg_temp.seed_pt_at(-40, '09:00')),
+       ('09000000-0000-0000-0000-000000010002', '07000000-0000-0000-0000-000000000005',
+        '08000000-0000-0000-0000-000000000001', 'PERSONAL_TRAINING', FALSE,
+        '03000000-0000-0000-0000-000000000001', pg_temp.seed_pt_at(-40, '09:00')),
+       ('09000000-0000-0000-0000-000000010003', '07000000-0000-0000-0000-000000000008',
+        '08000000-0000-0000-0000-000000000001', 'PERSONAL_TRAINING', FALSE,
+        '03000000-0000-0000-0000-000000000001', pg_temp.seed_pt_at(-40, '09:00')),
+       ('09000000-0000-0000-0000-000000010004', '07000000-0000-0000-0000-000000000006',
+        '08000000-0000-0000-0000-000000000001', 'PERSONAL_TRAINING', FALSE,
         '03000000-0000-0000-0000-000000000001', pg_temp.seed_pt_at(-40, '09:00'))
+ON CONFLICT DO NOTHING;
+
+INSERT INTO staff_qualification (staff_id, service_type_id)
+VALUES ('08000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000004')
 ON CONFLICT DO NOTHING;
 
 INSERT INTO customer_pass (id, customer_id, variant_id, product_name, entries_total, entries_remaining,
@@ -54,7 +70,16 @@ INSERT INTO customer_pass (id, customer_id, variant_id, product_name, entries_to
      '03000000-0000-0000-0000-000000000002', pg_temp.seed_pt_at(-10, '09:00')),
     ('28000000-0000-0000-0000-000000010005', '07000000-0000-0000-0000-000000000001', '14000000-0000-0000-0000-000000010003',
      'Pakiet PT — bez limitu', NULL, NULL, 1800.00, 'ACTIVE', pg_temp.seed_pt_day(-5), pg_temp.seed_pt_day(24),
-     '03000000-0000-0000-0000-000000000003', pg_temp.seed_pt_at(-5, '09:00'))
+     '03000000-0000-0000-0000-000000000003', pg_temp.seed_pt_at(-5, '09:00')),
+    ('28000000-0000-0000-0000-000000010006', '07000000-0000-0000-0000-000000000005', '14000000-0000-0000-0000-000000010001',
+     'Pakiet PT — 8 treningów', 8, 3, 1120.00, 'ACTIVE', pg_temp.seed_pt_day(-10), pg_temp.seed_pt_day(20),
+     '03000000-0000-0000-0000-000000000001', pg_temp.seed_pt_at(-10, '09:00')),
+    ('28000000-0000-0000-0000-000000010007', '07000000-0000-0000-0000-000000000008', '14000000-0000-0000-0000-000000010002',
+     'Poprzedni pakiet PT — 5 treningów', 5, 2, 750.00, 'EXPIRED', pg_temp.seed_pt_day(-64), pg_temp.seed_pt_day(-5),
+     '03000000-0000-0000-0000-000000000001', pg_temp.seed_pt_at(-64, '09:00')),
+    ('28000000-0000-0000-0000-000000010008', '07000000-0000-0000-0000-000000000005', '14000000-0000-0000-0000-000000010002',
+     'Kolejny pakiet PT — 5 treningów', 5, 4, 750.00, 'SCHEDULED', pg_temp.seed_pt_day(31), pg_temp.seed_pt_day(90),
+     '03000000-0000-0000-0000-000000000001', pg_temp.seed_pt_at(-1, '09:00'))
 ON CONFLICT DO NOTHING;
 
 INSERT INTO pass_suspension (id, pass_id, starts_on, ends_on, reason, created_by, created_at)
@@ -73,7 +98,17 @@ WITH slots (slot, day_offset, hour, customer_no, staff_no, event_status) AS (VAL
     (10007, -4, TIME '12:00', 2, 2, 'COMPLETED'),
     (10008,  1, TIME '13:00', 3, 2, 'SCHEDULED'),
     (10009, -2, TIME '13:00', 1, 3, 'COMPLETED'),
-    (10010,  1, TIME '13:00', 1, 3, 'SCHEDULED')
+    (10010,  1, TIME '13:00', 1, 3, 'SCHEDULED'),
+    (10011, -1, TIME '10:00', 5, 1, 'COMPLETED'),
+    (10012, -2, TIME '10:00', 5, 1, 'COMPLETED'),
+    (10013,  1, TIME '10:00', 5, 1, 'SCHEDULED'),
+    (10014,  2, TIME '10:00', 5, 1, 'CANCELLED'),
+    (10015,  8, TIME '10:00', 5, 1, 'SCHEDULED'),
+    (10016,  3, TIME '10:00', 5, 1, 'SCHEDULED'),
+    (10017, 32, TIME '10:00', 5, 1, 'SCHEDULED'),
+    (10018,  1, TIME '11:00', 8, 1, 'SCHEDULED'),
+    (10019,  3, TIME '11:00', 8, 1, 'SCHEDULED'),
+    (10020,  1, TIME '14:00', NULL, 1, 'SCHEDULED')
 )
 INSERT INTO schedule_event (id, kind, service_type_id, title, starts_at, ends_at, capacity,
                              visibility, status, cancel_reason, cancelled_by, cancelled_at, created_by)
@@ -81,11 +116,14 @@ SELECT ('19000000-0000-0000-0000-' || lpad(slot::TEXT, 12, '0'))::UUID,
        'PERSONAL_TRAINING', '10000000-0000-0000-0000-000000000004',
        CASE customer_no WHEN 2 THEN 'Trening personalny — Tomasz'
                         WHEN 3 THEN 'Trening personalny — Monika'
-                        ELSE 'Trening personalny — Katarzyna' END,
+                        WHEN 1 THEN 'Trening personalny — Katarzyna'
+                        WHEN 5 THEN 'Trening personalny — Piotr'
+                        WHEN 8 THEN 'Trening personalny — Julia'
+                        ELSE 'Wolny termin personalny' END,
        pg_temp.seed_pt_at(day_offset, hour), pg_temp.seed_pt_at(day_offset, hour) + INTERVAL '1 hour',
        1, 'PRIVATE', event_status,
        CASE WHEN event_status = 'CANCELLED' THEN 'STAFF_ABSENCE' END,
-       CASE WHEN event_status = 'CANCELLED' THEN '03000000-0000-0000-0000-000000000002'::UUID END,
+       CASE WHEN event_status = 'CANCELLED' THEN ('03000000-0000-0000-0000-' || lpad(staff_no::TEXT, 12, '0'))::UUID END,
        CASE WHEN event_status = 'CANCELLED' THEN pg_temp.seed_pt_at(-1, '09:00') END,
        ('03000000-0000-0000-0000-' || lpad(staff_no::TEXT, 12, '0'))::UUID
 FROM slots
@@ -94,18 +132,20 @@ ON CONFLICT DO NOTHING;
 INSERT INTO event_staff (event_id, staff_id, role)
 SELECT id, CASE WHEN id IN ('19000000-0000-0000-0000-000000010009', '19000000-0000-0000-0000-000000010010')
                THEN '08000000-0000-0000-0000-000000000003'::UUID
+               WHEN id >= '19000000-0000-0000-0000-000000010011'::UUID
+               THEN '08000000-0000-0000-0000-000000000001'::UUID
                ELSE '08000000-0000-0000-0000-000000000002'::UUID END, 'LEAD'
 FROM schedule_event event
-WHERE id BETWEEN '19000000-0000-0000-0000-000000010001'::UUID AND '19000000-0000-0000-0000-000000010010'::UUID
+WHERE id BETWEEN '19000000-0000-0000-0000-000000010001'::UUID AND '19000000-0000-0000-0000-000000010020'::UUID
   AND NOT EXISTS (SELECT 1 FROM event_staff assigned WHERE assigned.event_id = event.id)
 ON CONFLICT DO NOTHING;
 
 INSERT INTO event_resource (event_id, resource_id, blocks_whole_room)
-SELECT id, CASE WHEN id IN ('19000000-0000-0000-0000-000000010009', '19000000-0000-0000-0000-000000010010')
+SELECT id, CASE WHEN id >= '19000000-0000-0000-0000-000000010009'::UUID
                THEN '15000000-0000-0000-0000-000000000003'::UUID
                ELSE '15000000-0000-0000-0000-000000000002'::UUID END, FALSE
 FROM schedule_event event
-WHERE id BETWEEN '19000000-0000-0000-0000-000000010001'::UUID AND '19000000-0000-0000-0000-000000010010'::UUID
+WHERE id BETWEEN '19000000-0000-0000-0000-000000010001'::UUID AND '19000000-0000-0000-0000-000000010020'::UUID
   AND NOT EXISTS (SELECT 1 FROM event_resource assigned WHERE assigned.event_id = event.id)
 ON CONFLICT DO NOTHING;
 
@@ -121,7 +161,15 @@ WITH bookings (slot, customer_no, staff_no, pass_no, trainer_confirmed, client_c
     (10007, 2, 2, 10001, TRUE,  TRUE,  'FINAL'),
     (10008, 3, 2, NULL, FALSE, FALSE, 'OPEN'),
     (10009, 1, 3, 10005, TRUE,  TRUE,  'FINAL'),
-    (10010, 1, 3, 10005, FALSE, FALSE, 'OPEN')
+    (10010, 1, 3, 10005, FALSE, FALSE, 'OPEN'),
+    (10011, 5, 1, 10006, TRUE,  TRUE,  'FINAL'),
+    (10012, 5, 1, 10006, FALSE, TRUE,  'OPEN'),
+    (10013, 5, 1, 10006, FALSE, FALSE, 'OPEN'),
+    (10014, 5, 1, 10006, FALSE, FALSE, 'FINAL'),
+    (10015, 5, 1, 10006, FALSE, FALSE, 'OPEN'),
+    (10016, 5, 1, 10006, FALSE, FALSE, 'OPEN'),
+    (10017, 5, 1, 10008, FALSE, FALSE, 'OPEN'),
+    (10019, 8, 1, NULL,  FALSE, FALSE, 'OPEN')
 )
 INSERT INTO reservation (id, event_id, customer_id, booked_by, source, status, customer_pass_id,
                          booking_policy_id, free_cancel_until, cancelled_at, cancelled_by, cancel_kind,
@@ -158,7 +206,11 @@ INSERT INTO pass_ledger (id, pass_id, kind, entries_delta, valid_until_before, v
     ('34000000-0000-0000-0000-000000010004', '28000000-0000-0000-0000-000000010003', 'CORRECTION', -5, NULL, NULL, NULL, 'Treningi wykorzystane przed prowadzeniem ewidencji terminów', '03000000-0000-0000-0000-000000000002', pg_temp.seed_pt_at(-5, '09:00')),
     ('34000000-0000-0000-0000-000000010005', '28000000-0000-0000-0000-000000010004', 'ACTIVATION', 5, NULL, pg_temp.seed_pt_day(49), NULL, 'Pakiet treningów personalnych', '03000000-0000-0000-0000-000000000002', pg_temp.seed_pt_at(-10, '09:00')),
     ('34000000-0000-0000-0000-000000010006', '28000000-0000-0000-0000-000000010004', 'EXTENSION', 0, pg_temp.seed_pt_day(49), pg_temp.seed_pt_day(55), NULL, 'Uzgodnione zawieszenie na sześć dni', '03000000-0000-0000-0000-000000000002', pg_temp.seed_pt_at(-1, '09:00')),
-    ('34000000-0000-0000-0000-000000010007', '28000000-0000-0000-0000-000000010005', 'ACTIVATION', 0, NULL, pg_temp.seed_pt_day(24), NULL, 'Pakiet treningów personalnych bez limitu', '03000000-0000-0000-0000-000000000003', pg_temp.seed_pt_at(-5, '09:00'))
+    ('34000000-0000-0000-0000-000000010007', '28000000-0000-0000-0000-000000010005', 'ACTIVATION', 0, NULL, pg_temp.seed_pt_day(24), NULL, 'Pakiet treningów personalnych bez limitu', '03000000-0000-0000-0000-000000000003', pg_temp.seed_pt_at(-5, '09:00')),
+    ('34000000-0000-0000-0000-000000010023', '28000000-0000-0000-0000-000000010006', 'ACTIVATION', 8, NULL, pg_temp.seed_pt_day(20), NULL, 'Pakiet treningów personalnych', '03000000-0000-0000-0000-000000000001', pg_temp.seed_pt_at(-10, '09:00')),
+    ('34000000-0000-0000-0000-000000010024', '28000000-0000-0000-0000-000000010007', 'ACTIVATION', 5, NULL, pg_temp.seed_pt_day(-5), NULL, 'Pakiet treningów personalnych', '03000000-0000-0000-0000-000000000001', pg_temp.seed_pt_at(-64, '09:00')),
+    ('34000000-0000-0000-0000-000000010025', '28000000-0000-0000-0000-000000010007', 'CORRECTION', -3, NULL, NULL, NULL, 'Treningi wykorzystane przed prowadzeniem ewidencji terminów', '03000000-0000-0000-0000-000000000001', pg_temp.seed_pt_at(-6, '09:00')),
+    ('34000000-0000-0000-0000-000000010026', '28000000-0000-0000-0000-000000010008', 'ACTIVATION', 5, NULL, pg_temp.seed_pt_day(90), NULL, 'Pakiet na kolejny okres', '03000000-0000-0000-0000-000000000001', pg_temp.seed_pt_at(-1, '09:00'))
 ON CONFLICT DO NOTHING;
 
 WITH accounting (slot, reservation_no, pass_no, kind, delta) AS (VALUES
@@ -168,7 +220,12 @@ WITH accounting (slot, reservation_no, pass_no, kind, delta) AS (VALUES
     (10016, 10004, 10001, 'ENTRY_RESERVED', -1), (10017, 10005, 10001, 'ENTRY_RESERVED', -1),
     (10018, 10006, 10001, 'ENTRY_RESERVED', -1), (10019, 10006, 10001, 'ENTRY_RETURNED', 1),
     (10020, 10009, 10005, 'ENTRY_RESERVED', 0), (10021, 10009, 10005, 'ENTRY_CONSUMED', 0),
-    (10022, 10010, 10005, 'ENTRY_RESERVED', 0)
+    (10022, 10010, 10005, 'ENTRY_RESERVED', 0),
+    (10031, 10011, 10006, 'ENTRY_RESERVED', -1), (10032, 10011, 10006, 'ENTRY_CONSUMED', 0),
+    (10033, 10012, 10006, 'ENTRY_RESERVED', -1), (10034, 10013, 10006, 'ENTRY_RESERVED', -1),
+    (10035, 10014, 10006, 'ENTRY_RESERVED', -1), (10036, 10014, 10006, 'ENTRY_RETURNED', 1),
+    (10037, 10015, 10006, 'ENTRY_RESERVED', -1), (10038, 10016, 10006, 'ENTRY_RESERVED', -1),
+    (10039, 10017, 10008, 'ENTRY_RESERVED', -1)
 )
 INSERT INTO pass_ledger (id, pass_id, kind, entries_delta, reservation_id, actor_account_id, occurred_at)
 SELECT ('34000000-0000-0000-0000-' || lpad(accounting.slot::TEXT, 12, '0'))::UUID,
@@ -180,4 +237,30 @@ SELECT ('34000000-0000-0000-0000-' || lpad(accounting.slot::TEXT, 12, '0'))::UUI
 FROM accounting
 JOIN reservation booking ON booking.id = ('30000000-0000-0000-0000-' || lpad(accounting.reservation_no::TEXT, 12, '0'))::UUID
 JOIN schedule_event event ON event.id = booking.event_id
+ON CONFLICT DO NOTHING;
+
+-- The expired PT package still supplies make-up credits, independently of its balance.
+-- The used credit and its reservation reference each other and are inserted atomically.
+WITH credit AS (
+    INSERT INTO makeup_credit (id, customer_id, source_pass_id, granted_by, granted_at,
+                               expires_at, status, used_reservation_id, used_at)
+    VALUES ('33000000-0000-0000-0000-000000010001', '07000000-0000-0000-0000-000000000008',
+            '28000000-0000-0000-0000-000000010007', '03000000-0000-0000-0000-000000000001',
+            pg_temp.seed_pt_at(-4, '09:00'), pg_temp.seed_pt_at(20, '23:59'), 'USED',
+            '30000000-0000-0000-0000-000000010018', pg_temp.seed_pt_at(-1, '09:00'))
+    ON CONFLICT DO NOTHING
+)
+INSERT INTO reservation (id, event_id, customer_id, booked_by, source, status, makeup_credit_id,
+                         booking_policy_id, free_cancel_until, created_at)
+SELECT '30000000-0000-0000-0000-000000010018', event.id, '07000000-0000-0000-0000-000000000008',
+       event.created_by, 'STAFF', 'ACTIVE', '33000000-0000-0000-0000-000000010001',
+       '11000000-0000-0000-0000-000000000002', event.starts_at - INTERVAL '24 hours',
+       pg_temp.seed_pt_at(-1, '09:00')
+FROM schedule_event event WHERE id = '19000000-0000-0000-0000-000000010018'
+ON CONFLICT DO NOTHING;
+
+INSERT INTO makeup_credit (id, customer_id, source_pass_id, granted_by, granted_at, expires_at, status)
+VALUES ('33000000-0000-0000-0000-000000010002', '07000000-0000-0000-0000-000000000008',
+        '28000000-0000-0000-0000-000000010007', '03000000-0000-0000-0000-000000000001',
+        pg_temp.seed_pt_at(-4, '09:00'), pg_temp.seed_pt_at(20, '23:59'), 'AVAILABLE')
 ON CONFLICT DO NOTHING;

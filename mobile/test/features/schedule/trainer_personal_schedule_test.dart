@@ -15,7 +15,7 @@ import 'package:mobile/features/schedule/data/schedule_api.dart';
 import 'package:mobile/features/schedule/presentation/widgets/schedule_calendar.dart';
 import 'package:mobile/features/trainings/data/trainee_overview_api.dart';
 import 'package:mobile/features/trainings/data/trainees_api.dart';
-import 'package:mobile/features/trainings/presentation/personal_trainings_tab.dart';
+import 'package:mobile/features/schedule/presentation/trainer_schedule_screen.dart';
 import 'package:mobile/features/trainings/presentation/trainings_screen.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
 
@@ -42,6 +42,7 @@ class _Auth extends AuthController {
 PersonalTrainingsSnapshot _snapshot(
   ScheduleWindow window, {
   String firstName = 'Tomasz Lewandowski',
+  String eventId = 'shared-event',
 }) {
   final start = window.from.add(const Duration(days: 1, hours: 9));
   return PersonalTrainingsSnapshot(
@@ -55,7 +56,7 @@ PersonalTrainingsSnapshot _snapshot(
       ])
         TraineeTraining(
           event: ScheduleEvent(
-            id: 'shared-event',
+            id: eventId,
             kind: EventKind.personalTraining,
             status: EventStatus.scheduled,
             title: 'Trening personalny',
@@ -131,6 +132,35 @@ class _NoTrainees extends TraineesApi {
   Future<List<Trainee>> fetchOwnTrainees() async => [];
 }
 
+class _ScheduleApi extends ScheduleApi {
+  _ScheduleApi() : super(Dio());
+  final windows = <ScheduleWindow>[];
+
+  @override
+  Future<List<ScheduleEvent>> fetchOwnEvents(ScheduleWindow window) async {
+    windows.add(window);
+    final training = _snapshot(window).items.first;
+    ScheduleEvent event(String id, EventKind kind, String title) =>
+        ScheduleEvent(
+          id: id,
+          kind: kind,
+          status: EventStatus.scheduled,
+          title: title,
+          serviceTypeName: title,
+          startsAt: training.startsAt,
+          endsAt: training.endsAt,
+          capacity: 2,
+          staff: const [],
+          roomNames: const ['Sala PT'],
+        );
+    return [
+      event('shared-event', EventKind.personalTraining, 'Original PT event'),
+      event('unbooked', EventKind.personalTraining, 'Wolny termin personalny'),
+      event('group', EventKind.groupClass, 'Calisthenics'),
+    ];
+  }
+}
+
 class _Adapter implements HttpClientAdapter {
   RequestOptions? request;
   @override
@@ -199,6 +229,7 @@ Future<ProviderContainer> _pump(
     overrides: [
       authControllerProvider.overrideWith(_Auth.new),
       traineeOverviewApiProvider.overrideWithValue(api),
+      scheduleApiProvider.overrideWithValue(_ScheduleApi()),
       traineesApiProvider.overrideWithValue(_NoTrainees()),
     ],
   );
@@ -219,9 +250,7 @@ Future<ProviderContainer> _pump(
           ).copyWith(textScaler: TextScaler.linear(scale)),
           child: child!,
         ),
-        home: screen
-            ? const TrainingsScreen()
-            : const Scaffold(body: PersonalTrainingsTab()),
+        home: screen ? const TrainingsScreen() : const TrainerScheduleScreen(),
       ),
     ),
   );
@@ -255,15 +284,24 @@ void main() {
     },
   );
 
+  testWidgets('Trainings opens on trainees without a duplicate schedule', (
+    tester,
+  ) async {
+    final api = _Api();
+    await _pump(tester, api, screen: true);
+    expect(tester.widget<TabBar>(find.byType(TabBar)).tabs, hasLength(2));
+    expect(find.text('Grafik'), findsNothing);
+    expect(find.text('Podopieczni'), findsOneWidget);
+    expect(find.text('Grupy'), findsOneWidget);
+    expect(find.byType(ScheduleCalendar), findsNothing);
+    expect(api.windows, isEmpty);
+  });
+
   testWidgets(
-    'opens Trainings on the weekly shared calendar with two trainee rows and one request',
+    'main weekly schedule enriches personal sessions once and retains group and unbooked events',
     (tester) async {
       final api = _Api();
-      await _pump(tester, api, screen: true);
-      expect(tester.widget<TabBar>(find.byType(TabBar)).tabs, hasLength(3));
-      expect(find.text('Grafik'), findsOneWidget);
-      expect(find.text('Podopieczni'), findsOneWidget);
-      expect(find.text('Grupy'), findsOneWidget);
+      await _pump(tester, api);
       expect(
         tester
             .widget<SegmentedButton<ScheduleView>>(
@@ -274,8 +312,10 @@ void main() {
       );
       expect(find.text('Tomasz Lewandowski'), findsOneWidget);
       expect(find.text('Anna Nowak'), findsOneWidget);
-      expect(find.text('09:00–10:00'), findsNWidgets(2));
-      expect(find.text('Trening personalny'), findsNothing);
+      expect(find.text('09:00–10:00'), findsNWidgets(4));
+      expect(find.text('Original PT event'), findsNothing);
+      expect(find.text('Wolny termin personalny'), findsOneWidget);
+      expect(find.text('Calisthenics'), findsOneWidget);
       expect(api.windows, hasLength(1));
       expect(api.otherCalls, 0);
       // Future/past confirmation uses the backend snapshot, not the device clock.
@@ -291,6 +331,42 @@ void main() {
         ),
         findsOneWidget,
       );
+    },
+  );
+
+  testWidgets(
+    'the main schedule keeps an event without trainee details and ignores orphaned details',
+    (tester) async {
+      final api = _Api()
+        ..load = (window) async =>
+            _snapshot(window, eventId: 'not-in-main-schedule');
+      await _pump(tester, api);
+      expect(find.text('Original PT event'), findsOneWidget);
+      expect(find.text('Wolny termin personalny'), findsOneWidget);
+      expect(find.text('Calisthenics'), findsOneWidget);
+      expect(find.text('Tomasz Lewandowski'), findsNothing);
+      expect(find.text('Anna Nowak'), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'the personal-training filter retains enriched sessions alongside the other main filters',
+    (tester) async {
+      final api = _Api();
+      await _pump(tester, api);
+      await tester.tap(find.text('Filtry'));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.descendant(
+          of: find.byType(BottomSheet),
+          matching: find.text('Trening personalny'),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Tomasz Lewandowski'), findsOneWidget);
+      expect(find.text('Anna Nowak'), findsOneWidget);
+      expect(find.text('Wolny termin personalny'), findsOneWidget);
+      expect(find.text('Calisthenics'), findsNothing);
     },
   );
 
@@ -402,6 +478,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Nowy podopieczny'), findsNothing);
       expect(find.text('Anna Nowak'), findsNothing);
+      expect(find.text('Calisthenics'), findsNothing);
     },
   );
 
@@ -410,8 +487,13 @@ void main() {
     (tester) async {
       final api = _Api();
       await _pump(tester, api, width: 320, scale: 1.6);
-      expect(find.text('09:00–10:00'), findsNWidgets(2));
+      expect(find.text('09:00–10:00'), findsWidgets);
       expect(find.text('Tomasz Lewandowski'), findsOneWidget);
+      await tester.scrollUntilVisible(
+        find.text('Anna Nowak'),
+        150,
+        scrollable: find.byType(Scrollable).last,
+      );
       expect(find.text('Anna Nowak'), findsOneWidget);
       expect(tester.takeException(), isNull);
     },

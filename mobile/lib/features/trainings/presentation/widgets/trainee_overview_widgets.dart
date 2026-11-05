@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:mobile/features/schedule/data/schedule_api.dart';
+import 'package:mobile/features/schedule/presentation/widgets/schedule_calendar.dart';
 import 'package:mobile/features/trainings/data/trainee_overview_api.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
 
@@ -27,6 +28,93 @@ Color traineePassColor(TraineePass pass) => switch (pass.status) {
   _ when pass.eligible => Colors.green,
   _ => Colors.indigo,
 };
+
+/// A personal session in the trainer's main schedule, alongside group classes.
+class PersonalTrainingScheduleTile extends StatelessWidget {
+  const PersonalTrainingScheduleTile({
+    super.key,
+    required this.training,
+    required this.checkedAt,
+  });
+
+  final TraineeTraining training;
+  final DateTime checkedAt;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
+    final cancelled = training.status == EventStatus.cancelled;
+    final time =
+        '${DateFormat('HH:mm').format(training.startsAt)}–${DateFormat('HH:mm').format(training.endsAt)}';
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => showTraineeTraining(context, training, checkedAt),
+        child: Container(
+          decoration: BoxDecoration(
+            border: Border(
+              left: BorderSide(
+                width: 6,
+                color: scheduleEventColor(training, theme.colorScheme),
+              ),
+            ),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              spacing: 5,
+              children: [
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final timeLabel = Text(
+                      time,
+                      style: theme.textTheme.labelLarge,
+                    );
+                    final nameLabel = Text(
+                      training.customerName ?? l10n.traineeOverviewParticipant,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        decoration: cancelled
+                            ? TextDecoration.lineThrough
+                            : null,
+                        color: cancelled ? theme.colorScheme.error : null,
+                      ),
+                    );
+                    if (MediaQuery.textScalerOf(context).scale(14) > 18 &&
+                        constraints.maxWidth < 320) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        spacing: 4,
+                        children: [timeLabel, nameLabel],
+                      );
+                    }
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        timeLabel,
+                        const SizedBox(width: 12),
+                        Expanded(child: nameLabel),
+                      ],
+                    );
+                  },
+                ),
+                Text(
+                  [
+                    l10n.eventKindPersonalTraining,
+                    ...training.roomNames,
+                  ].join(' · '),
+                  style: theme.textTheme.bodySmall,
+                ),
+                TraineeTrainingState(training, checkedAt: checkedAt),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 class OverviewTag extends StatelessWidget {
   const OverviewTag(

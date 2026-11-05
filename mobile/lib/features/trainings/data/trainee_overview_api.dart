@@ -331,11 +331,36 @@ final ownPersonalTrainingsProvider = FutureProvider.autoDispose
           .fetchOwnCalendar(query.window);
     });
 
-/// Calendar adapter; the snapshot remains available to render server-time states.
-final ownPersonalTrainingEventsProvider = FutureProvider.autoDispose
+/// The main schedule is authoritative for which events belong to the trainer.
+/// Enrich its personal sessions with reservation states, retaining unbooked
+/// sessions and sessions without a current trainee assignment as ordinary events.
+final trainerScheduleEventsProvider = FutureProvider.autoDispose
     .family<List<ScheduleEvent>, PersonalTrainingsQuery>((ref, query) async {
+      _requireScope(ref, query.scope);
+      final events = await ref.watch(
+        ownScheduleProvider((
+          accountId: query.scope.accountId,
+          window: query.window,
+        )).future,
+      );
+      // Trainers with only group classes do not need the personal-session read.
+      if (!ref.mounted ||
+          !events.any((event) => event.kind == EventKind.personalTraining)) {
+        return events;
+      }
       final snapshot = await ref.watch(
         ownPersonalTrainingsProvider(query).future,
       );
-      return snapshot.items;
+      final byEvent = <String, List<TraineeTraining>>{};
+      for (final training in snapshot.items) {
+        byEvent.putIfAbsent(training.eventId, () => []).add(training);
+      }
+      return [
+        for (final event in events)
+          if (event.kind == EventKind.personalTraining &&
+              byEvent.containsKey(event.id))
+            ...byEvent[event.id]!
+          else
+            event,
+      ];
     });
