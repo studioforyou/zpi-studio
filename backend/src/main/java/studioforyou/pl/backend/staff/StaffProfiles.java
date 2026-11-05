@@ -50,6 +50,9 @@ public interface StaffProfiles {
 	 */
 	void deactivateByAccount(UUID accountId);
 
+	/** Names of the staff profiles of the given accounts, whatever their status; accounts without one are left out. */
+	Map<UUID, String> displayNamesByAccount(Collection<UUID> accountIds);
+
 	/** The given staff members, whatever their status; unknown ids are left out. */
 	List<StaffMember> findAllById(Collection<UUID> ids);
 
