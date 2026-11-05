@@ -15,10 +15,13 @@ import 'package:mobile/features/accounts/presentation/profile_screen.dart';
 import 'package:mobile/features/accounts/presentation/reset_password_screen.dart';
 import 'package:mobile/features/accounts/presentation/role_picker_screen.dart';
 import 'package:mobile/features/accounts/presentation/staff_profile_edit_screen.dart';
+import 'package:mobile/features/communication/presentation/chat_pickers.dart';
+import 'package:mobile/features/communication/presentation/conversation_screen.dart';
 import 'package:mobile/features/communication/presentation/messages_screen.dart';
+import 'package:mobile/features/communication/presentation/new_group_chat_screen.dart';
+import 'package:mobile/features/communication/presentation/notifications_screen.dart';
 import 'package:mobile/features/documents/presentation/document_screen.dart';
 import 'package:mobile/features/documents/presentation/documents_screen.dart';
-import 'package:mobile/features/communication/presentation/notifications_screen.dart';
 import 'package:mobile/features/passes/presentation/passes_screen.dart';
 import 'package:mobile/features/schedule/presentation/add_class_screen.dart';
 import 'package:mobile/features/schedule/presentation/availability_screen.dart';
@@ -47,6 +50,7 @@ const clientReservationsPath = '/client/reservations';
 const clientMessagesPath = '/client/messages';
 const notificationsSubPath = 'notifications';
 const clientNotificationsPath = '$clientMessagesPath/$notificationsSubPath';
+const clientTrainerPickerSubPath = 'to-trainer';
 const clientProfilePath = '/client/profile';
 const clientProfileEditSubPath = 'edit';
 const clientDocumentsSubPath = 'documents';
@@ -58,6 +62,8 @@ const trainerSchedulePath = '/trainer/schedule';
 const trainerTrainingsPath = '/trainer/trainings';
 const trainerMessagesPath = '/trainer/messages';
 const trainerNotificationsPath = '$trainerMessagesPath/$notificationsSubPath';
+const trainerTraineePickerSubPath = 'to-trainee';
+const trainerNewGroupChatSubPath = 'new-chat';
 const trainerProfilePath = '/trainer/profile';
 const trainerAvailabilitySubPath = 'availability';
 const trainerProfileEditSubPath = 'edit';
@@ -158,8 +164,12 @@ StatefulShellRoute _clientShell() => _roleShell([
         path: notificationsSubPath,
         builder: (_, _) => const NotificationsScreen(),
       ),
+      GoRoute(
+        path: clientTrainerPickerSubPath,
+        builder: (_, _) => const TrainerPickerScreen(),
+      ),
     ],
-    badge: watchUnreadNotifications,
+    badge: watchUnreadInbox,
   ),
   _tab(
     clientProfilePath,
@@ -235,8 +245,16 @@ StatefulShellRoute _trainerShell() => _roleShell([
         path: notificationsSubPath,
         builder: (_, _) => const NotificationsScreen(),
       ),
+      GoRoute(
+        path: trainerTraineePickerSubPath,
+        builder: (_, _) => const TraineePickerScreen(),
+      ),
+      GoRoute(
+        path: trainerNewGroupChatSubPath,
+        builder: (_, _) => const NewGroupChatScreen(),
+      ),
     ],
-    badge: watchUnreadNotifications,
+    badge: watchUnreadInbox,
   ),
   _tab(
     trainerProfilePath,
@@ -344,6 +362,15 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: rolePickerPath,
         builder: (_, _) => const RolePickerScreen(),
       ),
+      // A conversation covers the navigation bar; it is outside the shells so
+      // that any tab can open it.
+      for (final role in AppRole.values)
+        GoRoute(
+          path: '/${role.name}/messages/chat/:conversationId',
+          builder: (_, state) => ConversationScreen(
+            conversationId: state.pathParameters['conversationId']!,
+          ),
+        ),
       _clientShell(),
       _trainerShell(),
     ],

@@ -14,6 +14,7 @@ import 'package:mobile/core/auth/fake_auth_repository.dart';
 import 'package:mobile/core/push/devices_api.dart';
 import 'package:mobile/core/push/push_device.dart';
 import 'package:mobile/core/push/push_messaging.dart';
+import 'package:mobile/features/communication/data/conversations_api.dart';
 import 'package:mobile/features/communication/data/notifications_api.dart';
 import 'package:mobile/features/schedule/data/schedule_service_types.dart';
 import 'package:mobile/features/schedule/data/studio_trainers.dart';
@@ -175,6 +176,12 @@ void main() {
           pushMessagingProvider.overrideWithValue(push),
           devicesApiProvider.overrideWithValue(devices),
           notificationsApiProvider.overrideWithValue(notifications),
+          unreadMessagesProvider.overrideWith(
+            (ref, accountId) => Stream.value(0),
+          ),
+          conversationsProvider.overrideWith(
+            (ref, accountId) async => const [],
+          ),
           appConfigProvider.overrideWithValue(
             const AppConfig(
               flavor: AppFlavor.dev,
