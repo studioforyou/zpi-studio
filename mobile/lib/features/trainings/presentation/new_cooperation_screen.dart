@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mobile/core/auth/auth_controller.dart';
 import 'package:mobile/core/auth/auth_state.dart';
+import 'package:mobile/core/auth/session.dart';
 import 'package:mobile/features/trainings/data/trainees_api.dart';
 import 'package:mobile/features/trainings/presentation/trainees_tab.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
@@ -168,7 +169,8 @@ class _NewCooperationScreenState extends ConsumerState<NewCooperationScreen> {
                           assigned: assignedIds.contains(customer.id),
                           l10n: l10n,
                         ),
-                      _newClientAccountLink(l10n),
+                      if (session?.can(Session.customerAccountCreate) ?? false)
+                        _newClientAccountLink(l10n),
                     ],
                   ),
                 ),

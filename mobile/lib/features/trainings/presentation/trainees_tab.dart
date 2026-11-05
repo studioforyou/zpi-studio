@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:mobile/core/auth/auth_controller.dart';
 import 'package:mobile/core/auth/auth_state.dart';
+import 'package:mobile/core/auth/session.dart';
 import 'package:mobile/core/network/api_exception.dart';
 import 'package:mobile/features/trainings/data/trainees_api.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
@@ -48,12 +49,14 @@ class TraineesTab extends ConsumerWidget {
                   icon: const Icon(Icons.person_add_alt_1),
                   label: Text(l10n.traineesNewCooperation),
                 ),
-                const SizedBox(height: 8),
-                OutlinedButton.icon(
-                  onPressed: () => context.push(newClientAccountLocation),
-                  icon: const Icon(Icons.mark_email_unread_outlined),
-                  label: Text(l10n.traineesNewClientAccount),
-                ),
+                if (session.can(Session.customerAccountCreate)) ...[
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(
+                    onPressed: () => context.push(newClientAccountLocation),
+                    icon: const Icon(Icons.mark_email_unread_outlined),
+                    label: Text(l10n.traineesNewClientAccount),
+                  ),
+                ],
                 const SizedBox(height: 16),
                 if (trainees.isEmpty)
                   Padding(

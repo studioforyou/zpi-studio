@@ -4,6 +4,7 @@ import 'package:mobile/core/auth/app_role.dart';
 import 'package:mobile/core/auth/auth_failure.dart';
 import 'package:mobile/core/auth/firebase_auth_repository.dart';
 import 'package:mobile/core/auth/me_api.dart';
+import 'package:mobile/core/auth/session.dart';
 
 class _FakeUserCredential extends Fake implements UserCredential {}
 
@@ -80,6 +81,7 @@ MeResponse _me({
       {'id': 'child-1', 'displayName': 'Jan Kowalski', 'isChild': true},
     ],
     'activeProfileId': 'profile-1',
+    'permissions': ['CUSTOMER_ACCOUNT_CREATE', 'SCHEDULE_EDIT_OWN'],
   });
 }
 
@@ -116,6 +118,12 @@ void main() {
       expect(session.profiles.map((p) => p.id), ['profile-1', 'child-1']);
       expect(session.profiles.map((p) => p.isChild), [false, true]);
       expect(session.activeProfileId, 'profile-1');
+      expect(session.permissions, {
+        'CUSTOMER_ACCOUNT_CREATE',
+        'SCHEDULE_EDIT_OWN',
+      });
+      expect(session.can(Session.customerAccountCreate), isTrue);
+      expect(session.copyWith(displayName: 'Anna').permissions, hasLength(2));
       expect(auth.signedIn, isTrue);
     },
   );

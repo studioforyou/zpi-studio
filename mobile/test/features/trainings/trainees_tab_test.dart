@@ -21,11 +21,16 @@ const _session = Session(
   staffProfileId: 'staff-1',
   profiles: [],
   activeProfileId: null,
+  permissions: {Session.customerAccountCreate},
 );
 
 class _SignedInAuthController extends AuthController {
+  _SignedInAuthController([this.session = _session]);
+
+  final Session session;
+
   @override
-  AuthState build() => const Authenticated(_session);
+  AuthState build() => Authenticated(session);
 }
 
 class _FakeTraineesApi implements TraineesApi {
@@ -121,7 +126,11 @@ Trainee _trainee(
 );
 
 void main() {
-  Future<void> pumpScreen(WidgetTester tester, TraineesApi api) async {
+  Future<void> pumpScreen(
+    WidgetTester tester,
+    TraineesApi api, {
+    Session session = _session,
+  }) async {
     final router = GoRouter(
       initialLocation: '/trainer/trainings',
       routes: [
@@ -145,7 +154,9 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          authControllerProvider.overrideWith(_SignedInAuthController.new),
+          authControllerProvider.overrideWith(
+            () => _SignedInAuthController(session),
+          ),
           traineesApiProvider.overrideWithValue(api),
         ],
         child: MaterialApp.router(
@@ -425,6 +436,28 @@ void main() {
     );
     expect(find.text('Znajdź na liście klientów'), findsNothing);
     expect(find.byType(NewClientAccountScreen), findsOneWidget);
+  });
+
+  testWidgets('hides account creation without the permission', (tester) async {
+    const withoutPermission = Session(
+      accountId: 'trainer-account',
+      displayName: 'Marek Nowak',
+      roles: [AppRole.trainer],
+      activeRole: AppRole.trainer,
+      staffProfileId: 'staff-1',
+      profiles: [],
+      activeProfileId: null,
+    );
+    await pumpScreen(tester, _FakeTraineesApi(), session: withoutPermission);
+
+    expect(find.text('Zarejestruj nową współpracę'), findsOneWidget);
+    expect(find.text('Załóż konto klientowi'), findsNothing);
+
+    await tester.tap(find.text('Zarejestruj nową współpracę'));
+    await tester.pumpAndSettle();
+    expect(find.text('Nie znaleziono klientów.'), findsOneWidget);
+    expect(find.text('Nie ma tej osoby w studiu?'), findsNothing);
+    expect(find.text('Załóż konto klientowi'), findsNothing);
   });
 
   testWidgets('the search leads to the new account form', (tester) async {

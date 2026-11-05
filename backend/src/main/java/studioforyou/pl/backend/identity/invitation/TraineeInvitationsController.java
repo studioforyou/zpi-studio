@@ -22,13 +22,14 @@ import studioforyou.pl.backend.shared.api.AccountAuthentication;
 import studioforyou.pl.backend.shared.api.ApiProblem;
 
 /**
- * Trainers create client accounts for the people they start working with. The trainer comes from
+ * Trainers create client accounts for the people they start working with. Needs the
+ * {@code TRAINER} role and the {@code CUSTOMER_ACCOUNT_CREATE} permission. The trainer comes from
  * the account, never from the request.
  */
 @RestController
 @RequestMapping("/api/v1/me/trainees/invitations")
 @Tag(name = "customer")
-@PreAuthorize("hasRole('TRAINER')")
+@PreAuthorize("hasRole('TRAINER') and hasAuthority('CUSTOMER_ACCOUNT_CREATE')")
 public class TraineeInvitationsController {
 
 	private final InvitationService invitationService;
@@ -46,6 +47,9 @@ public class TraineeInvitationsController {
 	@ApiResponse(responseCode = "201", description = "The account was created and the invitation sent.")
 	@ApiResponse(responseCode = "400", description = "VALIDATION_FAILED.", content = @Content(
 			mediaType = "application/problem+json", schema = @Schema(implementation = ApiProblem.class)))
+	@ApiResponse(responseCode = "403", description = "ACCESS_DENIED: not a trainer, or the account lacks the "
+			+ "CUSTOMER_ACCOUNT_CREATE permission.", content = @Content(mediaType = "application/problem+json",
+					schema = @Schema(implementation = ApiProblem.class)))
 	@ApiResponse(responseCode = "404", description = "The account has no staff profile.", content = @Content(
 			mediaType = "application/problem+json", schema = @Schema(implementation = ApiProblem.class)))
 	@ApiResponse(responseCode = "409", description = "ACCOUNT_ALREADY_EXISTS: the e-mail is taken; the trainer "

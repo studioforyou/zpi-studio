@@ -71,11 +71,16 @@ class TraineeInvitationTests {
 	void setUp() {
 		trainerAccount = insertActiveAccount("trainer@example.com", "uid-trainer", "TRAINER", "trainer-token");
 		trainer = insertStaff(trainerAccount, "Marek", "Nowak", "ACTIVE");
-		insertStaff(insertActiveAccount("inactive@example.com", "uid-inactive", "TRAINER", "inactive-token"), "Ewa",
-				"Wiśniewska", "INACTIVE");
-		insertActiveAccount("no-profile@example.com", "uid-no-profile", "TRAINER", "no-profile-token");
+		grantAccountCreation(trainerAccount);
+		UUID inactive = insertActiveAccount("inactive@example.com", "uid-inactive", "TRAINER", "inactive-token");
+		insertStaff(inactive, "Ewa", "Wiśniewska", "INACTIVE");
+		grantAccountCreation(inactive);
+		grantAccountCreation(
+				insertActiveAccount("no-profile@example.com", "uid-no-profile", "TRAINER", "no-profile-token"));
+		insertStaff(insertActiveAccount("plain@example.com", "uid-plain", "TRAINER", "plain-token"), "Adam", "Lis",
+				"ACTIVE");
 		insertActiveAccount("owner@example.com", "uid-admin", "ADMIN", "admin-token");
-		insertActiveAccount("client@example.com", "uid-client", "CLIENT", "client-token");
+		grantAccountCreation(insertActiveAccount("client@example.com", "uid-client", "CLIENT", "client-token"));
 	}
 
 	@Test
@@ -160,7 +165,39 @@ class TraineeInvitationTests {
 	}
 
 	@Test
+	void aTrainerWithoutThePermissionCannotCreateAccounts() throws Exception {
+		mvc.perform(invite("plain-token", "julia@example.com", "Julia", "Kamińska"))
+			.andExpect(status().isForbidden())
+			.andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
+		then(emailSender).should(never()).send(any());
+	}
+
+	@Test
+	void theTrainerRoleCanGiveThePermission() throws Exception {
+		jdbc.sql("""
+				INSERT INTO role_permission (role_id, permission_id)
+				SELECT r.id, p.id FROM role r, permission p
+				WHERE r.code = 'TRAINER' AND p.code = 'CUSTOMER_ACCOUNT_CREATE'
+				ON CONFLICT DO NOTHING
+				""").update();
+
+		mvc.perform(invite("plain-token", "julia@example.com", "Julia", "Kamińska")).andExpect(status().isCreated());
+	}
+
+	@Test
+	void aRevokedPermissionIsRespected() throws Exception {
+		jdbc.sql("UPDATE account_permission_override SET effect = 'REVOKE' WHERE account_id = :id")
+			.param("id", trainerAccount)
+			.update();
+
+		mvc.perform(invite("trainer-token", "julia@example.com", "Julia", "Kamińska"))
+			.andExpect(status().isForbidden());
+		then(emailSender).should(never()).send(any());
+	}
+
+	@Test
 	void onlyTrainersCreateAccountsHere() throws Exception {
+		// The client has the permission but is not a trainer; neither is the administrator.
 		for (String token : new String[] { "admin-token", "client-token" }) {
 			mvc.perform(invite(token, "julia@example.com", "Julia", "Kamińska"))
 				.andExpect(status().isForbidden())
@@ -215,6 +252,13 @@ class TraineeInvitationTests {
 			.update();
 		given(jwtDecoder.decode(token)).willReturn(Jwt.withTokenValue(token).header("alg", "RS256").subject(uid).build());
 		return id;
+	}
+
+	private void grantAccountCreation(UUID accountId) {
+		jdbc.sql("""
+				INSERT INTO account_permission_override (account_id, permission_id, effect, granted_by)
+				SELECT :id, id, 'GRANT', :id FROM permission WHERE code = 'CUSTOMER_ACCOUNT_CREATE'
+				""").param("id", accountId).update();
 	}
 
 	private UUID insertStaff(UUID accountId, String firstName, String lastName, String status) {
