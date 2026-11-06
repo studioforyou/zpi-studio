@@ -41,6 +41,10 @@ public enum ErrorCode {
 	/** A required document cannot be withdrawn by the participant, only an optional consent. */
 	DOCUMENT_REVOCATION_NOT_ALLOWED(HttpStatus.UNPROCESSABLE_CONTENT),
 
+	// staff
+	/** The staff member already has availability on that day at an overlapping time. */
+	AVAILABILITY_OVERLAP(HttpStatus.CONFLICT),
+
 	// offering
 	PASS_VARIANT_ALREADY_EXISTS(HttpStatus.CONFLICT),
 	PASS_PRODUCT_ARCHIVED(HttpStatus.UNPROCESSABLE_CONTENT),
