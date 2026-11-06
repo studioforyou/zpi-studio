@@ -80,6 +80,8 @@ class NotificationTests {
 
 	private UUID parentAccount;
 
+	private UUID parent;
+
 	private UUID child;
 
 	private UUID trainerClientAccount;
@@ -92,7 +94,7 @@ class NotificationTests {
 		adultAccount = addAccount("adult", "CLIENT");
 		adult = addProfile(adultAccount, "ADULT", "Ala");
 		parentAccount = addAccount("parent", "CLIENT");
-		UUID parent = addProfile(parentAccount, "ADULT", "Monika");
+		parent = addProfile(parentAccount, "ADULT", "Monika");
 		child = addProfile(null, "CHILD", "Zosia");
 		jdbc.sql("INSERT INTO guardianship (guardian_id, child_id) VALUES (:parent, :child)")
 			.param("parent", parent).param("child", child).update();
@@ -109,18 +111,21 @@ class NotificationTests {
 		UUID event = addEvent("Pilates", now.plus(120, ChronoUnit.MINUTES), "SCHEDULED", "Sala 1");
 		UUID adultReservation = reserve(event, adult, "ACTIVE");
 		reserve(event, child, "ACTIVE");
+		reserve(event, parent, "ACTIVE");
 		reserve(event, trainerClient, "ACTIVE");
 		reserve(addEvent("Later", now.plus(180, ChronoUnit.MINUTES), "SCHEDULED", null), adult, "ACTIVE");
 
-		assertThat(classReminders.sendDue(now)).isEqualTo(3);
+		assertThat(classReminders.sendDue(now)).isEqualTo(4);
 
 		assertThat(titles(adultAccount)).containsExactly("Przypomnienie o zajęciach");
 		assertThat(bodies(adultAccount)).containsExactly("Pilates: dziś, godz. "
 				+ now.plus(120, ChronoUnit.MINUTES).atZone(ZoneId.of("Europe/Warsaw"))
 					.format(DateTimeFormatter.ofPattern("HH:mm"))
 				+ ". Sala: Sala 1.");
-		assertThat(titles(parentAccount)).containsExactly("Zosia: Przypomnienie o zajęciach");
-		assertThat(jdbc.sql("SELECT subject_customer_id FROM notification WHERE recipient_id = :id")
+		// A guardian sees whose class it is, also for its own.
+		assertThat(titles(parentAccount)).containsExactlyInAnyOrder("Zosia: Przypomnienie o zajęciach",
+				"Monika: Przypomnienie o zajęciach");
+		assertThat(jdbc.sql("SELECT subject_customer_id FROM notification WHERE recipient_id = :id AND subject_customer_id IS NOT NULL")
 			.param("id", parentAccount).query(UUID.class).single()).isEqualTo(child);
 		assertThat(titles(trainerClientAccount)).containsExactly("Klient: Przypomnienie o zajęciach");
 		assertThat(jdbc.sql("SELECT dedup_key FROM notification WHERE recipient_id = :id")

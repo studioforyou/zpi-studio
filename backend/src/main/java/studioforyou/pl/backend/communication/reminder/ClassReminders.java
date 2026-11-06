@@ -132,7 +132,7 @@ public class ClassReminders {
 			for (NotificationRecipient recipient : recipients.getOrDefault(item.reservation().customerId(), List.of())) {
 				requests.add(new NotificationRequest(NotificationType.CLASS_REMINDER, recipient.accountId(),
 						NotificationRole.CLIENT, recipient.forChild() ? recipient.profileId() : null,
-						recipient.forChild() ? recipient.firstName() : null,
+						recipient.guardian() ? recipient.firstName() : null,
 						"CLASS_REMINDER:" + item.reservation().id() + ":" + item.minutes() + ":" + recipient.accountId(),
 						values,
 						Map.of("eventId", item.event().id().toString(), "reservationId",

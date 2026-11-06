@@ -79,7 +79,8 @@ public class Notifications {
 
 	/**
 	 * The rendered title with what it concerns in front: the role for an account with several
-	 * roles, the child's first name for a guardian, e.g. "Klient · Kuba: Przypomnienie o zajęciach".
+	 * roles, the participant's first name for a guardian of a child (also about the guardian),
+	 * e.g. "Klient · Kuba: Przypomnienie o zajęciach".
 	 */
 	static String title(String subjectTemplate, NotificationRequest request, boolean severalRoles) {
 		String title = NotificationTemplates.render(subjectTemplate, request.values()).strip();

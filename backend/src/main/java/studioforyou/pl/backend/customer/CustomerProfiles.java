@@ -296,11 +296,14 @@ public class CustomerProfiles {
 			return List.of();
 		}
 		return jdbc.sql("""
-				SELECT p.id AS profile_id, p.account_id, FALSE AS for_child, p.first_name
+				SELECT p.id AS profile_id, p.account_id, FALSE AS for_child, p.first_name,
+				       EXISTS (SELECT 1 FROM guardianship g
+				               JOIN customer_profile c ON c.id = g.child_id
+				               WHERE g.guardian_id = p.id AND g.ended_at IS NULL AND c.account_id IS NULL) AS guardian
 				FROM customer_profile p
 				WHERE p.id IN (:ids) AND p.account_id IS NOT NULL
 				UNION
-				SELECT p.id AS profile_id, guardian.account_id, TRUE AS for_child, p.first_name
+				SELECT p.id AS profile_id, guardian.account_id, TRUE AS for_child, p.first_name, TRUE AS guardian
 				FROM customer_profile p
 				JOIN guardianship g ON g.child_id = p.id AND g.ended_at IS NULL
 				JOIN customer_profile guardian ON guardian.id = g.guardian_id
@@ -316,9 +319,12 @@ public class CustomerProfiles {
 	 * @param profileId the participant the notification is about
 	 * @param accountId the account that gets it
 	 * @param forChild whether the account gets it as the guardian of a child
-	 * @param firstName the participant's first name, to mark a notification about a child
+	 * @param firstName the participant's first name
+	 * @param guardian whether the account is the guardian of a child it gets notifications for, so
+	 * every notification it gets names the participant, its own ones too
 	 */
-	public record NotificationRecipient(UUID profileId, UUID accountId, boolean forChild, String firstName) {
+	public record NotificationRecipient(UUID profileId, UUID accountId, boolean forChild, String firstName,
+			boolean guardian) {
 	}
 
 	private Filter activeMatching(String query, boolean byEmail) {
