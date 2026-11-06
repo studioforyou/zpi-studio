@@ -71,16 +71,7 @@ class _TrainerScheduleScreenState extends ConsumerState<TrainerScheduleScreen>
   Widget build(BuildContext context) {
     final scope = trainerOverviewScope(ref.watch(authControllerProvider));
     return Scaffold(
-      appBar: AppBar(
-        title: Text(AppLocalizations.of(context).navSchedule),
-        actions: [
-          IconButton(
-            onPressed: () => showTraineeOverviewInfo(context),
-            tooltip: AppLocalizations.of(context).traineeOverviewInfo,
-            icon: Icon(Icons.info_outline, color: Colors.blue.shade700),
-          ),
-        ],
-      ),
+      appBar: AppBar(title: Text(AppLocalizations.of(context).navSchedule)),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => context.push(trainerAddClassPath),
         icon: const Icon(Icons.add),

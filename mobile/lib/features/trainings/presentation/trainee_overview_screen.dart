@@ -91,11 +91,6 @@ class _OverviewScreenState extends ConsumerState<_OverviewScreen>
           ),
           actions: [
             IconButton(
-              onPressed: () => showTraineeOverviewInfo(context),
-              tooltip: l10n.traineeOverviewInfo,
-              icon: Icon(Icons.info_outline, color: Colors.blue.shade700),
-            ),
-            IconButton(
               onPressed: _refresh,
               tooltip: l10n.traineeOverviewRefresh,
               icon: const Icon(Icons.refresh),
@@ -162,6 +157,24 @@ class _OverviewScreenState extends ConsumerState<_OverviewScreen>
                         ),
                       ),
                     const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            l10n.traineeOverviewPackages,
+                            style: Theme.of(context).textTheme.titleSmall,
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () => showTraineePackageInfo(context),
+                          tooltip: l10n.traineeOverviewPackageHelp,
+                          icon: Icon(
+                            Icons.info_outline,
+                            color: Colors.blue.shade700,
+                          ),
+                        ),
+                      ],
+                    ),
                     if (details.trainee.passes.isEmpty)
                       Padding(
                         padding: const EdgeInsets.symmetric(vertical: 24),

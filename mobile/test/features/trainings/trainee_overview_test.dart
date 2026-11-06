@@ -466,14 +466,145 @@ void main() {
       expect(find.text('Bez limitu wejść'), findsOneWidget);
       expect(find.text('Zawieszony'), findsOneWidget);
       expect(find.byType(TraineePassCard), findsNWidgets(3));
-      await tester.tap(find.byTooltip('Pakiety i rozliczenia'));
+      await tester.tap(find.byTooltip('Jak czytać pakiet'));
       await tester.pumpAndSettle();
       expect(
         find.textContaining('Wejścia przypisane do rezerwacji'),
         findsOneWidget,
       );
+      expect(find.text('Trener i uczestnik'), findsNothing);
+      expect(find.text('Rozliczony'), findsNothing);
     },
   );
+
+  testWidgets(
+    'package help stays with packages and the warning explains its threshold on tap',
+    (tester) async {
+      final api = _Api(_overview());
+      await _pump(tester, api, list: true);
+      await tester.tap(find.byTooltip('Kończy się pakiet'));
+      await tester.pumpAndSettle();
+      expect(find.byType(AlertDialog), findsOneWidget);
+      expect(find.textContaining('1–3 wolne wejścia'), findsOneWidget);
+      expect(find.byType(TraineeOverviewScreen), findsNothing);
+      await tester.tap(find.text('Zamknij'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Tomasz Lewandowski'));
+      await tester.pumpAndSettle();
+      expect(find.byTooltip('Jak czytać pakiet'), findsOneWidget);
+      await tester.tap(find.text('Historia'));
+      await tester.pumpAndSettle();
+      expect(find.byTooltip('Jak czytać pakiet'), findsNothing);
+      expect(find.byTooltip('Oznaczenia treningu'), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'attention opens the relevant training with an actual reason and a contextual legend',
+    (tester) async {
+      final api = _Api(
+        _overview(
+          attention: _training(
+            trainer: false,
+            settlement: 'OPEN',
+            funding: 'PASS_RESERVED',
+            attention: true,
+          ),
+        ),
+      );
+      await _pump(tester, api);
+      await tester.tap(find.textContaining('Wymaga uwagi'));
+      await tester.pumpAndSettle();
+      expect(find.byType(BottomSheet), findsOneWidget);
+      expect(
+        find.textContaining(
+          'Brakuje potwierdzenia odbycia treningu przez trenera.',
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining(
+          'Rozliczenie tego treningu nie jest jeszcze zakończone.',
+        ),
+        findsOneWidget,
+      );
+      await tester.tap(find.byTooltip('Oznaczenia treningu'));
+      await tester.pumpAndSettle();
+      final dialog = find.byType(AlertDialog);
+      expect(dialog, findsOneWidget);
+      for (final label in [
+        'Wymaga uwagi',
+        'Do sprawdzenia',
+        'Rozliczony',
+        'Trener i uczestnik',
+        'Odróbka',
+        'Poza pakietem',
+      ]) {
+        expect(
+          find.descendant(of: dialog, matching: find.text(label)),
+          findsOneWidget,
+        );
+      }
+      expect(
+        find.textContaining('Potwierdzenia obu osób są pokazane osobno.'),
+        findsOneWidget,
+      );
+      expect(find.text('Jak czytać pakiet'), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  for (final (funding, settlement, reason) in [
+    ('PASS_CONSUMED', 'DISPUTED', 'Do treningu zgłoszono spór'),
+    ('INCONSISTENT', 'FINAL', 'Dane o wykorzystaniu wejścia są niespójne'),
+  ]) {
+    testWidgets(
+      'attention explains $settlement / $funding without implying settlement',
+      (tester) async {
+        final api = _Api(
+          _overview(
+            attention: _training(
+              funding: funding,
+              settlement: settlement,
+              attention: true,
+            ),
+          ),
+        );
+        await _pump(tester, api);
+        await tester.tap(find.textContaining('Wymaga uwagi'));
+        await tester.pumpAndSettle();
+        expect(find.textContaining(reason), findsOneWidget);
+        expect(find.text('Rozliczony'), findsNothing);
+        Navigator.of(tester.element(find.byType(BottomSheet))).pop();
+        await tester.pumpAndSettle();
+      },
+    );
+  }
+
+  testWidgets('training help scrolls on a narrow screen with enlarged text', (
+    tester,
+  ) async {
+    final api = _Api(_overview(attention: _training(attention: true)));
+    await _pump(tester, api, width: 320, height: 900, scale: 1.6);
+    await tester.tap(find.textContaining('Wymaga uwagi'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Oznaczenia treningu'));
+    await tester.pumpAndSettle();
+    expect(find.byType(AlertDialog), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('Poza pakietem'),
+      200,
+      scrollable: find
+          .descendant(
+            of: find.byType(AlertDialog),
+            matching: find.byType(Scrollable),
+          )
+          .last,
+    );
+    expect(find.text('Poza pakietem').hitTestable(), findsOneWidget);
+    expect(find.text('Zamknij').hitTestable(), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets(
     'dispute and consumed entry remain separate, while no-pass stays neutral',

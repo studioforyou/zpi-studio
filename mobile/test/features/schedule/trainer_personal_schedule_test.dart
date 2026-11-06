@@ -291,6 +291,7 @@ void main() {
     await _pump(tester, api, screen: true);
     expect(tester.widget<TabBar>(find.byType(TabBar)).tabs, hasLength(2));
     expect(find.text('Grafik'), findsNothing);
+    expect(find.byIcon(Icons.info_outline), findsNothing);
     expect(find.text('Podopieczni'), findsOneWidget);
     expect(find.text('Grupy'), findsOneWidget);
     expect(find.byType(ScheduleCalendar), findsNothing);
@@ -302,6 +303,7 @@ void main() {
     (tester) async {
       final api = _Api();
       await _pump(tester, api);
+      expect(find.byIcon(Icons.info_outline), findsNothing);
       expect(
         tester
             .widget<SegmentedButton<ScheduleView>>(

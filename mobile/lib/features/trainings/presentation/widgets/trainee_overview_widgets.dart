@@ -189,15 +189,7 @@ class TraineePackageSummary extends StatelessWidget {
           traineePassStatus(l10n, pass),
           color: traineePassColor(pass),
         ),
-        if (pass.lowBalance)
-          Tooltip(
-            message: l10n.traineeOverviewLowBalance,
-            child: const Icon(
-              Icons.warning_amber_rounded,
-              color: Colors.deepOrange,
-              size: 21,
-            ),
-          ),
+        if (pass.lowBalance) const _LowBalanceWarning(),
         if (pass.validUntil != null)
           Text(
             l10n.traineeOverviewUntil(traineeDate(pass.validUntil!)),
@@ -259,15 +251,7 @@ class TraineePassCard extends StatelessWidget {
                     '${traineeDate(pass.validFrom!)} – ${traineeDate(pass.validUntil!)}',
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
-                if (pass.lowBalance)
-                  Tooltip(
-                    message: l10n.traineeOverviewLowBalance,
-                    child: const Icon(
-                      Icons.warning_amber_rounded,
-                      color: Colors.deepOrange,
-                      size: 18,
-                    ),
-                  ),
+                if (pass.lowBalance) const _LowBalanceWarning(),
               ],
             ),
           ],
@@ -417,15 +401,7 @@ class TraineeNextTraining extends StatelessWidget {
                       ),
                     ),
                   ),
-                  if (lowBalance)
-                    Tooltip(
-                      message: l10n.traineeOverviewLowBalance,
-                      child: const Icon(
-                        Icons.warning_amber_rounded,
-                        color: Colors.deepOrange,
-                        size: 21,
-                      ),
-                    ),
+                  if (lowBalance) const _LowBalanceWarning(),
                   const Icon(Icons.chevron_right, size: 20),
                 ],
               ),
@@ -611,16 +587,7 @@ class TraineeTrainingCard extends StatelessWidget {
                 if (lowBalance &&
                     training.endsAt.isAfter(checkedAt) &&
                     training.status != EventStatus.cancelled)
-                  Tooltip(
-                    message: AppLocalizations.of(
-                      context,
-                    ).traineeOverviewLowBalance,
-                    child: const Icon(
-                      Icons.warning_amber_rounded,
-                      color: Colors.deepOrange,
-                      size: 21,
-                    ),
-                  ),
+                  const _LowBalanceWarning(),
               ],
             ),
             Text(
@@ -635,14 +602,81 @@ class TraineeTrainingCard extends StatelessWidget {
   );
 }
 
-void showTraineeOverviewInfo(BuildContext context) {
+class _LowBalanceWarning extends StatelessWidget {
+  const _LowBalanceWarning();
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return IconButton(
+      tooltip: l10n.traineeOverviewLowBalance,
+      padding: EdgeInsets.zero,
+      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+      onPressed: () => _showTraineeHelp(
+        context,
+        l10n.traineeOverviewLowBalance,
+        [(l10n.traineeOverviewFreeEntries, l10n.traineeOverviewLowBalanceHelp)],
+      ),
+      icon: const Icon(
+        Icons.warning_amber_rounded,
+        color: Colors.deepOrange,
+        size: 21,
+      ),
+    );
+  }
+}
+
+void showTraineePackageInfo(BuildContext context) {
+  final l10n = AppLocalizations.of(context);
+  _showTraineeHelp(context, l10n.traineeOverviewPackageHelp, [
+    (l10n.traineeOverviewFreeEntries, l10n.traineeOverviewFreeEntriesHelp),
+    (l10n.traineeOverviewPackage, l10n.traineeOverviewPackageValidityHelp),
+    (l10n.traineeOverviewLowBalance, l10n.traineeOverviewLowBalanceHelp),
+  ]);
+}
+
+void _showTraineeTrainingInfo(BuildContext context) {
+  final l10n = AppLocalizations.of(context);
+  _showTraineeHelp(context, l10n.traineeOverviewTrainingHelp, [
+    (l10n.traineeOverviewConfirmations, l10n.traineeOverviewConfirmationsHelp),
+    (l10n.traineeOverviewAttention, l10n.traineeOverviewAttentionHelp),
+    (l10n.traineeOverviewReview, l10n.traineeOverviewReviewHelp),
+    (l10n.traineeOverviewDisputed, l10n.traineeOverviewDisputedHelp),
+    (l10n.traineeOverviewSettled, l10n.traineeOverviewSettledHelp),
+    (l10n.traineeOverviewReserved, l10n.traineeOverviewReservedHelp),
+    (l10n.traineeOverviewConsumed, l10n.traineeOverviewConsumedHelp),
+    (l10n.traineeOverviewReturned, l10n.traineeOverviewReturnedHelp),
+    (l10n.traineeOverviewMakeup, l10n.traineeOverviewMakeupHelp),
+    (l10n.traineeOverviewOutsidePass, l10n.traineeOverviewOutsidePassHelp),
+  ]);
+}
+
+void _showTraineeHelp(
+  BuildContext context,
+  String title,
+  List<(String, String)> entries,
+) {
   final l10n = AppLocalizations.of(context);
   showDialog<void>(
     context: context,
     builder: (context) => AlertDialog(
       scrollable: true,
-      title: Text(l10n.traineeOverviewInfo),
-      content: Text(l10n.traineeOverviewInfoText),
+      title: Text(title),
+      content: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        spacing: 16,
+        children: [
+          for (final (label, explanation) in entries)
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              spacing: 4,
+              children: [
+                Text(label, style: Theme.of(context).textTheme.titleSmall),
+                Text(explanation),
+              ],
+            ),
+        ],
+      ),
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
@@ -651,6 +685,29 @@ void showTraineeOverviewInfo(BuildContext context) {
       ],
     ),
   );
+}
+
+String _trainingAttentionReason(
+  BuildContext context,
+  TraineeTraining training,
+  DateTime checkedAt,
+) {
+  final l10n = AppLocalizations.of(context);
+  final reasons = [
+    if (training.settlementStatus == 'DISPUTED')
+      l10n.traineeOverviewDisputedHelp,
+    if (training.funding == 'INCONSISTENT')
+      l10n.traineeOverviewInconsistentHelp,
+    if (training.status != EventStatus.cancelled &&
+        !training.endsAt.isAfter(checkedAt)) ...[
+      if (training.trainerConfirmedAt == null)
+        l10n.traineeOverviewMissingTrainer,
+      if (training.settlementStatus != 'FINAL' &&
+          training.settlementStatus != 'DISPUTED')
+        l10n.traineeOverviewSettlementOpen,
+    ],
+  ];
+  return reasons.isEmpty ? l10n.traineeOverviewReviewHelp : reasons.join(' ');
 }
 
 void showTraineeTraining(
@@ -670,10 +727,23 @@ void showTraineeTraining(
           crossAxisAlignment: CrossAxisAlignment.start,
           spacing: 12,
           children: [
-            Text(
-              training.name ??
-                  AppLocalizations.of(context).eventKindPersonalTraining,
-              style: Theme.of(context).textTheme.titleLarge,
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    training.name ??
+                        AppLocalizations.of(context).eventKindPersonalTraining,
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                ),
+                IconButton(
+                  onPressed: () => _showTraineeTrainingInfo(context),
+                  tooltip: AppLocalizations.of(
+                    context,
+                  ).traineeOverviewTrainingHelp,
+                  icon: Icon(Icons.info_outline, color: Colors.blue.shade700),
+                ),
+              ],
             ),
             Text(
               '${traineeTrainingTime(training)}–${DateFormat('HH:mm').format(training.endsAt)}',
@@ -681,6 +751,19 @@ void showTraineeTraining(
             if (training.roomNames.isNotEmpty)
               Text(training.roomNames.join(' · ')),
             TraineeTrainingState(training, checkedAt: checkedAt),
+            if (training.requiresAttention)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.deepOrange.withValues(alpha: .08),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  _trainingAttentionReason(context, training, checkedAt),
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+              ),
             if (training.passName != null)
               Text(
                 training.passName!,
