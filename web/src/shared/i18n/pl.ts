@@ -1,3 +1,9 @@
+function passEntryCount(count: number): string {
+  const plural = new Intl.PluralRules('pl').select(count);
+  const unit = plural === 'one' ? 'wejście' : plural === 'few' ? 'wejścia' : 'wejść';
+  return `${count} ${unit}`;
+}
+
 export const pl = {
   appName: 'studio4U',
   panelName: 'Panel administratora',
@@ -682,12 +688,44 @@ export const pl = {
       validity: 'Ważność',
       price: 'Cena',
       status: 'Status',
-      actions: 'Akcje',
+      actions: 'Działania',
+    },
+    entriesLeft: (remaining: number, total: number) =>
+      remaining > total ? `${remaining} (pierwotnie ${total})` : `${remaining} z ${total}`,
+    correction: {
+      title: 'Koryguj wejścia',
+      newBalance: 'Nowa liczba pozostałych wejść',
+      balanceHint: 'Wpisz liczbę wejść, które mają pozostać w karnecie.',
+      summary: 'Podsumowanie korekty',
+      before: 'Obecnie',
+      after: 'Po korekcie',
+      difference: (delta: number) => `${delta > 0 ? '+' : '−'}${passEntryCount(Math.abs(delta))}`,
+      noChange: 'Bez zmian',
+      reason: 'Powód (opcjonalnie)',
+      reasonPlaceholder: 'np. Zwrot błędnie odjętego wejścia',
+      historyNote: 'Korekta zostanie zapisana z datą, autorem i podanym powodem.',
+      invalidBalance: 'Podaj całkowitą liczbę pozostałych wejść od 0 do 32767.',
+      unlimited: 'Karnet bez limitu nie wymaga korekty liczby wejść.',
+      save: 'Potwierdź korektę',
+      cancel: 'Anuluj',
+      refresh: 'Odśwież liczbę wejść',
+      refreshed: 'Liczba wejść została odświeżona. Sprawdź ją i wpisz docelową wartość ponownie.',
+      errors: {
+        conflict:
+          'Karnet zmienił się od otwarcia formularza. Odśwież liczbę wejść przed kolejną korektą.',
+        uncertain:
+          'Nie udało się potwierdzić zapisu. Korekta mogła zostać zapisana. Odśwież liczbę wejść i sprawdź ją przed kolejną korektą.',
+        validation:
+          'Nie można wykonać tej korekty. Sprawdź liczbę wejść; uwzględnij też wejścia, które mogą wrócić z rezerwacji.',
+        notFound: 'Nie znaleziono karnetu tego uczestnika. Zamknij formularz i odśwież listę.',
+        accessDenied: 'Nie masz uprawnień do korygowania wejść.',
+        refresh: 'Nie udało się odświeżyć liczby wejść. Spróbuj ponownie.',
+        unknown: 'Nie udało się zapisać korekty. Sprawdź dane i spróbuj ponownie.',
+      },
     },
     extend: 'Przedłuż',
     suspend: 'Zawieś',
     suspendedPeriod: (from: string, to: string) => `Zawieszony ${from} – ${to}`,
-    entriesLeft: (remaining: number, total: number) => `${remaining} z ${total}`,
     statuses: {
       PENDING_PAYMENT: 'Czeka na płatność',
       SCHEDULED: 'Zaplanowany',
