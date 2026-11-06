@@ -23,7 +23,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * The dev/stage seed ({@code db/seed}) applies on top of all migrations, fills every table
- * and can run again without errors or duplicates.
+ * and can run again without errors or duplicates. The event publication registry is runtime
+ * state of Spring Modulith (rows exist only while a listener has not finished), so it is left out.
  */
 @SpringBootTest
 @ActiveProfiles("seed")
@@ -107,7 +108,7 @@ class SeedDataTests {
 				SELECT table_name
 				FROM information_schema.tables
 				WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
-				  AND table_name <> 'flyway_schema_history'
+				  AND table_name NOT IN ('flyway_schema_history', 'event_publication')
 				""")
 			.query(String.class)
 			.list();

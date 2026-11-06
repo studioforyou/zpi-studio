@@ -94,9 +94,10 @@ _Tab _tab(
   IconData icon,
   String Function(AppLocalizations) label, {
   List<RouteBase> routes = const [],
+  int Function(WidgetRef)? badge,
 }) => (
   route: GoRoute(path: path, builder: (_, _) => screen, routes: routes),
-  destination: ShellDestination(icon: icon, label: label),
+  destination: ShellDestination(icon: icon, label: label, badge: badge),
 );
 
 /// One shell per role, with one branch per tab.
@@ -141,6 +142,7 @@ StatefulShellRoute _clientShell() => _roleShell([
     const MessagesScreen(),
     Icons.chat_bubble_outline,
     (l10n) => l10n.navMessages,
+    badge: watchUnreadNotifications,
   ),
   _tab(
     clientProfilePath,
@@ -187,6 +189,7 @@ StatefulShellRoute _trainerShell() => _roleShell([
     const MessagesScreen(),
     Icons.chat_bubble_outline,
     (l10n) => l10n.navMessages,
+    badge: watchUnreadNotifications,
   ),
   _tab(
     trainerProfilePath,

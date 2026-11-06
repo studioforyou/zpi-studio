@@ -286,6 +286,41 @@ public class CustomerProfiles {
 							row.accountId() != null && row.viaGuardian())));
 	}
 
+	/**
+	 * Accounts that get notifications about the given participants: an adult's own account, and
+	 * for a child the accounts of all its current active guardians. Profiles without such an
+	 * account are left out.
+	 */
+	public List<NotificationRecipient> notificationRecipients(Collection<UUID> profileIds) {
+		if (profileIds.isEmpty()) {
+			return List.of();
+		}
+		return jdbc.sql("""
+				SELECT p.id AS profile_id, p.account_id, FALSE AS for_child, p.first_name
+				FROM customer_profile p
+				WHERE p.id IN (:ids) AND p.account_id IS NOT NULL
+				UNION
+				SELECT p.id AS profile_id, guardian.account_id, TRUE AS for_child, p.first_name
+				FROM customer_profile p
+				JOIN guardianship g ON g.child_id = p.id AND g.ended_at IS NULL
+				JOIN customer_profile guardian ON guardian.id = g.guardian_id
+				WHERE p.id IN (:ids) AND p.account_id IS NULL
+				  AND guardian.account_id IS NOT NULL AND guardian.status = 'ACTIVE'
+				""")
+			.param("ids", profileIds)
+			.query(NotificationRecipient.class)
+			.list();
+	}
+
+	/**
+	 * @param profileId the participant the notification is about
+	 * @param accountId the account that gets it
+	 * @param forChild whether the account gets it as the guardian of a child
+	 * @param firstName the participant's first name, to mark a notification about a child
+	 */
+	public record NotificationRecipient(UUID profileId, UUID accountId, boolean forChild, String firstName) {
+	}
+
 	private Filter activeMatching(String query, boolean byEmail) {
 		if (query == null || query.isBlank()) {
 			return new Filter("status = 'ACTIVE'", null, Set.of());

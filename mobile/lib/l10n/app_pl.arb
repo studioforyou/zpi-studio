@@ -674,6 +674,49 @@
   "trainingOutcomeUnmarked": "Obecność jeszcze nie potwierdzona",
   "trainingOutcomeCancelled": "Odwołano w terminie",
   "trainingOutcomeLateCancelled": "Odwołano po terminie",
-  "trainingOutcomeClassCancelled": "Zajęcia odwołane przez studio"
+  "trainingOutcomeClassCancelled": "Zajęcia odwołane przez studio",
+  "notificationsEmpty": "Nie masz jeszcze powiadomień.",
+  "notificationsLoadError": "Nie udało się wczytać powiadomień.",
+  "notificationsRetry": "Spróbuj ponownie",
+  "notificationsMarkAllRead": "Oznacz wszystkie jako przeczytane",
+  "notificationsMarkError": "Nie udało się oznaczyć powiadomień jako przeczytanych.",
+  "notificationsNewer": "Nowsze",
+  "notificationsOlder": "Starsze",
+  "notificationsPage": "{page} z {total}",
+  "@notificationsPage": {
+    "placeholders": {
+      "page": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "notificationsToday": "Dziś, {time}",
+  "@notificationsToday": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "notificationsYesterday": "Wczoraj, {time}",
+  "@notificationsYesterday": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "notificationsShow": "Pokaż",
+  "notificationsUnread": "Nieprzeczytane: {count}",
+  "@notificationsUnread": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  }
 }
 

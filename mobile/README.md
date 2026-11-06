@@ -112,3 +112,45 @@ Tapping an event in the trainer's **Grafik** opens `TrainerEventDetailsScreen`
 occupancy against capacity, and the participants with an active reservation,
 each with a child marker and their age on the day of the class. The event and
 its participants are cached per account, like the trainer's schedule.
+
+## Push notifications and inbox
+
+Push notifications use Firebase Cloud Messaging (`firebase_messaging`).
+`lib/core/push/` wraps FCM (`PushMessaging`, replaced by `NoPushMessaging`
+when Firebase is not initialized, e.g. in widget tests) and registers the
+device (`PushDevice`): after sign-in the app asks for permission and sends the
+FCM token to `POST /api/v1/me/devices`, again when FCM replaces the token, and
+removes it with `DELETE /api/v1/me/devices/{token}` before sign-out. A refused
+permission or a missing token only means the notifications stay in the inbox.
+
+`lib/app/push/push_notifications.dart` connects pushes with the app. Tapping a
+class reminder opens **Mój grafik** of the participant it is about, switching
+to the child's profile if needed; other notifications open the messages tab.
+The notification is marked read. A message that arrives while the app is open
+is shown as a snack bar and refreshes the inbox.
+
+The **Wiadomości** tab shows the inbox of the active role
+(`GET /api/v1/me/notifications?role=...`), with the unread count as a badge on
+the tab and an action that marks everything read.
+
+### iOS
+
+The Dart code is ready for iOS, but iOS pushes need a paid Apple Developer
+account, which the project does not have yet. Until then `token()` returns
+`null` on iOS (no APNs token) and the app silently skips registration. Once
+the account exists:
+
+1. Create an APNs authentication key (Certificates, Identifiers & Profiles →
+   Keys, with Apple Push Notifications service) and upload it in Firebase
+   console → Project settings → Cloud Messaging → Apple app configuration, for
+   each Firebase project (dev and stage).
+2. In Xcode (`ios/Runner.xcworkspace`, target Runner → Signing & Capabilities)
+   add **Push Notifications** and **Background Modes** with **Remote
+   notifications**. This creates `Runner.entitlements` with `aps-environment`.
+3. Make sure the App ID `pl.studioforyou.mobile` has Push Notifications
+   enabled.
+
+No Dart change is needed. On the iOS Simulator (Xcode 14+ on Apple silicon or
+a T2 Mac), pushes also need the steps above; to try only the tap handling, drag
+`ios/simulator_push_sample.apns` onto the simulator (put a real `profileId`
+in it first).

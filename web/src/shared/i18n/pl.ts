@@ -938,6 +938,97 @@ export const pl = {
       unexpected: 'Wystąpił nieoczekiwany błąd.',
     },
   },
+  communication: {
+    title: 'Komunikacja',
+    sectionsLabel: 'Sekcje komunikacji',
+    tabs: {
+      notifications: 'Powiadomienia',
+    },
+    notifications: {
+      title: 'Powiadomienia w aplikacji mobilnej',
+      intro:
+        'Wybierz, które powiadomienia push studio wysyła, kiedy i z jaką treścią. Zmiany dotyczą powiadomień tworzonych od teraz.',
+      loading: 'Wczytywanie powiadomień…',
+      loadError: 'Nie udało się wczytać ustawień powiadomień.',
+      toggleError: 'Nie udało się zmienić ustawienia. Spróbuj ponownie.',
+      retry: 'Spróbuj ponownie',
+      empty: 'Brak rodzajów powiadomień.',
+      enabled: 'Wysyłane',
+      leadTimes: 'Przypomnienia',
+      content: 'Treść powiadomienia',
+      before: (time: string) => `${time} przed`,
+      edit: 'Edytuj',
+      types: {
+        CLASS_REMINDER: {
+          name: 'Przypomnienie o zajęciach',
+          description:
+            'Wysyłane uczestnikom z aktywną rezerwacją przed zajęciami lub treningiem. Powiadomienia dziecka dostaje rodzic.',
+        },
+      },
+      placeholders: {
+        CLASS_REMINDER: {
+          zajęcia: {
+            label: 'Nazwa zajęć',
+            description: 'Nazwa zajęć lub treningu',
+            example: 'Pole dance',
+          },
+          dzień: {
+            label: 'Dzień',
+            description: '„dziś”, „jutro” albo dzień tygodnia z datą, np. „wtorek 12.11”',
+            example: 'jutro',
+          },
+          godzina: {
+            label: 'Godzina',
+            description: 'Godzina rozpoczęcia, np. „18:00”',
+            example: '18:00',
+          },
+          sala: {
+            label: 'Sala',
+            description: 'Nazwa sali albo „studio”, gdy sala nie jest przypisana',
+            example: 'Sala 1',
+          },
+          'ile przed': {
+            label: 'Ile czasu przed',
+            description: 'Ile czasu przed zajęciami wysyłane jest przypomnienie, np. „2 godz.”',
+            example: '2 godz.',
+          },
+        },
+      },
+      form: {
+        leadTimes: 'Kiedy wysłać',
+        leadTimesHint: 'Od 1 do 5 przypomnień, od 5 minut do 14 dni przed rozpoczęciem.',
+        leadTimeAmount: (n: number) => `Przypomnienie ${n}: ile`,
+        leadTimeUnit: (n: number) => `Przypomnienie ${n}: jednostka`,
+        removeLeadTime: (n: number) => `Usuń przypomnienie ${n}`,
+        addLeadTime: 'Dodaj przypomnienie',
+        beforeStart: 'przed rozpoczęciem',
+        units: { MINUTES: 'minut', HOURS: 'godzin', DAYS: 'dni' },
+        title: 'Tytuł',
+        body: 'Treść',
+        placeholders: 'Wstaw do tekstu',
+        placeholdersHint:
+          'Kliknij, aby wstawić pole w miejscu kursora w tytule lub treści. Przy wysyłce aplikacja zamieni je na prawdziwe dane.',
+        insertPlaceholder: (label: string) => `Wstaw: ${label}`,
+        preview: 'Podgląd',
+        previewHint: 'Tak klient zobaczy powiadomienie (przykładowe dane).',
+        required: 'To pole jest wymagane.',
+        tooLong: (max: number) => `Maksymalnie ${max} znaków.`,
+        unknownPlaceholders: (names: string[]) =>
+          names.length === 1
+            ? `Nieznane pole ${names[0]}. Wstaw pole przyciskiem poniżej.`
+            : `Nieznane pola ${names.join(', ')}. Wstaw pola przyciskami poniżej.`,
+        leadTimesRequired: 'Dodaj co najmniej jedno przypomnienie.',
+        leadTimeInvalid: 'Podaj liczbę całkowitą większą od zera.',
+        leadTimeRange: 'Przypomnienie musi być od 5 minut do 14 dni przed rozpoczęciem.',
+        leadTimesDistinct: 'Przypomnienia muszą mieć różne terminy.',
+        invalidValue: 'Nieprawidłowa wartość.',
+        saveError: 'Nie udało się zapisać ustawień.',
+        network: 'Nie można połączyć się z backendem.',
+        cancel: 'Anuluj',
+        save: 'Zapisz',
+      },
+    },
+  },
   system: {
     title: 'Status systemu',
     environment: 'Środowisko',
