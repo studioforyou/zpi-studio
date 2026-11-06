@@ -8,6 +8,7 @@ import 'package:mobile/core/auth/auth_controller.dart';
 import 'package:mobile/core/auth/auth_state.dart';
 import 'package:mobile/core/auth/session.dart';
 import 'package:mobile/features/schedule/data/schedule_service_types.dart';
+import 'package:mobile/features/schedule/data/studio_trainers.dart';
 import 'package:mobile/features/schedule/presentation/client_schedule_screen.dart';
 import 'package:mobile/features/schedule/presentation/widgets/schedule_calendar.dart';
 import 'package:mobile/features/trainings/data/group_classes_api.dart';
@@ -154,6 +155,15 @@ class _ServiceTypesApi implements ScheduleServiceTypesApi {
   };
 }
 
+class _TrainersApi implements StudioTrainersApi {
+  const _TrainersApi(this.trainers);
+
+  final List<StudioTrainer> trainers;
+
+  @override
+  Future<List<StudioTrainer>> fetchAll() async => trainers;
+}
+
 void main() {
   Future<ProviderContainer> pump(
     WidgetTester tester,
@@ -162,6 +172,7 @@ void main() {
     bool reservations = false,
     bool phoneSize = false,
     List<ScheduleServiceType> serviceTypes = const [],
+    List<StudioTrainer> trainers = const [],
   }) async {
     if (!phoneSize) {
       tester.view.physicalSize = const Size(800, 2400);
@@ -177,6 +188,7 @@ void main() {
         scheduleServiceTypesApiProvider.overrideWithValue(
           _ServiceTypesApi(serviceTypes),
         ),
+        studioTrainersApiProvider.overrideWithValue(_TrainersApi(trainers)),
       ],
     );
     addTearDown(container.dispose);
@@ -222,8 +234,22 @@ void main() {
   }
 
   Future<void> closeFilters(WidgetTester tester) async {
-    Navigator.of(tester.element(find.byType(BottomSheet))).pop();
+    await tester.tap(find.byTooltip('Zamknij filtry'));
     await tester.pumpAndSettle();
+  }
+
+  Finder inSheet(Finder finder) =>
+      find.descendant(of: find.byType(BottomSheet), matching: finder);
+
+  /// Opens the collapsible [section] of the filter sheet.
+  Future<void> expandSection(WidgetTester tester, String section) async {
+    await tapVisible(tester, inSheet(find.textContaining(section)).first);
+  }
+
+  /// Ticks [label] in the collapsible [section] of the filter sheet.
+  Future<void> check(WidgetTester tester, String section, String label) async {
+    await expandSection(tester, section);
+    await tapVisible(tester, find.widgetWithText(CheckboxListTile, label));
   }
 
   testWidgets(
@@ -268,25 +294,14 @@ void main() {
       expect(find.text('Pole dance'), findsOneWidget);
       expect(find.text('Trening siłowy'), findsOneWidget);
       await tapVisible(tester, find.text('Filtry'));
-      await tester.tap(
-        find.descendant(
-          of: find.byType(BottomSheet),
-          matching: find.text('Kalistenika'),
-        ),
-      );
-      await tester.pumpAndSettle();
+      await check(tester, 'Rodzaj zajęć', 'Kalistenika');
+      expect(inSheet(find.text('Rodzaj zajęć (1)')), findsOneWidget);
       await closeFilters(tester);
       expect(find.text('Pole dance'), findsNothing);
       expect(find.text('Trening siłowy'), findsOneWidget);
       await tapVisible(tester, find.text('Wyczyść'));
       await tapVisible(tester, find.text('Filtry'));
-      await tester.tap(
-        find.descendant(
-          of: find.byType(BottomSheet),
-          matching: find.text('Anna Trener'),
-        ),
-      );
-      await tester.pumpAndSettle();
+      await check(tester, 'Prowadzący', 'Anna Trener');
       await closeFilters(tester);
       expect(find.text('Pole dance'), findsOneWidget);
       expect(find.text('Trening siłowy'), findsNothing);
@@ -310,12 +325,14 @@ void main() {
       api,
       serviceTypes: const [
         ScheduleServiceType(
+          category: 'GROUP_CLASS',
           id: 'service-1',
           level: 'BEGINNER',
           minAge: 16,
           maxAge: null,
         ),
         ScheduleServiceType(
+          category: 'GROUP_CLASS',
           id: 'service-2',
           level: 'ADVANCED',
           minAge: 7,
@@ -327,7 +344,7 @@ void main() {
     expect(find.text('Akrobatyka dla dzieci'), findsOneWidget);
 
     await tapVisible(tester, find.text('Filtry'));
-    await tapVisible(tester, find.widgetWithText(FilterChip, 'Zaawansowany'));
+    await check(tester, 'Poziom', 'Zaawansowany');
     await closeFilters(tester);
     expect(find.text('Pole dance'), findsNothing);
     expect(find.text('Akrobatyka dla dzieci'), findsOneWidget);
@@ -339,6 +356,115 @@ void main() {
     await closeFilters(tester);
     expect(find.text('Pole dance'), findsOneWidget);
     expect(find.text('Akrobatyka dla dzieci'), findsNothing);
+  });
+
+  testWidgets(
+    'offer filters list every offered class type, level and trainer',
+    (tester) async {
+      await pump(
+        tester,
+        _Api(),
+        serviceTypes: const [
+          ScheduleServiceType(
+            id: 'service-1',
+            name: 'Pole dance dla początkujących',
+            category: 'GROUP_CLASS',
+            level: 'BEGINNER',
+            minAge: 16,
+            maxAge: null,
+          ),
+          ScheduleServiceType(
+            id: 'service-9',
+            name: 'Akrobatyka',
+            category: 'GROUP_CLASS',
+            level: 'ADVANCED',
+            minAge: 7,
+            maxAge: 12,
+          ),
+          ScheduleServiceType(
+            id: 'service-pt',
+            name: 'Trening personalny',
+            category: 'PERSONAL_TRAINING',
+            level: 'INTERMEDIATE',
+            minAge: null,
+            maxAge: null,
+          ),
+          ScheduleServiceType(
+            id: 'service-old',
+            name: 'Joga',
+            category: 'GROUP_CLASS',
+            level: 'ALL_LEVELS',
+            minAge: null,
+            maxAge: null,
+            isActive: false,
+          ),
+        ],
+        trainers: const [
+          StudioTrainer(staffId: 'staff-1', displayName: 'Anna Trener'),
+          StudioTrainer(staffId: 'staff-9', displayName: 'Zofia Nowak'),
+        ],
+      );
+      await tapVisible(tester, find.text('Filtry'));
+      // Lists start collapsed, so long ones do not crowd the sheet.
+      expect(find.byType(CheckboxListTile), findsNothing);
+
+      await expandSection(tester, 'Rodzaj zajęć');
+      await expandSection(tester, 'Poziom');
+      await expandSection(tester, 'Prowadzący');
+      for (final label in [
+        'Akrobatyka',
+        'Pole dance dla początkujących',
+        'Początkujący',
+        'Zaawansowany',
+        'Anna Trener',
+        'Zofia Nowak',
+      ]) {
+        expect(find.widgetWithText(CheckboxListTile, label), findsOneWidget);
+      }
+      // Personal training and inactive services are not in the offer.
+      for (final label in [
+        'Trening personalny',
+        'Joga',
+        'Średniozaawansowany',
+        'Wszystkie poziomy',
+      ]) {
+        expect(find.widgetWithText(CheckboxListTile, label), findsNothing);
+      }
+      expect(find.widgetWithText(FilterChip, 'Dzieci'), findsOneWidget);
+      expect(find.widgetWithText(FilterChip, 'Dorośli'), findsOneWidget);
+
+      // A trainer without classes in the period can still be chosen.
+      await tapVisible(
+        tester,
+        find.widgetWithText(CheckboxListTile, 'Zofia Nowak'),
+      );
+      await closeFilters(tester);
+      expect(find.text('Pole dance'), findsNothing);
+      expect(find.text('Filtry (1)'), findsOneWidget);
+    },
+  );
+
+  testWidgets('the filter sheet has a fixed height and a close button', (
+    tester,
+  ) async {
+    await pump(tester, _Api());
+    await tapVisible(tester, find.text('Filtry'));
+    final sheet = tester.getSize(inSheet(find.byType(ListView)).first);
+    final screen = tester.view.physicalSize / tester.view.devicePixelRatio;
+    expect(sheet.height, lessThan(screen.height * .8));
+    expect(find.byTooltip('Zamknij filtry'), findsOneWidget);
+    await closeFilters(tester);
+    expect(find.byType(BottomSheet), findsNothing);
+  });
+
+  testWidgets('own reservations have no filters', (tester) async {
+    await pump(
+      tester,
+      _Api(data: groupClassJson(reserved: true)),
+      reservations: true,
+    );
+    expect(find.text('Pole dance'), findsOneWidget);
+    expect(find.text('Filtry'), findsNothing);
   });
 
   testWidgets('level and age group choices are hidden without service types', (
@@ -358,21 +484,20 @@ void main() {
       final api = _Api();
       await pump(tester, api);
       await tapVisible(tester, find.text('Filtry'));
-      await tapVisible(
-        tester,
-        find.widgetWithText(FilterChip, 'Pole dance dla początkujących'),
-      );
-      await tapVisible(tester, find.widgetWithText(FilterChip, 'Anna Trener'));
+      await check(tester, 'Rodzaj zajęć', 'Pole dance dla początkujących');
+      await check(tester, 'Prowadzący', 'Anna Trener');
       await closeFilters(tester);
       expect(find.text('Filtry (2)'), findsOneWidget);
 
       await tapVisible(tester, find.byTooltip('Następny'));
       expect(find.text('Pole dance'), findsNothing);
       await tapVisible(tester, find.text('Filtry (2)'));
+      await expandSection(tester, 'Rodzaj zajęć');
+      await expandSection(tester, 'Prowadzący');
       for (final label in ['Pole dance dla początkujących', 'Anna Trener']) {
-        final choice = find.widgetWithText(FilterChip, label);
+        final choice = find.widgetWithText(CheckboxListTile, label);
         expect(choice, findsOneWidget);
-        expect(tester.widget<FilterChip>(choice).selected, isTrue);
+        expect(tester.widget<CheckboxListTile>(choice).value, isTrue);
       }
       await closeFilters(tester);
 

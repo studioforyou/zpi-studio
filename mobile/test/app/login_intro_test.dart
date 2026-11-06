@@ -11,6 +11,7 @@ import 'package:mobile/core/auth/session.dart';
 import 'package:mobile/features/accounts/presentation/login_screen.dart';
 import 'package:mobile/features/accounts/presentation/role_picker_screen.dart';
 import 'package:mobile/features/schedule/data/schedule_service_types.dart';
+import 'package:mobile/features/schedule/data/studio_trainers.dart';
 import 'package:mobile/features/trainings/data/group_classes_api.dart';
 
 /// Starts with the demo user still signed in from an earlier run.
@@ -32,6 +33,7 @@ void main() {
           authRepositoryProvider.overrideWithValue(repository),
           groupClassesProvider.overrideWith((ref, query) async => const []),
           scheduleServiceTypesProvider.overrideWith((ref) async => const {}),
+          studioTrainersProvider.overrideWith((ref) async => const []),
           appConfigProvider.overrideWithValue(
             const AppConfig(
               flavor: AppFlavor.dev,
@@ -109,6 +111,7 @@ void main() {
           authRepositoryProvider.overrideWithValue(_SignedInAuthRepository()),
           groupClassesProvider.overrideWith((ref, query) async => const []),
           scheduleServiceTypesProvider.overrideWith((ref) async => const {}),
+          studioTrainersProvider.overrideWith((ref) async => const []),
           appConfigProvider.overrideWithValue(
             const AppConfig(
               flavor: AppFlavor.dev,

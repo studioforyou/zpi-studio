@@ -4,6 +4,7 @@ import 'package:mobile/features/schedule/data/schedule_service_types.dart';
 import 'package:mobile/features/schedule/presentation/service_type_filter_labels.dart';
 import 'package:mobile/features/schedule/presentation/trainer_schedule_filter.dart';
 import 'package:mobile/features/schedule/presentation/widgets/schedule_calendar.dart';
+import 'package:mobile/features/schedule/presentation/widgets/schedule_filter_sheet.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
 
 /// Kinds a trainer can filter by; blocks are not part of a trainer's
@@ -118,124 +119,120 @@ class _FilterSheetState extends State<_FilterSheet> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final textTheme = Theme.of(context).textTheme;
-    return SafeArea(
-      child: ListView(
-        shrinkWrap: true,
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-        children: [
-          Text(l10n.scheduleFilterKind, style: textTheme.titleSmall),
+    return ScheduleFilterSheet(
+      onClear: () => _update(const TrainerScheduleFilter()),
+      children: [
+        Text(l10n.scheduleFilterKind, style: textTheme.titleSmall),
+        Wrap(
+          spacing: 8,
+          children: [
+            for (final kind in _kinds)
+              FilterChip(
+                avatar: CircleAvatar(
+                  backgroundColor: eventKindColor(kind),
+                  radius: 6,
+                ),
+                label: Text(eventKindLabel(l10n, kind)),
+                selected: _filter.kinds.contains(kind),
+                onSelected: (selected) => _update(
+                  _filter.copyWith(
+                    kinds: selected
+                        ? {..._filter.kinds, kind}
+                        : ({..._filter.kinds}..remove(kind)),
+                  ),
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Text(l10n.scheduleFilterRole, style: textTheme.titleSmall),
+        Wrap(
+          spacing: 8,
+          children: [
+            for (final (role, label) in [
+              (TrainerRoleFilter.any, l10n.scheduleFilterRoleAny),
+              (TrainerRoleFilter.lead, l10n.scheduleFilterRoleLead),
+              (TrainerRoleFilter.assistant, l10n.scheduleFilterRoleAssistant),
+            ])
+              ChoiceChip(
+                label: Text(label),
+                selected: _filter.role == role,
+                onSelected: (_) => _update(_filter.copyWith(role: role)),
+              ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Text(l10n.scheduleFilterRoom, style: textTheme.titleSmall),
+        if (widget.rooms.isEmpty)
+          Text(l10n.scheduleFilterNoRooms, style: textTheme.bodySmall)
+        else
           Wrap(
             spacing: 8,
             children: [
-              for (final kind in _kinds)
+              for (final room in widget.rooms)
                 FilterChip(
-                  avatar: CircleAvatar(
-                    backgroundColor: eventKindColor(kind),
-                    radius: 6,
-                  ),
-                  label: Text(eventKindLabel(l10n, kind)),
-                  selected: _filter.kinds.contains(kind),
+                  label: Text(room),
+                  selected: _filter.rooms.contains(room),
                   onSelected: (selected) => _update(
                     _filter.copyWith(
-                      kinds: selected
-                          ? {..._filter.kinds, kind}
-                          : ({..._filter.kinds}..remove(kind)),
+                      rooms: selected
+                          ? {..._filter.rooms, room}
+                          : ({..._filter.rooms}..remove(room)),
                     ),
                   ),
                 ),
             ],
           ),
+        if (widget.levels.isNotEmpty) ...[
           const SizedBox(height: 12),
-          Text(l10n.scheduleFilterRole, style: textTheme.titleSmall),
+          Text(l10n.scheduleFilterLevel, style: textTheme.titleSmall),
           Wrap(
             spacing: 8,
             children: [
-              for (final (role, label) in [
-                (TrainerRoleFilter.any, l10n.scheduleFilterRoleAny),
-                (TrainerRoleFilter.lead, l10n.scheduleFilterRoleLead),
-                (TrainerRoleFilter.assistant, l10n.scheduleFilterRoleAssistant),
-              ])
-                ChoiceChip(
-                  label: Text(label),
-                  selected: _filter.role == role,
-                  onSelected: (_) => _update(_filter.copyWith(role: role)),
+              for (final level in widget.levels)
+                FilterChip(
+                  label: Text(serviceLevelLabel(l10n, level)),
+                  selected: _filter.levels.contains(level),
+                  onSelected: (selected) => _update(
+                    _filter.copyWith(
+                      levels: selected
+                          ? {..._filter.levels, level}
+                          : ({..._filter.levels}..remove(level)),
+                    ),
+                  ),
                 ),
             ],
           ),
+        ],
+        if (widget.ageGroups.isNotEmpty) ...[
           const SizedBox(height: 12),
-          Text(l10n.scheduleFilterRoom, style: textTheme.titleSmall),
-          if (widget.rooms.isEmpty)
-            Text(l10n.scheduleFilterNoRooms, style: textTheme.bodySmall)
-          else
-            Wrap(
-              spacing: 8,
-              children: [
-                for (final room in widget.rooms)
-                  FilterChip(
-                    label: Text(room),
-                    selected: _filter.rooms.contains(room),
-                    onSelected: (selected) => _update(
-                      _filter.copyWith(
-                        rooms: selected
-                            ? {..._filter.rooms, room}
-                            : ({..._filter.rooms}..remove(room)),
-                      ),
+          Text(l10n.scheduleFilterAgeGroup, style: textTheme.titleSmall),
+          Wrap(
+            spacing: 8,
+            children: [
+              for (final group in widget.ageGroups)
+                FilterChip(
+                  label: Text(ageGroupLabel(l10n, group)),
+                  selected: _filter.ageGroups.contains(group),
+                  onSelected: (selected) => _update(
+                    _filter.copyWith(
+                      ageGroups: selected
+                          ? {..._filter.ageGroups, group}
+                          : ({..._filter.ageGroups}..remove(group)),
                     ),
                   ),
-              ],
-            ),
-          if (widget.levels.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            Text(l10n.scheduleFilterLevel, style: textTheme.titleSmall),
-            Wrap(
-              spacing: 8,
-              children: [
-                for (final level in widget.levels)
-                  FilterChip(
-                    label: Text(serviceLevelLabel(l10n, level)),
-                    selected: _filter.levels.contains(level),
-                    onSelected: (selected) => _update(
-                      _filter.copyWith(
-                        levels: selected
-                            ? {..._filter.levels, level}
-                            : ({..._filter.levels}..remove(level)),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ],
-          if (widget.ageGroups.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            Text(l10n.scheduleFilterAgeGroup, style: textTheme.titleSmall),
-            Wrap(
-              spacing: 8,
-              children: [
-                for (final group in widget.ageGroups)
-                  FilterChip(
-                    label: Text(ageGroupLabel(l10n, group)),
-                    selected: _filter.ageGroups.contains(group),
-                    onSelected: (selected) => _update(
-                      _filter.copyWith(
-                        ageGroups: selected
-                            ? {..._filter.ageGroups, group}
-                            : ({..._filter.ageGroups}..remove(group)),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ],
-          const SizedBox(height: 4),
-          SwitchListTile(
-            contentPadding: EdgeInsets.zero,
-            title: Text(l10n.scheduleFilterShowCancelled),
-            value: _filter.showCancelled,
-            onChanged: (value) =>
-                _update(_filter.copyWith(showCancelled: value)),
+                ),
+            ],
           ),
         ],
-      ),
+        const SizedBox(height: 4),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: Text(l10n.scheduleFilterShowCancelled),
+          value: _filter.showCancelled,
+          onChanged: (value) => _update(_filter.copyWith(showCancelled: value)),
+        ),
+      ],
     );
   }
 }

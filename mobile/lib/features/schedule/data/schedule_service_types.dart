@@ -18,6 +18,9 @@ class ScheduleServiceType {
     required this.level,
     required this.minAge,
     required this.maxAge,
+    this.name,
+    this.category,
+    this.isActive = true,
   });
 
   factory ScheduleServiceType.fromJson(Map<String, dynamic> json) {
@@ -26,10 +29,21 @@ class ScheduleServiceType {
       level: json['level'] as String?,
       minAge: json['minAge'] as int?,
       maxAge: json['maxAge'] as int?,
+      name: json['name'] as String?,
+      category: json['category'] as String?,
+      isActive: json['isActive'] as bool? ?? true,
     );
   }
 
   final String id;
+  final String? name;
+
+  /// Category code, e.g. `GROUP_CLASS` or `PERSONAL_TRAINING`.
+  final String? category;
+  final bool isActive;
+
+  /// Whether the studio offers this service as public group classes now.
+  bool get isOfferedGroupClass => isActive && category == 'GROUP_CLASS';
 
   /// Level code, e.g. `BEGINNER`, or `null` when the service has none.
   final String? level;

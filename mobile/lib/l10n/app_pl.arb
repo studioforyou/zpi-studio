@@ -349,6 +349,7 @@
   "scheduleFilterNoRooms": "Brak sal w tym okresie",
   "scheduleFilterShowCancelled": "Pokaż odwołane",
   "scheduleFilterLevel": "Poziom",
+  "scheduleFiltersClose": "Zamknij filtry",
   "scheduleFilterAgeGroup": "Grupa wiekowa",
   "scheduleAgeGroupChildren": "Dzieci",
   "scheduleAgeGroupAdults": "Dorośli",
