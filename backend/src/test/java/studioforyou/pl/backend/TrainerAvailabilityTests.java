@@ -12,8 +12,10 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.time.temporal.TemporalAdjusters;
 import java.util.UUID;
 
 import com.jayway.jsonpath.JsonPath;
@@ -103,7 +105,8 @@ class TrainerAvailabilityTests {
 
 	@Test
 	void trainerAddsWeeklyHoursAndSingleDaysAndListsThemInOrder() throws Exception {
-		LocalDate extraDay = today.plusDays(10);
+		// A Sunday, so the single day never overlaps the weekly hours added below (Monday, Thursday).
+		LocalDate extraDay = today.plusDays(10).with(TemporalAdjusters.nextOrSame(DayOfWeek.SUNDAY));
 		perform(TRAINER, post(PATH), weekly(4, "17:00", "21:00"))
 			.andExpect(status().isCreated())
 			.andExpect(jsonPath("$.items[0].type").value("WEEKLY"))
