@@ -212,7 +212,7 @@
   "passesNoProfile": "To konto nie ma profilu klienta, więc nie ma karnetów.",
   "passesEmpty": "Nie masz jeszcze karnetu. Sprawdź ofertę studia.",
   "passesSectionCurrent": "Aktualne",
-  "passesSectionUpcoming": "Zaplanowane",
+  "passesSectionUpcoming": "Nadchodzące",
   "passesSectionExpired": "Wygasłe ({count})",
   "@passesSectionExpired": {
     "placeholders": {
@@ -312,6 +312,53 @@
     }
   },
   "passSuspensionNotAllowed": "Bez możliwości zawieszenia",
+  "passExpiringSoon": "Karnet niedługo się kończy",
+  "passBuyNext": "Kup kolejny",
+  "passBuyNextUnavailable": "Ten karnet nie jest już w sprzedaży. Wybierz karnet w zakładce Oferta.",
+  "passOfferBuy": "Kup",
+  "checkoutTitle": "Zakup karnetu",
+  "checkoutFor": "Dla: {name}",
+  "@checkoutFor": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "checkoutStartAfterCurrent": "Rozpocznij po zakończeniu obecnego karnetu",
+  "checkoutStartAfterCurrentHint": "{name} jest ważny do {date}",
+  "@checkoutStartAfterCurrentHint": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "checkoutStartDate": "Data rozpoczęcia",
+  "checkoutTermsAccept": "Akceptuję regulamin studia i warunki zakupu karnetu",
+  "checkoutPay": "Zapłać {price}",
+  "@checkoutPay": {
+    "placeholders": {
+      "price": {
+        "type": "String"
+      }
+    }
+  },
+  "checkoutError": "Nie udało się kupić karnetu. Spróbuj ponownie.",
+  "checkoutSuccess": "Karnet opłacony. Ważny od {from} do {until}.",
+  "@checkoutSuccess": {
+    "placeholders": {
+      "from": {
+        "type": "String"
+      },
+      "until": {
+        "type": "String"
+      }
+    }
+  },
   "scheduleViewDay": "Dzień",
   "scheduleViewWeek": "Tydzień",
   "scheduleViewMonth": "Miesiąc",
@@ -636,6 +683,61 @@
   "trainingOutcomeUnmarked": "Obecność jeszcze nie potwierdzona",
   "trainingOutcomeCancelled": "Odwołano w terminie",
   "trainingOutcomeLateCancelled": "Odwołano po terminie",
-  "trainingOutcomeClassCancelled": "Zajęcia odwołane przez studio"
+  "trainingOutcomeClassCancelled": "Zajęcia odwołane przez studio",
+  "availabilityPreviousWeek": "Poprzedni tydzień",
+  "availabilityNextWeek": "Następny tydzień",
+  "availabilityLegendWeekly": "Co tydzień",
+  "availabilityLegendThisWeek": "Tylko ten tydzień",
+  "availabilityAddHours": "Dodaj godziny",
+  "availabilityEditHours": "Zmień godziny",
+  "availabilityEveryWeek": "Każdy tydzień",
+  "availabilityThisWeek": "Ten tydzień",
+  "availabilityNewTitle": "Nowe godziny",
+  "availabilityNewThisWeekTitle": "Nowe godziny: {week}",
+  "@availabilityNewThisWeekTitle": {
+    "placeholders": {
+      "week": {
+        "type": "String"
+      }
+    }
+  },
+  "availabilityWeekdayShort": "{weekday, select, 1{Pn} 2{Wt} 3{Śr} 4{Cz} 5{Pt} 6{So} other{Nd}}",
+  "@availabilityWeekdayShort": {
+    "placeholders": {
+      "weekday": {
+        "type": "String"
+      }
+    }
+  },
+  "availabilityPickDays": "Wybierz co najmniej jeden dzień.",
+  "availabilityStart": "Od",
+  "availabilityEnd": "Do",
+  "availabilityValidTo": "Obowiązuje do",
+  "availabilityNoEndDate": "Bez daty końcowej",
+  "availabilityClearEndDate": "Usuń datę końcową",
+  "availabilitySave": "Zapisz",
+  "availabilityRemove": "Usuń",
+  "availabilityRemoveTitle": "Usunąć dyspozycyjność?",
+  "availabilityRemoveThisDay": "Ten dzień",
+  "availabilityRemoveEveryWeekday": "{weekday, select, 1{Każdy poniedziałek} 2{Każdy wtorek} 3{Każdą środę} 4{Każdy czwartek} 5{Każdy piątek} 6{Każdą sobotę} other{Każdą niedzielę}}",
+  "@availabilityRemoveEveryWeekday": {
+    "placeholders": {
+      "weekday": {
+        "type": "String"
+      }
+    }
+  },
+  "availabilityCancel": "Anuluj",
+  "availabilitySaved": "Dyspozycyjność została zapisana.",
+  "availabilityRemoved": "Godziny zostały usunięte.",
+  "availabilityEndBeforeStart": "Godzina zakończenia musi być późniejsza niż rozpoczęcia.",
+  "availabilityOverlap": "Te godziny nachodzą na inne godziny tego dnia.",
+  "availabilityValidationError": "Sprawdź godziny i daty, a potem spróbuj ponownie.",
+  "availabilityLoadError": "Nie udało się pobrać dyspozycyjności.",
+  "availabilitySaveError": "Nie udało się zapisać zmian. Spróbuj ponownie.",
+  "availabilityNetworkError": "Brak połączenia z serwerem. Sprawdź internet i spróbuj ponownie.",
+  "availabilityAccessError": "Nie masz dostępu do edycji dyspozycyjności.",
+  "availabilityNotFound": "Nie znaleziono tych godzin. Odśwież listę.",
+  "availabilityRetry": "Spróbuj ponownie"
 }
 

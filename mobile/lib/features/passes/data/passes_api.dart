@@ -13,6 +13,16 @@ const serviceTypesPath = '/api/v1/service-types';
 String ownPassesPath(String profileId) =>
     '/api/v1/me/profiles/$profileId/passes';
 
+/// Pass orders of a customer profile the account acts for
+/// (`OwnPassOrderController`).
+String ownPassOrdersPath(String profileId) =>
+    '/api/v1/me/profiles/$profileId/pass-orders';
+
+/// The simulated payment of a pass order, until a payment provider is
+/// connected.
+String passOrderMockPaymentPath(String orderId) =>
+    '/api/v1/me/pass-orders/$orderId/mock-payment';
+
 /// An amount of money as the backend sends it: minor units and an ISO 4217
 /// currency code.
 class Money {
@@ -54,27 +64,34 @@ enum PassStatus {
 class OwnPass {
   const OwnPass({
     required this.id,
+    this.variantId,
     required this.productName,
     required this.entriesTotal,
     required this.entriesRemaining,
     required this.status,
     required this.validFrom,
     required this.validUntil,
+    this.expiringSoon = false,
   });
 
   factory OwnPass.fromJson(Map<String, dynamic> json) {
     return OwnPass(
       id: json['id'] as String,
+      variantId: json['variantId'] as String?,
       productName: json['productName'] as String,
       entriesTotal: json['entriesTotal'] as int?,
       entriesRemaining: json['entriesRemaining'] as int?,
       status: PassStatus.fromCode(json['status'] as String),
       validFrom: _date(json['validFrom']),
       validUntil: _date(json['validUntil']),
+      expiringSoon: json['expiringSoon'] as bool? ?? false,
     );
   }
 
   final String id;
+
+  /// The variant the pass was assigned or bought with, to buy it again.
+  final String? variantId;
   final String productName;
 
   /// Number of entries, or `null` for unlimited entries.
@@ -87,6 +104,10 @@ class OwnPass {
 
   /// The last day the pass is valid, inclusive.
   final DateTime? validUntil;
+
+  /// An active or suspended pass with at most 7 days or at most 2 entries
+  /// left, as the backend decides.
+  final bool expiringSoon;
 
   static DateTime? _date(Object? value) =>
       value == null ? null : DateTime.parse(value as String);
@@ -204,6 +225,42 @@ class PassOffer {
   final Map<String, String> serviceNames;
 }
 
+/// An order for one pass, with the pass it buys.
+class PassOrder {
+  const PassOrder({
+    required this.id,
+    required this.paid,
+    required this.productName,
+    required this.price,
+    required this.passStatus,
+    required this.validFrom,
+    required this.validUntil,
+  });
+
+  factory PassOrder.fromJson(Map<String, dynamic> json) {
+    final pass = json['pass'] as Map<String, dynamic>;
+    return PassOrder(
+      id: json['id'] as String,
+      paid: json['status'] == 'PAID',
+      productName: json['productName'] as String,
+      price: Money.fromJson(json['price'] as Map<String, dynamic>),
+      passStatus: PassStatus.fromCode(pass['status'] as String),
+      validFrom: DateTime.parse(pass['validFrom'] as String),
+      validUntil: DateTime.parse(pass['validUntil'] as String),
+    );
+  }
+
+  final String id;
+  final bool paid;
+  final String productName;
+  final Money price;
+  final PassStatus passStatus;
+  final DateTime validFrom;
+
+  /// The last day the pass is valid, inclusive.
+  final DateTime validUntil;
+}
+
 class PassesApi {
   const PassesApi(this._dio);
 
@@ -234,6 +291,53 @@ class PassesApi {
       },
     );
   }
+
+  /// Orders a pass of [variantId] for [profileId]. The pass starts on
+  /// [startsOn], or the day after [startAfterPassId] ends; give exactly one.
+  /// The client must have accepted the terms of sale.
+  Future<PassOrder> placeOrder(
+    String profileId, {
+    required String variantId,
+    DateTime? startsOn,
+    String? startAfterPassId,
+  }) async {
+    return _order(
+      () => _dio.post<Map<String, dynamic>>(
+        ownPassOrdersPath(profileId),
+        data: {
+          'variantId': variantId,
+          if (startsOn != null) 'startsOn': _isoDate(startsOn),
+          'startAfterPassId': ?startAfterPassId,
+          'termsAccepted': true,
+        },
+      ),
+    );
+  }
+
+  /// Pays the order with the simulated payment: it is paid at once and its
+  /// pass becomes active or scheduled.
+  Future<PassOrder> payOrderWithMock(String orderId) async {
+    return _order(
+      () => _dio.post<Map<String, dynamic>>(passOrderMockPaymentPath(orderId)),
+    );
+  }
+
+  Future<PassOrder> _order(
+    Future<Response<Map<String, dynamic>>> Function() request,
+  ) async {
+    try {
+      final response = await request();
+      return PassOrder.fromJson(response.data!);
+    } on DioException catch (e) {
+      throw ApiException.fromDio(e);
+    }
+  }
+
+  /// `2026-11-20`, the API's date format.
+  static String _isoDate(DateTime date) =>
+      '${date.year.toString().padLeft(4, '0')}-'
+      '${date.month.toString().padLeft(2, '0')}-'
+      '${date.day.toString().padLeft(2, '0')}';
 
   Future<List<Map<String, dynamic>>> _items(String path) async {
     try {

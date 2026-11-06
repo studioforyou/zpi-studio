@@ -18,11 +18,11 @@ import org.springframework.web.servlet.HandlerExceptionResolver;
  * ({@code Authorization: Bearer <token>}) of an account with status {@code ACTIVE}.
  * {@code GET /api/v1/me} only needs a valid token, so the app can learn the account's
  * status (for example that it still waits for approval). Reading and accepting an e-mail
- * invitation is public: the secret token in the link is the proof. Sending one needs the
- * {@code ADMIN} role (roles are granted to active accounts only).
+ * invitation is public: the secret token in the link is the proof.
  * <p>
- * Role checks are declared on the endpoints with {@code @PreAuthorize}, e.g.
- * {@code @PreAuthorize("hasRole('ADMIN')")}; roles come from the account's {@code account_role} rows.
+ * Roles and permissions are checked on the endpoints with {@code @PreAuthorize}, e.g.
+ * {@code hasRole('ADMIN')} or {@code hasAuthority('SCHEDULE_MANAGE_ALL')}; see
+ * {@link FirebaseJwtAuthenticationConverter} for the authorities an account gets.
  * <p>
  * 401 and 403 responses are passed to the MVC exception handling, so they get the same
  * {@code application/problem+json} body with a {@code code} as every other error.
@@ -45,7 +45,6 @@ public class SecurityConfig {
 				.requestMatchers("/error").permitAll()
 				.requestMatchers(HttpMethod.GET, "/api/ping", "/actuator/health").permitAll()
 				.requestMatchers(HttpMethod.GET, "/v3/api-docs/**", "/swagger-ui.html", "/swagger-ui/**").permitAll()
-				.requestMatchers(HttpMethod.POST, "/api/v1/invitations").hasRole("ADMIN")
 				.requestMatchers(HttpMethod.GET, "/api/v1/invitations/*").permitAll()
 				.requestMatchers(HttpMethod.POST, "/api/v1/invitations/*/accept").permitAll()
 				.requestMatchers(HttpMethod.GET, "/api/v1/me").authenticated()

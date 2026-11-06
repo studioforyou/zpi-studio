@@ -7,6 +7,7 @@ export const paths = {
   accounts: '/accounts',
   accountDetails: (accountId: string, profileId?: string | null) =>
     profileId ? `/accounts/${accountId}?profile=${profileId}` : `/accounts/${accountId}`,
+  roles: '/accounts/roles',
   passes: '/passes',
   trainings: '/trainings',
   communication: '/communication',

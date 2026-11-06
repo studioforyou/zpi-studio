@@ -53,15 +53,18 @@ public class CustomerPassService {
 
 	private final StudioSettings studio;
 
+	private final CustomerPassLock passLock;
+
 	public CustomerPassService(CustomerPassRepository passes, PassLedgerRepository ledger,
 			PassSuspensionRepository suspensions, CustomerProfiles customers, PassVariantLookup variants,
-			StudioSettings studio) {
+			StudioSettings studio, CustomerPassLock passLock) {
 		this.passes = passes;
 		this.ledger = ledger;
 		this.suspensions = suspensions;
 		this.customers = customers;
 		this.variants = variants;
 		this.studio = studio;
+		this.passLock = passLock;
 	}
 
 	/**
@@ -287,11 +290,38 @@ public class CustomerPassService {
 		return pass;
 	}
 
-	private static void requireStatus(CustomerPass pass, CustomerPassStatus... allowed) {
+	static void requireStatus(CustomerPass pass, CustomerPassStatus... allowed) {
 		if (!List.of(allowed).contains(pass.getStatus()) || pass.getValidUntil() == null) {
 			throw new ApiException(ErrorCode.PASS_NOT_USABLE,
 					"The operation is not available for a pass with status " + pass.getStatus() + ".");
 		}
+	}
+
+	/** Changes the available balance and appends its history atomically with booking accounting. */
+	public CustomerPass correctEntries(UUID customerId, UUID passId, EntryCorrection command, UUID actorAccountId) {
+		CustomerPass pass = passLock.acquire(customerId, passId);
+		if (pass.getVersion() != command.version()) {
+			throw new ApiException(ErrorCode.VERSION_CONFLICT,
+					"The pass was modified by another request. Reload it and try again.");
+		}
+		if (pass.getEntriesRemaining() == null) {
+			throw ApiException.invalidField("entriesDelta", FieldErrorCode.INVALID_VALUE,
+					"Unlimited passes have no entry balance to correct.");
+		}
+		if (command.entriesDelta() == 0) {
+			throw ApiException.invalidField("entriesDelta", FieldErrorCode.INVALID_VALUE,
+					"An entry correction must change the balance.");
+		}
+		long balance = (long) pass.getEntriesRemaining() + command.entriesDelta();
+		if (balance < 0 || balance > Short.MAX_VALUE || balance + ledger.pendingReturns(passId) > Short.MAX_VALUE) {
+			throw ApiException.invalidField("entriesDelta", FieldErrorCode.OUT_OF_RANGE,
+					"The balance must stay between 0 and 32767, including entries that may still be returned.");
+		}
+		pass.correctEntries((short) balance);
+		ledger.save(PassLedgerEntry.correction(passId, (short) command.entriesDelta(), blankToNull(command.reason()),
+				actorAccountId));
+		passes.flush();
+		return pass;
 	}
 
 	private ProfileDetails requireCustomer(UUID customerId) {
@@ -299,7 +329,7 @@ public class CustomerPassService {
 			.orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "Participant not found."));
 	}
 
-	private static void requireOnSale(PassVariantTerms terms) {
+	static void requireOnSale(PassVariantTerms terms) {
 		if (!terms.productActive()) {
 			throw new ApiException(ErrorCode.PASS_PRODUCT_ARCHIVED, "The pass product is archived.");
 		}
@@ -308,7 +338,7 @@ public class CustomerPassService {
 		}
 	}
 
-	private static void requireAudience(PassProductAudience audience, CustomerKind kind) {
+	static void requireAudience(PassProductAudience audience, CustomerKind kind) {
 		boolean allowed = switch (audience) {
 			case ANY -> true;
 			case ADULT -> kind == CustomerKind.ADULT;
@@ -355,6 +385,9 @@ public class CustomerPassService {
 	 * A pass with the participant holding it.
 	 */
 	public record HeldPass(CustomerPass pass, ParticipantContact holder) {
+	}
+
+	public record EntryCorrection(int entriesDelta, String reason, int version) {
 	}
 
 }
