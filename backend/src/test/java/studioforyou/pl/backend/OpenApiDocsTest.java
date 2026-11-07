@@ -42,6 +42,21 @@ class OpenApiDocsTest {
 	}
 
 	@Test
+	void documentsOwnDocumentEndpoints() throws Exception {
+		String json = apiDocs();
+
+		Map<String, Object> paths = JsonPath.read(json, "$.paths");
+		assertThat(paths).containsKeys("/api/v1/me/profiles/{profileId}/documents",
+				"/api/v1/me/profiles/{profileId}/documents/{documentId}",
+				"/api/v1/me/profiles/{profileId}/documents/{documentId}/acceptances");
+		Map<String, Object> acceptances = JsonPath.read(json,
+				"$.paths['/api/v1/me/profiles/{profileId}/documents/{documentId}/acceptances']");
+		assertThat(acceptances).containsOnlyKeys("post", "delete");
+		Map<String, Object> request = JsonPath.read(json, "$.components.schemas.AcceptDocumentRequest.properties");
+		assertThat(request).containsOnlyKeys("versionId");
+	}
+
+	@Test
 	void documentsRoomEndpoints() throws Exception {
 		String json = apiDocs();
 
