@@ -119,6 +119,10 @@ class _AvailabilityAdapter implements HttpClientAdapter {
         options.path == scheduleServiceTypesPath) {
       return _json({'items': []}, 200);
     }
+    // The unread badge on the messages tab.
+    if (options.path.startsWith('/api/v1/me/notifications')) {
+      return _json({'count': 0}, 200);
+    }
     if (options.path == staffProfilePath) {
       return _json({
         'id': 'staff-1',

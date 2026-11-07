@@ -24,6 +24,42 @@ The [Docker Compose configuration](../docker-compose.yml) defines the local back
 
 Only `AVAILABLE` credits with a future expiry and no usage markers are included. An expired source pass does not invalidate an otherwise valid credit. This read does not grant credits or determine eligibility for a particular class. It uses the existing `makeup_credit` and `customer_pass` tables without a schema migration. Dev/stage seed 09 repairs the original unused Monika example's misleading Open-pass link, using a separate expired four-entry Pole Dance pass with a make-up policy. It preserves the credit's status and dates and leaves used or reassigned credits alone. Katarzyna also has used and expired examples.
 
+## Notifications
+
+`communication` sends push notifications to the mobile app and keeps every notification in the recipient's in-app inbox (#142).
+
+- **Types.** Each type is a `notification_type` row loaded by a migration and a `NotificationType` constant, with the `{{name}}` placeholders its template can use. Placeholder names are Polish (e.g. `{{zajęcia}}`, `{{ile przed}}`) because the studio administrator writes the templates; the panel inserts them with buttons and shows a preview. The administrator configures every type in the web panel (`GET`, `PATCH /api/v1/notification-types/{code}`): on/off, the push title and text, and for a timed type 1 to 5 reminder times (`notification_lead_time`, 5 minutes to 14 days before the start). A new type must appear there; its issue only adds the source of the notification and its default content.
+- **Recipients.** A notification goes to an account. A child's notification goes to every active guardian and names the child (`subject_customer_id`). A guardian sees the participant's first name in every title, its own notifications too, e.g. `Monika: …` and `Zosia: …`. For an account with several roles (client and trainer) the title starts with the role it concerns, e.g. `Klient · Kuba: …`, and `recipient_role` lets the inbox show only the active role's notifications.
+- **Devices.** The app registers its FCM token after sign-in (`POST /api/v1/me/devices`, a token moves to the account that registered it last) and removes it before sign-out (`DELETE /api/v1/me/devices/{token}`). Tokens FCM reports as invalid are revoked when a push fails.
+- **Inbox.** `GET /api/v1/me/notifications?role=CLIENT`, `GET .../unread-count`, `POST .../{id}/read` and `POST .../read-all`.
+- **Sending.** `PushSender` has two implementations, chosen by `PUSH_PROVIDER`: `LOG` (default, local) only logs, `FCM` sends through the FCM HTTP v1 API with the Firebase Admin SDK and Application Default Credentials. Every attempt is a `notification_delivery` row (`SENT`, `FAILED`, `TOKEN_INVALID`, `NO_DEVICE`). `notification.dedup_key` makes each notification unique, so a job or event that runs twice sends nothing twice.
+
+### Timed notifications: the notification job
+
+Cloud Run scales to zero and has no CPU between requests, so the backend does not run timers in production. Cloud Scheduler calls `POST /internal/jobs/notifications/run` every 5 minutes (see `infrastructure/`) with a Google-signed OIDC token. `/internal/**` has its own security chain: it accepts only a token with issuer `https://accounts.google.com`, audience `JOBS_OIDC_AUDIENCE` and the verified e-mail `JOBS_OIDC_SERVICE_ACCOUNT`, and rejects everything while either is unset. Firebase user tokens are not accepted there.
+
+One run:
+
+1. sends class reminders that are due: for every active reservation of a class that is not cancelled, each reminder time from `start - lead time` for 30 minutes, if the reservation already existed then;
+2. retries pushes that failed in the last 12 hours (after 2 minutes, at most 3 failed attempts);
+3. re-delivers domain events whose listener has not finished (see below).
+
+Locally, with Docker Compose, `JOBS_LOCAL_SCHEDULER_ENABLED=true` runs the same job inside the backend every 5 minutes instead.
+
+### Notifications sent right after an event
+
+A module that has something to notify about publishes a domain event in its own transaction; `communication` listens and sends right away:
+
+```java
+@Async
+@TransactionalEventListener
+void on(ClassCancelled event) {
+    notifications.notifyNow(List.of(new NotificationRequest(...)));
+}
+```
+
+Spring Modulith's event publication registry (`event_publication`) stores the event in the same transaction as the business change. The listener runs after the commit, on another thread, so a failing push never fails the user's request. A listener that fails or does not finish stays in the registry, and the notification job delivers it again after 2 minutes; the dedup key keeps the notification single. Completed publications are deleted (`spring.modulith.events.completion-mode: delete`).
+
 ## Tests
 
 Requires JDK 21. From `backend/`, run only the module architecture test without a Spring context, database, or Docker:

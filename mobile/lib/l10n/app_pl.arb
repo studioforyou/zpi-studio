@@ -780,5 +780,52 @@
   "availabilityNetworkError": "Brak połączenia z serwerem. Sprawdź internet i spróbuj ponownie.",
   "availabilityAccessError": "Nie masz dostępu do edycji dyspozycyjności.",
   "availabilityNotFound": "Nie znaleziono tych godzin. Odśwież listę.",
-  "availabilityRetry": "Spróbuj ponownie"
+  "availabilityRetry": "Spróbuj ponownie",
+  "trainingOutcomeClassCancelled": "Zajęcia odwołane przez studio",
+  "notificationsEmpty": "Nie masz jeszcze powiadomień.",
+  "notificationsLoadError": "Nie udało się wczytać powiadomień.",
+  "notificationsRetry": "Spróbuj ponownie",
+  "notificationsMarkAllRead": "Oznacz wszystkie jako przeczytane",
+  "notificationsMarkError": "Nie udało się oznaczyć powiadomień jako przeczytanych.",
+  "notificationsNewer": "Nowsze",
+  "notificationsOlder": "Starsze",
+  "notificationsPage": "{page} z {total}",
+  "@notificationsPage": {
+    "placeholders": {
+      "page": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "notificationsToday": "Dziś, {time}",
+  "@notificationsToday": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "notificationsYesterday": "Wczoraj, {time}",
+  "@notificationsYesterday": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "notificationsShow": "Pokaż",
+  "notificationsUnread": "Nieprzeczytane: {count}",
+  "@notificationsUnread": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "notificationsTitle": "Powiadomienia",
+  "notificationsOpen": "Powiadomienia"
 }
+

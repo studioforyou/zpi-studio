@@ -41,7 +41,11 @@ services:
       BREVO_API_KEY: ${BREVO_API_KEY:-}
       # Page that opens invitation links: the web panel's /invite page, seen from the Android emulator
       INVITATION_LINK_BASE_URL: ${INVITATION_LINK_BASE_URL:-http://10.0.2.2:5173/invite}
-      # Firebase Admin SDK key (accepting invitations): put the key file at ./secrets/firebase-admin.json
+      # Push: LOG (default) only logs push notifications, FCM sends them with the Firebase Admin SDK key below
+      PUSH_PROVIDER: ${PUSH_PROVIDER:-LOG}
+      # Runs the notification job (class reminders, retries) every 5 minutes inside the backend
+      JOBS_LOCAL_SCHEDULER_ENABLED: ${JOBS_LOCAL_SCHEDULER_ENABLED:-true}
+      # Firebase Admin SDK key (accepting invitations, push): put the key file at ./secrets/firebase-admin.json
       GOOGLE_APPLICATION_CREDENTIALS: /run/secrets/firebase-admin.json
     volumes:
       - ./secrets:/run/secrets:ro
