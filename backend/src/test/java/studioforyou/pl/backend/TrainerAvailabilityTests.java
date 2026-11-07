@@ -113,7 +113,7 @@ class TrainerAvailabilityTests {
 			.andExpect(jsonPath("$.items[0].endTime").value("21:00"))
 			.andExpect(jsonPath("$.items[0].validFrom").value(today.toString()))
 			.andExpect(jsonPath("$.items[0].validTo").isEmpty());
-		perform(TRAINER, post(PATH), oneOff(extraDay, "09:00", "12:00"))
+		perform(TRAINER, post(PATH), oneOff(extraDay, "12:00", "14:00"))
 			.andExpect(status().isCreated())
 			.andExpect(jsonPath("$.items[0].type").value("ONE_OFF"))
 			.andExpect(jsonPath("$.items[0].date").value(extraDay.toString()))
@@ -125,7 +125,7 @@ class TrainerAvailabilityTests {
 		perform(TRAINER, get(PATH), null)
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.items[*].type").value(contains("WEEKLY", "WEEKLY", "WEEKLY", "ONE_OFF")))
-			.andExpect(jsonPath("$.items[*].startTime").value(contains("08:00", "16:00", "17:00", "09:00")));
+			.andExpect(jsonPath("$.items[*].startTime").value(contains("08:00", "16:00", "17:00", "12:00")));
 		perform(OTHER_TRAINER, get(PATH), null).andExpect(status().isOk())
 			.andExpect(jsonPath("$.items").value(empty()));
 		assertThat(jdbc.sql("SELECT count(*) FROM trainer_availability WHERE staff_id = :id AND created_by IS NOT NULL")

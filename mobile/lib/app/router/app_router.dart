@@ -16,6 +16,8 @@ import 'package:mobile/features/accounts/presentation/reset_password_screen.dart
 import 'package:mobile/features/accounts/presentation/role_picker_screen.dart';
 import 'package:mobile/features/accounts/presentation/staff_profile_edit_screen.dart';
 import 'package:mobile/features/communication/presentation/messages_screen.dart';
+import 'package:mobile/features/documents/presentation/document_screen.dart';
+import 'package:mobile/features/documents/presentation/documents_screen.dart';
 import 'package:mobile/features/passes/presentation/passes_screen.dart';
 import 'package:mobile/features/schedule/presentation/add_class_screen.dart';
 import 'package:mobile/features/schedule/presentation/availability_screen.dart';
@@ -42,6 +44,7 @@ const clientReservationsPath = '/client/reservations';
 const clientMessagesPath = '/client/messages';
 const clientProfilePath = '/client/profile';
 const clientProfileEditSubPath = 'edit';
+const clientDocumentsSubPath = 'documents';
 const clientTrainingHistorySubPath = 'history';
 const clientTrainingHistoryPath =
     '$clientReservationsPath/$clientTrainingHistorySubPath';
@@ -151,6 +154,18 @@ StatefulShellRoute _clientShell() => _roleShell([
       GoRoute(
         path: clientProfileEditSubPath,
         builder: (_, _) => const CustomerProfileEditScreen(),
+      ),
+      // Opened with context.push(documentsRoute).
+      GoRoute(
+        path: clientDocumentsSubPath,
+        builder: (_, _) => const DocumentsScreen(),
+        routes: [
+          GoRoute(
+            path: ':documentId',
+            builder: (_, state) =>
+                DocumentScreen(documentId: state.pathParameters['documentId']!),
+          ),
+        ],
       ),
     ],
   ),
