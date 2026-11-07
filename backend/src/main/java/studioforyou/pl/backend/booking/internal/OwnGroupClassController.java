@@ -22,8 +22,10 @@ import studioforyou.pl.backend.booking.internal.GroupClassDtos.BookRequest;
 import studioforyou.pl.backend.booking.internal.GroupClassDtos.CancelRequest;
 import studioforyou.pl.backend.booking.internal.GroupClassDtos.GroupClassResponse;
 import studioforyou.pl.backend.booking.internal.GroupClassDtos.HistoryEntryResponse;
+import studioforyou.pl.backend.booking.internal.GroupClassDtos.JoinWaitlistRequest;
 import studioforyou.pl.backend.booking.internal.GroupClassDtos.ReservationResponse;
 import studioforyou.pl.backend.booking.internal.GroupClassDtos.ParticipantResponse;
+import studioforyou.pl.backend.booking.internal.GroupClassDtos.WaitlistEntryResponse;
 import studioforyou.pl.backend.shared.api.AccountAuthentication;
 import studioforyou.pl.backend.shared.api.ApiException;
 import studioforyou.pl.backend.shared.api.ErrorCode;
@@ -37,8 +39,11 @@ class OwnGroupClassController {
 
 	private final GroupClassBookingService bookings;
 
-	OwnGroupClassController(GroupClassBookingService bookings) {
+	private final GroupClassWaitlistService waitlists;
+
+	OwnGroupClassController(GroupClassBookingService bookings, GroupClassWaitlistService waitlists) {
 		this.bookings = bookings;
+		this.waitlists = waitlists;
 	}
 
 	@GetMapping("/group-classes")
@@ -107,13 +112,65 @@ class OwnGroupClassController {
 	}
 
 	@PostMapping("/reservations/{reservationId}/cancel")
-	@ApiResponse(responseCode = "409", description = "VERSION_CONFLICT or CANCELLATION_CONSEQUENCE_CHANGED; refresh and confirm again.")
+	@ApiResponse(responseCode = "409", description = "VERSION_CONFLICT or CANCELLATION_CONSEQUENCE_CHANGED; refresh and confirm again. "
+			+ "VERSION_CONFLICT also when a waiting participant's pass changed while the freed place was given to them.")
 	@ApiResponse(responseCode = "422", description = "The stored cancellation terms or occurrence state do not allow this cancellation.")
 	@Operation(summary = "Cancel my group class reservation", operationId = "cancelOwnGroupClassReservation",
-			description = "Uses the cancellation terms stored at booking. A stale version or a changed entry-return consequence rejects the action without cancelling or changing the pass balance.")
+			description = "Uses the cancellation terms stored at booking. A stale version or a changed entry-return consequence rejects the action without cancelling or changing the pass balance. "
+					+ "In the same transaction the freed place goes to the first participants on the class's waiting list who meet the booking rules.")
 	ReservationResponse cancel(@PathVariable UUID profileId, @PathVariable UUID reservationId,
 			@Valid @RequestBody CancelRequest request, Authentication authentication) {
 		return this.bookings.cancel(actor(authentication), profileId, reservationId, request);
+	}
+
+	@PostMapping("/group-classes/{eventId}/waitlist-entries")
+	@ApiResponse(responseCode = "201", description = "The profile joined the waiting list; Location identifies its entry. Nothing is charged yet.")
+	@ApiResponse(responseCode = "200", description = "The profile's existing place in the queue, unchanged.")
+	@ApiResponse(responseCode = "409", description = "ALREADY_RESERVED, or CLASS_NOT_FULL: a place can be booked instead.")
+	@ApiResponse(responseCode = "422", description = "Booking window, waiting-list setting, participation or pass requirements are not met.")
+	@Operation(summary = "Join the waiting list of a full group class", operationId = "joinOwnGroupClassWaitlist",
+			description = "Requires what booking requires, except a free place, plus an enabled waiting list. When a place frees up, "
+					+ "it is given automatically, in queue order, to the first waiting participants who can book it then: the chosen pass "
+					+ "is charged or, when it can no longer be used, another eligible pass of the participant.")
+	ResponseEntity<WaitlistEntryResponse> joinWaitlist(@PathVariable UUID profileId, @PathVariable UUID eventId,
+			@Valid @RequestBody JoinWaitlistRequest request, Authentication authentication) {
+		GroupClassWaitlistService.JoinResult result = this.waitlists.join(actor(authentication), profileId, eventId,
+				request.customerPassId());
+		if (!result.created()) {
+			return ResponseEntity.ok(result.entry());
+		}
+		return ResponseEntity.created(URI.create("/api/v1/me/profiles/" + profileId + "/waitlist-entries/"
+				+ result.entry().id())).body(result.entry());
+	}
+
+	@GetMapping("/waitlist-entries/{entryId}")
+	@Operation(summary = "Get my waiting list entry", operationId = "getOwnWaitlistEntry")
+	WaitlistEntryResponse waitlistEntry(@PathVariable UUID profileId, @PathVariable UUID entryId,
+			Authentication authentication) {
+		return this.waitlists.get(actor(authentication), profileId, entryId);
+	}
+
+	@PostMapping("/waitlist-entries/{entryId}/confirm")
+	@ApiResponse(responseCode = "200", description = "The offered place is booked; the entry is PROMOTED with its reservation.")
+	@ApiResponse(responseCode = "409", description = "WAITLIST_OFFER_EXPIRED: the time to confirm has run out.")
+	@ApiResponse(responseCode = "422", description = "WAITLIST_ENTRY_NOT_OFFERED, or the booking rules are not met now.")
+	@Operation(summary = "Confirm a place offered from the waiting list", operationId = "confirmOwnGroupClassWaitlistOffer",
+			description = "With a confirmation time in the class's booking policy, a freed place is held for the first eligible waiting "
+					+ "participant until offerExpiresAt. Confirming books it like a booking, charging the chosen pass or, when it can no "
+					+ "longer be used, another eligible one. Repeating it returns the entry with its reservation.")
+	WaitlistEntryResponse confirmWaitlistOffer(@PathVariable UUID profileId, @PathVariable UUID entryId,
+			Authentication authentication) {
+		return this.waitlists.confirm(actor(authentication), profileId, entryId);
+	}
+
+	@PostMapping("/waitlist-entries/{entryId}/cancel")
+	@ApiResponse(responseCode = "422", description = "WAITLIST_ENTRY_NOT_WAITING: the participant already got a place from the list.")
+	@Operation(summary = "Leave the waiting list", operationId = "leaveOwnGroupClassWaitlist",
+			description = "Gives up the profile's place in the queue, or declines an offered place, which then goes to the next participant. "
+					+ "Repeating it returns the cancelled entry unchanged.")
+	WaitlistEntryResponse leaveWaitlist(@PathVariable UUID profileId, @PathVariable UUID entryId,
+			Authentication authentication) {
+		return this.waitlists.leave(actor(authentication), profileId, entryId);
 	}
 
 	private static UUID actor(Authentication authentication) {

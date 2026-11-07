@@ -79,6 +79,19 @@ public enum ErrorCode {
 	CANCELLATION_TERMS_UNAVAILABLE(HttpStatus.UNPROCESSABLE_CONTENT),
 	CANCELLATION_CONSEQUENCE_CHANGED(HttpStatus.CONFLICT),
 
+	// booking: waiting list of a full group class
+	/** The participant already has an active reservation for the class. */
+	ALREADY_RESERVED(HttpStatus.CONFLICT),
+	/** The class still has free places, so the participant books one instead of waiting. */
+	CLASS_NOT_FULL(HttpStatus.CONFLICT),
+	WAITLIST_DISABLED(HttpStatus.UNPROCESSABLE_CONTENT),
+	/** The participant is no longer waiting: they got a place or the entry was closed. */
+	WAITLIST_ENTRY_NOT_WAITING(HttpStatus.UNPROCESSABLE_CONTENT),
+	/** No place is offered to the participant to confirm. */
+	WAITLIST_ENTRY_NOT_OFFERED(HttpStatus.UNPROCESSABLE_CONTENT),
+	/** The time to confirm the offered place has run out; it goes to the next participant. */
+	WAITLIST_OFFER_EXPIRED(HttpStatus.CONFLICT),
+
 	// scheduling: rooms and the service types allowed in them
 	RESOURCE_NAME_ALREADY_USED(HttpStatus.CONFLICT),
 	RESOURCE_PARENT_INVALID(HttpStatus.UNPROCESSABLE_CONTENT),

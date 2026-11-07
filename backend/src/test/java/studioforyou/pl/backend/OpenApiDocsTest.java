@@ -57,6 +57,24 @@ class OpenApiDocsTest {
 	}
 
 	@Test
+	void documentsOwnWaitlistEndpoints() throws Exception {
+		String json = apiDocs();
+
+		Map<String, Object> paths = JsonPath.read(json, "$.paths");
+		assertThat(paths).containsKeys("/api/v1/me/profiles/{profileId}/group-classes/{eventId}/waitlist-entries",
+				"/api/v1/me/profiles/{profileId}/waitlist-entries/{entryId}",
+				"/api/v1/me/profiles/{profileId}/waitlist-entries/{entryId}/cancel",
+				"/api/v1/me/profiles/{profileId}/waitlist-entries/{entryId}/confirm");
+		Map<String, Object> request = JsonPath.read(json,
+				"$.components.schemas.JoinGroupClassWaitlistRequest.properties");
+		assertThat(request).containsOnlyKeys("customerPassId");
+		Map<String, Object> waitlist = JsonPath.read(json, "$.components.schemas.GroupClassWaitlist.properties");
+		assertThat(waitlist).containsOnlyKeys("allowed", "reason", "waitingCount", "confirmationMinutes", "ownEntry");
+		Map<String, Object> groupClass = JsonPath.read(json, "$.components.schemas.CustomerGroupClass.properties");
+		assertThat(groupClass).containsKeys("booking", "waitlist");
+	}
+
+	@Test
 	void documentsRoomEndpoints() throws Exception {
 		String json = apiDocs();
 
