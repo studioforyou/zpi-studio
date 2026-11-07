@@ -15,6 +15,8 @@ import 'package:mobile/core/push/devices_api.dart';
 import 'package:mobile/core/push/push_device.dart';
 import 'package:mobile/core/push/push_messaging.dart';
 import 'package:mobile/features/communication/data/notifications_api.dart';
+import 'package:mobile/features/schedule/data/schedule_service_types.dart';
+import 'package:mobile/features/schedule/data/studio_trainers.dart';
 import 'package:mobile/features/trainings/data/group_classes_api.dart';
 
 class _Push implements PushMessaging {
@@ -168,6 +170,8 @@ void main() {
           ),
           choiceStoreProvider.overrideWithValue(InMemoryChoiceStore()),
           groupClassesProvider.overrideWith((ref, query) async => const []),
+          scheduleServiceTypesProvider.overrideWith((ref) async => const {}),
+          studioTrainersProvider.overrideWith((ref) async => const []),
           pushMessagingProvider.overrideWithValue(push),
           devicesApiProvider.overrideWithValue(devices),
           notificationsApiProvider.overrideWithValue(notifications),
