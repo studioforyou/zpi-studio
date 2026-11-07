@@ -5,6 +5,7 @@ import 'package:mobile/core/auth/app_role.dart';
 import 'package:mobile/core/auth/auth_controller.dart';
 import 'package:mobile/core/auth/auth_state.dart';
 import 'package:mobile/features/accounts/presentation/widgets/profile_header.dart';
+import 'package:mobile/features/passes/presentation/pass_usage_screen.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
 
 class ProfileScreen extends ConsumerWidget {
@@ -24,6 +25,21 @@ class ProfileScreen extends ConsumerWidget {
           children: [
             // Full width, so its line can run from edge to edge.
             ProfileHeader(session: session),
+            if (session.activeRole == AppRole.client)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: ListTile(
+                  leading: const Icon(Icons.history),
+                  title: Text(l10n.passUsageTitle),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => Navigator.of(context).push<void>(
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          PassUsageScreen(accountId: session.accountId),
+                    ),
+                  ),
+                ),
+              ),
             if (session.activeRole == AppRole.client &&
                 session.activeProfileId != null)
               Padding(

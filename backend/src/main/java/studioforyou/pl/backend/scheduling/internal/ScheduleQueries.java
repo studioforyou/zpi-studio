@@ -112,6 +112,14 @@ class ScheduleQueries {
 		return assemble(rows).stream().findFirst();
 	}
 
+	List<ScheduleEventResponse> findEventsById(Collection<UUID> ids) {
+		if (ids.isEmpty()) {
+			return List.of();
+		}
+		return assemble(this.jdbc.sql(EVENT_COLUMNS + "WHERE e.id IN (:ids)")
+			.param("ids", ids).query(EVENT_ROW).list());
+	}
+
 	long countSeriesOccurrences(UUID seriesId) {
 		return this.jdbc.sql("SELECT count(*) FROM schedule_event WHERE series_id = :seriesId")
 			.param("seriesId", seriesId)

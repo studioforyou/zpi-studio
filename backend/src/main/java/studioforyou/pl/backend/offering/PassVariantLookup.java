@@ -1,7 +1,10 @@
 package studioforyou.pl.backend.offering;
 
 import java.util.Optional;
+import java.util.Collection;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,6 +33,19 @@ public class PassVariantLookup {
 					variant.getCurrency(), product.isActive(), variant.isActive(), product.isSuspensionAllowed(),
 					product.getMaxSuspensionDays());
 		});
+	}
+
+	/** Product labels for historical variants too; no sale/active restriction. */
+	public Map<UUID, ProductReference> productsOfVariants(Collection<UUID> ids) {
+		if (ids.isEmpty()) {
+			return Map.of();
+		}
+		return variants.findWithProductsByIdIn(ids).stream().collect(Collectors.toMap(
+			variant -> variant.getId(), variant -> new ProductReference(variant.getProduct().getId(),
+					variant.getProduct().getName())));
+	}
+
+	public record ProductReference(UUID id, String name) {
 	}
 
 	/**
