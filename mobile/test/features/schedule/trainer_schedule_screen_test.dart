@@ -70,10 +70,24 @@ class _FakeParticipantsApi implements EventParticipantsApi {
   final eventIds = <String>[];
 
   @override
-  Future<List<EventParticipant>> fetch(String eventId) async {
+  Future<EventAttendance> fetchAttendance(String eventId) async {
     eventIds.add(eventId);
-    return const [];
+    return EventAttendance(
+      eventStatus: EventStatus.scheduled,
+      markingOpensAt: DateTime(2100),
+      markingClosesAt: DateTime(2100, 1, 2),
+      markingOpen: false,
+      participants: const [],
+    );
   }
+
+  @override
+  Future<EventAttendance> mark(String eventId, Map<String, Attendance> marks) =>
+      throw UnimplementedError();
+
+  @override
+  Future<EventAttendance> complete(String eventId) =>
+      throw UnimplementedError();
 }
 
 DateTime _today() {

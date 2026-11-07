@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { Alert, Badge, Button, Divider, Drawer, Group, Stack, Text } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
 import { pl } from '@/shared/i18n/pl';
+import { EventAttendanceSection } from './EventAttendanceSection';
 import { getRecurrenceSeries, scheduleKeys, type ScheduleEvent } from './scheduleApi';
 import { eventTitle, formatTimeRange } from './scheduleFormat';
 import { formatDate, formatDayLong, toZoned } from './studioTime';
@@ -130,6 +131,12 @@ export function EventDetailsDrawer({
             <Detail label={texts.details.blockReason}>
               <Text>{event.blockReason}</Text>
             </Detail>
+          )}
+          {event.kind !== 'BLOCK' && (
+            <>
+              <Divider />
+              <EventAttendanceSection event={event} timeZone={lookups.timeZone} />
+            </>
           )}
           <Divider />
           {event.status === 'SCHEDULED' ? (

@@ -26,6 +26,15 @@ public interface BookingEntitlements {
 	 */
 	void release(UUID customerId, UUID passId, UUID reservationId, boolean returnEntry, UUID actorAccountId);
 
+	/**
+	 * Settles the entry allocated to a reservation as used, once attendance is recorded: the
+	 * participant came, or stayed away without cancelling. The balance already went down when the
+	 * entry was allocated, so it does not change again. Does nothing when the allocation is already
+	 * settled or the pass holds none for the reservation, e.g. for data from before the application.
+	 * The caller holds the occurrence/reservation locks.
+	 */
+	void consume(UUID customerId, UUID passId, UUID reservationId, UUID actorAccountId);
+
 	/** A usable pass; a null balance denotes unlimited entries. */
 	record EligiblePass(UUID id, String productName, Short entriesRemaining, LocalDate validFrom,
 			LocalDate validUntil) {
