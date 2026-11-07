@@ -102,6 +102,27 @@ class SeedDataTests {
 				""").query().singleRow();
 	}
 
+	@Test
+	@Transactional
+	void passUsageExamplesBalanceTheirLedgerAndPreserveTesterChanges() {
+		assertThat(jdbc.sql("""
+				SELECT pass.entries_remaining::INT AS remaining, sum(ledger.entries_delta)::INT AS balance
+				FROM customer_pass pass JOIN pass_ledger ledger ON ledger.pass_id = pass.id
+				WHERE pass.id BETWEEN '28000000-0000-0000-0000-000000011001' AND '28000000-0000-0000-0000-000000011006'
+				  AND pass.entries_total IS NOT NULL GROUP BY pass.id
+				""").query().listOfRows()).hasSize(5).allSatisfy(row -> assertThat(row.get("remaining")).isEqualTo(row.get("balance")));
+		Map<String, Long> counts = rowCounts();
+		jdbc.sql("UPDATE customer_pass SET entries_remaining = 4 WHERE id = '28000000-0000-0000-0000-000000011001'").update();
+		jdbc.sql("UPDATE schedule_event SET starts_at = starts_at + INTERVAL '1 hour', ends_at = ends_at + INTERVAL '1 hour' WHERE id = '19000000-0000-0000-0000-000000011002'").update();
+		Map<String, Object> changed = jdbc.sql("SELECT * FROM schedule_event WHERE id = '19000000-0000-0000-0000-000000011002'").query().singleRow();
+		Resource script = new ClassPathResource("db/seed/R__seed_11_pass_usage_history.sql");
+		new ResourceDatabasePopulator(script).execute(dataSource);
+		new ResourceDatabasePopulator(script).execute(dataSource);
+		assertThat(jdbc.sql("SELECT entries_remaining::INT FROM customer_pass WHERE id = '28000000-0000-0000-0000-000000011001'").query(Integer.class).single()).isEqualTo(4);
+		assertThat(jdbc.sql("SELECT * FROM schedule_event WHERE id = '19000000-0000-0000-0000-000000011002'").query().singleRow()).isEqualTo(changed);
+		assertThat(rowCounts()).isEqualTo(counts);
+	}
+
 	private Map<String, Long> rowCounts() {
 		List<String> tables = jdbc.sql("""
 				SELECT table_name

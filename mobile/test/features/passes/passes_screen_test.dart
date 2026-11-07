@@ -7,6 +7,8 @@ import 'package:mobile/core/auth/auth_state.dart';
 import 'package:mobile/core/auth/session.dart';
 import 'package:mobile/core/network/api_exception.dart';
 import 'package:mobile/features/passes/data/passes_api.dart';
+import 'package:mobile/features/passes/data/pass_usage_api.dart';
+import 'package:mobile/features/passes/presentation/pass_usage_screen.dart';
 import 'package:mobile/features/passes/presentation/passes_screen.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
 
@@ -169,6 +171,15 @@ void main() {
           () => _SignedInAuthController(session),
         ),
         passesApiProvider.overrideWithValue(api),
+        passUsageProvider.overrideWith(
+          (ref, query) async => PassUsagePage(
+            items: [],
+            page: 0,
+            totalItems: 0,
+            totalPages: 0,
+            selectedPassName: query.passId,
+          ),
+        ),
       ],
     );
     addTearDown(container.dispose);
@@ -223,6 +234,39 @@ void main() {
     expect(find.text('Ostatni dzień ważności'), findsOneWidget);
     expect(find.text('Aktywny'), findsNWidgets(2));
   });
+
+  testWidgets(
+    'opens the selected expired pass history for the current profile',
+    (tester) async {
+      final today = _today();
+      await pumpScreen(
+        tester,
+        _FakePassesApi(
+          passes: {
+            'self': [
+              _pass(
+                'Poprzedni karnet',
+                PassStatus.expired,
+                validFrom: today.subtract(const Duration(days: 60)),
+                validUntil: today.subtract(const Duration(days: 30)),
+              ),
+            ],
+          },
+        ),
+      );
+      await tester.tap(find.textContaining('Wygasłe'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Historia wejść'));
+      await tester.pumpAndSettle();
+      final screen = tester.widget<PassUsageScreen>(
+        find.byType(PassUsageScreen),
+      );
+      expect(screen.initialPassId, 'Poprzedni karnet');
+      expect(screen.accountId, 'parent-user');
+      expect(screen.initialProfileId, 'self');
+      expect(find.text('Poprzedni karnet'), findsOneWidget);
+    },
+  );
 
   testWidgets('groups scheduled passes and collapses expired ones', (
     tester,

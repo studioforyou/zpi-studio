@@ -58,6 +58,11 @@ class DefaultGroupClassSchedule implements GroupClassSchedule {
 	}
 
 	@Override
+	public List<Occurrence> findAllById(Collection<UUID> ids) {
+		return occurrences(queries.findEventsById(ids));
+	}
+
+	@Override
 	@Transactional(propagation = Propagation.MANDATORY)
 	public Occurrence lock(UUID id) {
 		jdbc.sql("SELECT id FROM schedule_event WHERE id = :id AND kind = 'CLASS' AND visibility = 'PUBLIC' AND service_type_id IS NOT NULL FOR UPDATE")
