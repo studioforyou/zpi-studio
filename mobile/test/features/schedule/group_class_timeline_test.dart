@@ -2,14 +2,21 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile/features/trainings/data/group_classes_api.dart';
 import 'package:mobile/features/schedule/presentation/widgets/group_class_timeline.dart';
+import 'package:mobile/features/trainings/presentation/widgets/group_class_widgets.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
 
 import '../trainings/group_class_fixtures.dart';
 
-GroupClass _event(String id, int hour, int minute, int duration) {
+GroupClass _event(
+  String id,
+  int hour,
+  int minute,
+  int duration, {
+  int? waitlistPosition,
+}) {
   final start = DateTime(2030, 11, 2, hour, minute);
   return GroupClass.fromJson({
-    ...groupClassJson(availablePlaces: 0),
+    ...groupClassJson(availablePlaces: 0, waitlistPosition: waitlistPosition),
     'id': id,
     'title': id,
     'startsAt': start.toIso8601String(),
@@ -133,4 +140,50 @@ void main() {
       expect(selected?.id, 'Zdrowy kręgosłup');
     },
   );
+
+  test('waiting marker is shown only while a place can still be given', () {
+    final event = _event('Pole dance', 9, 0, 60, waitlistPosition: 2);
+    final before = event.startsAt.subtract(const Duration(minutes: 1));
+    expect(classWaitingEntry(event, now: before)?.position, 2);
+    expect(classWaitingEntry(event, now: event.startsAt), isNull);
+    final cancelled = GroupClass.fromJson({
+      ...groupClassJson(availablePlaces: 0, waitlistPosition: 2),
+      'status': 'CANCELLED',
+    });
+    expect(classWaitingEntry(cancelled, now: before), isNull);
+    expect(
+      classWaitingEntry(_event('Stretching', 9, 0, 60), now: before),
+      isNull,
+    );
+  });
+
+  testWidgets('a waiting class shows its position beside the title', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        locale: const Locale('pl'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: Scaffold(
+          body: GroupClassTimeline(
+            events: [
+              _event('Pole dance', 9, 0, 60, waitlistPosition: 2),
+              _event('Stretching', 11, 0, 60),
+            ],
+            day: DateTime(2030, 11, 2),
+            onSelect: (_) {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byIcon(Icons.hourglass_top), findsOneWidget);
+    expect(find.text('2'), findsOneWidget);
+    Tooltip tooltipOf(String name) => tester.widget<Tooltip>(
+      find.ancestor(of: find.text(name), matching: find.byType(Tooltip)),
+    );
+    expect(tooltipOf('Pole dance').message, contains('Lista rezerwowa · 2'));
+    expect(tooltipOf('Stretching').message, isNot(contains('Lista')));
+  });
 }

@@ -45,10 +45,10 @@ class GroupClassCancellationTests {
 	@Test
 	void ageUsesTheOccurrenceDayIncludingTheBirthdayAndHandlesMissingBirthDates() {
 		LocalDate birth = LocalDate.of(2015, 4, 12);
-		assertThat(GroupClassBookingService.ageAllowed(birth, LocalDate.of(2027, 4, 11), (short) 12, (short) 15)).isFalse();
-		assertThat(GroupClassBookingService.ageAllowed(birth, LocalDate.of(2027, 4, 12), (short) 12, (short) 15)).isTrue();
-		assertThat(GroupClassBookingService.ageAllowed(null, LocalDate.of(2027, 4, 12), (short) 12, null)).isFalse();
-		assertThat(GroupClassBookingService.ageAllowed(null, LocalDate.of(2027, 4, 12), null, null)).isTrue();
+		assertThat(ParticipationRules.ageAllowed(birth, LocalDate.of(2027, 4, 11), (short) 12, (short) 15)).isFalse();
+		assertThat(ParticipationRules.ageAllowed(birth, LocalDate.of(2027, 4, 12), (short) 12, (short) 15)).isTrue();
+		assertThat(ParticipationRules.ageAllowed(null, LocalDate.of(2027, 4, 12), (short) 12, null)).isFalse();
+		assertThat(ParticipationRules.ageAllowed(null, LocalDate.of(2027, 4, 12), null, null)).isTrue();
 	}
 
 	@Test
