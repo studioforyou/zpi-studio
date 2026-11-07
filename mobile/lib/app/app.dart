@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mobile/app/intro/login_intro.dart';
+import 'package:mobile/app/push/push_notifications.dart';
 import 'package:mobile/app/router/app_router.dart';
 import 'package:mobile/app/theme/app_theme.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
@@ -10,7 +11,9 @@ class App extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    ref.watch(pushNotificationsProvider);
     return MaterialApp.router(
+      scaffoldMessengerKey: notificationMessengerKey,
       routerConfig: ref.watch(appRouterProvider),
       builder: (_, child) => LoginIntro(child: child!),
       theme: buildAppTheme(),

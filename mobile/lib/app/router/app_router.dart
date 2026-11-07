@@ -18,6 +18,7 @@ import 'package:mobile/features/accounts/presentation/staff_profile_edit_screen.
 import 'package:mobile/features/communication/presentation/messages_screen.dart';
 import 'package:mobile/features/documents/presentation/document_screen.dart';
 import 'package:mobile/features/documents/presentation/documents_screen.dart';
+import 'package:mobile/features/communication/presentation/notifications_screen.dart';
 import 'package:mobile/features/passes/presentation/passes_screen.dart';
 import 'package:mobile/features/schedule/presentation/add_class_screen.dart';
 import 'package:mobile/features/schedule/presentation/availability_screen.dart';
@@ -42,6 +43,8 @@ const clientSchedulePath = '/client/schedule';
 const clientPassesPath = '/client/passes';
 const clientReservationsPath = '/client/reservations';
 const clientMessagesPath = '/client/messages';
+const notificationsSubPath = 'notifications';
+const clientNotificationsPath = '$clientMessagesPath/$notificationsSubPath';
 const clientProfilePath = '/client/profile';
 const clientProfileEditSubPath = 'edit';
 const clientDocumentsSubPath = 'documents';
@@ -52,6 +55,7 @@ const clientTrainingHistoryPath =
 const trainerSchedulePath = '/trainer/schedule';
 const trainerTrainingsPath = '/trainer/trainings';
 const trainerMessagesPath = '/trainer/messages';
+const trainerNotificationsPath = '$trainerMessagesPath/$notificationsSubPath';
 const trainerProfilePath = '/trainer/profile';
 const trainerAvailabilitySubPath = 'availability';
 const trainerProfileEditSubPath = 'edit';
@@ -97,9 +101,10 @@ _Tab _tab(
   IconData icon,
   String Function(AppLocalizations) label, {
   List<RouteBase> routes = const [],
+  int Function(WidgetRef)? badge,
 }) => (
   route: GoRoute(path: path, builder: (_, _) => screen, routes: routes),
-  destination: ShellDestination(icon: icon, label: label),
+  destination: ShellDestination(icon: icon, label: label, badge: badge),
 );
 
 /// One shell per role, with one branch per tab.
@@ -144,6 +149,14 @@ StatefulShellRoute _clientShell() => _roleShell([
     const MessagesScreen(),
     Icons.chat_bubble_outline,
     (l10n) => l10n.navMessages,
+    routes: [
+      // Opened with the bell on the messages screen.
+      GoRoute(
+        path: notificationsSubPath,
+        builder: (_, _) => const NotificationsScreen(),
+      ),
+    ],
+    badge: watchUnreadNotifications,
   ),
   _tab(
     clientProfilePath,
@@ -202,6 +215,14 @@ StatefulShellRoute _trainerShell() => _roleShell([
     const MessagesScreen(),
     Icons.chat_bubble_outline,
     (l10n) => l10n.navMessages,
+    routes: [
+      // Opened with the bell on the messages screen.
+      GoRoute(
+        path: notificationsSubPath,
+        builder: (_, _) => const NotificationsScreen(),
+      ),
+    ],
+    badge: watchUnreadNotifications,
   ),
   _tab(
     trainerProfilePath,

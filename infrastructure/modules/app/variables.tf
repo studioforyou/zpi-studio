@@ -78,3 +78,9 @@ variable "invitation_link_base_url" {
   description = "Adres strony, która otwiera zaproszenie w aplikacji. Backend dopisuje do niego ?token=..."
   type        = string
 }
+
+variable "notification_job_schedule" {
+  description = "Cron schedule of the notification job (class reminders, push retries). Reminders are sent within this interval of their time."
+  type        = string
+  default     = "*/5 * * * *"
+}

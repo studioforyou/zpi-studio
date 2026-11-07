@@ -61,6 +61,15 @@ class _Api implements GroupClassesApi {
   final List<Map<String, dynamic>> extraClasses = [];
   int participantReads = 0;
   bool participantsFail = false;
+  int classReads = 0;
+  String? joinedPassId;
+  ClassQuery? joinedQuery;
+
+  /// The last place of the class frees up just before the join arrives.
+  bool placeFreedBeforeJoin = false;
+  String? leftEntryId;
+  BookingScope? leftScope;
+  String? confirmedEntryId;
 
   @override
   Future<List<ClassParticipant>> fetchParticipants(ClassQuery query) async {
@@ -107,8 +116,52 @@ class _Api implements GroupClassesApi {
 
   @override
   Future<GroupClass> fetchClass(ClassQuery query) async {
+    classReads++;
     if (fails) throw const ClassBookingException(statusCode: 503);
     return GroupClass.fromJson(data);
+  }
+
+  @override
+  Future<ClassWaitlistEntry> joinWaitlist(
+    ClassQuery query,
+    String customerPassId,
+  ) async {
+    joinedPassId = customerPassId;
+    joinedQuery = query;
+    if (placeFreedBeforeJoin) {
+      data = groupClassJson();
+      throw const ClassBookingException(
+        statusCode: 409,
+        code: 'CLASS_NOT_FULL',
+      );
+    }
+    data = fullClassJson(waitlistPosition: 3);
+    return ClassWaitlistEntry.fromJson(waitlistEntryJson(position: 3));
+  }
+
+  @override
+  Future<ClassWaitlistEntry> confirmWaitlistOffer(
+    BookingScope scope,
+    ClassWaitlistEntry entry,
+  ) async {
+    confirmedEntryId = entry.id;
+    data = groupClassJson(reserved: true);
+    return ClassWaitlistEntry.fromJson({
+      ...waitlistEntryJson(waiting: false),
+      'status': 'PROMOTED',
+      'reservationId': 'reservation-1',
+    });
+  }
+
+  @override
+  Future<ClassWaitlistEntry> leaveWaitlist(
+    BookingScope scope,
+    ClassWaitlistEntry entry,
+  ) async {
+    leftScope = scope;
+    leftEntryId = entry.id;
+    data = fullClassJson(waitingCount: 2);
+    return ClassWaitlistEntry.fromJson(waitlistEntryJson(waiting: false));
   }
 
   @override
@@ -588,6 +641,297 @@ void main() {
     },
   );
 
+  Finder joinButton() =>
+      find.widgetWithText(FilledButton, 'Dołącz do listy rezerwowej');
+  Finder leaveButton() =>
+      find.widgetWithText(OutlinedButton, 'Opuść listę rezerwową');
+  VoidCallback? onPressed(WidgetTester tester, Finder button) =>
+      tester.widget<ButtonStyleButton>(button).onPressed;
+
+  testWidgets(
+    'full class joins the waiting list with an explicitly chosen pass',
+    (tester) async {
+      final api = _Api(data: fullClassJson(waitingCount: 2, passCount: 2));
+      await pump(tester, api, details: true);
+      expect(find.text('Brak wolnych miejsc.'), findsOneWidget);
+      expect(
+        find.text(
+          'Dołącz do listy rezerwowej — gdy zwolni się miejsce, '
+          'zapiszemy Cię automatycznie.',
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.text('Na liście rezerwowej czekają już 2 osoby.'),
+        findsOneWidget,
+      );
+      expect(find.widgetWithText(FilledButton, 'Zapisz się'), findsNothing);
+
+      await tapVisible(tester, joinButton());
+      expect(find.text('Dołączyć do listy rezerwowej?'), findsOneWidget);
+      expect(find.text('Uczestnik: Anna Klient'), findsNWidgets(2));
+      expect(
+        find.text(
+          'Gdy zwolni się miejsce, zapiszemy Cię automatycznie. '
+          'Obowiązują wtedy zwykłe zasady odwołania.',
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.text(
+          'Jeśli wybranego karnetu nie będzie można wtedy użyć, '
+          'skorzystamy z innego ważnego karnetu.',
+        ),
+        findsOneWidget,
+      );
+      final confirm = find.widgetWithText(FilledButton, 'Dołącz');
+      expect(onPressed(tester, confirm), isNull);
+      for (final pass in ['Karnet 1', 'Karnet 2']) {
+        await tester.tap(find.byType(DropdownButtonFormField<String>));
+        await tester.pumpAndSettle();
+        await tester.tap(find.textContaining(pass).last);
+        await tester.pumpAndSettle();
+        // Only a pass with limited entries is charged an entry.
+        expect(
+          find.text('Z karnetu pobierzemy wtedy 1 wejście.'),
+          pass == 'Karnet 1' ? findsOneWidget : findsNothing,
+        );
+      }
+      await tester.tap(confirm);
+      await tester.pumpAndSettle();
+
+      expect(api.joinedPassId, 'pass-2');
+      expect(api.joinedQuery, (scope: _scope, eventId: 'class-1'));
+      expect(api.bookedPassId, isNull);
+      expect(find.text('Dołączono do listy rezerwowej.'), findsOneWidget);
+      expect(find.text('Jesteś na liście rezerwowej'), findsOneWidget);
+      expect(find.text('Pozycja na liście: 3 z 3'), findsOneWidget);
+      expect(
+        find.text(
+          'Gdy zwolni się miejsce, zapiszemy Cię automatycznie — '
+          'rezerwacja pojawi się w zakładce Mój grafik.',
+        ),
+        findsOneWidget,
+      );
+      expect(joinButton(), findsNothing);
+      expect(onPressed(tester, leaveButton()), isNotNull);
+    },
+  );
+
+  testWidgets('waiting participant leaves the list only after confirming', (
+    tester,
+  ) async {
+    final api = _Api(data: fullClassJson(waitlistPosition: 2, waitingCount: 3));
+    await pump(tester, api, details: true);
+    expect(find.text('Jesteś na liście rezerwowej'), findsOneWidget);
+    expect(find.text('Pozycja na liście: 2 z 3'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, 'Zapisz się'), findsNothing);
+
+    await tapVisible(tester, leaveButton());
+    expect(find.text('Opuścić listę rezerwową?'), findsOneWidget);
+    expect(find.text('Stracisz swoje miejsce w kolejce.'), findsOneWidget);
+    await tester.tap(find.widgetWithText(TextButton, 'Zostań na liście'));
+    await tester.pumpAndSettle();
+    expect(api.leftEntryId, isNull);
+    expect(find.text('Pozycja na liście: 2 z 3'), findsOneWidget);
+
+    await tapVisible(tester, leaveButton());
+    await tester.tap(find.widgetWithText(FilledButton, 'Opuść listę'));
+    await tester.pumpAndSettle();
+    expect(api.leftEntryId, 'waitlist-1');
+    expect(api.leftScope, _scope);
+    expect(find.text('Opuszczono listę rezerwową.'), findsOneWidget);
+    expect(find.text('Jesteś na liście rezerwowej'), findsNothing);
+    expect(onPressed(tester, joinButton()), isNotNull);
+  });
+
+  for (final (name, data) in [
+    (
+      'a disabled',
+      fullClassJson(
+        waitlistAllowed: false,
+        waitlistReason: 'WAITLIST_DISABLED',
+      ),
+    ),
+    ('no', fullClassJson()..remove('waitlist')),
+  ]) {
+    testWidgets('full class with $name waiting list keeps disabled booking', (
+      tester,
+    ) async {
+      await pump(tester, _Api(data: data), details: true);
+      expect(find.text('Brak wolnych miejsc'), findsOneWidget);
+      expect(
+        onPressed(tester, find.widgetWithText(FilledButton, 'Zapisz się')),
+        isNull,
+      );
+      expect(find.text('Dołącz do listy rezerwowej'), findsNothing);
+    });
+  }
+
+  for (final (reason, passCount, text) in [
+    (
+      'NO_ELIGIBLE_PASS',
+      0,
+      'Wybrany uczestnik nie ma karnetu ważnego na te zajęcia, '
+          'z dostępnym wejściem i odpowiednim zakresem usług.',
+    ),
+    (
+      'REQUIRED_DOCUMENTS_MISSING',
+      1,
+      'Przed zapisem zaakceptuj wymagane dokumenty w sekcji '
+          'Dokumenty i zgody.',
+    ),
+  ]) {
+    testWidgets('full class explains why joining is refused: $reason', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        _Api(
+          data: fullClassJson(
+            waitlistAllowed: false,
+            waitlistReason: reason,
+            waitingCount: 2,
+            passCount: passCount,
+          ),
+        ),
+        details: true,
+      );
+      expect(find.text('Brak wolnych miejsc.'), findsOneWidget);
+      expect(find.text(text), findsOneWidget);
+      expect(find.textContaining('zapiszemy Cię automatycznie'), findsNothing);
+      expect(
+        find.widgetWithText(OutlinedButton, 'Przejdź do dokumentów'),
+        reason == 'REQUIRED_DOCUMENTS_MISSING' ? findsOneWidget : findsNothing,
+      );
+      expect(onPressed(tester, joinButton()), isNull);
+      expect(find.widgetWithText(FilledButton, 'Zapisz się'), findsNothing);
+    });
+  }
+
+  for (final (reason, text) in [
+    (
+      'REQUIRED_DOCUMENTS_MISSING',
+      'Na razie nie zapiszemy Cię automatycznie. Przed zapisem zaakceptuj '
+          'wymagane dokumenty w sekcji Dokumenty i zgody.',
+    ),
+    (
+      'NO_ELIGIBLE_PASS',
+      'Na razie nie zapiszemy Cię automatycznie. Wybrany uczestnik nie ma '
+          'karnetu ważnego na te zajęcia, z dostępnym wejściem i odpowiednim '
+          'zakresem usług.',
+    ),
+    (
+      'BOOKING_CLOSED',
+      'Lista rezerwowa jest już zamknięta — nie przydzielimy z niej miejsca '
+          'na te zajęcia.',
+    ),
+  ]) {
+    testWidgets('waiting participant sees a blocked promotion: $reason', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        _Api(
+          data: fullClassJson(
+            waitlistPosition: 1,
+            promotionBlockedReason: reason,
+          ),
+        ),
+        details: true,
+      );
+      expect(find.text('Pozycja na liście: 1 z 1'), findsOneWidget);
+      expect(find.text(text), findsOneWidget);
+      expect(find.textContaining('rezerwacja pojawi się'), findsNothing);
+      expect(
+        find.widgetWithText(OutlinedButton, 'Przejdź do dokumentów'),
+        reason == 'REQUIRED_DOCUMENTS_MISSING' ? findsOneWidget : findsNothing,
+      );
+      expect(onPressed(tester, leaveButton()), isNotNull);
+    });
+  }
+
+  testWidgets('waiting participant books a place the queue left free', (
+    tester,
+  ) async {
+    final api = _Api(
+      data: groupClassJson(availablePlaces: 1, waitlistPosition: 1),
+    );
+    await pump(tester, api, details: true);
+    expect(find.text('Jesteś na liście rezerwowej'), findsOneWidget);
+    expect(
+      find.text('Zwolniło się miejsce — możesz zapisać się na zajęcia.'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('rezerwacja pojawi się'), findsNothing);
+    expect(onPressed(tester, leaveButton()), isNotNull);
+    await tapVisible(tester, find.widgetWithText(FilledButton, 'Zapisz się'));
+    expect(find.text('Potwierdź zapis'), findsOneWidget);
+    await tester.tap(find.widgetWithText(FilledButton, 'Zapisz się').last);
+    await tester.pumpAndSettle();
+    expect(api.bookedPassId, 'pass-1');
+    expect(api.joinedPassId, isNull);
+    expect(find.text('Masz rezerwację'), findsOneWidget);
+    expect(leaveButton(), findsNothing);
+  });
+
+  testWidgets('a place freed while joining is offered for booking instead', (
+    tester,
+  ) async {
+    final api = _Api(data: fullClassJson())..placeFreedBeforeJoin = true;
+    await pump(tester, api, details: true);
+    final reads = api.classReads;
+    await tapVisible(tester, joinButton());
+    // A single eligible pass needs no choice.
+    await tester.tap(find.widgetWithText(FilledButton, 'Dołącz'));
+    await tester.pumpAndSettle();
+    expect(api.joinedPassId, 'pass-1');
+    expect(api.classReads, greaterThan(reads));
+    expect(
+      find.text('Zwolniło się miejsce — możesz zapisać się na zajęcia.'),
+      findsOneWidget,
+    );
+    expect(find.text('Dołączono do listy rezerwowej.'), findsNothing);
+    expect(joinButton(), findsNothing);
+    expect(
+      onPressed(tester, find.widgetWithText(FilledButton, 'Zapisz się')),
+      isNotNull,
+    );
+  });
+
+  testWidgets(
+    'changing profile while joining never adds old participant to the list',
+    (tester) async {
+      final api = _Api(data: fullClassJson());
+      final container = await pump(tester, api, details: true);
+      await tapVisible(tester, joinButton());
+      container.read(authControllerProvider.notifier).choose(_child);
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, 'Dołącz'));
+      await tester.pumpAndSettle();
+      expect(api.joinedPassId, isNull);
+      expect(
+        find.textContaining('Zmieniono profil uczestnika'),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets('calendar marks the waiting position of an upcoming class', (
+    tester,
+  ) async {
+    await pump(
+      tester,
+      _Api(data: fullClassJson(waitlistPosition: 2, waitingCount: 3)),
+    );
+    expect(find.text('Lista rezerwowa · 2'), findsOneWidget);
+    expect(find.byIcon(Icons.hourglass_top_outlined), findsOneWidget);
+    expect(find.text('Masz rezerwację'), findsNothing);
+    await tester.tap(find.text('Dzień'));
+    await tester.pumpAndSettle();
+    expect(find.byIcon(Icons.hourglass_top), findsOneWidget);
+  });
+
   testWidgets('late parent response does not replace selected child offer', (
     tester,
   ) async {
@@ -825,6 +1169,153 @@ void main() {
     expect(find.text('Potwierdź zapis'), findsOneWidget);
     expect(
       find.widgetWithText(FilledButton, 'Zapisz się').last.hitTestable(),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('waiting list confirmation fits a phone with enlarged text', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(360, 740);
+    tester.view.devicePixelRatio = 1;
+    tester.platformDispatcher.textScaleFactorTestValue = 1.5;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+    await pump(
+      tester,
+      _Api(data: fullClassJson(waitingCount: 12, passCount: 2)),
+      details: true,
+      phoneSize: true,
+    );
+    final waitingCount = find.text('Na liście rezerwowej czeka już 12 osób.');
+    await tester.scrollUntilVisible(
+      waitingCount,
+      160,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(waitingCount, findsOneWidget);
+    await tapVisible(tester, joinButton());
+    expect(tester.takeException(), isNull);
+    expect(find.text('Dołączyć do listy rezerwowej?'), findsOneWidget);
+    expect(
+      find.widgetWithText(FilledButton, 'Dołącz').hitTestable(),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('an offered place is confirmed before its deadline', (
+    tester,
+  ) async {
+    final api = _Api(data: offeredClassJson());
+    await pump(tester, api, details: true);
+    expect(find.text('Zwolniło się miejsce dla Ciebie'), findsOneWidget);
+    expect(find.textContaining('Potwierdź je do'), findsOneWidget);
+    expect(find.textContaining('Pozycja na liście'), findsNothing);
+    expect(joinButton(), findsNothing);
+    await tapVisible(
+      tester,
+      find.widgetWithText(FilledButton, 'Potwierdź miejsce'),
+    );
+    expect(find.text('Potwierdzić miejsce?'), findsOneWidget);
+    await tester.tap(
+      find.widgetWithText(FilledButton, 'Potwierdź miejsce').last,
+    );
+    await tester.pumpAndSettle();
+    expect(api.confirmedEntryId, 'waitlist-1');
+    expect(find.text('Masz rezerwację'), findsOneWidget);
+    expect(
+      find.text('Miejsce potwierdzone — masz rezerwację.'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('declining an offered place passes it to the next person', (
+    tester,
+  ) async {
+    final api = _Api(data: offeredClassJson());
+    await pump(tester, api, details: true);
+    await tapVisible(
+      tester,
+      find.widgetWithText(OutlinedButton, 'Zrezygnuj z miejsca'),
+    );
+    expect(
+      find.text('Miejsce przejdzie na kolejną osobę z listy rezerwowej.'),
+      findsOneWidget,
+    );
+    await tester.tap(find.widgetWithText(FilledButton, 'Zrezygnuj z miejsca'));
+    await tester.pumpAndSettle();
+    expect(api.leftEntryId, 'waitlist-1');
+    expect(api.confirmedEntryId, isNull);
+    expect(find.text('Zrezygnowano z miejsca.'), findsOneWidget);
+  });
+
+  testWidgets('an expired offer cannot be confirmed', (tester) async {
+    await pump(
+      tester,
+      _Api(data: offeredClassJson(offerExpiresAt: '2020-01-01T00:00:00Z')),
+      details: true,
+    );
+    expect(
+      find.text(
+        'Czas na potwierdzenie miejsca minął — przeszło ono na kolejną osobę z listy.',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      onPressed(tester, find.widgetWithText(FilledButton, 'Potwierdź miejsce')),
+      isNull,
+    );
+  });
+
+  testWidgets('an offer blocked by missing documents points to them', (
+    tester,
+  ) async {
+    await pump(
+      tester,
+      _Api(
+        data: offeredClassJson(
+          promotionBlockedReason: 'REQUIRED_DOCUMENTS_MISSING',
+        ),
+      ),
+      details: true,
+    );
+    expect(
+      find.textContaining('Teraz nie możemy Cię zapisać.'),
+      findsOneWidget,
+    );
+    expect(
+      find.widgetWithText(OutlinedButton, 'Przejdź do dokumentów'),
+      findsOneWidget,
+    );
+    expect(
+      onPressed(tester, find.widgetWithText(FilledButton, 'Potwierdź miejsce')),
+      isNull,
+    );
+  });
+
+  testWidgets(
+    'joining a class with a confirmation time says the place is held',
+    (tester) async {
+      await pump(
+        tester,
+        _Api(data: withConfirmation(fullClassJson())),
+        details: true,
+      );
+      expect(find.textContaining('na 30 min do potwierdzenia'), findsOneWidget);
+    },
+  );
+
+  testWidgets('waiting for a class with a confirmation time explains it', (
+    tester,
+  ) async {
+    await pump(
+      tester,
+      _Api(data: withConfirmation(fullClassJson(waitlistPosition: 2))),
+      details: true,
+    );
+    expect(
+      find.textContaining('potwierdź je wtedy na tym ekranie'),
       findsOneWidget,
     );
   });

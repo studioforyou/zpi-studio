@@ -24,6 +24,42 @@ The [Docker Compose configuration](../docker-compose.yml) defines the local back
 
 Only `AVAILABLE` credits with a future expiry and no usage markers are included. An expired source pass does not invalidate an otherwise valid credit. This read does not grant credits or determine eligibility for a particular class. It uses the existing `makeup_credit` and `customer_pass` tables without a schema migration. Dev/stage seed 09 repairs the original unused Monika example's misleading Open-pass link, using a separate expired four-entry Pole Dance pass with a make-up policy. It preserves the credit's status and dates and leaves used or reassigned credits alone. Katarzyna also has used and expired examples.
 
+## Notifications
+
+`communication` sends push notifications to the mobile app and keeps every notification in the recipient's in-app inbox (#142).
+
+- **Types.** Each type is a `notification_type` row loaded by a migration and a `NotificationType` constant, with the `{{name}}` placeholders its template can use. Placeholder names are Polish (e.g. `{{zajęcia}}`, `{{ile przed}}`) because the studio administrator writes the templates; the panel inserts them with buttons and shows a preview. The administrator configures every type in the web panel (`GET`, `PATCH /api/v1/notification-types/{code}`): on/off, the push title and text, and for a timed type 1 to 5 reminder times (`notification_lead_time`, 5 minutes to 14 days before the start). A new type must appear there; its issue only adds the source of the notification and its default content.
+- **Recipients.** A notification goes to an account. A child's notification goes to every active guardian and names the child (`subject_customer_id`). A guardian sees the participant's first name in every title, its own notifications too, e.g. `Monika: …` and `Zosia: …`. For an account with several roles (client and trainer) the title starts with the role it concerns, e.g. `Klient · Kuba: …`, and `recipient_role` lets the inbox show only the active role's notifications.
+- **Devices.** The app registers its FCM token after sign-in (`POST /api/v1/me/devices`, a token moves to the account that registered it last) and removes it before sign-out (`DELETE /api/v1/me/devices/{token}`). Tokens FCM reports as invalid are revoked when a push fails.
+- **Inbox.** `GET /api/v1/me/notifications?role=CLIENT`, `GET .../unread-count`, `POST .../{id}/read` and `POST .../read-all`.
+- **Sending.** `PushSender` has two implementations, chosen by `PUSH_PROVIDER`: `LOG` (default, local) only logs, `FCM` sends through the FCM HTTP v1 API with the Firebase Admin SDK and Application Default Credentials. Every attempt is a `notification_delivery` row (`SENT`, `FAILED`, `TOKEN_INVALID`, `NO_DEVICE`). `notification.dedup_key` makes each notification unique, so a job or event that runs twice sends nothing twice.
+
+### Timed notifications: the notification job
+
+Cloud Run scales to zero and has no CPU between requests, so the backend does not run timers in production. Cloud Scheduler calls `POST /internal/jobs/notifications/run` every 5 minutes (see `infrastructure/`) with a Google-signed OIDC token. `/internal/**` has its own security chain: it accepts only a token with issuer `https://accounts.google.com`, audience `JOBS_OIDC_AUDIENCE` and the verified e-mail `JOBS_OIDC_SERVICE_ACCOUNT`, and rejects everything while either is unset. Firebase user tokens are not accepted there.
+
+One run:
+
+1. sends class reminders that are due: for every active reservation of a class that is not cancelled, each reminder time from `start - lead time` for 30 minutes, if the reservation already existed then;
+2. retries pushes that failed in the last 12 hours (after 2 minutes, at most 3 failed attempts);
+3. re-delivers domain events whose listener has not finished (see below).
+
+Locally, with Docker Compose, `JOBS_LOCAL_SCHEDULER_ENABLED=true` runs the same job inside the backend every 5 minutes instead.
+
+### Notifications sent right after an event
+
+A module that has something to notify about publishes a domain event in its own transaction; `communication` listens and sends right away:
+
+```java
+@Async
+@TransactionalEventListener
+void on(ClassCancelled event) {
+    notifications.notifyNow(List.of(new NotificationRequest(...)));
+}
+```
+
+Spring Modulith's event publication registry (`event_publication`) stores the event in the same transaction as the business change. The listener runs after the commit, on another thread, so a failing push never fails the user's request. A listener that fails or does not finish stays in the registry, and the notification job delivers it again after 2 minutes; the dedup key keeps the notification single. Completed publications are deleted (`spring.modulith.events.completion-mode: delete`).
+
 ## Tests
 
 Requires JDK 21. From `backend/`, run only the module architecture test without a Spring context, database, or Docker:
@@ -67,6 +103,12 @@ The trainer profile controller and HTTP DTOs live in `staff.internal`, alongside
 `scheduling` also holds the studio's schedule (#130, #131): one-off and recurring events with their staff and rooms (`/api/v1/schedule-events`, `/api/v1/recurrence-series`), for `ADMIN` accounts only. It reads staff members, their qualifications, leave and working hours through `staff`'s `StaffProfiles` and `StaffAvailability`, and the studio's time zone through `configuration`'s `StudioSettings`. `staff` lists staff members (`GET /api/v1/staff`) and `trainings` lists training groups (`GET /api/v1/training-groups`) for administrators.
 
 `booking` provides the client group-class offer, own upcoming reservations, booking and cancellation under `/api/v1/me/profiles/{profileId}` (#87, #88, #89, #118). The same profile scope lists the training history (#97, `GET .../training-history`): booked events that already started, one entry per event with its outcome (`PRESENT`, `ABSENT`, `UNMARKED`, `CANCELLED`, `LATE_CANCELLED` or `CLASS_CANCELLED`); booking passes only its own reservations' event IDs to `scheduling.GroupClassSchedule.findStartingBetween`, which reads them regardless of kind or visibility. It authorizes own/child profiles through `customer`, reads public occurrences and acquires their locks through `scheduling.GroupClassSchedule`, checks service/age rules through `offering` and required acceptances through `documents.DocumentRequirements`, resolves scoped terms through `configuration.BookingPolicies`, and allocates or returns pass entries through `membership.BookingEntitlements`. Each owner reads only its own tables; occurrence, reservation and pass accounting commit in one transaction.
+
+A full class has a waiting list (#94). The class projection's `waitlist` tells whether the profile can join (`allowed`, `reason`), how many participants wait (`waitingCount`) and the profile's own entry with its 1-based `position` and `promotionBlockedReason`. `POST .../group-classes/{eventId}/waitlist-entries` with a chosen `customerPassId` joins it (`201` with `Location`, `200` with the existing entry on a retry) and charges nothing; `GET`/`POST .../waitlist-entries/{entryId}` (`/cancel`) read and leave it. Joining needs what booking needs except a free place, plus `waitlistEnabled` in the effective policy: otherwise `ALREADY_RESERVED` or `CLASS_NOT_FULL` (`409`), or `WAITLIST_DISABLED`, the booking reasons and `PASS_NOT_USABLE` (`422`). The queue is ordered by join time (taken under the occurrence lock) and ID; the booking-owned `waitlist_entry` table gets `customer_pass_id` in V10, without new module dependencies.
+
+When a participant cancels, the same transaction gives each freed place to the first waiting participant who could book it at that moment: the joining account still acts for them, the booking window is open, the service, age and document rules hold, and the chosen pass or, when it can no longer be used, another eligible pass funds it. The reservation is made like a booking, with `source = 'WAITLIST'` and `booked_by` the joining account; the entry becomes `PROMOTED`. Others are skipped and keep their place, and `promotionBlockedReason` shows why. Booking a free place directly while waiting marks the entry `BOOKED`. The cancellation releases one participant's pass and the promotion reserves another's, so all pass operations of that transaction run in ascending pass ID order (lock order: occurrence, reservations, waiting-list entries, passes); a pass that changed after the promotion check refuses the whole cancellation with `409 VERSION_CONFLICT`, unchanged. `waitlistEnabled` controls joining only.
+
+With a positive `waitlistConfirmMinutes` in the effective policy (the panel's "Wymagaj potwierdzenia zwolnionego miejsca"), a freed place is not booked at once: it is held for that first eligible participant as an `OFFERED` entry until `offerExpiresAt` (the confirmation time, at most until booking closes), and nobody else can book it (`availablePlaces` leaves it out). `POST .../waitlist-entries/{entryId}/confirm` books it under the booking rules of that moment, with only the participant's own pass locked (`200` with the `PROMOTED` entry and its `reservationId`; a repeat returns it; `409 WAITLIST_OFFER_EXPIRED`, `422 WAITLIST_ENTRY_NOT_OFFERED` or a booking reason). Declining with `/cancel`, or not confirming in time (`EXPIRED`), passes the place to the next eligible participant. Every booking, join and cancellation of the class first closes its expired offers under the occurrence lock; a scheduled task (`booking.waitlist.offer-expiry.interval`, default one minute; `booking.waitlist.offer-expiry.enabled=false` turns it off) does it for classes nobody touches. The projection's `waitlist.confirmationMinutes` tells clients which mode applies. Notifying the participant of a place or an offer is #145.
 
 Trainers see the details and participants of the events they run or assist (#103). `scheduling` returns one of the trainer's own events (`GET /api/v1/me/schedule-events/{eventId}`), and `booking` lists its participants with an active reservation (`GET /api/v1/me/schedule-events/{eventId}/participants`): names, adult or child, date of birth and booking time, without contact details. `booking` gets the trainer's staff profile through `staff`'s `StaffProfiles`, checks the assignment through `scheduling`'s `ScheduledEvents` and reads the participants through `customer`'s `CustomerProfiles`. Another trainer's event, a block or an unknown event all answer `404`.
 

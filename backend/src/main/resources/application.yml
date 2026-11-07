@@ -30,6 +30,14 @@ spring:
     datatype:
       datetime:
         write-dates-as-timestamps: false
+  modulith:
+    events:
+      # Completed event publications are removed; incomplete ones stay until the notification job resubmits them.
+      completion-mode: delete
+      jdbc:
+        # The event_publication table comes from a Flyway migration.
+        schema-initialization:
+          enabled: false
   data:
     web:
       pageable:
@@ -66,6 +74,18 @@ app:
     brevo:
       api-key: ${BREVO_API_KEY:}
       base-url: https://api.brevo.com
+  push:
+    # LOG only writes push notifications to the log (local default); FCM sends them (stage, prod).
+    provider: ${PUSH_PROVIDER:LOG}
+  jobs:
+    oidc:
+      # Cloud Scheduler calls /internal/jobs/** with a Google OIDC token for this audience and service
+      # account. Both empty (local default): the endpoints reject every request.
+      audience: ${JOBS_OIDC_AUDIENCE:}
+      service-account: ${JOBS_OIDC_SERVICE_ACCOUNT:}
+    local-scheduler:
+      # Runs the notification job inside the application every 5 minutes, for local development only.
+      enabled: ${JOBS_LOCAL_SCHEDULER_ENABLED:false}
   invitations:
     # Page that opens an invitation (the web panel's /invite; the token is added as ?token=...).
     # The default is the local web panel as seen from the Android emulator; differs per environment.

@@ -74,21 +74,14 @@ class ClientScheduleEventTile extends StatelessWidget {
                         style: theme.textTheme.bodySmall,
                       ),
                       if (event.isReserved)
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.check_circle_outline,
-                              size: 16,
-                              color: theme.colorScheme.primary,
-                            ),
-                            const SizedBox(width: 6),
-                            Flexible(
-                              child: Text(
-                                l10n.classesReserved,
-                                style: theme.textTheme.labelMedium,
-                              ),
-                            ),
-                          ],
+                        _Marker(
+                          Icons.check_circle_outline,
+                          l10n.classesReserved,
+                        )
+                      else if (classWaitingEntry(event) case final entry?)
+                        _Marker(
+                          Icons.hourglass_top_outlined,
+                          classWaitlistMarker(l10n, entry),
                         ),
                       if (cancelled)
                         Text(
@@ -105,6 +98,25 @@ class ClientScheduleEventTile extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// The participant's own state on the class: a reservation or a waiting place.
+class _Marker extends StatelessWidget {
+  const _Marker(this.icon, this.text);
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: theme.colorScheme.primary),
+        const SizedBox(width: 6),
+        Flexible(child: Text(text, style: theme.textTheme.labelMedium)),
+      ],
     );
   }
 }
