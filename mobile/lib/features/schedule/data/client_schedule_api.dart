@@ -11,6 +11,7 @@ class ClientScheduleEvent extends ScheduleEvent {
         status: EventStatus.fromCode(groupClass.status),
         title: groupClass.title,
         serviceTypeName: groupClass.serviceTypeName,
+        serviceTypeId: groupClass.serviceTypeId,
         startsAt: groupClass.startsAt,
         endsAt: groupClass.endsAt,
         capacity: groupClass.capacity,

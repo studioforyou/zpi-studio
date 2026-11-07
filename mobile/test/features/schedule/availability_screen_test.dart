@@ -13,6 +13,7 @@ import 'package:mobile/core/network/dio_provider.dart';
 import 'package:mobile/features/accounts/data/staff_profile_api.dart';
 import 'package:mobile/features/schedule/data/availability_api.dart';
 import 'package:mobile/features/schedule/data/schedule_api.dart';
+import 'package:mobile/features/schedule/data/schedule_service_types.dart';
 import 'package:mobile/features/schedule/presentation/availability_screen.dart';
 
 const _session = Session(
@@ -114,7 +115,8 @@ class _AvailabilityAdapter implements HttpClientAdapter {
     Future<void>? cancelFuture,
   ) async {
     // The trainer shell opens on the schedule tab.
-    if (options.path == ownScheduleEventsPath) {
+    if (options.path == ownScheduleEventsPath ||
+        options.path == scheduleServiceTypesPath) {
       return _json({'items': []}, 200);
     }
     if (options.path == staffProfilePath) {

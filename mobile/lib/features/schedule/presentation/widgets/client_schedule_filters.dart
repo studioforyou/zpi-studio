@@ -1,26 +1,37 @@
 import 'package:flutter/material.dart';
+import 'package:mobile/features/schedule/data/schedule_service_types.dart';
+import 'package:mobile/features/schedule/data/studio_trainers.dart';
 import 'package:mobile/features/schedule/presentation/client_schedule_filter.dart';
+import 'package:mobile/features/schedule/presentation/service_type_filter_labels.dart';
+import 'package:mobile/features/schedule/presentation/widgets/schedule_filter_sheet.dart';
 import 'package:mobile/features/trainings/data/group_classes_api.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
 
-/// Mirrors the trainer calendar's filter button and live bottom-sheet controls.
+/// The filter button of the class offer and its bottom sheet.
 class ClientScheduleFilterBar extends StatelessWidget {
   const ClientScheduleFilterBar({
     required this.filter,
     required this.events,
     required this.onChanged,
-    this.reservationsOnly = false,
     this.selectedServiceLabels = const {},
     this.selectedInstructorLabels = const {},
+    this.serviceTypes = const {},
+    this.trainers = const [],
     super.key,
   });
 
   final ClientScheduleFilter filter;
   final List<GroupClass> events;
   final ValueChanged<ClientScheduleFilter> onChanged;
-  final bool reservationsOnly;
   final Map<String, String> selectedServiceLabels;
   final Map<String, String> selectedInstructorLabels;
+
+  /// The studio's service catalogue by id: the class types, levels and age
+  /// groups offered as choices.
+  final Map<String, ScheduleServiceType> serviceTypes;
+
+  /// Every active trainer, offered as choices.
+  final List<StudioTrainer> trainers;
 
   @override
   Widget build(BuildContext context) {
@@ -55,32 +66,56 @@ class ClientScheduleFilterBar extends StatelessWidget {
 
   Future<void> _openSheet(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    // The catalogue comes first; loaded classes and selected names fill in
+    // when it is missing or a class uses a service that is no longer offered.
+    final offered = {
+      for (final type in serviceTypes.values)
+        if (type.isOfferedGroupClass) type.id: type,
+    };
     final services = {
-      ...selectedServiceLabels,
+      for (final type in offered.values)
+        if (type.name case final String name) type.id: name,
       for (final event in events)
         ClientScheduleFilter.serviceKey(event):
             event.serviceTypeName ?? event.name ?? l10n.classesTitle,
+      ...selectedServiceLabels,
     };
     final instructors = {
-      ...selectedInstructorLabels,
+      for (final trainer in trainers) trainer.staffId: trainer.displayName,
       for (final event in events)
         for (final person in event.staff)
           if (person.isLead && person.displayName != null)
             person.staffId: person.displayName!,
+      ...selectedInstructorLabels,
     };
+    final serviceTypeOptions = serviceTypeFilterOptions(
+      offered,
+      selectedLevels: filter.levels,
+      selectedAgeGroups: filter.ageGroups,
+    );
     return showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
       builder: (_) => _FilterSheet(
         initial: filter,
-        services: services,
+        services: _byLabel(services),
+        // Trainers keep the server's order by last and first name.
         instructors: instructors,
-        reservationsOnly: reservationsOnly,
+        levels: {
+          for (final level in serviceTypeOptions.levels)
+            level: serviceLevelLabel(l10n, level),
+        },
+        ageGroups: serviceTypeOptions.ageGroups,
         onChanged: onChanged,
       ),
     );
   }
+
+  static Map<String, String> _byLabel(Map<String, String> choices) =>
+      Map.fromEntries(
+        choices.entries.toList()..sort((a, b) => a.value.compareTo(b.value)),
+      );
 }
 
 class _FilterSheet extends StatefulWidget {
@@ -88,13 +123,19 @@ class _FilterSheet extends StatefulWidget {
     required this.initial,
     required this.services,
     required this.instructors,
-    required this.reservationsOnly,
+    required this.levels,
+    required this.ageGroups,
     required this.onChanged,
   });
   final ClientScheduleFilter initial;
+
+  /// Choices by key, in the order they are shown.
   final Map<String, String> services;
   final Map<String, String> instructors;
-  final bool reservationsOnly;
+
+  /// Level labels by code, from the easiest.
+  final Map<String, String> levels;
+  final List<AgeGroup> ageGroups;
   final ValueChanged<ClientScheduleFilter> onChanged;
 
   @override
@@ -109,98 +150,74 @@ class _FilterSheetState extends State<_FilterSheet> {
     widget.onChanged(filter);
   }
 
-  Widget _choices(
-    String title,
-    Map<String, String> choices,
-    Set<String> selected,
-    ValueChanged<Set<String>> onChanged,
-  ) {
-    final sorted = choices.entries.toList()
-      ..sort((a, b) => a.value.compareTo(b.value));
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(title, style: Theme.of(context).textTheme.titleSmall),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          runSpacing: 4,
-          children: [
-            for (final choice in sorted)
-              FilterChip(
-                label: Text(choice.value),
-                selected: selected.contains(choice.key),
-                onSelected: (value) => onChanged({
-                  ...selected.where((id) => id != choice.key),
-                  if (value) choice.key,
-                }),
-              ),
-          ],
-        ),
-      ],
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return SafeArea(
-      child: ConstrainedBox(
-        constraints: BoxConstraints(
-          maxHeight: MediaQuery.sizeOf(context).height * .8,
+    final textTheme = Theme.of(context).textTheme;
+    return ScheduleFilterSheet(
+      onClear: () => _update(const ClientScheduleFilter()),
+      children: [
+        ScheduleFilterChecklist(
+          title: l10n.classesSelectService,
+          options: widget.services,
+          selected: _filter.services,
+          onChanged: (services) =>
+              _update(_filter.copyWith(services: services)),
         ),
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            spacing: 16,
+        if (widget.levels.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          ScheduleFilterChecklist(
+            title: l10n.scheduleFilterLevel,
+            options: widget.levels,
+            selected: _filter.levels,
+            onChanged: (levels) => _update(_filter.copyWith(levels: levels)),
+          ),
+        ],
+        const SizedBox(height: 8),
+        ScheduleFilterChecklist(
+          title: l10n.classesSelectInstructor,
+          options: widget.instructors,
+          selected: _filter.instructors,
+          onChanged: (instructors) =>
+              _update(_filter.copyWith(instructors: instructors)),
+        ),
+        if (widget.ageGroups.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          Text(l10n.scheduleFilterAgeGroup, style: textTheme.titleSmall),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 4,
             children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      l10n.scheduleFilters,
-                      style: Theme.of(context).textTheme.titleLarge,
+              for (final group in widget.ageGroups)
+                FilterChip(
+                  label: Text(ageGroupLabel(l10n, group)),
+                  selected: _filter.ageGroups.contains(group),
+                  onSelected: (selected) => _update(
+                    _filter.copyWith(
+                      ageGroups: selected
+                          ? {..._filter.ageGroups, group}
+                          : ({..._filter.ageGroups}..remove(group)),
                     ),
                   ),
-                  TextButton(
-                    onPressed: () => _update(const ClientScheduleFilter()),
-                    child: Text(l10n.scheduleFiltersClear),
-                  ),
-                ],
-              ),
-              _choices(
-                l10n.classesSelectService,
-                widget.services,
-                _filter.services,
-                (services) => _update(_filter.copyWith(services: services)),
-              ),
-              _choices(
-                l10n.classesSelectInstructor,
-                widget.instructors,
-                _filter.instructors,
-                (instructors) =>
-                    _update(_filter.copyWith(instructors: instructors)),
-              ),
-              if (!widget.reservationsOnly)
-                SwitchListTile.adaptive(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(l10n.classesAvailableOnly),
-                  value: _filter.availableOnly,
-                  onChanged: (value) =>
-                      _update(_filter.copyWith(availableOnly: value)),
                 ),
-              SwitchListTile.adaptive(
-                contentPadding: EdgeInsets.zero,
-                title: Text(l10n.scheduleFilterShowCancelled),
-                value: _filter.showCancelled,
-                onChanged: (value) =>
-                    _update(_filter.copyWith(showCancelled: value)),
-              ),
             ],
           ),
+        ],
+        const SizedBox(height: 8),
+        SwitchListTile.adaptive(
+          contentPadding: EdgeInsets.zero,
+          title: Text(l10n.classesAvailableOnly),
+          value: _filter.availableOnly,
+          onChanged: (value) => _update(_filter.copyWith(availableOnly: value)),
         ),
-      ),
+        SwitchListTile.adaptive(
+          contentPadding: EdgeInsets.zero,
+          title: Text(l10n.scheduleFilterShowCancelled),
+          value: _filter.showCancelled,
+          onChanged: (value) => _update(_filter.copyWith(showCancelled: value)),
+        ),
+      ],
     );
   }
 }
