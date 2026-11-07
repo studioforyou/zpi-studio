@@ -5,6 +5,8 @@ import 'package:mobile/app/router/app_router.dart';
 import 'package:mobile/core/auth/auth_controller.dart';
 import 'package:mobile/core/auth/auth_state.dart';
 import 'package:mobile/features/schedule/data/schedule_api.dart';
+import 'package:mobile/features/schedule/data/schedule_service_types.dart';
+import 'package:mobile/features/schedule/presentation/service_type_filter_labels.dart';
 import 'package:mobile/features/schedule/presentation/trainer_schedule_filter.dart';
 import 'package:mobile/features/schedule/presentation/widgets/schedule_calendar.dart';
 import 'package:mobile/features/schedule/presentation/widgets/trainer_schedule_filters.dart';
@@ -27,6 +29,9 @@ class _TrainerScheduleScreenState extends ConsumerState<TrainerScheduleScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Without service types the level and age group filters are left out.
+    final serviceTypes =
+        ref.watch(scheduleServiceTypesProvider).value ?? const {};
     return Scaffold(
       appBar: AppBar(title: Text(AppLocalizations.of(context).navSchedule)),
       floatingActionButton: FloatingActionButton.extended(
@@ -41,12 +46,22 @@ class _TrainerScheduleScreenState extends ConsumerState<TrainerScheduleScreen> {
             accountId: session.accountId,
             window: window,
           )),
-          where: (event) => _filter.matches(event, session.staffProfileId),
-          filtersBuilder: (context, events) => TrainerScheduleFilterBar(
-            filter: _filter,
-            rooms: {for (final event in events) ...event.roomNames}.toList(),
-            onChanged: (filter) => setState(() => _filter = filter),
-          ),
+          where: (event) =>
+              _filter.matches(event, session.staffProfileId, serviceTypes),
+          filtersBuilder: (context, events) {
+            final options = serviceTypeFilterOptions(
+              serviceTypes,
+              selectedLevels: _filter.levels,
+              selectedAgeGroups: _filter.ageGroups,
+            );
+            return TrainerScheduleFilterBar(
+              filter: _filter,
+              rooms: {for (final event in events) ...event.roomNames}.toList(),
+              levels: options.levels,
+              ageGroups: options.ageGroups,
+              onChanged: (filter) => setState(() => _filter = filter),
+            );
+          },
           eventBuilder: (context, event) =>
               ScheduleEventTile(event, onTap: () => _openEvent(event)),
         ),

@@ -117,6 +117,7 @@ class AuthenticationTests {
 			.andExpect(jsonPath("$.displayName").value("Anna Kowalska"))
 			.andExpect(jsonPath("$.roles[0]").value("CLIENT"))
 			.andExpect(jsonPath("$.roles[1]").value("TRAINER"))
+			.andExpect(jsonPath("$.permissions").isEmpty())
 			.andExpect(jsonPath("$.staffProfileId").value(staffProfileId.toString()))
 			.andExpect(jsonPath("$.profiles[0].id").value(ownProfileId.toString()))
 			.andExpect(jsonPath("$.profiles[0].isChild").value(false))

@@ -19,6 +19,7 @@ import 'package:mobile/features/accounts/presentation/widgets/choice_tile.dart';
 import 'package:mobile/features/accounts/presentation/widgets/profile_header.dart';
 import 'package:mobile/features/communication/data/notifications_api.dart';
 import 'package:mobile/features/schedule/data/schedule_api.dart';
+import 'package:mobile/features/schedule/data/schedule_service_types.dart';
 
 const _session = Session(
   accountId: 'account-1',
@@ -82,7 +83,8 @@ class _ProfileAdapter implements HttpClientAdapter {
     Future<void>? cancelFuture,
   ) async {
     // The trainer shell opens on the schedule tab.
-    if (options.path == ownScheduleEventsPath) {
+    if (options.path == ownScheduleEventsPath ||
+        options.path == scheduleServiceTypesPath) {
       return ResponseBody.fromString(
         jsonEncode({'items': []}),
         200,

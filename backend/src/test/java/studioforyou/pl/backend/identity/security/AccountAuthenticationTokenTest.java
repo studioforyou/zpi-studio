@@ -51,7 +51,8 @@ class AccountAuthenticationTokenTest {
 	}
 
 	private static AuthenticatedAccount account(AccountStatus status) {
-		return new AuthenticatedAccount(UUID.randomUUID(), "trainer@example.com", status, Set.of("TRAINER"));
+		return new AuthenticatedAccount(UUID.randomUUID(), "trainer@example.com", status, Set.of("TRAINER"),
+				Set.of());
 	}
 
 	private static Jwt jwt() {

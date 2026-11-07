@@ -36,6 +36,15 @@ public enum ErrorCode {
 	/** The staff member's account does not have the TRAINER role. */
 	STAFF_NOT_TRAINER(HttpStatus.UNPROCESSABLE_CONTENT),
 
+	// documents
+	DOCUMENT_ALREADY_ACCEPTED(HttpStatus.CONFLICT),
+	/** A required document cannot be withdrawn by the participant, only an optional consent. */
+	DOCUMENT_REVOCATION_NOT_ALLOWED(HttpStatus.UNPROCESSABLE_CONTENT),
+
+	// staff
+	/** The staff member already has availability on that day at an overlapping time. */
+	AVAILABILITY_OVERLAP(HttpStatus.CONFLICT),
+
 	// offering
 	PASS_VARIANT_ALREADY_EXISTS(HttpStatus.CONFLICT),
 	PASS_PRODUCT_ARCHIVED(HttpStatus.UNPROCESSABLE_CONTENT),
@@ -82,7 +91,14 @@ public enum ErrorCode {
 	RESOURCE_UNAVAILABLE(HttpStatus.UNPROCESSABLE_CONTENT),
 	STAFF_UNAVAILABLE(HttpStatus.UNPROCESSABLE_CONTENT),
 	SERVICE_NOT_ALLOWED_IN_ROOM(HttpStatus.UNPROCESSABLE_CONTENT),
-	EVENT_NOT_EDITABLE(HttpStatus.UNPROCESSABLE_CONTENT);
+	EVENT_NOT_EDITABLE(HttpStatus.UNPROCESSABLE_CONTENT),
+
+	// identity: roles and permissions of accounts
+	ROLE_ALREADY_GRANTED(HttpStatus.CONFLICT),
+	PERMISSION_OVERRIDE_EXISTS(HttpStatus.CONFLICT),
+	UNKNOWN_ROLE(HttpStatus.UNPROCESSABLE_CONTENT),
+	UNKNOWN_PERMISSION(HttpStatus.UNPROCESSABLE_CONTENT),
+	LAST_ACTIVE_ADMIN(HttpStatus.UNPROCESSABLE_CONTENT);
 
 	private final HttpStatus status;
 

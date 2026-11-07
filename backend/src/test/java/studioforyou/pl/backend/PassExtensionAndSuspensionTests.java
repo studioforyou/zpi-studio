@@ -296,6 +296,41 @@ class PassExtensionAndSuspensionTests {
 		assertThat(jdbc.sql("SELECT version FROM customer_pass").query(Integer.class).single()).isZero();
 	}
 
+	@Test
+	void entryCorrectionPreservesSuspensionsAndWorksWithLaterExtensions() throws Exception {
+		UUID pass = assign(suspendable, today());
+		perform(ADMIN_TOKEN, post(passPath(pass) + "/suspend"), suspendJson(today(), today().plusDays(1), 0))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.version").value(1));
+
+		perform(ADMIN_TOKEN, post(passPath(pass) + "/correct-entries"),
+				"{ \"entriesDelta\": 3, \"reason\": \"Korekta\", \"version\": 1 }")
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.entriesRemaining").value(11))
+			.andExpect(jsonPath("$.status").value("SUSPENDED"))
+			.andExpect(jsonPath("$.suspensions", hasSize(1)))
+			.andExpect(jsonPath("$.validUntil").value(today().plusDays(31).toString()))
+			.andExpect(jsonPath("$.version").value(2));
+
+		perform(ADMIN_TOKEN, post(passPath(pass) + "/extend"), extendJson(today().plusDays(40), 1))
+			.andExpect(status().isConflict());
+		perform(ADMIN_TOKEN, post(passPath(pass) + "/extend"), extendJson(today().plusDays(40), 2))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.entriesRemaining").value(11))
+			.andExpect(jsonPath("$.status").value("SUSPENDED"))
+			.andExpect(jsonPath("$.suspensions", hasSize(1)))
+			.andExpect(jsonPath("$.version").value(3));
+		perform(ADMIN_TOKEN, post(passPath(pass) + "/correct-entries"),
+				"{ \"entriesDelta\": 3, \"version\": 2 }")
+			.andExpect(status().isConflict());
+		perform(ADMIN_TOKEN, get(passPath(pass)), null)
+			.andExpect(jsonPath("$.entriesRemaining").value(11))
+			.andExpect(jsonPath("$.validUntil").value(today().plusDays(40).toString()))
+			.andExpect(jsonPath("$.suspensions", hasSize(1)));
+		assertThat(jdbc.sql("SELECT count(*) FROM pass_ledger WHERE pass_id = :id AND kind = 'CORRECTION'")
+			.param("id", pass).query(Integer.class).single()).isEqualTo(1);
+	}
+
 	private UUID assign(UUID variant, LocalDate validFrom) throws Exception {
 		String body = perform(ADMIN_TOKEN, post(passesOf(adult)),
 				"{ \"variantId\": \"%s\", \"validFrom\": \"%s\" }".formatted(variant, validFrom))

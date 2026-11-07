@@ -198,6 +198,19 @@ class CustomerTrainerTests {
 	}
 
 	@Test
+	void everySignedInUserSeesTheTrainersByName() throws Exception {
+		for (String token : new String[] { CLIENT_TOKEN, TRAINER_TOKEN, ADMIN_TOKEN }) {
+			perform(token, get("/api/v1/trainers"), null)
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.items", hasSize(2)))
+				.andExpect(jsonPath("$.items[0].staffId").value(trainer.toString()))
+				.andExpect(jsonPath("$.items[0].displayName").value("Marek Nowak"))
+				.andExpect(jsonPath("$.items[0].firstName").doesNotExist())
+				.andExpect(jsonPath("$.items[1].staffId").value(otherTrainer.toString()));
+		}
+	}
+
+	@Test
 	void theParticipantMustExistAndBeActive() throws Exception {
 		perform(ADMIN_TOKEN, post(trainersOf(inactiveAdult)), assignJson(trainer))
 			.andExpect(status().isUnprocessableContent())

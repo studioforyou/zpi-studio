@@ -74,6 +74,7 @@ class ScheduleEvent {
     required this.capacity,
     required this.staff,
     required this.roomNames,
+    this.serviceTypeId,
   });
 
   factory ScheduleEvent.fromJson(Map<String, dynamic> json) {
@@ -83,6 +84,7 @@ class ScheduleEvent {
       status: EventStatus.fromCode(json['status'] as String),
       title: json['title'] as String?,
       serviceTypeName: json['serviceTypeName'] as String?,
+      serviceTypeId: json['serviceTypeId'] as String?,
       startsAt: DateTime.parse(json['startsAt'] as String).toLocal(),
       endsAt: DateTime.parse(json['endsAt'] as String).toLocal(),
       capacity: json['capacity'] as int?,
@@ -102,6 +104,9 @@ class ScheduleEvent {
   final EventStatus status;
   final String? title;
   final String? serviceTypeName;
+
+  /// The event's service, or `null` for an event without one, e.g. a block.
+  final String? serviceTypeId;
 
   /// Start in the device's local time.
   final DateTime startsAt;

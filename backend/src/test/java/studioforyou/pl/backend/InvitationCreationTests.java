@@ -116,12 +116,26 @@ class InvitationCreationTests {
 	}
 
 	@Test
-	void onlyAnAdminCanInvite() throws Exception {
+	void aTrainerWithoutThePermissionCannotInvite() throws Exception {
 		mvc.perform(invite("trainer-token", "julia@example.com", "CLIENT"))
 			.andExpect(status().isForbidden())
 			.andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
 
 		then(emailSender).should(never()).send(any());
+	}
+
+	@Test
+	void aTrainerWithThePermissionInvitesClientsButNotTrainers() throws Exception {
+		jdbc.sql("""
+				INSERT INTO account_permission_override (account_id, permission_id, effect, granted_by)
+				SELECT a.id, p.id, 'GRANT', :admin FROM account a, permission p
+				WHERE a.email = 'trainer@example.com' AND p.code = 'CUSTOMER_ACCOUNT_CREATE'
+				""").param("admin", adminId).update();
+
+		mvc.perform(invite("trainer-token", "julia@example.com", "CLIENT")).andExpect(status().isCreated());
+		mvc.perform(invite("trainer-token", "marek@example.com", "TRAINER"))
+			.andExpect(status().isForbidden())
+			.andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
 	}
 
 	@Test

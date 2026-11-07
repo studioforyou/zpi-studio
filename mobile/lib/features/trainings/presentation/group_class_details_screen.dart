@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:mobile/core/auth/auth_controller.dart';
+import 'package:mobile/features/documents/presentation/documents_screen.dart';
 import 'package:mobile/features/passes/data/passes_api.dart';
 import 'package:mobile/features/trainings/data/group_classes_api.dart';
 import 'package:mobile/features/trainings/presentation/widgets/class_participants_section.dart';
@@ -126,6 +128,14 @@ class _GroupClassDetailsScreenState
       ] else ...[
         if (!canReserve) ...[
           Text(classReason(l10n, event.booking.reason ?? 'NO_ELIGIBLE_PASS')),
+          if (event.booking.reason == 'REQUIRED_DOCUMENTS_MISSING') ...[
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: () => context.push(documentsRoute),
+              icon: const Icon(Icons.description_outlined),
+              label: Text(l10n.classesOpenDocuments),
+            ),
+          ],
           const SizedBox(height: 16),
         ],
         FilledButton.icon(
