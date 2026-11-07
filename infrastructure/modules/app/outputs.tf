@@ -27,3 +27,8 @@ output "github_workload_identity_provider" {
   description = "Pełna nazwa providera WIF dla GitHub Actions (GCP_WORKLOAD_IDENTITY_PROVIDER)."
   value       = google_iam_workload_identity_pool_provider.github.name
 }
+
+output "scheduler_service_account" {
+  description = "Service account whose OIDC token Cloud Scheduler sends to /internal/** of the backend."
+  value       = google_service_account.scheduler.email
+}
