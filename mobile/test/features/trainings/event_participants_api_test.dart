@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile/core/network/api_exception.dart';
+import 'package:mobile/features/schedule/data/schedule_api.dart';
 import 'package:mobile/features/trainings/data/event_participants_api.dart';
 
 class _Adapter implements HttpClientAdapter {
@@ -44,9 +45,15 @@ void main() {
 
   tearDown(() => dio.close(force: true));
 
-  test('reads the participants of the trainer\'s event', () async {
+  test('reads the attendance sheet of the trainer\'s event', () async {
     adapter.body = {
-      'items': [
+      'eventId': 'event-1',
+      'eventKind': 'CLASS',
+      'eventStatus': 'COMPLETED',
+      'markingOpensAt': '2026-11-03T17:00:00Z',
+      'markingClosesAt': '2026-11-04T06:00:00Z',
+      'markingOpen': true,
+      'participants': [
         {
           'reservationId': 'reservation-1',
           'customerId': 'customer-1',
@@ -56,6 +63,8 @@ void main() {
           'displayName': 'Zosia Dąbrowska',
           'birthDate': '2015-05-12',
           'bookedAt': '2026-10-28T17:00:00Z',
+          'attendance': 'ABSENT',
+          'attendanceMarkedAt': '2026-11-03T17:05:00Z',
         },
         {
           'reservationId': 'reservation-2',
@@ -66,25 +75,76 @@ void main() {
           'displayName': 'Ola Nowak',
           'birthDate': null,
           'bookedAt': '2026-10-29T08:30:00Z',
+          'attendance': 'UNMARKED',
+          'attendanceMarkedAt': null,
         },
       ],
     };
 
-    final [child, adult] = await api.fetch('event-1');
+    final sheet = await api.fetchAttendance('event-1');
+    final [child, adult] = sheet.participants;
 
     expect(adapter.request?.method, 'GET');
     expect(
       adapter.request?.path,
-      '/api/v1/me/schedule-events/event-1/participants',
+      '/api/v1/me/schedule-events/event-1/attendance',
     );
+    expect(sheet.eventStatus, EventStatus.completed);
+    expect(sheet.markingOpen, isTrue);
+    expect(sheet.markingOpensAt, DateTime.utc(2026, 11, 3, 17).toLocal());
+    expect(sheet.markingClosesAt, DateTime.utc(2026, 11, 4, 6).toLocal());
+    expect(sheet.count(Attendance.absent), 1);
+    expect(sheet.count(Attendance.unmarked), 1);
     expect(child.reservationId, 'reservation-1');
     expect(child.customerId, 'customer-1');
     expect(child.displayName, 'Zosia Dąbrowska');
     expect(child.isChild, isTrue);
     expect(child.birthDate, DateTime(2015, 5, 12));
     expect(child.bookedAt, DateTime.utc(2026, 10, 28, 17).toLocal());
+    expect(child.attendance, Attendance.absent);
     expect(adult.isChild, isFalse);
     expect(adult.birthDate, isNull);
+    expect(adult.attendance, Attendance.unmarked);
+  });
+
+  test('records attendance and marks the event as held', () async {
+    adapter.body = _sheet;
+
+    await api.mark('event-1', {'reservation-1': Attendance.present});
+
+    expect(adapter.request?.method, 'PATCH');
+    expect(
+      adapter.request?.path,
+      '/api/v1/me/schedule-events/event-1/attendance',
+    );
+    expect(adapter.request?.data, {
+      'marks': [
+        {'reservationId': 'reservation-1', 'attendance': 'PRESENT'},
+      ],
+    });
+
+    await api.complete('event-1');
+
+    expect(adapter.request?.method, 'POST');
+    expect(
+      adapter.request?.path,
+      '/api/v1/me/schedule-events/event-1/complete',
+    );
+  });
+
+  test('a rejection is reported with its code', () async {
+    adapter
+      ..statusCode = 422
+      ..body = {'code': 'ATTENDANCE_CLOSED'};
+
+    await expectLater(
+      api.mark('event-1', {'reservation-1': Attendance.absent}),
+      throwsA(
+        isA<AttendanceException>()
+            .having((e) => e.statusCode, 'statusCode', 422)
+            .having((e) => e.code, 'code', 'ATTENDANCE_CLOSED'),
+      ),
+    );
   });
 
   test('a missing event is reported with its status', () async {
@@ -93,7 +153,7 @@ void main() {
       ..body = {'code': 'NOT_FOUND'};
 
     await expectLater(
-      api.fetch('event-1'),
+      api.fetchAttendance('event-1'),
       throwsA(
         isA<ApiException>().having((e) => e.statusCode, 'statusCode', 404),
       ),
@@ -115,3 +175,13 @@ void main() {
     expect(participant.ageOn(DateTime(2028, 2, 29)), 12);
   });
 }
+
+const _sheet = {
+  'eventId': 'event-1',
+  'eventKind': 'CLASS',
+  'eventStatus': 'SCHEDULED',
+  'markingOpensAt': '2026-11-03T17:00:00Z',
+  'markingClosesAt': '2026-11-04T06:00:00Z',
+  'markingOpen': true,
+  'participants': <Object>[],
+};

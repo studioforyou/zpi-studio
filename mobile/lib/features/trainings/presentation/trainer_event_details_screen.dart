@@ -10,7 +10,8 @@ import 'package:mobile/features/trainings/presentation/widgets/group_class_widge
 import 'package:mobile/l10n/generated/app_localizations.dart';
 
 /// One of the trainer's events with its participants, to prepare for working
-/// with the group.
+/// with the group, then to record their attendance and that the event was
+/// held.
 class TrainerEventDetailsScreen extends ConsumerWidget {
   const TrainerEventDetailsScreen({required this.eventId, super.key});
 
@@ -56,7 +57,7 @@ class _Details extends ConsumerWidget {
               error: (_, _) => [ClassesLoadError(onRetry: () => _retry(ref))],
               data: (event) => [
                 _EventSummary(event),
-                _ParticipantsSection(event: event, query: query),
+                _AttendanceSection(event: event, query: query),
               ],
             ),
       ),
@@ -67,7 +68,7 @@ class _Details extends ConsumerWidget {
     try {
       await Future.wait([
         ref.refresh(ownScheduleEventProvider(query).future),
-        ref.refresh(eventParticipantsProvider(query).future),
+        ref.refresh(eventAttendanceProvider(query).future),
       ]);
     } catch (_) {
       // The observed providers display load failures and offer a retry.
@@ -76,7 +77,7 @@ class _Details extends ConsumerWidget {
 
   void _retry(WidgetRef ref) {
     ref.invalidate(ownScheduleEventProvider(query));
-    ref.invalidate(eventParticipantsProvider(query));
+    ref.invalidate(eventAttendanceProvider(query));
   }
 }
 
@@ -183,32 +184,45 @@ class _EventSummary extends StatelessWidget {
       .join(', ');
 }
 
-class _ParticipantsSection extends ConsumerWidget {
-  const _ParticipantsSection({required this.event, required this.query});
+/// Participants with their attendance. From the event's start until the
+/// trainer's time ends, each one is marked present or absent and the event is
+/// marked as held.
+class _AttendanceSection extends ConsumerStatefulWidget {
+  const _AttendanceSection({required this.event, required this.query});
 
   final ScheduleEvent event;
   final EventParticipantsQuery query;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_AttendanceSection> createState() => _AttendanceSectionState();
+}
+
+class _AttendanceSectionState extends ConsumerState<_AttendanceSection> {
+  /// The reservation being saved, or [_completing] while the event is.
+  String? _saving;
+
+  static const _completing = '';
+
+  @override
+  Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
-    final provider = eventParticipantsProvider(query);
-    final participants = ref.watch(provider);
+    final provider = eventAttendanceProvider(widget.query);
+    final attendance = ref.watch(provider);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const SizedBox(height: 20),
         const Divider(),
         const SizedBox(height: 16),
-        Text(switch (participants) {
+        Text(switch (attendance) {
           AsyncData(:final value) => l10n.trainerEventParticipants(
-            value.length,
+            value.participants.length,
           ),
           _ => l10n.classesParticipants,
         }, style: theme.textTheme.titleMedium),
         const SizedBox(height: 8),
-        participants.when(
+        attendance.when(
           skipLoadingOnRefresh: false,
           loading: () => const Padding(
             padding: EdgeInsets.all(12),
@@ -231,34 +245,190 @@ class _ParticipantsSection extends ConsumerWidget {
               ),
             ],
           ),
-          data: (participants) => Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            spacing: 8,
-            children: [
-              ClassOccupancy.counts(
-                reserved: participants.length,
-                capacity: event.capacity,
-              ),
-              if (participants.isEmpty)
-                Text(l10n.trainerEventParticipantsEmpty)
-              else
-                for (final participant in participants)
-                  _ParticipantTile(participant, day: event.startsAt),
-            ],
-          ),
+          data: (sheet) => _sheet(context, sheet),
         ),
       ],
     );
   }
+
+  Widget _sheet(BuildContext context, EventAttendance sheet) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final cancelled = sheet.eventStatus == EventStatus.cancelled;
+    final started = !DateTime.now().isBefore(sheet.markingOpensAt);
+    final note = switch (sheet) {
+      _ when cancelled => null,
+      EventAttendance(markingOpen: true) => l10n.attendanceOpenUntil(
+        classDateTime(sheet.markingClosesAt),
+      ),
+      _ when !started => l10n.attendanceNotOpen,
+      _ => l10n.attendanceClosed,
+    };
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      spacing: 8,
+      children: [
+        ClassOccupancy.counts(
+          reserved: sheet.participants.length,
+          capacity: widget.event.capacity,
+        ),
+        if (note != null)
+          Text(
+            note,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        if (started && !cancelled && sheet.participants.isNotEmpty)
+          Text(
+            l10n.attendanceSummary(
+              sheet.count(Attendance.present),
+              sheet.count(Attendance.absent),
+              sheet.count(Attendance.unmarked),
+            ),
+            style: theme.textTheme.labelLarge,
+          ),
+        if (sheet.participants.isEmpty)
+          Text(l10n.trainerEventParticipantsEmpty)
+        else
+          for (final participant in sheet.participants)
+            _ParticipantTile(
+              participant,
+              day: widget.event.startsAt,
+              editable: sheet.markingOpen && _saving == null,
+              saving: _saving == participant.reservationId,
+              onMark: (attendance) => _mark(participant, attendance),
+            ),
+        if (sheet.markingOpen && sheet.eventStatus != EventStatus.completed)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: FilledButton.icon(
+              onPressed: _saving == null ? () => _complete(sheet) : null,
+              icon: _saving == _completing
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.task_alt),
+              label: Text(l10n.attendanceComplete),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Future<void> _mark(EventParticipant participant, Attendance attendance) =>
+      _save(
+        participant.reservationId,
+        (controller) => controller.mark(participant.reservationId, attendance),
+      );
+
+  Future<void> _complete(EventAttendance sheet) async {
+    final l10n = AppLocalizations.of(context);
+    final unmarked = sheet.count(Attendance.unmarked);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(l10n.attendanceCompleteTitle),
+        content: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          spacing: 12,
+          children: [
+            if (unmarked > 0) Text(l10n.attendanceCompleteUnmarked(unmarked)),
+            Text(
+              l10n.attendanceCompleteChanges(
+                classDateTime(sheet.markingClosesAt),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(l10n.classesDismiss),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(l10n.attendanceCompleteConfirm),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    final done = await _save(
+      _completing,
+      (controller) => controller.complete(),
+    );
+    if (!done || !mounted) return;
+    // The event's status and the schedule's tile show that it was held.
+    ref.invalidate(ownScheduleEventProvider(widget.query));
+    ref.invalidate(ownScheduleProvider);
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(l10n.attendanceCompleted)));
+  }
+
+  /// Runs a change of the sheet; a rejection is explained and the sheet is
+  /// loaded again, since it may be out of date.
+  Future<bool> _save(
+    String saving,
+    Future<void> Function(EventAttendanceController controller) change,
+  ) async {
+    if (_saving != null) return false;
+    setState(() => _saving = saving);
+    final provider = eventAttendanceProvider(widget.query);
+    try {
+      await change(ref.read(provider.notifier));
+      return true;
+    } catch (error) {
+      if (!mounted) return false;
+      final l10n = AppLocalizations.of(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(switch (error) {
+            AttendanceException(code: 'ATTENDANCE_CLOSED') =>
+              l10n.attendanceClosed,
+            AttendanceException(code: 'ATTENDANCE_NOT_OPEN') =>
+              l10n.attendanceNotOpen,
+            AttendanceException(code: 'EVENT_CANCELLED') =>
+              l10n.attendanceEventCancelled,
+            AttendanceException(code: 'RESERVATION_NOT_ACTIVE') =>
+              l10n.attendanceReservationCancelled,
+            _ => l10n.attendanceSaveFailed,
+          }),
+        ),
+      );
+      ref.invalidate(provider);
+      return false;
+    } finally {
+      if (mounted) setState(() => _saving = null);
+    }
+  }
 }
 
 class _ParticipantTile extends StatelessWidget {
-  const _ParticipantTile(this.participant, {required this.day});
+  const _ParticipantTile(
+    this.participant, {
+    required this.day,
+    required this.editable,
+    required this.saving,
+    required this.onMark,
+  });
 
   final EventParticipant participant;
 
   /// The day of the event, on which the age is given.
   final DateTime day;
+
+  /// Whether the attendance can be changed now.
+  final bool editable;
+
+  /// Whether the participant's attendance is being saved.
+  final bool saving;
+
+  final ValueChanged<Attendance> onMark;
 
   @override
   Widget build(BuildContext context) {
@@ -273,7 +443,47 @@ class _ParticipantTile extends StatelessWidget {
       leading: CircleAvatar(child: Text(_initials(participant.displayName))),
       title: Text(participant.displayName),
       subtitle: details.isEmpty ? null : Text(details.join(' · ')),
+      trailing: _attendance(context, l10n),
     );
+  }
+
+  Widget? _attendance(BuildContext context, AppLocalizations l10n) {
+    if (saving) {
+      return const SizedBox(
+        width: 24,
+        height: 24,
+        child: CircularProgressIndicator(strokeWidth: 2),
+      );
+    }
+    if (editable || participant.attendance != Attendance.unmarked) {
+      return SegmentedButton<Attendance>(
+        segments: [
+          ButtonSegment(
+            value: Attendance.present,
+            icon: const Icon(Icons.check),
+            tooltip: l10n.attendancePresent,
+          ),
+          ButtonSegment(
+            value: Attendance.absent,
+            icon: const Icon(Icons.close),
+            tooltip: l10n.attendanceAbsent,
+          ),
+        ],
+        selected: {
+          if (participant.attendance != Attendance.unmarked)
+            participant.attendance,
+        },
+        emptySelectionAllowed: true,
+        showSelectedIcon: false,
+        onSelectionChanged: editable
+            ? (selection) {
+                // Tapping the current value again keeps it: it cannot be cleared.
+                if (selection.isNotEmpty) onMark(selection.single);
+              }
+            : null,
+      );
+    }
+    return null;
   }
 
   static String _initials(String name) => name

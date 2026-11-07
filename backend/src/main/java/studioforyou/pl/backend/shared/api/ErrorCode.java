@@ -79,6 +79,14 @@ public enum ErrorCode {
 	CANCELLATION_TERMS_UNAVAILABLE(HttpStatus.UNPROCESSABLE_CONTENT),
 	CANCELLATION_CONSEQUENCE_CHANGED(HttpStatus.CONFLICT),
 
+	// booking: attendance
+	/** Attendance is recorded only once the event has started. */
+	ATTENDANCE_NOT_OPEN(HttpStatus.UNPROCESSABLE_CONTENT),
+	/** The trainer's time to record attendance is over; an administrator corrects it from then on. */
+	ATTENDANCE_CLOSED(HttpStatus.UNPROCESSABLE_CONTENT),
+	/** A cancelled event has no attendance to record. */
+	EVENT_CANCELLED(HttpStatus.UNPROCESSABLE_CONTENT),
+
 	// scheduling: rooms and the service types allowed in them
 	RESOURCE_NAME_ALREADY_USED(HttpStatus.CONFLICT),
 	RESOURCE_PARENT_INVALID(HttpStatus.UNPROCESSABLE_CONTENT),

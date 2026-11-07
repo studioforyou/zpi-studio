@@ -31,6 +31,12 @@ class ReservationStore {
 			rs.getObject("late_cancel_allowed_snapshot", Boolean.class),
 			rs.getObject("late_cancel_forfeits_entry_snapshot", Boolean.class), rs.getInt("version"));
 
+	private static final RowMapper<AttendanceRow> ATTENDANCE = (rs, row) -> new AttendanceRow(
+			rs.getObject("id", UUID.class), rs.getObject("customer_id", UUID.class), rs.getString("status"),
+			rs.getObject("customer_pass_id", UUID.class), rs.getString("attendance"),
+			rs.getObject("attendance_marked_by", UUID.class), instant(rs, "attendance_marked_at"),
+			instant(rs, "created_at"), rs.getInt("version"));
+
 	private final JdbcClient jdbc;
 
 	ReservationStore(JdbcClient jdbc) {
@@ -152,6 +158,53 @@ class ReservationStore {
 			.param("returned", entryReturned).param("id", reservation.id()).query(MAPPER).single();
 	}
 
+	/** Active reservations of the event with their attendance, earliest booking first. */
+	List<AttendanceRow> attendance(UUID eventId) {
+		return this.jdbc.sql("""
+				SELECT * FROM reservation
+				WHERE event_id = :event AND status = 'ACTIVE' ORDER BY created_at, id
+				""").param("event", eventId).query(ATTENDANCE).list();
+	}
+
+	/** Locks the event's active reservations in id order, after the caller has locked the event. */
+	List<AttendanceRow> lockAttendance(UUID eventId) {
+		return this.jdbc.sql("""
+				SELECT * FROM reservation
+				WHERE event_id = :event AND status = 'ACTIVE' ORDER BY id FOR UPDATE
+				""").param("event", eventId).query(ATTENDANCE).list();
+	}
+
+	/** Locks one reservation of the event, whatever its status, after the caller has locked the event. */
+	Optional<AttendanceRow> lockAttendance(UUID eventId, UUID reservationId) {
+		return this.jdbc.sql("SELECT * FROM reservation WHERE id = :id AND event_id = :event FOR UPDATE")
+			.param("id", reservationId).param("event", eventId).query(ATTENDANCE).optional();
+	}
+
+	/** Reservations of the event among the given ones that are no longer active. */
+	List<UUID> inactiveAmong(UUID eventId, Collection<UUID> reservationIds) {
+		return this.jdbc.sql("""
+				SELECT id FROM reservation
+				WHERE event_id = :event AND id IN (:ids) AND status <> 'ACTIVE'
+				""").param("event", eventId).param("ids", List.copyOf(reservationIds)).query(UUID.class).list();
+	}
+
+	AttendanceRow markAttendance(UUID reservationId, String attendance, UUID actorId, Instant now) {
+		return this.jdbc.sql("""
+				UPDATE reservation SET attendance = :attendance, attendance_marked_by = :actor,
+				attendance_marked_at = :now, updated_at = :now, version = version + 1
+				WHERE id = :id RETURNING *
+				""").param("attendance", attendance).param("actor", actorId).param("now", utc(now))
+			.param("id", reservationId).query(ATTENDANCE).single();
+	}
+
+	/** Records the trainer's confirmation that a personal session took place, keeping an earlier one. */
+	void confirmByTrainer(UUID eventId, Instant now) {
+		this.jdbc.sql("""
+				UPDATE reservation SET trainer_confirmed_at = :now, updated_at = :now, version = version + 1
+				WHERE event_id = :event AND status = 'ACTIVE' AND trainer_confirmed_at IS NULL
+				""").param("now", utc(now)).param("event", eventId).update();
+	}
+
 	private static Instant instant(ResultSet rs, String column) throws SQLException {
 		OffsetDateTime value = rs.getObject(column, OffsetDateTime.class);
 		return value == null ? null : value.toInstant();
@@ -171,6 +224,16 @@ class ReservationStore {
 	}
 
 	record ActiveReservation(UUID id, UUID customerId, Instant bookedAt) {
+	}
+
+	/**
+	 * A reservation's attendance.
+	 *
+	 * @param attendance {@code UNMARKED}, {@code PRESENT} or {@code ABSENT}
+	 * @param attendanceMarkedBy the account that recorded the current attendance, or {@code null}
+	 */
+	record AttendanceRow(UUID id, UUID customerId, String status, UUID customerPassId, String attendance,
+			UUID attendanceMarkedBy, Instant attendanceMarkedAt, Instant bookedAt, int version) {
 	}
 
 }

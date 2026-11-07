@@ -112,3 +112,11 @@ Tapping an event in the trainer's **Grafik** opens `TrainerEventDetailsScreen`
 occupancy against capacity, and the participants with an active reservation,
 each with a child marker and their age on the day of the class. The event and
 its participants are cached per account, like the trainer's schedule.
+
+The participants come from the event's attendance sheet
+(`GET /api/v1/me/schedule-events/{eventId}/attendance`, #102). From the event's
+start until 12 hours after its end, the lead and assistants mark each
+participant present or absent (`PATCH .../attendance`) and can change it
+again; **Oznacz zajęcia jako odbyte** (`POST .../complete`) records everyone
+still unmarked as present and marks the event as held. After that time the
+marks are read only and an administrator corrects them in the web panel.

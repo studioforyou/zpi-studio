@@ -213,6 +213,30 @@ class BookingEntitlementsTests {
 	}
 
 	@Test
+	void recordedAttendanceUsesTheAllocatedEntryOnceAndLeavesSettledOrUnallocatedReservationsAlone() {
+		UUID pass = pass("ACTIVE", 2, CLASS_DAY, CLASS_DAY);
+		UUID attended = reservation();
+		transaction.executeWithoutResult(status -> reserve(customer, pass, service, CLASS_DAY, attended));
+		transaction.executeWithoutResult(status -> entitlements.consume(customer, pass, attended, actor));
+		transaction.executeWithoutResult(status -> entitlements.consume(customer, pass, attended, actor));
+		transaction.executeWithoutResult(status -> entitlements.release(customer, pass, attended, true, actor));
+		assertThat(balance(pass)).isEqualTo(1);
+		assertThat(ledgerCount(pass)).isEqualTo(2);
+		assertThat(ledgerDelta(pass, "ENTRY_CONSUMED")).isZero();
+
+		UUID returned = reservation();
+		transaction.executeWithoutResult(status -> reserve(customer, pass, service, CLASS_DAY, returned));
+		transaction.executeWithoutResult(status -> entitlements.release(customer, pass, returned, true, actor));
+		UUID unallocated = reservation();
+		transaction.executeWithoutResult(status -> {
+			entitlements.consume(customer, pass, returned, actor);
+			entitlements.consume(customer, pass, unallocated, actor);
+		});
+		assertThat(balance(pass)).isEqualTo(1);
+		assertThat(ledgerCount(pass)).isEqualTo(4);
+	}
+
+	@Test
 	void reservationBalanceAndLedgerRollBackTogether() {
 		UUID pass = pass("ACTIVE", 1, CLASS_DAY, CLASS_DAY);
 		UUID reservationId = UUID.randomUUID();

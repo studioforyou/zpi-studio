@@ -101,6 +101,30 @@ class OpenApiDocsTest {
 	}
 
 	@Test
+	void documentsAttendance() throws Exception {
+		String json = apiDocs();
+
+		String own = "$.paths['/api/v1/me/schedule-events/{eventId}/attendance']";
+		assertThat((Map<String, Object>) JsonPath.read(json, own)).containsOnlyKeys("get", "patch");
+		assertThat((String) JsonPath.read(json, own + ".patch.operationId")).isEqualTo("markOwnEventAttendance");
+		assertThat((Map<String, Object>) JsonPath.read(json, own + ".patch.responses"))
+			.containsKeys("200", "400", "401", "403", "404", "422");
+		assertThat((String) JsonPath.read(json,
+				"$.paths['/api/v1/me/schedule-events/{eventId}/complete'].post.operationId")).isEqualTo("completeOwnEvent");
+		String correct = "$.paths['/api/v1/schedule-events/{eventId}/reservations/{reservationId}/correct-attendance'].post";
+		assertThat((String) JsonPath.read(json, correct + ".operationId")).isEqualTo("correctEventAttendance");
+		assertThat((Map<String, Object>) JsonPath.read(json, correct + ".responses"))
+			.containsKeys("200", "400", "401", "403", "404", "409", "422");
+		assertThat((String) JsonPath.read(json, "$.paths['/api/v1/schedule-events/{eventId}/attendance'].get.operationId"))
+			.isEqualTo("getEventAttendance");
+		Map<String, Object> request = JsonPath.read(json, "$.components.schemas.CorrectAttendanceRequest.properties");
+		assertThat(request).containsOnlyKeys("attendance", "reason", "version");
+		Map<String, Object> change = JsonPath.read(json, "$.components.schemas.AttendanceChange.properties");
+		assertThat(change).containsOnlyKeys("changedAt", "kind", "previousAttendance", "newAttendance", "changedBy",
+				"reason");
+	}
+
+	@Test
 	void sessionOperationsGetAuthErrors() throws Exception {
 		Map<String, Object> responses = JsonPath.read(apiDocs(), "$.paths['/api/v1/studio'].get.responses");
 
