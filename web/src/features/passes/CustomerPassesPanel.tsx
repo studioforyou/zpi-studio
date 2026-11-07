@@ -15,11 +15,13 @@ import { useDebouncedValue } from '@mantine/hooks';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { pl } from '@/shared/i18n/pl';
 import { AssignPassModal } from './AssignPassModal';
+import { CorrectPassEntriesModal } from './CorrectPassEntriesModal';
 import { CustomerContact } from './CustomerContact';
 import {
   searchCustomerPasses,
   type CustomerPass,
   type CustomerPassStatus,
+  type HeldPass,
 } from './customerPassesApi';
 import { ExtendPassModal } from './ExtendPassModal';
 import { formatDate, formatMoney, todayIsoDate } from './passFormat';
@@ -45,13 +47,14 @@ const PAGE_SIZE = 20;
 
 /**
  * Passes of all participants matching a search of their name, phone number or e-mail address,
- * with each holder's name and e-mail address: assigning new passes, extending and suspending them.
+ * with each holder's name and e-mail address: assigning, correcting entries, extending and suspending.
  */
 export function CustomerPassesPanel() {
   const [search, setSearch] = useState('');
   const [debouncedSearch] = useDebouncedValue(search.trim(), 300);
   const [page, setPage] = useState(1);
   const [assigning, setAssigning] = useState(false);
+  const [correcting, setCorrecting] = useState<HeldPass | null>(null);
   const [extending, setExtending] = useState<CustomerPass | null>(null);
   const [suspending, setSuspending] = useState<CustomerPass | null>(null);
   const searching = debouncedSearch !== '';
@@ -149,7 +152,17 @@ export function CustomerPassesPanel() {
                     </Badge>
                   </Table.Td>
                   <Table.Td>
-                    <Group gap="xs" wrap="nowrap">
+                    <Group gap="xs" wrap="wrap">
+                      {pass.entriesTotal !== null && pass.entriesRemaining !== null && (
+                        <Button
+                          size="xs"
+                          variant="light"
+                          disabled={passes.isFetching || passes.isPlaceholderData}
+                          onClick={() => setCorrecting({ holder, pass })}
+                        >
+                          {pl.customerPasses.correction.title}
+                        </Button>
+                      )}
                       {extendable.includes(pass.status) && (
                         <Button size="xs" variant="light" onClick={() => setExtending(pass)}>
                           {pl.customerPasses.extend}
@@ -175,6 +188,14 @@ export function CustomerPassesPanel() {
             <Pagination total={passes.data.totalPages} value={page} onChange={setPage} />
           )}
         </>
+      )}
+      {correcting && (
+        <CorrectPassEntriesModal
+          key={`${correcting.holder.id}:${correcting.pass.id}`}
+          customer={correcting.holder}
+          pass={correcting.pass}
+          onClose={() => setCorrecting((current) => (current === correcting ? null : current))}
+        />
       )}
       <AssignPassModal opened={assigning} onClose={() => setAssigning(false)} />
       <ExtendPassModal pass={extending} onClose={() => setExtending(null)} />

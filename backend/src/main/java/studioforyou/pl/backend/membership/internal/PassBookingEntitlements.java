@@ -4,9 +4,6 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
-import jakarta.persistence.EntityManager;
-
-import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,18 +27,15 @@ class PassBookingEntitlements implements BookingEntitlements {
 
 	private final PassVariantLookup variants;
 
-	private final EntityManager entityManager;
-
-	private final JdbcClient jdbc;
+	private final CustomerPassLock passLock;
 
 	PassBookingEntitlements(CustomerPassRepository passes, PassLedgerRepository ledger,
-			PassSuspensionQueries suspensions, PassVariantLookup variants, EntityManager entityManager, JdbcClient jdbc) {
+			PassSuspensionQueries suspensions, PassVariantLookup variants, CustomerPassLock passLock) {
 		this.passes = passes;
 		this.ledger = ledger;
 		this.suspensions = suspensions;
 		this.variants = variants;
-		this.entityManager = entityManager;
-		this.jdbc = jdbc;
+		this.passLock = passLock;
 	}
 
 	@Override
@@ -60,7 +54,7 @@ class PassBookingEntitlements implements BookingEntitlements {
 	@Transactional(propagation = Propagation.MANDATORY)
 	public void reserve(UUID customerId, UUID passId, UUID serviceTypeId, LocalDate occurrenceDate,
 			UUID reservationId, UUID actorAccountId) {
-		CustomerPass pass = lockPass(customerId, passId);
+		CustomerPass pass = passLock.acquire(customerId, passId);
 		if (ledger.existsByPassIdAndReservationIdAndKind(passId, reservationId, PassLedgerKind.ENTRY_RESERVED)) {
 			return;
 		}
@@ -83,7 +77,7 @@ class PassBookingEntitlements implements BookingEntitlements {
 	@Override
 	@Transactional(propagation = Propagation.MANDATORY)
 	public void release(UUID customerId, UUID passId, UUID reservationId, boolean returnEntry, UUID actorAccountId) {
-		CustomerPass pass = lockPass(customerId, passId);
+		CustomerPass pass = passLock.acquire(customerId, passId);
 		if (ledger.existsByPassIdAndReservationIdAndKind(passId, reservationId, PassLedgerKind.ENTRY_RETURNED)
 				|| ledger.existsByPassIdAndReservationIdAndKind(passId, reservationId, PassLedgerKind.ENTRY_CONSUMED)) {
 			return;
@@ -97,18 +91,6 @@ class PassBookingEntitlements implements BookingEntitlements {
 		ledger.save(PassLedgerEntry.reservation(passId, reservationId,
 				returnEntry ? PassLedgerKind.ENTRY_RETURNED : PassLedgerKind.ENTRY_CONSUMED, delta, actorAccountId));
 		passes.flush();
-	}
-
-	private CustomerPass lockPass(UUID customerId, UUID passId) {
-		jdbc.sql("SELECT id FROM customer_pass WHERE id = :passId AND customer_id = :customerId FOR UPDATE")
-			.param("passId", passId).param("customerId", customerId).query(UUID.class).optional()
-			.orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "Pass not found."));
-		CustomerPass pass = passes.findByIdAndCustomerId(passId, customerId)
-			.orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "Pass not found."));
-		// An earlier eligibility read may have put an old balance in this persistence context.
-		// The JDBC lock avoids Hibernate rejecting that old version before it can be refreshed.
-		entityManager.refresh(pass);
-		return pass;
 	}
 
 	private boolean usableOn(CustomerPass pass, LocalDate day) {

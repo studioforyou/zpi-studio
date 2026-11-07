@@ -25,6 +25,8 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import studioforyou.pl.backend.membership.BookingEntitlements;
+import studioforyou.pl.backend.membership.internal.CustomerPassService;
+import studioforyou.pl.backend.membership.internal.CustomerPassService.EntryCorrection;
 import studioforyou.pl.backend.shared.api.ApiException;
 import studioforyou.pl.backend.shared.api.ErrorCode;
 
@@ -37,6 +39,9 @@ class BookingEntitlementsTests {
 
 	@Autowired
 	private BookingEntitlements entitlements;
+
+	@Autowired
+	private CustomerPassService customerPasses;
 
 	@Autowired
 	private JdbcClient jdbc;
@@ -269,6 +274,145 @@ class BookingEntitlementsTests {
 		}
 		assertThat(balance(pass)).isZero();
 		assertThat(ledgerCount(pass)).isEqualTo(1);
+	}
+
+	@Test
+	void aCorrectionLeavesRoomForOutstandingEntryReturns() {
+		UUID pass = pass("ACTIVE", 1, CLASS_DAY, CLASS_DAY);
+		UUID reservation = reservation();
+		transaction.executeWithoutResult(status -> reserve(customer, pass, service, CLASS_DAY, reservation));
+		assertRejected(ErrorCode.VALIDATION_FAILED,
+				() -> correct(pass, Short.MAX_VALUE, version(pass)));
+		assertThat(balance(pass)).isZero();
+		assertThat(ledgerCount(pass)).isEqualTo(1);
+
+		correct(pass, Short.MAX_VALUE - 1, version(pass));
+		transaction.executeWithoutResult(status -> entitlements.release(customer, pass, reservation, true, actor));
+		assertThat(balance(pass)).isEqualTo(Short.MAX_VALUE);
+		assertThat(ledgerDelta(pass, "CORRECTION")).isEqualTo(Short.MAX_VALUE - 1);
+		assertThat(ledgerCount(pass)).isEqualTo(3);
+	}
+
+	@Test
+	void consumedAndReturnedAllocationsNoLongerReserveCorrectionHeadroom() {
+		UUID pass = pass("ACTIVE", 1, CLASS_DAY, CLASS_DAY);
+		UUID consumed = reservation();
+		transaction.executeWithoutResult(status -> reserve(customer, pass, service, CLASS_DAY, consumed));
+		transaction.executeWithoutResult(status -> entitlements.release(customer, pass, consumed, false, actor));
+		correct(pass, Short.MAX_VALUE, version(pass));
+		assertThat(balance(pass)).isEqualTo(Short.MAX_VALUE);
+
+		UUID returned = reservation();
+		transaction.executeWithoutResult(status -> reserve(customer, pass, service, CLASS_DAY, returned));
+		transaction.executeWithoutResult(status -> entitlements.release(customer, pass, returned, true, actor));
+		correct(pass, -1, version(pass));
+		correct(pass, 1, version(pass));
+		assertThat(balance(pass)).isEqualTo(Short.MAX_VALUE);
+	}
+
+	@Test
+	void correctionBalanceAndHistoryRollBackTogether() {
+		UUID pass = pass("ACTIVE", 8, CLASS_DAY, CLASS_DAY);
+		assertThatThrownBy(() -> transaction.executeWithoutResult(status -> {
+			correct(pass, 2, 0);
+			throw new IllegalStateException("Simulated later failure");
+		})).isInstanceOf(IllegalStateException.class);
+		assertThat(balance(pass)).isEqualTo(8);
+		assertThat(version(pass)).isZero();
+		assertThat(ledgerCount(pass)).isZero();
+	}
+
+	@Test
+	void concurrentCorrectionsWithTheSameVersionApplyOnlyOnce() throws Exception {
+		UUID pass = pass("ACTIVE", 8, CLASS_DAY, CLASS_DAY);
+		CountDownLatch start = new CountDownLatch(1);
+		try (var executor = Executors.newFixedThreadPool(2)) {
+			var first = executor.submit(() -> concurrentCorrection(start, pass, 1));
+			var second = executor.submit(() -> concurrentCorrection(start, pass, 1));
+			start.countDown();
+			assertThat(List.of(first.get(15, TimeUnit.SECONDS), second.get(15, TimeUnit.SECONDS)))
+				.containsExactlyInAnyOrder("CORRECTED", "VERSION_CONFLICT");
+		}
+		assertThat(balance(pass)).isEqualTo(9);
+		assertThat(version(pass)).isEqualTo(1);
+		assertThat(ledgerCount(pass)).isEqualTo(1);
+	}
+
+	@Test
+	void correctionAndBookingCannotSpendTheSameLastEntry() throws Exception {
+		UUID pass = pass("ACTIVE", 1, CLASS_DAY, CLASS_DAY);
+		UUID reservation = reservation();
+		CountDownLatch start = new CountDownLatch(1);
+		try (var executor = Executors.newFixedThreadPool(2)) {
+			var correction = executor.submit(() -> concurrentCorrection(start, pass, -1));
+			var booking = executor.submit(() -> concurrentReserve(start, pass, reservation));
+			start.countDown();
+			String corrected = correction.get(15, TimeUnit.SECONDS);
+			String booked = booking.get(15, TimeUnit.SECONDS);
+			if (corrected.equals("CORRECTED")) {
+				assertThat(booked).isEqualTo("PASS_ENTRIES_EXHAUSTED");
+			}
+			else {
+				assertThat(corrected).isEqualTo("VERSION_CONFLICT");
+				assertThat(booked).isEqualTo("RESERVED");
+			}
+		}
+		assertThat(balance(pass)).isZero();
+		assertThat(ledgerCount(pass)).isEqualTo(1);
+	}
+
+	@Test
+	void aCachedPassIsRefreshedBeforeCheckingTheCorrectionVersion() throws Exception {
+		UUID pass = pass("ACTIVE", 1, CLASS_DAY, CLASS_DAY);
+		UUID reservation = reservation();
+		CountDownLatch read = new CountDownLatch(1);
+		CountDownLatch spent = new CountDownLatch(1);
+		try (var executor = Executors.newSingleThreadExecutor()) {
+			var staleReader = executor.submit(() -> {
+				try {
+					transaction.executeWithoutResult(status -> {
+						assertThat(customerPasses.get(customer, pass).getVersion()).isZero();
+						read.countDown();
+						await(spent);
+						correct(pass, 1, 0);
+					});
+					return "CORRECTED";
+				}
+				catch (ApiException rejection) {
+					return rejection.getErrorCode().name();
+				}
+			});
+			try {
+				assertThat(read.await(10, TimeUnit.SECONDS)).isTrue();
+				transaction.executeWithoutResult(status -> reserve(customer, pass, service, CLASS_DAY, reservation));
+			}
+			finally {
+				spent.countDown();
+			}
+			assertThat(staleReader.get(15, TimeUnit.SECONDS)).isEqualTo("VERSION_CONFLICT");
+		}
+		assertThat(balance(pass)).isZero();
+		assertThat(ledgerCount(pass)).isEqualTo(1);
+	}
+
+	private void correct(UUID pass, int delta, int version) {
+		customerPasses.correctEntries(customer, pass, new EntryCorrection(delta, null, version), actor);
+	}
+
+	private String concurrentCorrection(CountDownLatch start, UUID pass, int delta) {
+		await(start);
+		try {
+			correct(pass, delta, 0);
+			return "CORRECTED";
+		}
+		catch (ApiException rejection) {
+			return rejection.getErrorCode().name();
+		}
+	}
+
+	private int version(UUID pass) {
+		return jdbc.sql("SELECT version FROM customer_pass WHERE id = :pass")
+			.param("pass", pass).query(Integer.class).single();
 	}
 
 	private String concurrentReserve(CountDownLatch start, UUID pass, UUID reservation) {

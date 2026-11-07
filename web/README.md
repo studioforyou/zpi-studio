@@ -102,6 +102,23 @@ staff and rooms. The second step shows every date with the conflicts and warning
 backend found; dates of a recurring event can be left out before saving. An event's details offer
 "Zmień obsadę i salę" for one event or the following ones of its series.
 
+## Participant pass corrections
+
+In **Karnety → Karnety uczestników**, search for a participant and choose **Koryguj wejścia**
+in the matching pass row with a finite entry count. Corrections sit alongside extension and suspension
+actions, and the response retains the pass's suspension details and effective status.
+Enter the intended remaining balance in one field,
+optionally give a reason, and compare the current and intended counts before confirming. A green
+or red badge shows the signed difference; an unchanged count is neutral and cannot be submitted. The panel
+calculates the signed adjustment from the displayed current balance; setting it to zero is
+allowed, while leaving it unchanged does not create a correction. Each correction is recorded with its
+author, time and reason in the pass ledger. The original entry allowance and validity stay
+unchanged; a correction can increase the balance beyond the original allowance.
+
+Corrections require administrator access. If the pass changed while the form was open,
+refresh its balance and enter the intended correction again. An interrupted response can
+also mean that the correction was saved: refresh and check the balance before trying again.
+
 ## Conventions
 
 - Modules in `features/` never import from each other; only `app/` composes them. Shared code goes
