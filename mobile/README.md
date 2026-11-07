@@ -125,13 +125,16 @@ permission or a missing token only means the notifications stay in the inbox.
 
 `lib/app/push/push_notifications.dart` connects pushes with the app. Tapping a
 class reminder opens **Mój grafik** of the participant it is about, switching
-to the child's profile if needed; other notifications open the messages tab.
+to the child's profile if needed; other notifications open the notifications
+screen.
 The notification is marked read. A message that arrives while the app is open
 is shown as a snack bar and refreshes the inbox.
 
-The **Wiadomości** tab shows the inbox of the active role
-(`GET /api/v1/me/notifications?role=...`), with the unread count as a badge on
-the tab and an action that marks everything read.
+The bell in the top right corner of the **Wiadomości** tab opens the
+notifications screen (`/client/messages/notifications`,
+`/trainer/messages/notifications`): the inbox of the active role
+(`GET /api/v1/me/notifications?role=...`) with a top right action that marks
+everything read. The unread count is a badge on the bell and on the tab.
 
 ### iOS
 

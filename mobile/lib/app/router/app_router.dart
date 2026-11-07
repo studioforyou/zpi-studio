@@ -16,6 +16,7 @@ import 'package:mobile/features/accounts/presentation/reset_password_screen.dart
 import 'package:mobile/features/accounts/presentation/role_picker_screen.dart';
 import 'package:mobile/features/accounts/presentation/staff_profile_edit_screen.dart';
 import 'package:mobile/features/communication/presentation/messages_screen.dart';
+import 'package:mobile/features/communication/presentation/notifications_screen.dart';
 import 'package:mobile/features/passes/presentation/passes_screen.dart';
 import 'package:mobile/features/schedule/presentation/add_class_screen.dart';
 import 'package:mobile/features/schedule/presentation/availability_screen.dart';
@@ -40,6 +41,8 @@ const clientSchedulePath = '/client/schedule';
 const clientPassesPath = '/client/passes';
 const clientReservationsPath = '/client/reservations';
 const clientMessagesPath = '/client/messages';
+const notificationsSubPath = 'notifications';
+const clientNotificationsPath = '$clientMessagesPath/$notificationsSubPath';
 const clientProfilePath = '/client/profile';
 const clientProfileEditSubPath = 'edit';
 const clientTrainingHistorySubPath = 'history';
@@ -49,6 +52,7 @@ const clientTrainingHistoryPath =
 const trainerSchedulePath = '/trainer/schedule';
 const trainerTrainingsPath = '/trainer/trainings';
 const trainerMessagesPath = '/trainer/messages';
+const trainerNotificationsPath = '$trainerMessagesPath/$notificationsSubPath';
 const trainerProfilePath = '/trainer/profile';
 const trainerAvailabilitySubPath = 'availability';
 const trainerProfileEditSubPath = 'edit';
@@ -142,6 +146,13 @@ StatefulShellRoute _clientShell() => _roleShell([
     const MessagesScreen(),
     Icons.chat_bubble_outline,
     (l10n) => l10n.navMessages,
+    routes: [
+      // Opened with the bell on the messages screen.
+      GoRoute(
+        path: notificationsSubPath,
+        builder: (_, _) => const NotificationsScreen(),
+      ),
+    ],
     badge: watchUnreadNotifications,
   ),
   _tab(
@@ -189,6 +200,13 @@ StatefulShellRoute _trainerShell() => _roleShell([
     const MessagesScreen(),
     Icons.chat_bubble_outline,
     (l10n) => l10n.navMessages,
+    routes: [
+      // Opened with the bell on the messages screen.
+      GoRoute(
+        path: notificationsSubPath,
+        builder: (_, _) => const NotificationsScreen(),
+      ),
+    ],
     badge: watchUnreadNotifications,
   ),
   _tab(

@@ -92,8 +92,8 @@ class PushNotifications {
     }
     router.go(
       session.activeRole == AppRole.client
-          ? clientMessagesPath
-          : trainerMessagesPath,
+          ? clientNotificationsPath
+          : trainerNotificationsPath,
     );
   }
 

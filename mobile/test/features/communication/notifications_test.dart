@@ -249,7 +249,7 @@ void main() {
       tester,
     ) async {
       final notifications = _Notifications(items: [_reminder()], unread: 1);
-      await pumpApp(
+      final container = await pumpApp(
         tester,
         push: _Push(),
         devices: _Devices(),
@@ -265,6 +265,14 @@ void main() {
 
       await tester.tap(find.text('Wiadomości'));
       await tester.pumpAndSettle();
+      // The messages screen does not list notifications; its bell opens them.
+      expect(
+        find.text('Klient · Maria: Przypomnienie o zajęciach'),
+        findsNothing,
+      );
+      await tester.tap(find.byTooltip('Powiadomienia'));
+      await tester.pumpAndSettle();
+      expect(location(container), clientNotificationsPath);
       expect(notifications.fetched.last, 'CLIENT');
       expect(
         find.text('Klient · Maria: Przypomnienie o zajęciach'),
@@ -274,7 +282,19 @@ void main() {
       await tester.tap(find.byTooltip('Oznacz wszystkie jako przeczytane'));
       await tester.pumpAndSettle();
       expect(notifications.readAll, ['CLIENT']);
-      expect(find.byType(Badge), findsNothing);
+      expect(
+        find.descendant(of: find.byType(Badge), matching: find.text('1')),
+        findsNothing,
+      );
+
+      // Back on the messages screen the bell has no number any more.
+      await tester.tap(find.byType(BackButton));
+      await tester.pumpAndSettle();
+      expect(location(container), clientMessagesPath);
+      expect(
+        find.descendant(of: find.byType(Badge), matching: find.text('1')),
+        findsNothing,
+      );
     });
 
     testWidgets('a message while the app is open shows and refreshes', (
