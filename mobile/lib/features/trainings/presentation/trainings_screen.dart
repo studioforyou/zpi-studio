@@ -2,8 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:mobile/features/trainings/presentation/trainees_tab.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
 
-/// The trainer's trainings: the participants they work with and, later,
-/// their training groups.
+/// Own trainees and training groups. Sessions live in the main trainer schedule.
 class TrainingsScreen extends StatelessWidget {
   const TrainingsScreen({super.key});
 

@@ -3,65 +3,138 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:mobile/core/auth/auth_controller.dart';
-import 'package:mobile/core/auth/auth_state.dart';
 import 'package:mobile/core/network/api_exception.dart';
 import 'package:mobile/features/trainings/data/trainees_api.dart';
+import 'package:mobile/features/trainings/data/trainee_overview_api.dart';
+import 'package:mobile/features/trainings/presentation/widgets/trainee_overview_widgets.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
 
 /// Opens the search of participants to start working with.
 const newCooperationLocation = '/trainer/trainings/new-cooperation';
 
 /// Participants the signed-in trainer works with.
-class TraineesTab extends ConsumerWidget {
+class TraineesTab extends ConsumerStatefulWidget {
   const TraineesTab({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final l10n = AppLocalizations.of(context);
-    final session = switch (ref.watch(authControllerProvider)) {
-      Authenticated(:final session) => session,
-      _ => null,
-    };
-    if (session == null) {
-      return const SizedBox();
+  ConsumerState<TraineesTab> createState() => _TraineesTabState();
+}
+
+class _TraineesTabState extends ConsumerState<TraineesTab>
+    with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _refresh();
+  }
+
+  Future<void> _refresh() async {
+    final scope = trainerOverviewScope(ref.read(authControllerProvider));
+    if (scope == null) return;
+    ref.invalidate(traineeOverviewsProvider(scope));
+    try {
+      final request = ref.refresh(ownTraineesProvider(scope.accountId).future);
+      await request;
+    } catch (_) {
+      // The list shows its error and retry action.
     }
-    final provider = ownTraineesProvider(session.accountId);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final scope = trainerOverviewScope(ref.watch(authControllerProvider));
+    if (scope == null) return const SizedBox();
+    final provider = ownTraineesProvider(scope.accountId);
 
     return ref
         .watch(provider)
         .when(
+          skipLoadingOnRefresh: false,
+          skipLoadingOnReload: false,
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (error, _) => _LoadError(
             message: traineesErrorMessage(error, l10n, loading: true),
             onRetry: () => ref.invalidate(provider),
           ),
-          data: (trainees) => RefreshIndicator(
-            onRefresh: () => ref.refresh(provider.future),
-            child: ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                FilledButton.icon(
-                  onPressed: () => context.push(newCooperationLocation),
-                  icon: const Icon(Icons.person_add_alt_1),
-                  label: Text(l10n.traineesNewCooperation),
-                ),
-                const SizedBox(height: 16),
-                if (trainees.isEmpty)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 32),
-                    child: Text(
-                      l10n.traineesEmpty,
-                      textAlign: TextAlign.center,
+          data: (trainees) {
+            final summaries = trainees.isEmpty
+                ? null
+                : ref.watch(traineeOverviewsProvider(scope));
+            final summaryData = summaries?.asData?.value;
+            final byCustomer = {
+              for (final item in summaryData?.items ?? <TraineeOverview>[])
+                item.customerId: item,
+            };
+            return RefreshIndicator(
+              onRefresh: _refresh,
+              child: ListView(
+                padding: const EdgeInsets.all(16),
+                children: [
+                  FilledButton.icon(
+                    onPressed: () async {
+                      await context.push(newCooperationLocation);
+                      if (mounted) await _refresh();
+                    },
+                    icon: const Icon(Icons.person_add_alt_1),
+                    label: Text(l10n.traineesNewCooperation),
+                  ),
+                  const SizedBox(height: 16),
+                  if (summaries?.hasError ?? false)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.cloud_off_outlined, size: 20),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(l10n.traineeOverviewSummaryError),
+                          ),
+                          IconButton(
+                            onPressed: () =>
+                                ref.invalidate(traineeOverviewsProvider(scope)),
+                            tooltip: l10n.traineesRetry,
+                            icon: const Icon(Icons.refresh),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                for (final trainee in trainees)
-                  _TraineeCard(
-                    trainee,
-                    onEnd: () => _endCooperation(context, ref, trainee),
-                  ),
-              ],
-            ),
-          ),
+                  if (trainees.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 32),
+                      child: Text(
+                        l10n.traineesEmpty,
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  for (final trainee in trainees)
+                    _TraineeCard(
+                      trainee,
+                      overview: byCustomer[trainee.customerId],
+                      checkedAt: summaryData?.checkedAt,
+                      overviewLoading: summaries?.isLoading ?? false,
+                      onOpen: trainee.isActive
+                          ? () => context.push(
+                              '/trainer/trainings/trainees/${trainee.customerId}',
+                            )
+                          : null,
+                      onEnd: () => _endCooperation(context, ref, trainee),
+                    ),
+                ],
+              ),
+            );
+          },
         );
   }
 
@@ -104,39 +177,114 @@ class TraineesTab extends ConsumerWidget {
     }
     if (context.mounted) {
       ref.invalidate(ownTraineesProvider);
+      ref.invalidate(traineeOverviewsProvider);
     }
   }
 }
 
 class _TraineeCard extends StatelessWidget {
-  const _TraineeCard(this.trainee, {required this.onEnd});
+  const _TraineeCard(
+    this.trainee, {
+    required this.onEnd,
+    required this.overview,
+    required this.checkedAt,
+    required this.overviewLoading,
+    required this.onOpen,
+  });
 
   final Trainee trainee;
   final VoidCallback onEnd;
+  final VoidCallback? onOpen;
+  final TraineeOverview? overview;
+  final DateTime? checkedAt;
+  final bool overviewLoading;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final birthDate = trainee.birthDate;
     final details = [
       if (trainee.isChild) l10n.traineesChild,
-      if (birthDate != null) l10n.traineesBirthDate(formatBirthDate(birthDate)),
-      l10n.traineesSince(
-        DateFormat('d MMMM y', 'pl').format(trainee.assignedAt),
-      ),
+      if (trainee.isChild && trainee.birthDate != null)
+        l10n.traineesBirthDate(formatBirthDate(trainee.birthDate!)),
       if (!trainee.isActive) l10n.traineesInactive,
     ];
 
     return Card(
-      child: ListTile(
-        leading: CircleAvatar(child: Text(_initials(trainee.displayName))),
-        title: Text(trainee.displayName),
-        subtitle: Text(details.join(' · ')),
-        trailing: PopupMenuButton<void>(
-          tooltip: l10n.traineesActions,
-          itemBuilder: (_) => [
-            PopupMenuItem(onTap: onEnd, child: Text(l10n.traineesEndConfirm)),
-          ],
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onOpen,
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            spacing: 6,
+            children: [
+              Row(
+                children: [
+                  CircleAvatar(
+                    radius: 16,
+                    child: Text(
+                      _initials(trainee.displayName),
+                      style: Theme.of(context).textTheme.labelMedium,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      spacing: 3,
+                      children: [
+                        Text(
+                          trainee.displayName,
+                          style: Theme.of(context).textTheme.titleSmall,
+                        ),
+                        if (details.isNotEmpty)
+                          Text(
+                            details.join(' · '),
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                      ],
+                    ),
+                  ),
+                  PopupMenuButton<void>(
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(
+                      minWidth: 32,
+                      minHeight: 32,
+                    ),
+                    tooltip: l10n.traineesActions,
+                    itemBuilder: (_) => [
+                      PopupMenuItem(
+                        onTap: onEnd,
+                        child: Text(l10n.traineesEndConfirm),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              if (overviewLoading)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 12),
+                  child: LinearProgressIndicator(),
+                )
+              else if (overview case final overview?) ...[
+                TraineePackageSummary(overview),
+                if (overview.nextTraining case final next?)
+                  TraineeTrainingLink(next, checkedAt: checkedAt!)
+                else if (trainee.isActive)
+                  Text(
+                    l10n.traineeOverviewNoNext,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                if (overview.attentionTraining case final attention?)
+                  TraineeTrainingLink(
+                    attention,
+                    checkedAt: checkedAt!,
+                    attention: true,
+                  ),
+              ],
+            ],
+          ),
         ),
       ),
     );
