@@ -1204,6 +1204,7 @@ export const pl = {
       capacityDescription: 'Puste pole = bez limitu. Nie mniej niż liczba zapisanych osób.',
       positiveNumber: 'Podaj liczbę większą od zera.',
       required: 'Pole wymagane.',
+      blockNeedsRoom: 'Wybierz co najmniej jedną salę do zablokowania.',
       check: 'Sprawdź termin',
       checking: 'Sprawdzanie terminu…',
       free: 'Termin jest wolny: sale i prowadzący są dostępni.',

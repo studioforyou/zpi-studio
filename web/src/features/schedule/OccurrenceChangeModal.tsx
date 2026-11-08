@@ -70,13 +70,16 @@ export function OccurrenceChangeModal({ event, lookups, onClose }: OccurrenceCha
     event.resources.map(({ resourceId, blocksWholeRoom }) => ({ resourceId, blocksWholeRoom })),
   );
   const [submitted, setSubmitted] = useState(false);
+  // A block keeps the rules it was planned with: a title, rooms taken whole, no staff or capacity.
+  const isBlock = event.kind === 'BLOCK';
 
   const durationValid =
     typeof duration === 'number' && Number.isInteger(duration) && duration >= 5 && duration <= 720;
   const capacityValid =
     capacity === '' ||
     (typeof capacity === 'number' && Number.isInteger(capacity) && capacity >= 1);
-  const valid = date !== '' && startTime !== '' && durationValid && capacityValid;
+  const blockValid = !isBlock || (title.trim() !== '' && resources.length > 0);
+  const valid = date !== '' && startTime !== '' && durationValid && capacityValid && blockValid;
 
   function change(): EventChange {
     const startsAt = toInstant(date, startTime, timeZone);
@@ -85,9 +88,11 @@ export function OccurrenceChangeModal({ event, lookups, onClose }: OccurrenceCha
       startsAt: startsAt.toISOString(),
       endsAt: new Date(startsAt.getTime() + Number(duration) * 60000).toISOString(),
       title: title.trim() === '' ? null : title.trim(),
-      capacity: capacity === '' ? null : Number(capacity),
-      staff,
-      resources,
+      capacity: isBlock || capacity === '' ? null : Number(capacity),
+      staff: isBlock ? [] : staff,
+      resources: isBlock
+        ? resources.map((resource) => ({ ...resource, blocksWholeRoom: true }))
+        : resources,
     };
   }
 
@@ -195,27 +200,32 @@ export function OccurrenceChangeModal({ event, lookups, onClose }: OccurrenceCha
               error={error(!durationValid, texts.durationRange)}
             />
           </SimpleGrid>
-          <SimpleGrid cols={{ base: 1, sm: 2 }}>
+          <SimpleGrid cols={{ base: 1, sm: isBlock ? 1 : 2 }}>
             <TextInput
               label={texts.eventTitle}
               placeholder={event.serviceTypeName ?? undefined}
               maxLength={120}
+              required={isBlock}
               value={title}
               onChange={(input) => setTitle(input.currentTarget.value)}
+              error={error(isBlock && title.trim() === '', texts.required)}
             />
-            <NumberInput
-              label={texts.capacity}
-              description={texts.capacityDescription}
-              inputWrapperOrder={['label', 'input', 'description', 'error']}
-              min={1}
-              max={32767}
-              allowDecimal={false}
-              value={capacity}
-              onChange={edited(setCapacity)}
-              error={error(!capacityValid, texts.positiveNumber)}
-            />
+            {!isBlock && (
+              <NumberInput
+                label={texts.capacity}
+                description={texts.capacityDescription}
+                inputWrapperOrder={['label', 'input', 'description', 'error']}
+                min={1}
+                max={32767}
+                allowDecimal={false}
+                value={capacity}
+                onChange={edited(setCapacity)}
+                error={error(!capacityValid, texts.positiveNumber)}
+              />
+            )}
           </SimpleGrid>
           <AssignmentFields
+            block={isBlock}
             serviceTypeId={event.serviceTypeId}
             staff={staff}
             onStaffChange={edited(setStaff)}
@@ -224,6 +234,11 @@ export function OccurrenceChangeModal({ event, lookups, onClose }: OccurrenceCha
             lookups={lookups}
             roomRules={roomRules}
           />
+          {submitted && isBlock && resources.length === 0 && (
+            <Text size="xs" c="red">
+              {texts.blockNeedsRoom}
+            </Text>
+          )}
           {preview.isPending && (
             <Group gap="xs">
               <Loader size="xs" />

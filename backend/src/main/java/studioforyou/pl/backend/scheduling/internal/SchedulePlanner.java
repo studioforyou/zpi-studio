@@ -326,7 +326,7 @@ class SchedulePlanner {
 	}
 
 	/** The rooms of a block, all taken whole. A block has no staff and needs at least one room. */
-	private static List<ResourceAssignmentRequest> blockRooms(@Nullable List<StaffAssignmentRequest> staff,
+	static List<ResourceAssignmentRequest> blockRooms(@Nullable List<StaffAssignmentRequest> staff,
 			@Nullable List<ResourceAssignmentRequest> resources) {
 		if (staff != null && !staff.isEmpty()) {
 			throw ApiException.invalidField("staff", FieldErrorCode.INVALID_VALUE, "A block has no staff.");

@@ -6,6 +6,7 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 import org.jspecify.annotations.Nullable;
@@ -13,7 +14,7 @@ import studioforyou.pl.backend.configuration.StudioSettings;
 import studioforyou.pl.backend.offering.ServiceTypeSummary;
 import studioforyou.pl.backend.offering.ServiceTypes;
 import studioforyou.pl.backend.scheduling.EventParticipantCounts;
-import studioforyou.pl.backend.scheduling.ScheduleEventMoved;
+import studioforyou.pl.backend.scheduling.ScheduleEventChanged;
 import studioforyou.pl.backend.scheduling.internal.ScheduleConflicts.Assignments;
 import studioforyou.pl.backend.scheduling.internal.ScheduleConflicts.Occurrence;
 import studioforyou.pl.backend.scheduling.internal.ScheduleDtos.ChangeEventRequest;
@@ -37,7 +38,8 @@ import org.springframework.transaction.annotation.Transactional;
  * rooms. A changed occurrence of a series becomes an exception to the series' rule, and can later
  * be brought back to the rule. The same checks as for a new event apply: the event must start in
  * the future and its rooms and staff must be free at the new time. The capacity may not drop below
- * the places already booked.
+ * the places already taken (reservations and held waiting-list offers). A block keeps the rules it
+ * was planned with: no staff, no capacity, rooms taken whole.
  */
 @Service
 @Transactional
@@ -87,9 +89,8 @@ class OccurrenceChanges {
 		requireEditable(event);
 		ZoneId zone = this.studio.zone();
 		Occurrence occurrence = this.planner.checkedOccurrence(request.startsAt(), request.endsAt(), zone);
-		Short capacity = capacity(request.capacity());
-		Assignments assignments = this.planner.assignments(event.getServiceTypeId(), toInteger(capacity),
-				request.staff(), request.resources(), event);
+		Short capacity = (event.getKind() == EventKind.BLOCK) ? null : capacity(request.capacity());
+		Assignments assignments = assignments(event, capacity, request.staff(), request.resources());
 		List<ScheduleIssue> issues = this.conflicts.find(List.of(occurrence), assignments, zone, List.of(eventId))
 			.get(0);
 		OccurrencePreview preview = new OccurrencePreview(occurrence.date(), occurrence.startsAt(),
@@ -106,14 +107,12 @@ class OccurrenceChanges {
 		ScheduleEvent event = lockForChange(eventId, request.version());
 		ZoneId zone = this.studio.zone();
 		Occurrence occurrence = this.planner.checkedOccurrence(request.startsAt(), request.endsAt(), zone);
-		Short capacity = capacity(request.capacity());
+		Short capacity = (event.getKind() == EventKind.BLOCK) ? null : capacity(request.capacity());
 		requireRoomForParticipants(event, capacity);
-		Assignments assignments = this.planner.assignments(event.getServiceTypeId(), toInteger(capacity),
-				request.staff(), request.resources(), event);
+		Assignments assignments = assignments(event, capacity, request.staff(), request.resources());
 		this.planner.lockAndRejectConflicts(List.of(occurrence), assignments, zone, List.of(eventId));
 
-		Instant previousStart = event.getStartsAt();
-		Instant previousEnd = event.getEndsAt();
+		Snapshot before = Snapshot.of(event);
 		boolean moved = event.reschedule(occurrence.startsAt(), occurrence.endsAt());
 		boolean detailsChanged = event.changeDetails(title(request.title(), event), capacity);
 		boolean assignmentsChanged = event.replaceAssignments(assignments.staff(), assignments.resources());
@@ -121,10 +120,7 @@ class OccurrenceChanges {
 			event.markSeriesException();
 		}
 		this.events.flush();
-		if (moved) {
-			this.publisher.publishEvent(new ScheduleEventMoved(eventId, previousStart, previousEnd,
-					event.getStartsAt(), event.getEndsAt()));
-		}
+		publishChange(before, event);
 		return this.queries.findEvent(eventId).orElseThrow();
 	}
 
@@ -170,18 +166,38 @@ class OccurrenceChanges {
 				resources, event);
 		this.planner.lockAndRejectConflicts(List.of(occurrence), assignments, zone, List.of(eventId));
 
-		Instant previousStart = event.getStartsAt();
-		Instant previousEnd = event.getEndsAt();
-		boolean moved = event.reschedule(occurrence.startsAt(), occurrence.endsAt());
+		Snapshot before = Snapshot.of(event);
+		event.reschedule(occurrence.startsAt(), occurrence.endsAt());
 		event.changeDetails(title(series.getTitle(), event), capacity);
 		event.replaceAssignments(assignments.staff(), assignments.resources());
 		event.clearSeriesException();
 		this.events.flush();
-		if (moved) {
-			this.publisher.publishEvent(new ScheduleEventMoved(eventId, previousStart, previousEnd,
-					event.getStartsAt(), event.getEndsAt()));
-		}
+		publishChange(before, event);
 		return this.queries.findEvent(eventId).orElseThrow();
+	}
+
+	/**
+	 * Checks the new staff and rooms. A block has no staff and takes each of its rooms whole, as
+	 * when it was planned.
+	 */
+	private Assignments assignments(ScheduleEvent event, @Nullable Short capacity,
+			List<StaffAssignmentRequest> staff, List<ResourceAssignmentRequest> resources) {
+		if (event.getKind() == EventKind.BLOCK) {
+			return this.planner.assignments(null, null, List.of(), SchedulePlanner.blockRooms(staff, resources),
+					event);
+		}
+		return this.planner.assignments(event.getServiceTypeId(), toInteger(capacity), staff, resources, event);
+	}
+
+	/** Tells the other modules about a new time or capacity, after the change is flushed. */
+	private void publishChange(Snapshot before, ScheduleEvent event) {
+		Integer capacity = toInteger(event.getCapacity());
+		boolean timeChanged = !before.startsAt().equals(event.getStartsAt())
+				|| !before.endsAt().equals(event.getEndsAt());
+		if (timeChanged || !Objects.equals(before.capacity(), capacity)) {
+			this.publisher.publishEvent(new ScheduleEventChanged(event.getId(), before.startsAt(), before.endsAt(),
+					before.capacity(), event.getStartsAt(), event.getEndsAt(), capacity));
+		}
 	}
 
 	private ScheduleEvent lockForChange(UUID eventId, int version) {
@@ -195,7 +211,7 @@ class OccurrenceChanges {
 		return event;
 	}
 
-	/** Only a scheduled class, workshop or personal training that has not started yet can change. */
+	/** Only a scheduled event of a plannable kind (blocks included) that has not started yet can change. */
 	private void requireEditable(ScheduleEvent event) {
 		if (event.getStatus() != EventStatus.SCHEDULED) {
 			throw new ApiException(ErrorCode.EVENT_NOT_EDITABLE,
@@ -221,16 +237,36 @@ class OccurrenceChanges {
 		}
 	}
 
-	/** The requested title, or the service type's name when it is blank. */
+	/**
+	 * The requested title; when it is blank, the service type's name, or the current title for a
+	 * block, which has no service type.
+	 */
 	private String title(@Nullable String requested, ScheduleEvent event) {
-		String title = (requested != null && !requested.isBlank()) ? requested.strip()
-				: this.serviceTypes.findById(event.getServiceTypeId())
-					.map(ServiceTypeSummary::name)
-					.orElse(event.getTitle());
+		String title;
+		if (requested != null && !requested.isBlank()) {
+			title = requested.strip();
+		}
+		else if (event.getServiceTypeId() == null) {
+			title = event.getTitle();
+		}
+		else {
+			title = this.serviceTypes.findById(event.getServiceTypeId())
+				.map(ServiceTypeSummary::name)
+				.orElse(event.getTitle());
+		}
 		if (title != null && title.length() > ScheduleDtos.MAX_TITLE_LENGTH) {
 			title = title.substring(0, ScheduleDtos.MAX_TITLE_LENGTH);
 		}
 		return title;
+	}
+
+	/** The time and capacity of an event before a change. */
+	private record Snapshot(Instant startsAt, Instant endsAt, @Nullable Integer capacity) {
+
+		static Snapshot of(ScheduleEvent event) {
+			return new Snapshot(event.getStartsAt(), event.getEndsAt(), toInteger(event.getCapacity()));
+		}
+
 	}
 
 	private static @Nullable Short capacity(@Nullable Integer requested) {

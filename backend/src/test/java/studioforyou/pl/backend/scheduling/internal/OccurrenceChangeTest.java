@@ -101,6 +101,29 @@ class OccurrenceChangeTest extends ScheduleTestSupport {
 	}
 
 	@Test
+	void aBlockKeepsItsRulesWhenItIsMoved() throws Exception {
+		String block = createEvent("""
+				{"kind": "BLOCK", "title": "Maintenance", "startsAt": "%s", "endsAt": "%s",
+				 "staff": [], "resources": [%s]}
+				""".formatted(at(this.monday, "08:00"), at(this.monday, "10:00"), room(GYM, true)));
+
+		put("/api/v1/schedule-events/" + block, change(0, at(this.monday, "09:00"), at(this.monday, "11:00"), "null",
+				"5", staff(ANNA, "LEAD"), room(GYM, true)))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+
+		put("/api/v1/schedule-events/" + block, change(0, at(this.monday, "09:00"), at(this.monday, "11:00"), "null",
+				"5", "", room(GYM, false)))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.kind").value("BLOCK"))
+			.andExpect(jsonPath("$.title").value("Maintenance"))
+			.andExpect(jsonPath("$.startsAt").value(at(this.monday, "09:00").toString()))
+			.andExpect(jsonPath("$.capacity").doesNotExist())
+			.andExpect(jsonPath("$.staff.length()").value(0))
+			.andExpect(jsonPath("$.resources[0].blocksWholeRoom").value(true));
+	}
+
+	@Test
 	void checksConflictsAtTheNewTimeButNotWithTheEventItself() throws Exception {
 		createTuesdaySeries(1);
 		String id = occurrenceIds().get(0);
