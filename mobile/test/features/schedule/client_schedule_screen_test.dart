@@ -986,6 +986,37 @@ void main() {
   );
 
   testWidgets(
+    'a place booked without a pass is cancelled without an entry consequence',
+    (tester) async {
+      final api = _Api(
+        data: groupClassJson(reserved: true, reservedWithPass: false),
+      );
+      await pump(tester, api, details: true);
+      expect(
+        find.text('Studio zapisało to miejsce bez karnetu.'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('bez zwrotu wejścia'), findsNothing);
+      expect(find.textContaining('Bezpłatne odwołanie'), findsNothing);
+      await tapVisible(
+        tester,
+        find.widgetWithText(OutlinedButton, 'Odwołaj rezerwację'),
+      );
+      expect(
+        find.text(
+          'Rezerwacja jest bez karnetu, więc odwołanie nie zmienia wejść.',
+        ),
+        findsOneWidget,
+      );
+      await tester.tap(find.widgetWithText(FilledButton, 'Odwołaj rezerwację'));
+      await tester.pumpAndSettle();
+      expect(api.cancellations, 1);
+      expect(api.expectedEntryReturned, isNull);
+      expect(find.text('Rezerwacja odwołana.'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
     'own reservations load separately and booking mutation refreshes offer cache',
     (tester) async {
       final api = _Api(data: groupClassJson(reserved: true));

@@ -43,6 +43,36 @@ class GroupClassCancellationTests {
 	}
 
 	@Test
+	void aReservationWithoutAPassIsCancelledOnItsTermsWithoutAnEntryConsequence() {
+		var passless = new Reservation(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), "ACTIVE", null,
+				DEADLINE, null, null, null, true, false, true, 0);
+		var inTime = GroupClassBookingService.cancellation(passless, event(), DEADLINE);
+		assertThat(inTime.allowed()).isTrue();
+		assertThat(inTime.entryReturned()).isNull();
+		assertThat(GroupClassBookingService.cancellation(passless, event(), DEADLINE.plusSeconds(1)).reason())
+			.isEqualTo("FREE_CANCELLATION_EXPIRED");
+		assertThat(StaffBookingService.suggestedEntryReturned(passless, DEADLINE)).isNull();
+	}
+
+	@Test
+	void administratorsCancelUntilTheStartWithTheEntryTheTermsSuggest() {
+		var forfeiting = reservation(true, false, true);
+		assertThat(StaffBookingService.suggestedEntryReturned(forfeiting, DEADLINE)).isTrue();
+		assertThat(StaffBookingService.suggestedEntryReturned(forfeiting, DEADLINE.plusSeconds(1))).isFalse();
+		assertThat(StaffBookingService.suggestedEntryReturned(reservation(true, true, false), DEADLINE.plusSeconds(1)))
+			.isTrue();
+		// The participant could not cancel late, but an administrator can until the start.
+		assertThat(StaffBookingService.cancellationReason(forfeiting, event(), DEADLINE.plusSeconds(1))).isNull();
+		assertThat(StaffBookingService.cancellationReason(reservation(false, true, true), event(), DEADLINE)).isNull();
+		assertThat(StaffBookingService.cancellationReason(forfeiting, event(), START)).isEqualTo("EVENT_ALREADY_STARTED");
+		assertThat(StaffBookingService.cancellationReason(forfeiting, event("CANCELLED"), DEADLINE))
+			.isEqualTo("EVENT_NOT_BOOKABLE");
+		assertThat(StaffBookingService.bookableReason(event(), START.minusNanos(1))).isNull();
+		assertThat(StaffBookingService.bookableReason(event(), START)).isEqualTo("EVENT_NOT_BOOKABLE");
+		assertThat(StaffBookingService.bookableReason(event("COMPLETED"), DEADLINE)).isEqualTo("EVENT_NOT_BOOKABLE");
+	}
+
+	@Test
 	void ageUsesTheOccurrenceDayIncludingTheBirthdayAndHandlesMissingBirthDates() {
 		LocalDate birth = LocalDate.of(2015, 4, 12);
 		assertThat(ParticipationRules.ageAllowed(birth, LocalDate.of(2027, 4, 11), (short) 12, (short) 15)).isFalse();

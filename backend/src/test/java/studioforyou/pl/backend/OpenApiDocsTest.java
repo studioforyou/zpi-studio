@@ -143,6 +143,30 @@ class OpenApiDocsTest {
 	}
 
 	@Test
+	void documentsStaffBooking() throws Exception {
+		String json = apiDocs();
+
+		String reservations = "$.paths['/api/v1/schedule-events/{eventId}/reservations']";
+		assertThat((Map<String, Object>) JsonPath.read(json, reservations)).containsOnlyKeys("get", "post");
+		assertThat((String) JsonPath.read(json, reservations + ".get.operationId")).isEqualTo("listEventReservations");
+		assertThat((String) JsonPath.read(json, reservations + ".post.operationId")).isEqualTo("bookEventReservation");
+		assertThat((Map<String, Object>) JsonPath.read(json, reservations + ".post.responses"))
+			.containsKeys("200", "201", "400", "401", "403", "404", "409", "422");
+		String cancel = "$.paths['/api/v1/schedule-events/{eventId}/reservations/{reservationId}/cancel'].post";
+		assertThat((String) JsonPath.read(json, cancel + ".operationId")).isEqualTo("cancelEventReservation");
+		assertThat((Map<String, Object>) JsonPath.read(json, cancel + ".responses"))
+			.containsKeys("200", "400", "401", "403", "404", "409", "422");
+		assertThat((String) JsonPath.read(json,
+				"$.paths['/api/v1/schedule-events/{eventId}/booking-options'].get.operationId"))
+			.isEqualTo("getStaffBookingOptions");
+		assertThat((Map<String, Object>) JsonPath.read(json, "$.components.schemas.StaffBookRequest.properties"))
+			.containsOnlyKeys("customerId", "customerPassId", "acceptedIssues", "reason");
+		assertThat((Map<String, Object>) JsonPath.read(json,
+				"$.components.schemas.StaffCancelReservationRequest.properties"))
+			.containsOnlyKeys("expectedVersion", "returnEntry", "reason");
+	}
+
+	@Test
 	void sessionOperationsGetAuthErrors() throws Exception {
 		Map<String, Object> responses = JsonPath.read(apiDocs(), "$.paths['/api/v1/studio'].get.responses");
 
