@@ -48,6 +48,10 @@ Use the same Firebase seed logins and passwords. No Firebase accounts or passwor
 
 This feature adds one seed file: `R__seed_08_timetable_showcase.sql`. The earlier local prototype and its one-off cleanup are not part of the shared seed. The showcase creates no obsolete participant or substitute accounts.
 
+## Waiting list (seed 04)
+
+The full two-place Thursday pole class (`19000000-…-0003`, Katarzyna and Monika) has two waiting participants: Tomasz first, then Julia. Neither gets a freed place yet: Tomasz has not accepted the required pole dance consent, and Julia's entry was added by Anna's account, which does not act for her. To try the automatic promotion, sign in as Tomasz, open the class (he sees his place on the list and the missing document), accept the consent in **Dokumenty i zgody**, then cancel Katarzyna's or Monika's reservation: Tomasz gets the place with his Open pass. Seed entries have no chosen pass, so the promotion uses the first eligible one. The workshop (`19000000-…-0009`) has an event-level policy with a 30-minute confirmation time, so a place freed there is offered and has to be confirmed.
+
 ## Make-up credits (seed 09)
 
 Monika's original manually granted available credit incorrectly pointed at her Open pass, whose product has no make-up policy. `R__seed_09_makeup_credits.sql` adds a separate expired four-entry Pole Dance pass with its activation ledger and relinks only that known, unused seed credit. The source product has a make-up policy; the credit can remain valid after the source pass expires.

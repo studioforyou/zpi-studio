@@ -23,6 +23,13 @@ resource "google_project_iam_member" "backend_firebase_auth_admin" {
   member  = "serviceAccount:${google_service_account.backend.email}"
 }
 
+# Push notifications go out through Firebase Cloud Messaging (HTTP v1 API, Firebase Admin SDK).
+resource "google_project_iam_member" "backend_fcm_sender" {
+  project = var.project_id
+  role    = "roles/firebasecloudmessaging.admin"
+  member  = "serviceAccount:${google_service_account.backend.email}"
+}
+
 # --- CI/CD (GitHub Actions) ---
 # Uwierzytelnianie przez Workload Identity Federation: GitHub podaje krótkotrwały token OIDC,
 # więc nie ma kluczy service account do przechowywania w sekretach.

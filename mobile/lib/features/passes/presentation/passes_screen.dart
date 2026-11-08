@@ -5,7 +5,7 @@ import 'package:mobile/core/auth/auth_state.dart';
 import 'package:mobile/core/auth/session.dart';
 import 'package:mobile/features/passes/data/passes_api.dart';
 import 'package:mobile/features/passes/data/pass_usage_api.dart';
-import 'package:mobile/features/passes/presentation/pass_usage_screen.dart';
+import 'package:mobile/features/trainings/presentation/training_history_screen.dart';
 import 'package:mobile/features/passes/presentation/makeup_credits_tab.dart';
 import 'package:mobile/features/passes/presentation/pass_checkout_screen.dart';
 import 'package:mobile/features/passes/presentation/pass_format.dart';
@@ -88,8 +88,8 @@ class _OwnPassesTab extends ConsumerWidget {
                 }
                 Navigator.of(context).push<void>(
                   MaterialPageRoute(
-                    builder: (_) => PassUsageScreen(
-                      accountId: session.accountId,
+                    builder: (_) => TrainingHistoryScreen(
+                      initialTab: 1,
                       initialProfileId: profileId,
                       initialPassId: pass.id,
                     ),

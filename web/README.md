@@ -102,6 +102,18 @@ staff and rooms. The second step shows every date with the conflicts and warning
 backend found; dates of a recurring event can be left out before saving. An event's details offer
 "Zmień obsadę i salę" for one event or the following ones of its series.
 
+### Attendance corrections
+
+The details of every event except a block list its participants under **Uczestnicy i
+obecność** (`GET /api/v1/schedule-events/{eventId}/attendance`, #111): each participant's
+attendance (present, absent or not marked), who recorded it and when, and the history of every
+change with its author and reason. Once the event has started, **Koryguj** sets present or absent
+with an optional reason of up to 500 characters
+(`POST .../reservations/{reservationId}/correct-attendance`), also after the trainers' own time to
+mark attendance has ended. A correction never changes the pass balance: the entry is settled when
+attendance is first recorded. If the attendance changed meanwhile, the list is reloaded and the
+correction has to be saved again.
+
 ## Participant pass corrections
 
 In **Karnety → Karnety uczestników**, search for a participant and choose **Koryguj wejścia**

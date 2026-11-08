@@ -42,6 +42,39 @@ class OpenApiDocsTest {
 	}
 
 	@Test
+	void documentsOwnDocumentEndpoints() throws Exception {
+		String json = apiDocs();
+
+		Map<String, Object> paths = JsonPath.read(json, "$.paths");
+		assertThat(paths).containsKeys("/api/v1/me/profiles/{profileId}/documents",
+				"/api/v1/me/profiles/{profileId}/documents/{documentId}",
+				"/api/v1/me/profiles/{profileId}/documents/{documentId}/acceptances");
+		Map<String, Object> acceptances = JsonPath.read(json,
+				"$.paths['/api/v1/me/profiles/{profileId}/documents/{documentId}/acceptances']");
+		assertThat(acceptances).containsOnlyKeys("post", "delete");
+		Map<String, Object> request = JsonPath.read(json, "$.components.schemas.AcceptDocumentRequest.properties");
+		assertThat(request).containsOnlyKeys("versionId");
+	}
+
+	@Test
+	void documentsOwnWaitlistEndpoints() throws Exception {
+		String json = apiDocs();
+
+		Map<String, Object> paths = JsonPath.read(json, "$.paths");
+		assertThat(paths).containsKeys("/api/v1/me/profiles/{profileId}/group-classes/{eventId}/waitlist-entries",
+				"/api/v1/me/profiles/{profileId}/waitlist-entries/{entryId}",
+				"/api/v1/me/profiles/{profileId}/waitlist-entries/{entryId}/cancel",
+				"/api/v1/me/profiles/{profileId}/waitlist-entries/{entryId}/confirm");
+		Map<String, Object> request = JsonPath.read(json,
+				"$.components.schemas.JoinGroupClassWaitlistRequest.properties");
+		assertThat(request).containsOnlyKeys("customerPassId");
+		Map<String, Object> waitlist = JsonPath.read(json, "$.components.schemas.GroupClassWaitlist.properties");
+		assertThat(waitlist).containsOnlyKeys("allowed", "reason", "waitingCount", "confirmationMinutes", "ownEntry");
+		Map<String, Object> groupClass = JsonPath.read(json, "$.components.schemas.CustomerGroupClass.properties");
+		assertThat(groupClass).containsKeys("booking", "waitlist");
+	}
+
+	@Test
 	void documentsRoomEndpoints() throws Exception {
 		String json = apiDocs();
 
@@ -83,6 +116,30 @@ class OpenApiDocsTest {
 		Map<String, Object> fields = JsonPath.read(json, "$.components.schemas.EventParticipant.properties");
 		assertThat(fields).containsOnlyKeys("reservationId", "customerId", "kind", "firstName", "lastName",
 				"displayName", "birthDate", "bookedAt");
+	}
+
+	@Test
+	void documentsAttendance() throws Exception {
+		String json = apiDocs();
+
+		String own = "$.paths['/api/v1/me/schedule-events/{eventId}/attendance']";
+		assertThat((Map<String, Object>) JsonPath.read(json, own)).containsOnlyKeys("get", "patch");
+		assertThat((String) JsonPath.read(json, own + ".patch.operationId")).isEqualTo("markOwnEventAttendance");
+		assertThat((Map<String, Object>) JsonPath.read(json, own + ".patch.responses"))
+			.containsKeys("200", "400", "401", "403", "404", "422");
+		assertThat((String) JsonPath.read(json,
+				"$.paths['/api/v1/me/schedule-events/{eventId}/complete'].post.operationId")).isEqualTo("completeOwnEvent");
+		String correct = "$.paths['/api/v1/schedule-events/{eventId}/reservations/{reservationId}/correct-attendance'].post";
+		assertThat((String) JsonPath.read(json, correct + ".operationId")).isEqualTo("correctEventAttendance");
+		assertThat((Map<String, Object>) JsonPath.read(json, correct + ".responses"))
+			.containsKeys("200", "400", "401", "403", "404", "409", "422");
+		assertThat((String) JsonPath.read(json, "$.paths['/api/v1/schedule-events/{eventId}/attendance'].get.operationId"))
+			.isEqualTo("getEventAttendance");
+		Map<String, Object> request = JsonPath.read(json, "$.components.schemas.CorrectAttendanceRequest.properties");
+		assertThat(request).containsOnlyKeys("attendance", "reason", "version");
+		Map<String, Object> change = JsonPath.read(json, "$.components.schemas.AttendanceChange.properties");
+		assertThat(change).containsOnlyKeys("changedAt", "kind", "previousAttendance", "newAttendance", "changedBy",
+				"reason");
 	}
 
 	@Test

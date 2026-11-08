@@ -12,6 +12,9 @@ import 'package:mobile/core/auth/session.dart';
 import 'package:mobile/features/accounts/presentation/widgets/choice_tile.dart';
 import 'package:mobile/features/accounts/presentation/widgets/profile_header.dart';
 import 'package:mobile/features/accounts/presentation/widgets/profile_styles.dart';
+import 'package:mobile/features/schedule/data/schedule_service_types.dart';
+import 'package:mobile/features/schedule/data/studio_trainers.dart';
+import 'package:mobile/features/communication/data/notifications_api.dart';
 import 'package:mobile/features/trainings/data/group_classes_api.dart';
 
 /// Starts with the demo user still signed in from an earlier run.
@@ -53,6 +56,9 @@ void main() {
           authRepositoryProvider.overrideWithValue(repository),
           choiceStoreProvider.overrideWithValue(store ?? InMemoryChoiceStore()),
           groupClassesProvider.overrideWith((ref, query) async => const []),
+          scheduleServiceTypesProvider.overrideWith((ref) async => const {}),
+          studioTrainersProvider.overrideWith((ref) async => const []),
+          unreadCountProvider.overrideWith((ref, scope) async => 0),
           appConfigProvider.overrideWithValue(
             const AppConfig(
               flavor: AppFlavor.dev,

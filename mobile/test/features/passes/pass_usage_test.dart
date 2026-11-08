@@ -220,24 +220,13 @@ void main() {
     },
   );
 
-  testWidgets('profile opens one history for all participants on the account', (
+  testWidgets('profile does not duplicate the schedule history', (
     tester,
   ) async {
-    final api = _Api()
-      ..load = (_) async => _page(
-        items: [
-          _entry('CONSUMED'),
-          _entry('RESERVED', profile: 'child'),
-        ],
-      );
+    final api = _Api();
     await _pump(tester, api, profileHome: true);
     expect(api.calls, isEmpty);
-    await tester.tap(find.text('Historia wejść'));
-    await tester.pumpAndSettle();
-    expect(find.text('Anna'), findsWidgets);
-    expect(find.text('Jan'), findsOneWidget);
-    expect(api.calls.single.profileId, isNull);
-    expect(api.calls.single.passId, isNull);
+    expect(find.text('Historia wejść'), findsNothing);
   });
 
   testWidgets(

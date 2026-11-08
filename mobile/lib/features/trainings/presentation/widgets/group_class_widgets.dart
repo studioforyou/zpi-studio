@@ -133,8 +133,36 @@ String classReason(AppLocalizations l10n, String? reason) => switch (reason) {
   'EVENT_ALREADY_STARTED' => l10n.classesAlreadyStarted,
   'RESERVATION_NOT_ACTIVE' => l10n.classesReservationInactive,
   'CUSTOMER_NOT_ACTIVE' => l10n.classesProfileInactive,
+  'WAITLIST_DISABLED' => l10n.classesWaitlistDisabled,
+  'CLASS_NOT_FULL' => l10n.classesWaitlistPlaceFreed,
+  'WAITLIST_ALREADY_JOINED' => l10n.classesWaitlistJoined,
+  'WAITLIST_ENTRY_NOT_WAITING' => l10n.classesWaitlistNotWaiting,
+  'WAITLIST_OFFER_EXPIRED' => l10n.classesWaitlistOfferExpired,
+  'WAITLIST_ENTRY_NOT_OFFERED' => l10n.classesWaitlistOfferGone,
   _ => l10n.classesActionFailed,
 };
+
+/// The selected participant's waiting entry worth marking on a calendar
+/// tile: only before a class that can still give them a place.
+ClassWaitlistEntry? classWaitingEntry(GroupClass event, {DateTime? now}) {
+  final entry = event.waitlist.ownEntry;
+  if (entry == null ||
+      !entry.isOpen ||
+      event.isReserved ||
+      event.status == 'CANCELLED' ||
+      !(now ?? DateTime.now()).isBefore(event.startsAt)) {
+    return null;
+  }
+  return entry;
+}
+
+String classWaitlistMarker(AppLocalizations l10n, ClassWaitlistEntry entry) =>
+    entry.isOffered
+    ? l10n.classesWaitlistOfferMarker
+    : switch (entry.position) {
+        final position? => l10n.classesWaitlistMarker(position),
+        null => l10n.classesWaitlistShort,
+      };
 
 class ClassInfoLine extends StatelessWidget {
   const ClassInfoLine(this.icon, this.text, {super.key});

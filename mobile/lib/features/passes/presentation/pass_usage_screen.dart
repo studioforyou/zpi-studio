@@ -12,22 +12,42 @@ class PassUsageScreen extends ConsumerStatefulWidget {
     required this.accountId,
     this.initialProfileId,
     this.initialPassId,
+    this.embedded = false,
+    this.onProfileChanged,
   });
   final String accountId;
   final String? initialProfileId;
   final String? initialPassId;
+  final bool embedded;
+  final ValueChanged<String?>? onProfileChanged;
 
   @override
   ConsumerState<PassUsageScreen> createState() => _PassUsageScreenState();
 }
 
 class _PassUsageScreenState extends ConsumerState<PassUsageScreen>
-    with WidgetsBindingObserver {
+    with
+        WidgetsBindingObserver,
+        AutomaticKeepAliveClientMixin<PassUsageScreen> {
   int _page = 0;
   String? _profileId;
   String? _productId;
   String? _passId;
   DateTimeRange? _range;
+
+  @override
+  bool get wantKeepAlive => widget.embedded;
+
+  @override
+  void didUpdateWidget(covariant PassUsageScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.embedded &&
+        widget.initialProfileId != oldWidget.initialProfileId) {
+      _profileId = widget.initialProfileId;
+      _passId = null;
+      _page = 0;
+    }
+  }
 
   PassUsageQuery _queryFor(int page) => (
     accountId: widget.accountId,
@@ -96,6 +116,7 @@ class _PassUsageScreenState extends ConsumerState<PassUsageScreen>
     _productId = null;
     _passId = null;
     _range = null;
+    widget.onProfileChanged?.call(null);
   });
 
   Future<void> _choose({
@@ -205,29 +226,32 @@ class _PassUsageScreenState extends ConsumerState<PassUsageScreen>
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     final l10n = AppLocalizations.of(context);
     final valid =
         passUsageAccount(ref.watch(authControllerProvider)) == widget.accountId;
     return Scaffold(
-      appBar: AppBar(
-        title: Text(l10n.passUsageTitle),
-        actions: [
-          IconButton(
-            tooltip: l10n.passUsageDateInfo,
-            icon: const Icon(Icons.info_outline),
-            onPressed: () => showModalBottomSheet<void>(
-              context: context,
-              showDragHandle: true,
-              builder: (context) => SafeArea(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
-                  child: Text(l10n.passUsageDateInfo),
+      appBar: widget.embedded
+          ? null
+          : AppBar(
+              title: Text(l10n.passUsageTitle),
+              actions: [
+                IconButton(
+                  tooltip: l10n.passUsageDateInfo,
+                  icon: const Icon(Icons.info_outline),
+                  onPressed: () => showModalBottomSheet<void>(
+                    context: context,
+                    showDragHandle: true,
+                    builder: (context) => SafeArea(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+                        child: Text(l10n.passUsageDateInfo),
+                      ),
+                    ),
+                  ),
                 ),
-              ),
+              ],
             ),
-          ),
-        ],
-      ),
       body: !valid
           ? Center(
               child: Padding(
@@ -280,25 +304,26 @@ class _PassUsageScreenState extends ConsumerState<PassUsageScreen>
                               spacing: 8,
                               runSpacing: 8,
                               children: [
-                                _filter(
-                                  Icons.person_outline,
-                                  result.participants
-                                          .where((p) => p.id == _profileId)
-                                          .firstOrNull
-                                          ?.name ??
-                                      l10n.passUsageAllPeople,
-                                  _profileId != null,
-                                  () => _choose(
-                                    title: l10n.passUsagePerson,
-                                    all: l10n.passUsageAllPeople,
-                                    options: result.participants,
-                                    selected: _profileId,
-                                    onChanged: (value) => _change(() {
-                                      _profileId = value;
-                                      _passId = null;
-                                    }),
+                                if (!widget.embedded)
+                                  _filter(
+                                    Icons.person_outline,
+                                    result.participants
+                                            .where((p) => p.id == _profileId)
+                                            .firstOrNull
+                                            ?.name ??
+                                        l10n.passUsageAllPeople,
+                                    _profileId != null,
+                                    () => _choose(
+                                      title: l10n.passUsagePerson,
+                                      all: l10n.passUsageAllPeople,
+                                      options: result.participants,
+                                      selected: _profileId,
+                                      onChanged: (value) => _change(() {
+                                        _profileId = value;
+                                        _passId = null;
+                                      }),
+                                    ),
                                   ),
-                                ),
                                 _filter(
                                   Icons.confirmation_number_outlined,
                                   result.products

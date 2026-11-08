@@ -1,6 +1,9 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:mobile/core/auth/auth_controller.dart';
+import 'package:mobile/core/auth/auth_state.dart';
 import 'package:mobile/core/network/dio_provider.dart';
+import 'package:mobile/features/passes/data/pass_usage_api.dart';
 import 'package:mobile/features/schedule/data/schedule_api.dart';
 import 'package:mobile/features/trainings/data/group_classes_api.dart';
 
@@ -118,3 +121,64 @@ final trainingHistoryProvider = FutureProvider.autoDispose
     .family<List<TrainingHistoryEntry>, ClassesQuery>(
       (ref, query) => ref.watch(trainingHistoryApiProvider).fetchHistory(query),
     );
+
+typedef AccountTrainingHistoryQuery = ({
+  String accountId,
+  String? profileId,
+  ScheduleWindow window,
+});
+
+class ParticipantTraining {
+  const ParticipantTraining(this.profileId, this.profileName, this.training);
+  final String profileId;
+  final String profileName;
+  final TrainingHistoryEntry training;
+}
+
+/// Reuses the authorized participant history, including currently represented
+/// children. The account stays in the provider key to isolate late responses.
+final accountTrainingHistoryProvider = FutureProvider.autoDispose
+    .family<List<ParticipantTraining>, AccountTrainingHistoryQuery>((
+      ref,
+      query,
+    ) async {
+      final auth = ref.watch(authControllerProvider);
+      if (passUsageAccount(auth) != query.accountId) {
+        throw const ClassBookingException(statusCode: 403);
+      }
+      final profiles = (auth as Authenticated).session.profiles;
+      if (query.profileId != null &&
+          !profiles.any((profile) => profile.id == query.profileId)) {
+        throw const ClassBookingException(statusCode: 404);
+      }
+      final api = ref.watch(trainingHistoryApiProvider);
+      final results = await Future.wait([
+        for (final profile in profiles)
+          if (query.profileId == null || profile.id == query.profileId)
+            api
+                .fetchHistory((
+                  scope: (accountId: query.accountId, profileId: profile.id),
+                  window: query.window,
+                ))
+                .then(
+                  (entries) => [
+                    for (final entry in entries)
+                      ParticipantTraining(
+                        profile.id,
+                        profile.displayName,
+                        entry,
+                      ),
+                  ],
+                ),
+      ]);
+      final entries = results.expand((items) => items).toList();
+      entries.sort((a, b) {
+        final date = b.training.startsAt.compareTo(a.training.startsAt);
+        if (date != 0) return date;
+        final participant = a.profileId.compareTo(b.profileId);
+        return participant != 0
+            ? participant
+            : a.training.reservationId.compareTo(b.training.reservationId);
+      });
+      return entries;
+    });

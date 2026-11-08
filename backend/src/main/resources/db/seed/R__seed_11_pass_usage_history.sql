@@ -77,7 +77,7 @@ WITH bookings (slot, customer_no, pass_no) AS (VALUES
 )
 INSERT INTO reservation (id, event_id, customer_id, booked_by, source, status, customer_pass_id, booking_policy_id,
                          free_cancel_until, cancelled_at, cancelled_by, cancel_kind, entry_returned,
-                         attendance, created_at)
+                         attendance, attendance_marked_by, attendance_marked_at, created_at)
 SELECT ('30000000-0000-0000-0000-' || lpad(slot::TEXT, 12, '0'))::UUID, event.id,
        ('07000000-0000-0000-0000-' || lpad(customer_no::TEXT, 12, '0'))::UUID, event.created_by, 'STAFF',
        CASE WHEN event.status = 'CANCELLED' THEN 'CANCELLED' ELSE 'ACTIVE' END,
@@ -86,6 +86,8 @@ SELECT ('30000000-0000-0000-0000-' || lpad(slot::TEXT, 12, '0'))::UUID, event.id
        event.cancelled_at, event.cancelled_by, CASE WHEN event.status = 'CANCELLED' THEN 'STUDIO' END,
        CASE WHEN event.status = 'CANCELLED' THEN TRUE END,
        CASE WHEN event.status = 'COMPLETED' THEN 'PRESENT' ELSE 'UNMARKED' END,
+       CASE WHEN event.status = 'COMPLETED' THEN event.created_by END,
+       CASE WHEN event.status = 'COMPLETED' THEN event.ends_at END,
        GREATEST(event.starts_at - INTERVAL '3 days', pass.created_at + INTERVAL '1 hour')
 FROM bookings JOIN schedule_event event
 ON event.id = ('19000000-0000-0000-0000-' || lpad(slot::TEXT, 12, '0'))::UUID
@@ -106,10 +108,11 @@ ON CONFLICT DO NOTHING;
 
 -- One guardian account has its own finite/Open passes and the child's pass.
 INSERT INTO reservation (id, event_id, customer_id, booked_by, source, customer_pass_id,
-                         booking_policy_id, free_cancel_until, attendance, created_at)
+                         booking_policy_id, free_cancel_until, attendance, attendance_marked_by, attendance_marked_at, created_at)
 SELECT ('30000000-0000-0000-0000-' || lpad(booking_no::TEXT, 12, '0'))::UUID, event.id,
        pass.customer_id, event.created_by, 'STAFF', pass.id,
-       '11000000-0000-0000-0000-000000000001', event.starts_at - INTERVAL '12 hours', 'PRESENT',
+       '11000000-0000-0000-0000-000000000001', event.starts_at - INTERVAL '12 hours',
+       CASE WHEN booking_no = 11010 THEN 'ABSENT' ELSE 'PRESENT' END, event.created_by, event.ends_at,
        GREATEST(event.starts_at - INTERVAL '3 days', pass.created_at + INTERVAL '1 hour')
 FROM (VALUES (11009, 11001), (11010, 11004)) AS bookings(booking_no, event_no)
 JOIN schedule_event event ON event.id = ('19000000-0000-0000-0000-' || lpad(event_no::TEXT, 12, '0'))::UUID

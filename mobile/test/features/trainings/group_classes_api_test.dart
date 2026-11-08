@@ -162,6 +162,121 @@ void main() {
     },
   );
 
+  test('joins the waiting list with the chosen pass and leaves it', () async {
+    adapter
+      ..status = 201
+      ..body = waitlistEntryJson(profileId: 'child', position: 2);
+    final entry = await api.joinWaitlist(detailsQuery, 'pass-2');
+    expect(adapter.request?.method, 'POST');
+    expect(
+      adapter.request?.path,
+      '/api/v1/me/profiles/child/group-classes/class-1/waitlist-entries',
+    );
+    expect(adapter.request?.data, {'customerPassId': 'pass-2'});
+    expect(entry.id, 'waitlist-1');
+    expect(entry.customerId, 'child');
+    expect(entry.isWaiting, isTrue);
+    expect(entry.position, 2);
+    expect(entry.customerPassId, 'pass-1');
+    expect(entry.joinedAt, DateTime.utc(2030, 11, 1, 10).toLocal());
+
+    adapter
+      ..status = 200
+      ..body = waitlistEntryJson(profileId: 'child', waiting: false);
+    final left = await api.leaveWaitlist(scope, entry);
+    expect(adapter.request?.method, 'POST');
+    expect(
+      adapter.request?.path,
+      '/api/v1/me/profiles/child/waitlist-entries/waitlist-1/cancel',
+    );
+    expect(adapter.request?.data, isNull);
+    expect(left.status, 'CANCELLED');
+    expect(left.isWaiting, isFalse);
+    expect(left.position, isNull);
+  });
+
+  test('confirms an offered place and reads its deadline', () async {
+    adapter.body = offeredClassJson();
+    final event = await api.fetchClass(detailsQuery);
+    final offer = event.waitlist.ownEntry!;
+    expect(event.isWaitlisted, isTrue);
+    expect(event.waitlist.confirmationMinutes, 30);
+    expect(offer.isOffered, isTrue);
+    expect(offer.isWaiting, isFalse);
+    expect(offer.position, isNull);
+    expect(offer.offerExpiresAt, DateTime.utc(2030, 11, 2, 16).toLocal());
+
+    adapter.body = {
+      ...waitlistEntryJson(profileId: 'child', waiting: false),
+      'status': 'PROMOTED',
+      'reservationId': 'reservation-1',
+    };
+    final confirmed = await api.confirmWaitlistOffer(scope, offer);
+    expect(adapter.request?.method, 'POST');
+    expect(
+      adapter.request?.path,
+      '/api/v1/me/profiles/child/waitlist-entries/waitlist-1/confirm',
+    );
+    expect(adapter.request?.data, isNull);
+    expect(confirmed.status, 'PROMOTED');
+    expect(confirmed.isOpen, isFalse);
+  });
+
+  test('preserves stable server reason when the class is not full', () async {
+    adapter
+      ..status = 409
+      ..body = {'code': 'CLASS_NOT_FULL', 'detail': 'Internal English text'};
+    await expectLater(
+      api.joinWaitlist(detailsQuery, 'pass-1'),
+      throwsA(
+        isA<ClassBookingException>()
+            .having((e) => e.code, 'code', 'CLASS_NOT_FULL')
+            .having((e) => e.statusCode, 'status', 409),
+      ),
+    );
+  });
+
+  test('reads the own waiting place and the option to join', () async {
+    adapter.body = {
+      'items': [
+        fullClassJson(
+          waitlistPosition: 2,
+          waitingCount: 3,
+          promotionBlockedReason: 'NO_ELIGIBLE_PASS',
+        ),
+        fullClassJson(waitingCount: 1),
+      ],
+    };
+    final [waiting, open] = await api.fetchClasses(query);
+    expect(waiting.isWaitlisted, isTrue);
+    expect(waiting.waitlist.allowed, isFalse);
+    expect(waiting.waitlist.reason, 'WAITLIST_ALREADY_JOINED');
+    expect(waiting.waitlist.waitingCount, 3);
+    expect(waiting.waitlist.ownEntry?.position, 2);
+    expect(
+      waiting.waitlist.ownEntry?.promotionBlockedReason,
+      'NO_ELIGIBLE_PASS',
+    );
+    expect(open.isWaitlisted, isFalse);
+    expect(open.waitlist.allowed, isTrue);
+    expect(open.waitlist.reason, isNull);
+    expect(open.waitlist.waitingCount, 1);
+    expect(open.waitlist.ownEntry, isNull);
+  });
+
+  test(
+    'class without waiting list data behaves as if it was disabled',
+    () async {
+      adapter.body = groupClassJson(availablePlaces: 0)..remove('waitlist');
+      final event = await api.fetchClass(detailsQuery);
+      expect(event.isWaitlisted, isFalse);
+      expect(event.waitlist.allowed, isFalse);
+      expect(event.waitlist.reason, 'WAITLIST_DISABLED');
+      expect(event.waitlist.waitingCount, 0);
+      expect(event.waitlist.ownEntry, isNull);
+    },
+  );
+
   test('loads participant names and selected profile marker', () async {
     adapter.body = {
       'items': [

@@ -12,9 +12,9 @@ class ReservationsScreen extends StatelessWidget {
     return ClientScheduleScreen(
       reservationsOnly: true,
       actions: [
-        IconButton(
+        TextButton.icon(
           icon: const Icon(Icons.history),
-          tooltip: AppLocalizations.of(context).trainingHistoryTitle,
+          label: Text(AppLocalizations.of(context).trainingHistoryTitle),
           onPressed: () => context.push(clientTrainingHistoryPath),
         ),
       ],

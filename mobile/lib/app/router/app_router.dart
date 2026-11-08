@@ -16,6 +16,9 @@ import 'package:mobile/features/accounts/presentation/reset_password_screen.dart
 import 'package:mobile/features/accounts/presentation/role_picker_screen.dart';
 import 'package:mobile/features/accounts/presentation/staff_profile_edit_screen.dart';
 import 'package:mobile/features/communication/presentation/messages_screen.dart';
+import 'package:mobile/features/documents/presentation/document_screen.dart';
+import 'package:mobile/features/documents/presentation/documents_screen.dart';
+import 'package:mobile/features/communication/presentation/notifications_screen.dart';
 import 'package:mobile/features/passes/presentation/passes_screen.dart';
 import 'package:mobile/features/schedule/presentation/add_class_screen.dart';
 import 'package:mobile/features/schedule/presentation/availability_screen.dart';
@@ -23,6 +26,7 @@ import 'package:mobile/features/schedule/presentation/schedule_screen.dart';
 import 'package:mobile/features/schedule/presentation/trainer_schedule_screen.dart';
 import 'package:mobile/features/trainings/presentation/new_cooperation_screen.dart';
 import 'package:mobile/features/trainings/presentation/reservations_screen.dart';
+import 'package:mobile/features/trainings/presentation/trainee_overview_screen.dart';
 import 'package:mobile/features/trainings/presentation/training_history_screen.dart';
 import 'package:mobile/features/trainings/presentation/trainings_screen.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
@@ -40,8 +44,11 @@ const clientSchedulePath = '/client/schedule';
 const clientPassesPath = '/client/passes';
 const clientReservationsPath = '/client/reservations';
 const clientMessagesPath = '/client/messages';
+const notificationsSubPath = 'notifications';
+const clientNotificationsPath = '$clientMessagesPath/$notificationsSubPath';
 const clientProfilePath = '/client/profile';
 const clientProfileEditSubPath = 'edit';
+const clientDocumentsSubPath = 'documents';
 const clientTrainingHistorySubPath = 'history';
 const clientTrainingHistoryPath =
     '$clientReservationsPath/$clientTrainingHistorySubPath';
@@ -49,6 +56,7 @@ const clientTrainingHistoryPath =
 const trainerSchedulePath = '/trainer/schedule';
 const trainerTrainingsPath = '/trainer/trainings';
 const trainerMessagesPath = '/trainer/messages';
+const trainerNotificationsPath = '$trainerMessagesPath/$notificationsSubPath';
 const trainerProfilePath = '/trainer/profile';
 const trainerAvailabilitySubPath = 'availability';
 const trainerProfileEditSubPath = 'edit';
@@ -94,9 +102,10 @@ _Tab _tab(
   IconData icon,
   String Function(AppLocalizations) label, {
   List<RouteBase> routes = const [],
+  int Function(WidgetRef)? badge,
 }) => (
   route: GoRoute(path: path, builder: (_, _) => screen, routes: routes),
-  destination: ShellDestination(icon: icon, label: label),
+  destination: ShellDestination(icon: icon, label: label, badge: badge),
 );
 
 /// One shell per role, with one branch per tab.
@@ -141,6 +150,14 @@ StatefulShellRoute _clientShell() => _roleShell([
     const MessagesScreen(),
     Icons.chat_bubble_outline,
     (l10n) => l10n.navMessages,
+    routes: [
+      // Opened with the bell on the messages screen.
+      GoRoute(
+        path: notificationsSubPath,
+        builder: (_, _) => const NotificationsScreen(),
+      ),
+    ],
+    badge: watchUnreadNotifications,
   ),
   _tab(
     clientProfilePath,
@@ -151,6 +168,18 @@ StatefulShellRoute _clientShell() => _roleShell([
       GoRoute(
         path: clientProfileEditSubPath,
         builder: (_, _) => const CustomerProfileEditScreen(),
+      ),
+      // Opened with context.push(documentsRoute).
+      GoRoute(
+        path: clientDocumentsSubPath,
+        builder: (_, _) => const DocumentsScreen(),
+        routes: [
+          GoRoute(
+            path: ':documentId',
+            builder: (_, state) =>
+                DocumentScreen(documentId: state.pathParameters['documentId']!),
+          ),
+        ],
       ),
     ],
   ),
@@ -180,6 +209,12 @@ StatefulShellRoute _trainerShell() => _roleShell([
         path: trainerNewCooperationSubPath,
         builder: (_, _) => const NewCooperationScreen(),
       ),
+      GoRoute(
+        path: 'trainees/:customerId',
+        builder: (_, state) => TraineeOverviewScreen(
+          customerId: state.pathParameters['customerId']!,
+        ),
+      ),
     ],
   ),
   _tab(
@@ -187,6 +222,14 @@ StatefulShellRoute _trainerShell() => _roleShell([
     const MessagesScreen(),
     Icons.chat_bubble_outline,
     (l10n) => l10n.navMessages,
+    routes: [
+      // Opened with the bell on the messages screen.
+      GoRoute(
+        path: notificationsSubPath,
+        builder: (_, _) => const NotificationsScreen(),
+      ),
+    ],
+    badge: watchUnreadNotifications,
   ),
   _tab(
     trainerProfilePath,
