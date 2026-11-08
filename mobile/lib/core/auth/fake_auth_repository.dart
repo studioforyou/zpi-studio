@@ -22,6 +22,7 @@ class FakeAuthRepository implements AuthRepository {
         Profile(id: 'child-2', displayName: 'Maria Kowalska', isChild: true),
       ],
       activeProfileId: 'self',
+      permissions: {Session.customerAccountCreate},
     );
   }
 

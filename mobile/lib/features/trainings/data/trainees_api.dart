@@ -9,6 +9,10 @@ import 'package:mobile/core/network/dio_provider.dart';
 /// backend).
 const ownTraineesPath = '/api/v1/me/trainees';
 
+/// Client accounts the signed-in trainer creates (`TraineeInvitationsController`
+/// in the backend).
+const traineeInvitationsPath = '/api/v1/me/trainees/invitations';
+
 /// Search of active participants (`CustomerController` in the backend).
 const customersPath = '/api/v1/customers';
 
@@ -21,6 +25,7 @@ class Trainee {
     required this.birthDate,
     required this.isActive,
     required this.assignedAt,
+    this.isAwaitingActivation = false,
   });
 
   factory Trainee.fromJson(Map<String, dynamic> json) {
@@ -31,6 +36,7 @@ class Trainee {
       birthDate: _date(json['birthDate'] as String?),
       isActive: json['isActive'] as bool,
       assignedAt: DateTime.parse(json['assignedAt'] as String).toLocal(),
+      isAwaitingActivation: json['isAwaitingActivation'] as bool? ?? false,
     );
   }
 
@@ -46,6 +52,36 @@ class Trainee {
 
   /// Start of the cooperation, in the device's local time.
   final DateTime assignedAt;
+
+  /// Whether the participant's account was created by invitation and the
+  /// person has not set a password yet.
+  final bool isAwaitingActivation;
+}
+
+/// A client account the trainer has just created.
+class NewClientAccount {
+  const NewClientAccount({
+    required this.customerId,
+    required this.email,
+    required this.displayName,
+    required this.expiresAt,
+  });
+
+  factory NewClientAccount.fromJson(Map<String, dynamic> json) {
+    return NewClientAccount(
+      customerId: json['customerId'] as String,
+      email: json['email'] as String,
+      displayName: json['displayName'] as String,
+      expiresAt: DateTime.parse(json['expiresAt'] as String).toLocal(),
+    );
+  }
+
+  final String customerId;
+  final String email;
+  final String displayName;
+
+  /// When the activation link stops working, in the device's local time.
+  final DateTime expiresAt;
 }
 
 /// An active participant found by the search.
@@ -122,6 +158,28 @@ class TraineesApi {
         data: {'customerId': customerId},
       );
       return Trainee.fromJson(response.data!);
+    } on DioException catch (e) {
+      throw ApiException.fromDio(e);
+    }
+  }
+
+  /// Creates a client account for a new trainee: the person gets an e-mail
+  /// with a link to set a password and is assigned to the trainer at once.
+  Future<NewClientAccount> createClientAccount({
+    required String email,
+    required String firstName,
+    required String lastName,
+  }) async {
+    try {
+      final response = await _dio.post<Map<String, dynamic>>(
+        traineeInvitationsPath,
+        data: {
+          'email': email.trim(),
+          'firstName': firstName.trim(),
+          'lastName': lastName.trim(),
+        },
+      );
+      return NewClientAccount.fromJson(response.data!);
     } on DioException catch (e) {
       throw ApiException.fromDio(e);
     }

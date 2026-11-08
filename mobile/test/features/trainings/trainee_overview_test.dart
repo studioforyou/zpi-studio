@@ -196,6 +196,12 @@ class _Trainees implements TraineesApi {
   Future<List<CustomerSummary>> searchCustomers(String query) async => [];
   @override
   Future<void> unassign(String customerId) async {}
+  @override
+  Future<NewClientAccount> createClientAccount({
+    required String email,
+    required String firstName,
+    required String lastName,
+  }) => throw UnimplementedError();
 }
 
 class _ProfileApi implements TraineeProfileApi {

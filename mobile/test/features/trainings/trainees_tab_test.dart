@@ -7,9 +7,10 @@ import 'package:mobile/core/auth/auth_controller.dart';
 import 'package:mobile/core/auth/auth_state.dart';
 import 'package:mobile/core/auth/session.dart';
 import 'package:mobile/core/network/api_exception.dart';
-import 'package:mobile/features/trainings/data/trainees_api.dart';
-import 'package:mobile/features/trainings/data/trainee_overview_api.dart';
 import 'package:mobile/features/schedule/data/schedule_api.dart';
+import 'package:mobile/features/trainings/data/trainee_overview_api.dart';
+import 'package:mobile/features/trainings/data/trainees_api.dart';
+import 'package:mobile/features/trainings/presentation/new_client_account_screen.dart';
 import 'package:mobile/features/trainings/presentation/new_cooperation_screen.dart';
 import 'package:mobile/features/trainings/presentation/trainings_screen.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
@@ -22,11 +23,16 @@ const _session = Session(
   staffProfileId: 'staff-1',
   profiles: [],
   activeProfileId: null,
+  permissions: {Session.customerAccountCreate},
 );
 
 class _SignedInAuthController extends AuthController {
+  _SignedInAuthController([this.session = _session]);
+
+  final Session session;
+
   @override
-  AuthState build() => const Authenticated(_session);
+  AuthState build() => Authenticated(session);
 }
 
 class _EmptyOverviewApi implements TraineeOverviewApi {
@@ -68,6 +74,9 @@ class _FakeTraineesApi implements TraineesApi {
   final queries = <String>[];
   bool fails = false;
   int? assignStatus;
+  int? createStatus;
+  final createdAccounts =
+      <({String email, String firstName, String lastName})>[];
 
   @override
   Future<List<Trainee>> fetchOwnTrainees() async {
@@ -103,6 +112,31 @@ class _FakeTraineesApi implements TraineesApi {
   Future<void> unassign(String customerId) async {
     trainees.removeWhere((t) => t.customerId == customerId);
   }
+
+  @override
+  Future<NewClientAccount> createClientAccount({
+    required String email,
+    required String firstName,
+    required String lastName,
+  }) async {
+    final status = createStatus;
+    if (status != null) {
+      throw ApiException(statusCode: status, message: 'Error');
+    }
+    createdAccounts.add((
+      email: email.trim(),
+      firstName: firstName.trim(),
+      lastName: lastName.trim(),
+    ));
+    final name = '${firstName.trim()} ${lastName.trim()}';
+    trainees.add(_trainee('c-new', name, isAwaitingActivation: true));
+    return NewClientAccount(
+      customerId: 'c-new',
+      email: email.trim(),
+      displayName: name,
+      expiresAt: DateTime(2026, 11, 10),
+    );
+  }
 }
 
 Trainee _trainee(
@@ -110,6 +144,7 @@ Trainee _trainee(
   String name, {
   bool isChild = false,
   DateTime? birthDate,
+  bool isAwaitingActivation = false,
 }) => Trainee(
   customerId: id,
   displayName: name,
@@ -117,10 +152,15 @@ Trainee _trainee(
   birthDate: birthDate,
   isActive: true,
   assignedAt: DateTime(2026, 10, 1),
+  isAwaitingActivation: isAwaitingActivation,
 );
 
 void main() {
-  Future<void> pumpScreen(WidgetTester tester, TraineesApi api) async {
+  Future<void> pumpScreen(
+    WidgetTester tester,
+    TraineesApi api, {
+    Session session = _session,
+  }) async {
     final router = GoRouter(
       initialLocation: '/trainer/trainings',
       routes: [
@@ -132,6 +172,10 @@ void main() {
               path: 'new-cooperation',
               builder: (_, _) => const NewCooperationScreen(),
             ),
+            GoRoute(
+              path: 'new-client',
+              builder: (_, _) => const NewClientAccountScreen(),
+            ),
           ],
         ),
       ],
@@ -140,7 +184,9 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          authControllerProvider.overrideWith(_SignedInAuthController.new),
+          authControllerProvider.overrideWith(
+            () => _SignedInAuthController(session),
+          ),
           traineesApiProvider.overrideWithValue(api),
           traineeOverviewApiProvider.overrideWithValue(_EmptyOverviewApi()),
         ],
@@ -304,5 +350,160 @@ void main() {
       find.text('Zakończono współpracę z: Zosia Dąbrowska.'),
       findsOneWidget,
     );
+  });
+  testWidgets('creates a client account for a new trainee', (tester) async {
+    final api = _FakeTraineesApi();
+    await pumpScreen(tester, api);
+
+    await tester.tap(find.text('Załóż konto klientowi'));
+    await tester.pumpAndSettle();
+    expect(find.byType(NewClientAccountScreen), findsOneWidget);
+    expect(
+      find.textContaining('e-mail z linkiem do ustawienia hasła'),
+      findsOneWidget,
+    );
+
+    // Nothing is sent until the form is valid.
+    await tester.tap(find.text('Załóż konto i wyślij zaproszenie'));
+    await tester.pumpAndSettle();
+    expect(find.text('To pole jest wymagane.'), findsNWidgets(3));
+    await tester.enterText(find.byKey(const Key('newClientEmail')), 'julia@');
+    await tester.pumpAndSettle();
+    expect(find.text('Podaj poprawny adres e-mail.'), findsOneWidget);
+    expect(api.createdAccounts, isEmpty);
+
+    await tester.enterText(
+      find.byKey(const Key('newClientFirstName')),
+      ' Julia ',
+    );
+    await tester.enterText(
+      find.byKey(const Key('newClientLastName')),
+      'Kamińska',
+    );
+    await tester.enterText(
+      find.byKey(const Key('newClientEmail')),
+      'julia@example.com ',
+    );
+    await tester.tap(find.text('Załóż konto i wyślij zaproszenie'));
+    await tester.pumpAndSettle();
+
+    expect(api.createdAccounts.single, (
+      email: 'julia@example.com',
+      firstName: 'Julia',
+      lastName: 'Kamińska',
+    ));
+    expect(
+      find.text(
+        'Założono konto: Julia Kamińska. Zaproszenie wysłano na julia@example.com.',
+      ),
+      findsOneWidget,
+    );
+    // Back on the list: the new trainee waits for the account activation.
+    expect(find.byType(NewClientAccountScreen), findsNothing);
+    expect(find.text('Julia Kamińska'), findsOneWidget);
+    expect(find.text('Czeka na aktywację konta'), findsOneWidget);
+  });
+
+  testWidgets('points to the search when the e-mail already has an account', (
+    tester,
+  ) async {
+    final api = _FakeTraineesApi()..createStatus = 409;
+    await pumpScreen(tester, api);
+
+    await tester.tap(find.text('Załóż konto klientowi'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('newClientFirstName')),
+      'Julia',
+    );
+    await tester.enterText(
+      find.byKey(const Key('newClientLastName')),
+      'Kamińska',
+    );
+    await tester.enterText(
+      find.byKey(const Key('newClientEmail')),
+      'julia@example.com',
+    );
+    await tester.tap(find.text('Załóż konto i wyślij zaproszenie'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.textContaining('Konto z tym adresem e-mail już istnieje'),
+      findsOneWidget,
+    );
+
+    await tester.ensureVisible(find.text('Znajdź na liście klientów'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Znajdź na liście klientów'));
+    await tester.pumpAndSettle();
+    expect(find.byType(NewCooperationScreen), findsOneWidget);
+    expect(find.byType(NewClientAccountScreen), findsNothing);
+  });
+
+  testWidgets('explains that the invitation e-mail was not sent', (
+    tester,
+  ) async {
+    final api = _FakeTraineesApi()..createStatus = 502;
+    await pumpScreen(tester, api);
+
+    await tester.tap(find.text('Załóż konto klientowi'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('newClientFirstName')),
+      'Julia',
+    );
+    await tester.enterText(
+      find.byKey(const Key('newClientLastName')),
+      'Kamińska',
+    );
+    await tester.enterText(
+      find.byKey(const Key('newClientEmail')),
+      'julia@example.com',
+    );
+    await tester.tap(find.text('Załóż konto i wyślij zaproszenie'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.textContaining('Nie udało się wysłać zaproszenia'),
+      findsOneWidget,
+    );
+    expect(find.text('Znajdź na liście klientów'), findsNothing);
+    expect(find.byType(NewClientAccountScreen), findsOneWidget);
+  });
+
+  testWidgets('hides account creation without the permission', (tester) async {
+    const withoutPermission = Session(
+      accountId: 'trainer-account',
+      displayName: 'Marek Nowak',
+      roles: [AppRole.trainer],
+      activeRole: AppRole.trainer,
+      staffProfileId: 'staff-1',
+      profiles: [],
+      activeProfileId: null,
+    );
+    await pumpScreen(tester, _FakeTraineesApi(), session: withoutPermission);
+
+    expect(find.text('Zarejestruj nową współpracę'), findsOneWidget);
+    expect(find.text('Załóż konto klientowi'), findsNothing);
+
+    await tester.tap(find.text('Zarejestruj nową współpracę'));
+    await tester.pumpAndSettle();
+    expect(find.text('Nie znaleziono klientów.'), findsOneWidget);
+    expect(find.text('Nie ma tej osoby w studiu?'), findsNothing);
+    expect(find.text('Załóż konto klientowi'), findsNothing);
+  });
+
+  testWidgets('the search leads to the new account form', (tester) async {
+    await pumpScreen(tester, _FakeTraineesApi());
+
+    await tester.tap(find.text('Zarejestruj nową współpracę'));
+    await tester.pumpAndSettle();
+    expect(find.text('Nie znaleziono klientów.'), findsOneWidget);
+    expect(find.text('Nie ma tej osoby w studiu?'), findsOneWidget);
+
+    await tester.tap(find.text('Załóż konto klientowi'));
+    await tester.pumpAndSettle();
+    expect(find.byType(NewClientAccountScreen), findsOneWidget);
+    expect(find.byType(NewCooperationScreen), findsNothing);
   });
 }

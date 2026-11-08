@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:mobile/core/auth/auth_controller.dart';
+import 'package:mobile/core/auth/auth_state.dart';
+import 'package:mobile/core/auth/session.dart';
 import 'package:mobile/core/network/api_exception.dart';
 import 'package:mobile/features/trainings/data/trainees_api.dart';
 import 'package:mobile/features/trainings/data/trainee_overview_api.dart';
@@ -11,6 +13,9 @@ import 'package:mobile/l10n/generated/app_localizations.dart';
 
 /// Opens the search of participants to start working with.
 const newCooperationLocation = '/trainer/trainings/new-cooperation';
+
+/// Opens the form that creates a client account for a new trainee.
+const newClientAccountLocation = '/trainer/trainings/new-client';
 
 /// Participants the signed-in trainer works with.
 class TraineesTab extends ConsumerStatefulWidget {
@@ -54,8 +59,15 @@ class _TraineesTabState extends ConsumerState<TraineesTab>
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final scope = trainerOverviewScope(ref.watch(authControllerProvider));
+    final auth = ref.watch(authControllerProvider);
+    final scope = trainerOverviewScope(auth);
     if (scope == null) return const SizedBox();
+    final canCreateAccounts = switch (auth) {
+      Authenticated(:final session) => session.can(
+        Session.customerAccountCreate,
+      ),
+      _ => false,
+    };
     final provider = ownTraineesProvider(scope.accountId);
 
     return ref
@@ -90,6 +102,17 @@ class _TraineesTabState extends ConsumerState<TraineesTab>
                     icon: const Icon(Icons.person_add_alt_1),
                     label: Text(l10n.traineesNewCooperation),
                   ),
+                  if (canCreateAccounts) ...[
+                    const SizedBox(height: 8),
+                    OutlinedButton.icon(
+                      onPressed: () async {
+                        await context.push(newClientAccountLocation);
+                        if (mounted) await _refresh();
+                      },
+                      icon: const Icon(Icons.mark_email_unread_outlined),
+                      label: Text(l10n.traineesNewClientAccount),
+                    ),
+                  ],
                   const SizedBox(height: 16),
                   if (summaries?.hasError ?? false)
                     Padding(
@@ -243,6 +266,8 @@ class _TraineeCard extends StatelessWidget {
                             details.join(' · '),
                             style: Theme.of(context).textTheme.bodySmall,
                           ),
+                        if (trainee.isAwaitingActivation)
+                          _AwaitingActivation(l10n.traineesAwaitingActivation),
                       ],
                     ),
                   ),
@@ -296,6 +321,37 @@ class _TraineeCard extends StatelessWidget {
       .take(2)
       .map((part) => part[0].toUpperCase())
       .join();
+}
+
+/// Marks a trainee whose account was created by invitation and who has not
+/// set a password yet.
+class _AwaitingActivation extends StatelessWidget {
+  const _AwaitingActivation(this.label);
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      spacing: 4,
+      children: [
+        Icon(
+          Icons.schedule_send_outlined,
+          size: 16,
+          color: theme.colorScheme.tertiary,
+        ),
+        Flexible(
+          child: Text(
+            label,
+            style: theme.textTheme.labelMedium?.copyWith(
+              color: theme.colorScheme.tertiary,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 }
 
 class _LoadError extends StatelessWidget {

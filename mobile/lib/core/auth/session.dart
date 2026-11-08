@@ -61,7 +61,11 @@ class Session {
     required this.staffProfileId,
     required this.profiles,
     required this.activeProfileId,
+    this.permissions = const {},
   });
+
+  /// Lets the trainer create client accounts for new trainees.
+  static const customerAccountCreate = 'CUSTOMER_ACCOUNT_CREATE';
 
   final String accountId;
   final String displayName;
@@ -82,6 +86,13 @@ class Session {
   /// The backend decides the initial value (the account's own customer
   /// profile). Ids are backend UUIDs kept as `String`.
   final String? activeProfileId;
+
+  /// Codes of the account's effective permissions. The backend checks them
+  /// again; the app only hides what the account cannot use.
+  final Set<String> permissions;
+
+  /// Whether the account has the permission with the given code.
+  bool can(String permission) => permissions.contains(permission);
 
   /// What the account can use the app as: each customer profile as a client
   /// (own profile first, as the backend sends them), then the trainer role.
@@ -124,6 +135,7 @@ class Session {
       staffProfileId: staffProfileId,
       profiles: profiles ?? this.profiles,
       activeProfileId: activeProfileId ?? this.activeProfileId,
+      permissions: permissions,
     );
   }
 }

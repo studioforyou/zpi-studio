@@ -113,6 +113,7 @@ class FirebaseAuthRepository implements AuthRepository {
           Profile(id: p.id, displayName: p.displayName, isChild: p.isChild),
       ],
       activeProfileId: me.activeProfileId,
+      permissions: me.permissions.toSet(),
     );
   }
 

@@ -18,6 +18,7 @@ class MeResponse {
     required this.staffProfileId,
     required this.profiles,
     required this.activeProfileId,
+    this.permissions = const [],
   });
 
   factory MeResponse.fromJson(Map<String, dynamic> json) {
@@ -36,6 +37,10 @@ class MeResponse {
           ),
       ],
       activeProfileId: json['activeProfileId'] as String?,
+      permissions: [
+        for (final code in json['permissions'] as List? ?? const [])
+          code as String,
+      ],
     );
   }
 
@@ -50,6 +55,10 @@ class MeResponse {
   final String? staffProfileId;
   final List<({String id, String displayName, bool isChild})> profiles;
   final String? activeProfileId;
+
+  /// Codes of the account's effective permissions, e.g.
+  /// `CUSTOMER_ACCOUNT_CREATE`.
+  final List<String> permissions;
 }
 
 class MeApi {

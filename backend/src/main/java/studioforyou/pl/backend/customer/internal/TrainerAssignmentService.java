@@ -5,6 +5,7 @@ import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -19,6 +20,8 @@ import org.springframework.transaction.annotation.Transactional;
 import studioforyou.pl.backend.customer.CustomerKind;
 import studioforyou.pl.backend.customer.CustomerProfiles;
 import studioforyou.pl.backend.customer.CustomerProfiles.ProfileDetails;
+import studioforyou.pl.backend.customer.OwnTrainees;
+import studioforyou.pl.backend.customer.PendingAccounts;
 import studioforyou.pl.backend.customer.TrainerAccounts;
 import studioforyou.pl.backend.shared.api.ApiException;
 import studioforyou.pl.backend.shared.api.ErrorCode;
@@ -27,7 +30,7 @@ import studioforyou.pl.backend.staff.StaffProfiles.StaffMember;
 
 @Service
 @Transactional
-public class TrainerAssignmentService {
+public class TrainerAssignmentService implements OwnTrainees {
 
 	private static final String SCOPE = "PERSONAL_TRAINING";
 
@@ -39,12 +42,15 @@ public class TrainerAssignmentService {
 
 	private final TrainerAccounts trainerAccounts;
 
+	private final PendingAccounts pendingAccounts;
+
 	public TrainerAssignmentService(JdbcClient jdbc, CustomerProfiles customers, StaffProfiles staff,
-			TrainerAccounts trainerAccounts) {
+			TrainerAccounts trainerAccounts, PendingAccounts pendingAccounts) {
 		this.jdbc = jdbc;
 		this.customers = customers;
 		this.staff = staff;
 		this.trainerAccounts = trainerAccounts;
+		this.pendingAccounts = pendingAccounts;
 	}
 
 	/**
@@ -131,9 +137,9 @@ public class TrainerAssignmentService {
 	 */
 	@Transactional(readOnly = true)
 	public List<AssignedTrainee> listOwnTrainees(UUID trainerAccountId) {
-		return jdbc.sql("""
+		List<TraineeRow> rows = jdbc.sql("""
 				SELECT c.id, c.kind, c.first_name, c.last_name, c.birth_date, c.status = 'ACTIVE' AS active,
-				       a.assigned_by, a.started_at
+				       c.account_id, a.assigned_by, a.started_at
 				FROM staff_assignment a
 				JOIN customer_profile c ON c.id = a.customer_id
 				WHERE a.staff_id = :staffId AND a.scope = :scope AND a.ended_at IS NULL
@@ -142,9 +148,11 @@ public class TrainerAssignmentService {
 			.param("staffId", ownStaffId(trainerAccountId))
 			.param("scope", SCOPE)
 			.query(TraineeRow.class)
-			.list()
-			.stream()
-			.map(TraineeRow::toTrainee)
+			.list();
+		Set<UUID> invited = pendingAccounts
+			.findInvited(rows.stream().map(TraineeRow::accountId).filter(Objects::nonNull).toList());
+		return rows.stream()
+			.map((row) -> row.toTrainee(row.accountId() != null && invited.contains(row.accountId())))
 			.toList();
 	}
 
@@ -153,7 +161,7 @@ public class TrainerAssignmentService {
 		ProfileDetails customer = requireCustomer(customerId);
 		AssignmentRow row = findActive(customerId, ownStaffId(trainerAccountId))
 			.orElseThrow(TrainerAssignmentService::notAssigned);
-		return row.toTrainee(customer);
+		return row.toTrainee(customer, awaitingActivation(customerId));
 	}
 
 	/**
@@ -196,7 +204,12 @@ public class TrainerAssignmentService {
 	public AssignedTrainee assignToSelf(UUID customerId, UUID trainerAccountId) {
 		ProfileDetails customer = requireCustomer(customerId);
 		StaffMember member = staff.findAllById(List.of(ownStaffId(trainerAccountId))).getFirst();
-		return insert(customer, member, trainerAccountId).toTrainee(customer);
+		return insert(customer, member, trainerAccountId).toTrainee(customer, awaitingActivation(customerId));
+	}
+
+	@Override
+	public void assignToTrainer(UUID customerId, UUID trainerAccountId) {
+		assignToSelf(customerId, trainerAccountId);
 	}
 
 	/**
@@ -258,6 +271,16 @@ public class TrainerAssignmentService {
 		}
 	}
 
+	/** Whether the participant's own account was invited and not activated yet. */
+	private boolean awaitingActivation(UUID customerId) {
+		return jdbc.sql("SELECT account_id FROM customer_profile WHERE id = :id AND account_id IS NOT NULL")
+			.param("id", customerId)
+			.query(UUID.class)
+			.optional()
+			.map((accountId) -> !pendingAccounts.findInvited(List.of(accountId)).isEmpty())
+			.orElse(false);
+	}
+
 	private Optional<AssignmentRow> findActive(UUID customerId, UUID staffId) {
 		return jdbc.sql("""
 				SELECT staff_id, assigned_by, started_at
@@ -306,8 +329,8 @@ public class TrainerAssignmentService {
 			return new AssignedTrainer(member, assignedBy, startedAt.toInstant());
 		}
 
-		AssignedTrainee toTrainee(ProfileDetails customer) {
-			return new AssignedTrainee(customer, assignedBy, startedAt.toInstant());
+		AssignedTrainee toTrainee(ProfileDetails customer, boolean awaitingActivation) {
+			return new AssignedTrainee(customer, assignedBy, startedAt.toInstant(), awaitingActivation);
 		}
 
 	}
@@ -318,11 +341,11 @@ public class TrainerAssignmentService {
 	}
 
 	private record TraineeRow(UUID id, CustomerKind kind, String firstName, String lastName, LocalDate birthDate,
-			boolean active, UUID assignedBy, OffsetDateTime startedAt) {
+			boolean active, UUID accountId, UUID assignedBy, OffsetDateTime startedAt) {
 
-		AssignedTrainee toTrainee() {
+		AssignedTrainee toTrainee(boolean awaitingActivation) {
 			return new AssignedTrainee(new ProfileDetails(id, kind, firstName, lastName, birthDate, active),
-					assignedBy, startedAt.toInstant());
+					assignedBy, startedAt.toInstant(), awaitingActivation);
 		}
 
 	}
@@ -340,8 +363,11 @@ public class TrainerAssignmentService {
 	 *
 	 * @param assignedBy the account that made the assignment
 	 * @param assignedAt when the assignment started
+	 * @param awaitingActivation whether the participant's own account was invited and the person
+	 * has not accepted the invitation yet
 	 */
-	public record AssignedTrainee(ProfileDetails customer, UUID assignedBy, Instant assignedAt) {
+	public record AssignedTrainee(ProfileDetails customer, UUID assignedBy, Instant assignedAt,
+			boolean awaitingActivation) {
 
 	}
 

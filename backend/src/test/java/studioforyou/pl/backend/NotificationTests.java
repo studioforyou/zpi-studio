@@ -17,6 +17,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
@@ -118,10 +119,12 @@ class NotificationTests {
 		assertThat(classReminders.sendDue(now)).isEqualTo(4);
 
 		assertThat(titles(adultAccount)).containsExactly("Przypomnienie o zajęciach");
-		assertThat(bodies(adultAccount)).containsExactly("Pilates: dziś, godz. "
-				+ now.plus(120, ChronoUnit.MINUTES).atZone(ZoneId.of("Europe/Warsaw"))
-					.format(DateTimeFormatter.ofPattern("HH:mm"))
-				+ ". Sala: Sala 1.");
+		// After 22:00 in Warsaw a class two hours ahead is already tomorrow.
+		ZoneId warsaw = ZoneId.of("Europe/Warsaw");
+		ZonedDateTime start = now.plus(120, ChronoUnit.MINUTES).atZone(warsaw);
+		String day = start.toLocalDate().equals(now.atZone(warsaw).toLocalDate()) ? "dziś" : "jutro";
+		assertThat(bodies(adultAccount)).containsExactly("Pilates: " + day + ", godz. "
+				+ start.format(DateTimeFormatter.ofPattern("HH:mm")) + ". Sala: Sala 1.");
 		// A guardian sees whose class it is, also for its own.
 		assertThat(titles(parentAccount)).containsExactlyInAnyOrder("Zosia: Przypomnienie o zajęciach",
 				"Monika: Przypomnienie o zajęciach");

@@ -14,6 +14,7 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import studioforyou.pl.backend.customer.CustomerProfiles;
+import studioforyou.pl.backend.customer.OwnTrainees;
 import studioforyou.pl.backend.identity.AccountLookup;
 import studioforyou.pl.backend.identity.AccountInvited;
 import studioforyou.pl.backend.identity.AccountStatus;
@@ -39,16 +40,20 @@ class InvitationService {
 
 	private final StaffProfiles staffProfiles;
 
+	private final OwnTrainees ownTrainees;
+
 	private final ApplicationEventPublisher events;
 
 	private final InvitationProperties properties;
 
 	InvitationService(JdbcClient jdbc, FirebaseUsers firebaseUsers, CustomerProfiles customerProfiles,
-			StaffProfiles staffProfiles, ApplicationEventPublisher events, InvitationProperties properties) {
+			StaffProfiles staffProfiles, OwnTrainees ownTrainees, ApplicationEventPublisher events,
+			InvitationProperties properties) {
 		this.jdbc = jdbc;
 		this.firebaseUsers = firebaseUsers;
 		this.customerProfiles = customerProfiles;
 		this.staffProfiles = staffProfiles;
+		this.ownTrainees = ownTrainees;
 		this.events = events;
 		this.properties = properties;
 	}
@@ -65,7 +70,45 @@ class InvitationService {
 	@Transactional
 	public NewInvitation invite(String email, String firstName, String lastName, InvitedRole role,
 			UUID invitedBy) {
+		Created created = create(email, firstName, lastName, role, invitedBy);
+		sendEmail(created, role, null);
+		return created.invitation();
+	}
+
+	/**
+	 * Creates a client account for a person the signed-in trainer starts working with: an
+	 * {@code INVITED} client account with its own customer profile, assigned to the trainer at once,
+	 * and sends the invitation e-mail naming the trainer. If the trainer cannot take the participant
+	 * or the e-mail cannot be sent, nothing is saved.
+	 *
+	 * @param trainerAccountId the signed-in trainer's account
+	 * @throws ApiException {@code ACCOUNT_ALREADY_EXISTS} if an account with this e-mail exists,
+	 * {@code NOT_FOUND} if the trainer has no staff profile, {@code STAFF_UNAVAILABLE} if it is not
+	 * active, {@code EMAIL_NOT_SENT} if the e-mail provider failed
+	 */
+	@Transactional
+	public NewTraineeInvitation inviteTrainee(String email, String firstName, String lastName,
+			UUID trainerAccountId) {
+		Created created = create(email, firstName, lastName, InvitedRole.CLIENT, trainerAccountId);
+		ownTrainees.assignToTrainer(created.customerId(), trainerAccountId);
+		String trainerName = staffProfiles.findByAccount(trainerAccountId)
+			.map(StaffProfiles.StaffSummary::displayName)
+			.orElse(null);
+		sendEmail(created, InvitedRole.CLIENT, trainerName);
+		NewInvitation invitation = created.invitation();
+		return new NewTraineeInvitation(invitation.invitationId(), invitation.accountId(), created.customerId(),
+				invitation.email(), created.firstName() + " " + created.lastName(), invitation.expiresAt());
+	}
+
+	/**
+	 * Creates the account, role, profile and invitation, without sending anything yet. The e-mail
+	 * goes last, so that a later failure in the same transaction does not leave a sent link to an
+	 * account that was never saved.
+	 */
+	private Created create(String email, String firstName, String lastName, InvitedRole role, UUID invitedBy) {
 		String normalizedEmail = email.trim();
+		String first = firstName.trim();
+		String last = lastName.trim();
 		boolean exists = jdbc.sql("SELECT EXISTS (SELECT 1 FROM account WHERE lower(email) = lower(:email))")
 			.param("email", normalizedEmail)
 			.query(Boolean.class)
@@ -104,10 +147,13 @@ class InvitationService {
 			.param("accountId", accountId)
 			.param("invitedBy", invitedBy)
 			.update();
-		switch (role) {
-			case CLIENT -> customerProfiles.createOwnProfile(accountId, firstName.trim(), lastName.trim(), invitedBy);
-			case TRAINER -> staffProfiles.create(accountId, firstName.trim(), lastName.trim());
-		}
+		UUID customerId = switch (role) {
+			case CLIENT -> customerProfiles.createOwnProfile(accountId, first, last, invitedBy);
+			case TRAINER -> {
+				staffProfiles.create(accountId, first, last);
+				yield null;
+			}
+		};
 
 		String token = InvitationTokens.generate();
 		OffsetDateTime expiresAt = OffsetDateTime.now().plus(properties.validFor());
@@ -123,8 +169,14 @@ class InvitationService {
 			.query(UUID.class)
 			.single();
 
-		events.publishEvent(new AccountInvited(normalizedEmail, firstName.trim(), role.name(), link(token), expiresAt));
-		return new NewInvitation(invitationId, accountId, normalizedEmail, expiresAt);
+		return new Created(new NewInvitation(invitationId, accountId, normalizedEmail, expiresAt), customerId, first,
+				last, token);
+	}
+
+	private void sendEmail(Created created, InvitedRole role, String invitedByTrainer) {
+		NewInvitation invitation = created.invitation();
+		events.publishEvent(new AccountInvited(invitation.email(), created.firstName(), role.name(),
+				link(created.token()), invitation.expiresAt(), invitedByTrainer));
 	}
 
 	/**
@@ -247,6 +299,14 @@ class InvitationService {
 				}
 			}
 		});
+	}
+
+	/**
+	 * @param customerId the new customer profile, or {@code null} for a trainer
+	 * @param token the plain token, only for the e-mail link
+	 */
+	private record Created(NewInvitation invitation, UUID customerId, String firstName, String lastName,
+			String token) {
 	}
 
 	record Invitation(UUID id, UUID accountId, String email, AccountStatus status, OffsetDateTime expiresAt,

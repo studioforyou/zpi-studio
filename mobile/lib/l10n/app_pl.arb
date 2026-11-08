@@ -620,6 +620,34 @@
       }
     }
   },
+  "traineesNewClientAccount": "Załóż konto klientowi",
+  "traineesAwaitingActivation": "Czeka na aktywację konta",
+  "newCooperationNotListed": "Nie ma tej osoby w studiu?",
+  "newClientAccountTitle": "Nowe konto klienta",
+  "newClientAccountInfo": "Klient dostanie e-mail z linkiem do ustawienia hasła. Od razu dodamy go do Twoich podopiecznych.",
+  "newClientAccountFirstName": "Imię",
+  "newClientAccountLastName": "Nazwisko",
+  "newClientAccountEmail": "E-mail",
+  "newClientAccountEmailHint": "Na ten adres wyślemy zaproszenie. Będzie to login klienta.",
+  "newClientAccountRequired": "To pole jest wymagane.",
+  "newClientAccountNameTooLong": "Maksymalnie 80 znaków.",
+  "newClientAccountEmailInvalid": "Podaj poprawny adres e-mail.",
+  "newClientAccountSubmit": "Załóż konto i wyślij zaproszenie",
+  "newClientAccountCreated": "Założono konto: {name}. Zaproszenie wysłano na {email}.",
+  "@newClientAccountCreated": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "email": {
+        "type": "String"
+      }
+    }
+  },
+  "newClientAccountEmailTaken": "Konto z tym adresem e-mail już istnieje. Znajdź tę osobę na liście klientów i rozpocznij współpracę.",
+  "newClientAccountFindExisting": "Znajdź na liście klientów",
+  "newClientAccountTrainerInactive": "Twój profil trenera jest nieaktywny. Skontaktuj się z obsługą studia.",
+  "newClientAccountEmailNotSent": "Nie udało się wysłać zaproszenia. Nic nie zapisano, spróbuj ponownie za chwilę.",
   "addClassButton": "Dodaj zajęcia",
   "addClassTitle": "Nowe zajęcia",
   "addClassOnce": "Jednorazowe",

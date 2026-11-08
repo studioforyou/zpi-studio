@@ -25,6 +25,7 @@ import 'package:mobile/features/schedule/presentation/availability_screen.dart';
 import 'package:mobile/features/schedule/presentation/schedule_screen.dart';
 import 'package:mobile/features/schedule/presentation/trainer_schedule_screen.dart';
 import 'package:mobile/features/trainings/presentation/new_cooperation_screen.dart';
+import 'package:mobile/features/trainings/presentation/new_client_account_screen.dart';
 import 'package:mobile/features/trainings/presentation/reservations_screen.dart';
 import 'package:mobile/features/trainings/presentation/trainee_overview_screen.dart';
 import 'package:mobile/features/trainings/presentation/training_history_screen.dart';
@@ -61,6 +62,7 @@ const trainerProfilePath = '/trainer/profile';
 const trainerAvailabilitySubPath = 'availability';
 const trainerProfileEditSubPath = 'edit';
 const trainerNewCooperationSubPath = 'new-cooperation';
+const trainerNewClientAccountSubPath = 'new-client';
 const trainerAddClassSubPath = 'new-class';
 const trainerAddClassPath = '$trainerSchedulePath/$trainerAddClassSubPath';
 
@@ -208,6 +210,11 @@ StatefulShellRoute _trainerShell() => _roleShell([
       GoRoute(
         path: trainerNewCooperationSubPath,
         builder: (_, _) => const NewCooperationScreen(),
+      ),
+      // Opened with context.push('/trainer/trainings/new-client').
+      GoRoute(
+        path: trainerNewClientAccountSubPath,
+        builder: (_, _) => const NewClientAccountScreen(),
       ),
       GoRoute(
         path: 'trainees/:customerId',
