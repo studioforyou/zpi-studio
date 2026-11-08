@@ -26,6 +26,7 @@ import 'package:mobile/features/schedule/presentation/schedule_screen.dart';
 import 'package:mobile/features/schedule/presentation/trainer_schedule_screen.dart';
 import 'package:mobile/features/trainings/presentation/new_cooperation_screen.dart';
 import 'package:mobile/features/trainings/presentation/reservations_screen.dart';
+import 'package:mobile/features/trainings/presentation/trainee_overview_screen.dart';
 import 'package:mobile/features/trainings/presentation/training_history_screen.dart';
 import 'package:mobile/features/trainings/presentation/trainings_screen.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
@@ -207,6 +208,12 @@ StatefulShellRoute _trainerShell() => _roleShell([
       GoRoute(
         path: trainerNewCooperationSubPath,
         builder: (_, _) => const NewCooperationScreen(),
+      ),
+      GoRoute(
+        path: 'trainees/:customerId',
+        builder: (_, state) => TraineeOverviewScreen(
+          customerId: state.pathParameters['customerId']!,
+        ),
       ),
     ],
   ),

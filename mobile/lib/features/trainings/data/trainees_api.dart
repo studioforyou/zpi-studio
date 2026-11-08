@@ -1,6 +1,8 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mobile/core/network/api_exception.dart';
+import 'package:mobile/core/auth/auth_controller.dart';
+import 'package:mobile/core/auth/auth_state.dart';
 import 'package:mobile/core/network/dio_provider.dart';
 
 /// Participants of the signed-in trainer (`OwnTraineeController` in the
@@ -142,9 +144,16 @@ final traineesApiProvider = Provider<TraineesApi>(
 /// The signed-in trainer's trainees. The account id keeps one account's
 /// trainees from being shown to another account.
 final ownTraineesProvider = FutureProvider.autoDispose
-    .family<List<Trainee>, String>(
-      (ref, accountId) => ref.watch(traineesApiProvider).fetchOwnTrainees(),
-    );
+    .family<List<Trainee>, String>((ref, accountId) {
+      final auth = ref.watch(authControllerProvider);
+      if (auth is! Authenticated || auth.session.accountId != accountId) {
+        throw const ApiException(
+          statusCode: 403,
+          message: 'Account scope changed.',
+        );
+      }
+      return ref.watch(traineesApiProvider).fetchOwnTrainees();
+    });
 
 /// Active participants matching a search query.
 final customerSearchProvider = FutureProvider.autoDispose

@@ -12,6 +12,7 @@ import 'package:mobile/features/schedule/presentation/trainer_schedule_filter.da
 import 'package:mobile/features/schedule/presentation/trainer_schedule_screen.dart';
 import 'package:mobile/features/schedule/presentation/widgets/schedule_calendar.dart';
 import 'package:mobile/features/trainings/data/event_participants_api.dart';
+import 'package:mobile/features/trainings/data/trainee_overview_api.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
 
 const _session = Session(
@@ -151,6 +152,13 @@ void main() {
         overrides: [
           authControllerProvider.overrideWith(_SignedInAuthController.new),
           scheduleApiProvider.overrideWithValue(api),
+          ownPersonalTrainingsProvider.overrideWith(
+            (ref, query) async => PersonalTrainingsSnapshot(
+              checkedOn: query.window.from,
+              checkedAt: DateTime.now(),
+              items: const [],
+            ),
+          ),
           eventParticipantsApiProvider.overrideWithValue(participantsApi),
           scheduleServiceTypesApiProvider.overrideWithValue(
             _FakeServiceTypesApi(serviceTypes),
@@ -290,6 +298,13 @@ void main() {
         overrides: [
           authControllerProvider.overrideWith(_SignedInAuthController.new),
           scheduleApiProvider.overrideWithValue(api),
+          ownPersonalTrainingsProvider.overrideWith(
+            (ref, query) async => PersonalTrainingsSnapshot(
+              checkedOn: query.window.from,
+              checkedAt: DateTime.now(),
+              items: const [],
+            ),
+          ),
         ],
         child: const MaterialApp(
           localizationsDelegates: AppLocalizations.localizationsDelegates,

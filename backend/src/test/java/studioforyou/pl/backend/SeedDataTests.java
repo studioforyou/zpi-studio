@@ -1,24 +1,36 @@
 package studioforyou.pl.backend;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.BDDMockito.given;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.sql.DataSource;
 
+import com.jayway.jsonpath.JsonPath;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.jdbc.datasource.init.ResourceDatabasePopulator;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -27,6 +39,7 @@ import org.springframework.transaction.annotation.Transactional;
  * state of Spring Modulith (rows exist only while a listener has not finished), so it is left out.
  */
 @SpringBootTest
+@AutoConfigureMockMvc
 @ActiveProfiles("seed")
 @Import(TestcontainersConfiguration.class)
 class SeedDataTests {
@@ -36,6 +49,12 @@ class SeedDataTests {
 
 	@Autowired
 	private DataSource dataSource;
+
+	@Autowired
+	private MockMvc mvc;
+
+	@MockitoBean
+	private JwtDecoder jwtDecoder;
 
 	@Test
 	void everyTableHasRows() {
@@ -95,6 +114,153 @@ class SeedDataTests {
 	private void runMakeupExample() {
 		new ResourceDatabasePopulator(new ClassPathResource("db/seed/R__seed_09_makeup_credits.sql"))
 			.execute(dataSource);
+	}
+
+	@Test
+	@Transactional
+	void personalTrainingExamplesBalanceTheirLedgerAndPreserveTesterChanges() {
+		String lowPass = "28000000-0000-0000-0000-000000010001";
+		String nextEvent = "19000000-0000-0000-0000-000000010004";
+		assertThat(jdbc.sql("SELECT sum(entries_delta) FROM pass_ledger WHERE pass_id = CAST(:id AS UUID)")
+			.param("id", lowPass).query(Integer.class).single()).isEqualTo(3);
+		assertThat(jdbc.sql("SELECT entries_remaining FROM customer_pass WHERE id = CAST(:id AS UUID)")
+			.param("id", lowPass).query(Integer.class).single()).isEqualTo(3);
+		assertThat(jdbc.sql("""
+				SELECT count(*) FROM reservation
+				WHERE id = '30000000-0000-0000-0000-000000010001'
+				  AND trainer_confirmed_at IS NOT NULL AND client_confirmed_at IS NOT NULL
+				  AND settlement_status = 'FINAL'
+				""").query(Integer.class).single()).isEqualTo(1);
+		Map<String, Object> originalCredit = makeupExample();
+		Map<String, Long> counts = rowCounts();
+		jdbc.sql("UPDATE customer_pass SET entries_remaining = 2, version = version + 1 WHERE id = CAST(:id AS UUID)")
+			.param("id", lowPass).update();
+		jdbc.sql("""
+				UPDATE schedule_event SET title = 'Termin uzgodniony przez testera',
+				  starts_at = starts_at + INTERVAL '2 hours', ends_at = ends_at + INTERVAL '2 hours',
+				  version = version + 1 WHERE id = CAST(:id AS UUID)
+				""").param("id", nextEvent).update();
+		Map<String, Object> changedPass = jdbc.sql("SELECT * FROM customer_pass WHERE id = CAST(:id AS UUID)")
+			.param("id", lowPass).query().singleRow();
+		Map<String, Object> changedEvent = jdbc.sql("SELECT * FROM schedule_event WHERE id = CAST(:id AS UUID)")
+			.param("id", nextEvent).query().singleRow();
+		jdbc.sql("UPDATE event_staff SET staff_id = '08000000-0000-0000-0000-000000000003' WHERE event_id = CAST(:id AS UUID)")
+			.param("id", nextEvent).update();
+		jdbc.sql("UPDATE event_resource SET resource_id = '15000000-0000-0000-0000-000000000003' WHERE event_id = CAST(:id AS UUID)")
+			.param("id", nextEvent).update();
+
+		Resource script = new ClassPathResource("db/seed/R__seed_10_personal_training.sql");
+		new ResourceDatabasePopulator(script).execute(dataSource);
+		new ResourceDatabasePopulator(script).execute(dataSource);
+
+		assertThat(jdbc.sql("SELECT * FROM customer_pass WHERE id = CAST(:id AS UUID)")
+			.param("id", lowPass).query().singleRow()).isEqualTo(changedPass);
+		assertThat(jdbc.sql("SELECT * FROM schedule_event WHERE id = CAST(:id AS UUID)")
+			.param("id", nextEvent).query().singleRow()).isEqualTo(changedEvent);
+		assertThat(jdbc.sql("SELECT staff_id::TEXT FROM event_staff WHERE event_id = CAST(:id AS UUID)")
+			.param("id", nextEvent).query(String.class).list())
+			.containsExactly("08000000-0000-0000-0000-000000000003");
+		assertThat(jdbc.sql("SELECT resource_id::TEXT FROM event_resource WHERE event_id = CAST(:id AS UUID)")
+			.param("id", nextEvent).query(String.class).list())
+			.containsExactly("15000000-0000-0000-0000-000000000003");
+		assertThat(makeupExample()).isEqualTo(originalCredit);
+		assertThat(rowCounts()).isEqualTo(counts);
+	}
+
+	@Test
+	void seededTrainersCanReadTheirTraineesAndFindTheirPersonalSessionsInTheMainSchedule() throws Exception {
+		for (int accountNo : List.of(1, 2, 3)) {
+			String token = seedToken(accountNo);
+			String summary = seedGet(token, "/api/v1/me/trainees/overview", false);
+			assertThat(JsonPath.<List<String>>read(summary, "$.items[*].customerId")).isNotEmpty();
+			String schedule = seedGet(token, "/api/v1/me/schedule-events", true);
+			Set<String> personalIds = Set.copyOf(JsonPath.read(schedule, "$.items[?(@.kind == 'PERSONAL_TRAINING')].id"));
+			assertThat(personalIds).isNotEmpty();
+			assertThat(JsonPath.<List<String>>read(schedule, "$.items[?(@.kind == 'CLASS')].id")).isNotEmpty();
+			String personal = seedGet(token, "/api/v1/me/trainees/personal-trainings", true);
+			List<String> enrichedIds = JsonPath.read(personal, "$.items[*].id");
+			assertThat(enrichedIds).isNotEmpty().allMatch(personalIds::contains);
+			Set<String> traineeIds = Set.copyOf(JsonPath.read(summary, "$.items[*].customerId"));
+			assertThat(JsonPath.<List<String>>read(personal, "$.items[*].customerId")).allMatch(traineeIds::contains);
+			if (accountNo == 1) {
+				assertThat(personalIds).contains("19000000-0000-0000-0000-000000010020");
+				assertThat(enrichedIds).doesNotContain("19000000-0000-0000-0000-000000010020",
+						"19000000-0000-0000-0000-000000010004", "19000000-0000-0000-0000-000000010010");
+			}
+		}
+	}
+
+	@Test
+	void annaSeedExposesPackagesMakeupsCashSessionsAndMissingTrainerConfirmation() throws Exception {
+		String token = seedToken(1);
+		String piotr = seedGet(token, "/api/v1/me/trainees/07000000-0000-0000-0000-000000000005/overview", false);
+		assertThat(JsonPath.<List<Integer>>read(piotr, "$.passes[?(@.id == '28000000-0000-0000-0000-000000010006')].entriesRemaining"))
+			.containsExactly(3);
+		assertThat(JsonPath.<List<Boolean>>read(piotr, "$.passes[?(@.id == '28000000-0000-0000-0000-000000010006')].lowBalance"))
+			.containsExactly(true);
+		String julia = seedGet(token, "/api/v1/me/trainees/07000000-0000-0000-0000-000000000008/overview", false);
+		assertThat(JsonPath.<String>read(julia, "$.availability")).isEqualTo("UNAVAILABLE");
+		assertThat(JsonPath.<List<String>>read(julia, "$.passes[*].status")).contains("EXPIRED");
+		String adam = seedGet(token, "/api/v1/me/trainees/07000000-0000-0000-0000-000000000006/overview", false);
+		assertThat(JsonPath.<List<Object>>read(adam, "$.passes")).isEmpty();
+		assertThat(JsonPath.<Object>read(adam, "$.nextTraining")).isNull();
+		String personal = seedGet(token, "/api/v1/me/trainees/personal-trainings", true);
+		assertThat(JsonPath.<List<String>>read(personal, "$.items[*].funding"))
+			.contains("PASS_CONSUMED", "PASS_RESERVED", "PASS_RETURNED", "MAKEUP_USED", "NO_PASS")
+			.doesNotContain("INCONSISTENT");
+		List<Map<String, Object>> waiting = JsonPath.read(personal,
+				"$.items[?(@.reservationId == '30000000-0000-0000-0000-000000010012')]");
+		assertThat(waiting).hasSize(1);
+		assertThat(waiting.getFirst()).containsEntry("trainerConfirmedAt", null).containsEntry("requiresAttention", true);
+		assertThat(waiting.getFirst().get("clientConfirmedAt")).isNotNull();
+	}
+
+	@Test
+	@Transactional
+	void extendedPersonalSeedBalancesPackagesAndPreservesChangedRelationshipsAndCredits() {
+		assertThat(jdbc.sql("""
+				SELECT pass.entries_remaining::INT AS remaining, sum(ledger.entries_delta)::INT AS balance
+				FROM customer_pass pass JOIN pass_ledger ledger ON ledger.pass_id = pass.id
+				WHERE pass.id BETWEEN '28000000-0000-0000-0000-000000010006' AND '28000000-0000-0000-0000-000000010008'
+				GROUP BY pass.id
+				""").query().listOfRows()).hasSize(3).allSatisfy(row ->
+				assertThat(row.get("remaining")).isEqualTo(row.get("balance")));
+		Map<String, Long> counts = rowCounts();
+		jdbc.sql("UPDATE staff_assignment SET ended_at = CURRENT_TIMESTAMP WHERE id = '09000000-0000-0000-0000-000000010004'")
+			.update();
+		jdbc.sql("UPDATE makeup_credit SET expires_at = expires_at + INTERVAL '2 days' WHERE id = '33000000-0000-0000-0000-000000010002'")
+			.update();
+		Map<String, Object> changedAssignment = jdbc.sql("SELECT * FROM staff_assignment WHERE id = '09000000-0000-0000-0000-000000010004'")
+			.query().singleRow();
+		Map<String, Object> changedCredit = jdbc.sql("SELECT * FROM makeup_credit WHERE id = '33000000-0000-0000-0000-000000010002'")
+			.query().singleRow();
+		Resource script = new ClassPathResource("db/seed/R__seed_10_personal_training.sql");
+		new ResourceDatabasePopulator(script).execute(dataSource);
+		new ResourceDatabasePopulator(script).execute(dataSource);
+		assertThat(jdbc.sql("SELECT * FROM staff_assignment WHERE id = '09000000-0000-0000-0000-000000010004'")
+			.query().singleRow()).isEqualTo(changedAssignment);
+		assertThat(jdbc.sql("SELECT * FROM makeup_credit WHERE id = '33000000-0000-0000-0000-000000010002'")
+			.query().singleRow()).isEqualTo(changedCredit);
+		assertThat(rowCounts()).isEqualTo(counts);
+	}
+
+	private String seedToken(int accountNo) {
+		String uid = jdbc.sql("SELECT external_uid FROM identity_link WHERE account_id = CAST(:id AS UUID) AND provider = 'FIREBASE'")
+			.param("id", "03000000-0000-0000-0000-" + "%012d".formatted(accountNo)).query(String.class).single();
+		String token = "seed-trainer-" + accountNo;
+		given(jwtDecoder.decode(token)).willReturn(Jwt.withTokenValue(token).header("alg", "RS256").subject(uid).build());
+		return token;
+	}
+
+	private String seedGet(String token, String path, boolean calendar) throws Exception {
+		var request = get(path).header("Authorization", "Bearer " + token);
+		if (calendar) {
+			ZoneId zone = ZoneId.of("Europe/Warsaw");
+			LocalDate today = LocalDate.now(zone);
+			request.param("from", today.minusDays(7).atStartOfDay(zone).toInstant().toString())
+				.param("to", today.plusDays(40).atStartOfDay(zone).toInstant().toString());
+		}
+		return mvc.perform(request).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 	}
 
 	private Map<String, Object> makeupExample() {
