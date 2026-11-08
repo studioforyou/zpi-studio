@@ -15,6 +15,7 @@ import 'package:mobile/core/network/api_exception.dart';
 import 'package:mobile/features/schedule/data/schedule_api.dart';
 import 'package:mobile/features/schedule/presentation/widgets/schedule_calendar.dart';
 import 'package:mobile/features/trainings/data/trainee_overview_api.dart';
+import 'package:mobile/features/trainings/data/trainee_profile_api.dart';
 import 'package:mobile/features/trainings/data/trainees_api.dart';
 import 'package:mobile/features/trainings/presentation/trainee_overview_screen.dart';
 import 'package:mobile/features/trainings/presentation/trainees_tab.dart';
@@ -197,6 +198,21 @@ class _Trainees implements TraineesApi {
   Future<void> unassign(String customerId) async {}
 }
 
+class _ProfileApi implements TraineeProfileApi {
+  @override
+  Future<TraineeProfile> fetch(String customerId) async => TraineeProfile(
+    customerId: customerId,
+    displayName: 'Tomasz Lewandowski',
+    isChild: false,
+    birthDate: DateTime(1990, 4, 12),
+    phone: '+48 600 100 200',
+    emergencyContactName: 'Anna Lewandowska',
+    emergencyPhone: '+48 600 300 400',
+    guardians: const [],
+    assignedAt: DateTime(2026, 10, 1),
+  );
+}
+
 class _Adapter implements HttpClientAdapter {
   Map<String, dynamic> body = {};
   int status = 200;
@@ -240,6 +256,7 @@ Future<ProviderContainer> _pump(
     overrides: [
       authControllerProvider.overrideWith(_Auth.new),
       traineeOverviewApiProvider.overrideWithValue(api),
+      traineeProfileApiProvider.overrideWithValue(_ProfileApi()),
       traineesApiProvider.overrideWithValue(_Trainees(active: active)),
     ],
   );
@@ -789,4 +806,42 @@ void main() {
       expect(api.details, 0);
     },
   );
+
+  testWidgets('shows the trainee profile in its own tab', (tester) async {
+    await _pump(tester, _Api(_overview(passes: [_pass()])));
+    await tester.tap(find.text('Profil'));
+    await tester.pumpAndSettle();
+    expect(find.text('Dane klienta'), findsOneWidget);
+    expect(find.text('+48 600 100 200'), findsOneWidget);
+    expect(find.text('Kontakt awaryjny'), findsOneWidget);
+    expect(find.text('Anna Lewandowska'), findsOneWidget);
+    expect(find.text('+48 600 300 400'), findsOneWidget);
+    expect(find.text('Opiekunowie'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  test('parses the profile contract and computes full years of age', () {
+    final profile = TraineeProfile.fromJson({
+      'customerId': 'child',
+      'displayName': 'Zosia Dąbrowska',
+      'kind': 'CHILD',
+      'birthDate': '2015-05-12',
+      'phone': null,
+      'emergencyContactName': null,
+      'emergencyPhone': null,
+      'guardians': [
+        {
+          'displayName': 'Joanna Dąbrowska',
+          'phone': '+48 600 111 222',
+          'relation': 'PARENT',
+        },
+      ],
+      'assignedAt': '2026-10-01T10:00:00Z',
+    });
+    expect(profile.isChild, isTrue);
+    expect(profile.phone, isNull);
+    expect(profile.guardians.single.phone, '+48 600 111 222');
+    expect(profile.ageOn(DateTime(2026, 5, 11)), 10);
+    expect(profile.ageOn(DateTime(2026, 5, 12)), 11);
+  });
 }

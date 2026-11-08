@@ -62,6 +62,19 @@ public class OwnTraineeController {
 		return TraineeResponse.from(assignments.getOwnTrainee(customerId, accountId(authentication)));
 	}
 
+	@GetMapping("/{customerId}/profile")
+	@Operation(summary = "Get my trainee's profile", operationId = "getOwnTraineeProfile",
+			description = "Personal and contact details of a participant currently assigned to the signed-in trainer: "
+					+ "phone, emergency contact and, for a child, its current guardians. No e-mail addresses.")
+	@ApiResponse(responseCode = "200", description = "The trainee's profile.")
+	@ApiResponse(responseCode = "404", description = "No such participant, the participant is not currently assigned "
+			+ "to the trainer or is not active, or the account has no staff profile.", content = @Content(
+					mediaType = "application/problem+json", schema = @Schema(implementation = ApiProblem.class)))
+	public TraineeProfileResponse profile(@PathVariable UUID customerId, AccountAuthentication authentication) {
+		return TraineeProfileResponse
+			.from(assignments.getOwnTraineeProfile(customerId, accountId(authentication)));
+	}
+
 	@PostMapping
 	@Operation(summary = "Start working with a participant", operationId = "assignOwnTrainee",
 			description = "Assigns an active participant to the signed-in trainer. The participant can also work "

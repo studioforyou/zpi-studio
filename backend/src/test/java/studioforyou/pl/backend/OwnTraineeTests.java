@@ -76,6 +76,8 @@ class OwnTraineeTests {
 
 	private UUID inactiveAdult;
 
+	private UUID guardian;
+
 	@BeforeEach
 	void setUp() {
 		trainerAccount = addAccount("trainer@example.com", "uid-trainer", "TRAINER", TRAINER_TOKEN);
@@ -89,14 +91,16 @@ class OwnTraineeTests {
 		adult = insertCustomer("ADULT", "Katarzyna", "Zielińska", "ACTIVE");
 		child = insertCustomer("CHILD", "Zosia", "Dąbrowska", "ACTIVE");
 		inactiveAdult = insertCustomer("ADULT", "Adam", "Mazur", "INACTIVE");
+		guardian = insertCustomer("ADULT", "Joanna", "Dąbrowska", "ACTIVE");
 	}
 
 	@AfterEach
 	void tearDown() {
 		String accounts = "SELECT id FROM account WHERE email LIKE '%@example.com'";
 		jdbc.sql("DELETE FROM staff_assignment WHERE assigned_by IN (" + accounts + ")").update();
+		jdbc.sql("DELETE FROM guardianship WHERE child_id = :child").param("child", child).update();
 		jdbc.sql("DELETE FROM customer_profile WHERE id IN (:ids)")
-			.param("ids", List.of(adult, child, inactiveAdult))
+			.param("ids", List.of(adult, child, inactiveAdult, guardian))
 			.update();
 		jdbc.sql("DELETE FROM staff_profile WHERE account_id IN (" + accounts + ")").update();
 		jdbc.sql("DELETE FROM account_role WHERE account_id IN (" + accounts + ")").update();
@@ -232,6 +236,85 @@ class OwnTraineeTests {
 			perform(token, get(TRAINEES), null).andExpect(status().isForbidden());
 			perform(token, delete(TRAINEES + "/" + adult), null).andExpect(status().isForbidden());
 		}
+	}
+
+	@Test
+	void aTrainerReadsTheProfileOfTheirAdultTrainee() throws Exception {
+		jdbc.sql("""
+				UPDATE customer_profile
+				SET birth_date = '1990-04-12', phone = '+48 600 100 200',
+				    emergency_contact_name = 'Piotr Zieliński', emergency_phone = '+48 600 300 400'
+				WHERE id = :id
+				""").param("id", adult).update();
+		perform(TRAINER_TOKEN, post(TRAINEES), assignJson(adult)).andExpect(status().isCreated());
+
+		perform(TRAINER_TOKEN, get(TRAINEES + "/" + adult + "/profile"), null)
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.customerId").value(adult.toString()))
+			.andExpect(jsonPath("$.kind").value("ADULT"))
+			.andExpect(jsonPath("$.displayName").value("Katarzyna Zielińska"))
+			.andExpect(jsonPath("$.birthDate").value("1990-04-12"))
+			.andExpect(jsonPath("$.phone").value("+48 600 100 200"))
+			.andExpect(jsonPath("$.emergencyContactName").value("Piotr Zieliński"))
+			.andExpect(jsonPath("$.emergencyPhone").value("+48 600 300 400"))
+			.andExpect(jsonPath("$.guardians", hasSize(0)))
+			.andExpect(jsonPath("$.assignedAt").isNotEmpty())
+			.andExpect(jsonPath("$.email").doesNotExist());
+	}
+
+	@Test
+	void aTrainerSeesTheCurrentGuardiansOfTheirChildTrainee() throws Exception {
+		jdbc.sql("UPDATE customer_profile SET phone = '+48 600 111 222' WHERE id = :id").param("id", guardian).update();
+		jdbc.sql("INSERT INTO guardianship (guardian_id, child_id) VALUES (:guardian, :child)")
+			.param("guardian", guardian)
+			.param("child", child)
+			.update();
+		perform(TRAINER_TOKEN, post(TRAINEES), assignJson(child)).andExpect(status().isCreated());
+
+		perform(TRAINER_TOKEN, get(TRAINEES + "/" + child + "/profile"), null)
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.kind").value("CHILD"))
+			.andExpect(jsonPath("$.phone").doesNotExist())
+			.andExpect(jsonPath("$.guardians", hasSize(1)))
+			.andExpect(jsonPath("$.guardians[0].id").value(guardian.toString()))
+			.andExpect(jsonPath("$.guardians[0].displayName").value("Joanna Dąbrowska"))
+			.andExpect(jsonPath("$.guardians[0].phone").value("+48 600 111 222"))
+			.andExpect(jsonPath("$.guardians[0].relation").value("PARENT"));
+
+		jdbc.sql("UPDATE guardianship SET ended_at = now() WHERE child_id = :child").param("child", child).update();
+		perform(TRAINER_TOKEN, get(TRAINEES + "/" + child + "/profile"), null)
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.guardians", hasSize(0)));
+	}
+
+	@Test
+	void theProfileIsHiddenFromOtherTrainersAndAfterTheCooperationEnds() throws Exception {
+		perform(OTHER_TRAINER_TOKEN, post(TRAINEES), assignJson(adult)).andExpect(status().isCreated());
+		perform(TRAINER_TOKEN, get(TRAINEES + "/" + adult + "/profile"), null)
+			.andExpect(status().isNotFound())
+			.andExpect(jsonPath("$.code").value("NOT_FOUND"));
+
+		perform(TRAINER_TOKEN, post(TRAINEES), assignJson(adult)).andExpect(status().isCreated());
+		perform(TRAINER_TOKEN, get(TRAINEES + "/" + adult + "/profile"), null).andExpect(status().isOk());
+		perform(TRAINER_TOKEN, delete(TRAINEES + "/" + adult), null).andExpect(status().isNoContent());
+		perform(TRAINER_TOKEN, get(TRAINEES + "/" + adult + "/profile"), null).andExpect(status().isNotFound());
+	}
+
+	@Test
+	void theProfileOfAnInactiveTraineeIsNotAvailable() throws Exception {
+		perform(TRAINER_TOKEN, post(TRAINEES), assignJson(adult)).andExpect(status().isCreated());
+		jdbc.sql("UPDATE customer_profile SET status = 'INACTIVE' WHERE id = :id").param("id", adult).update();
+
+		perform(TRAINER_TOKEN, get(TRAINEES + "/" + adult + "/profile"), null).andExpect(status().isNotFound());
+	}
+
+	@Test
+	void onlyTrainersReadTraineeProfiles() throws Exception {
+		for (String token : new String[] { ADMIN_TOKEN, CLIENT_TOKEN }) {
+			perform(token, get(TRAINEES + "/" + adult + "/profile"), null).andExpect(status().isForbidden());
+		}
+		perform(NO_PROFILE_TRAINER_TOKEN, get(TRAINEES + "/" + adult + "/profile"), null)
+			.andExpect(status().isNotFound());
 	}
 
 	@Test
