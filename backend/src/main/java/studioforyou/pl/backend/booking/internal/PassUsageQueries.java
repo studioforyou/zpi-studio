@@ -49,15 +49,15 @@ class PassUsageQueries {
 		this.variants = variants;
 	}
 
-	PageResponse<UsageItem> list(UUID accountId, UUID profileId, UUID passId, int page, int size) {
+	PageResponse<UsageItem> list(UUID accountId, UUID profileId, UUID passId, boolean includeUpcoming, int page, int size) {
 		if (!profiles.isActingFor(accountId, profileId)) {
 			throw new ApiException(ErrorCode.NOT_FOUND, "Participant not found.");
 		}
-		return accountHistory(accountId, profileId, passId, null, null, null, page, size).entries();
+		return accountHistory(accountId, profileId, passId, null, null, null, includeUpcoming, page, size).entries();
 	}
 
 	AccountHistory accountHistory(UUID accountId, UUID profileId, UUID passId, UUID productId,
-			Instant from, Instant to, int page, int size) {
+			Instant from, Instant to, boolean includeUpcoming, int page, int size) {
 		if (from != null && to != null && !from.isBefore(to)) {
 			throw new ApiException(ErrorCode.VALIDATION_FAILED, "The date range must have a positive length.");
 		}
@@ -88,9 +88,25 @@ class PassUsageQueries {
 			.filter(pass -> productId == null || (pass.variantId() != null && products.containsKey(pass.variantId())
 					&& products.get(pass.variantId()).id().equals(productId)))
 			.map(Pass::id).toList();
-		var entries = history.list(matchingPasses, from, to, page, size);
+		List<UUID> excluded = includeUpcoming ? List.of() : upcomingReservations(matchingPasses, names.keySet());
+		var entries = history.list(matchingPasses, excluded, from, to, page, size);
 		return new AccountHistory(enrich(entries, passes, names, products), List.copyOf(participants), productOptions,
 				selected == null ? null : selected.name());
+	}
+
+	private List<UUID> upcomingReservations(List<UUID> passIds, java.util.Set<UUID> profileIds) {
+		if (passIds.isEmpty()) return List.of();
+		Map<UUID, UUID> eventsByReservation = jdbc.sql("""
+				SELECT id, event_id FROM reservation
+				WHERE customer_pass_id IN (:passes) AND customer_id IN (:profiles)
+				""").param("passes", passIds).param("profiles", profileIds)
+			.query((row, number) -> Map.entry(row.getObject("id", UUID.class), row.getObject("event_id", UUID.class)))
+			.list().stream().collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+		Instant now = Instant.now();
+		var upcomingEvents = schedule.findAllById(eventsByReservation.values().stream().distinct().toList()).stream()
+			.filter(event -> event.endsAt().isAfter(now)).map(Occurrence::id).collect(Collectors.toSet());
+		return eventsByReservation.entrySet().stream().filter(entry -> upcomingEvents.contains(entry.getValue()))
+			.map(Map.Entry::getKey).toList();
 	}
 
 	private PageResponse<UsageItem> enrich(PageResponse<PassUsageHistory.Entry> entries, Map<UUID, Pass> passes,

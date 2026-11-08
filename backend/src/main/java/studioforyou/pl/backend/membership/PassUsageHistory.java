@@ -14,7 +14,8 @@ public interface PassUsageHistory {
 	List<Pass> passes(Collection<UUID> profileIds);
 
 	/** A globally ordered page for caller-authorized passes; date bounds concern accounting changes. */
-	PageResponse<Entry> list(Collection<UUID> passIds, Instant from, Instant to, int page, int size);
+	PageResponse<Entry> list(Collection<UUID> passIds, Collection<UUID> excludedReservations,
+			Instant from, Instant to, int page, int size);
 
 	record Pass(UUID id, UUID profileId, UUID variantId, String name) {
 	}

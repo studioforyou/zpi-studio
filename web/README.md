@@ -102,11 +102,27 @@ staff and rooms. The second step shows every date with the conflicts and warning
 backend found; dates of a recurring event can be left out before saving. An event's details offer
 "Zmień obsadę i salę" for one event or the following ones of its series.
 
+### Booking participants on behalf of clients
+
+Until a scheduled group class (public or private) starts, its details show **Uczestnicy**
+(`GET /api/v1/schedule-events/{eventId}/reservations`, #110) instead of the attendance: the booked
+and free places, the waiting list, and for each participant the pass or _bez karnetu_, who booked
+the place and the administrator's reason. **Zapisz uczestnika** searches participants by name,
+phone or e-mail and checks them (`GET .../booking-options`): the booking window does not apply
+to administrators, the participant's eligible passes are offered, and a full class or an unmet
+requirement (age, documents, a missing pass, a service out of the offer) is listed and has to be
+confirmed with **Rozumiem i zapisuję uczestnika mimo to**. Without an eligible pass the place is
+booked without a pass entry. If the issues changed meanwhile (`409 BOOKING_OVERRIDE_REQUIRED`),
+they are reloaded and have to be confirmed again. **Wypisz** cancels a place: the choice
+between returning the entry and forfeiting it starts at what the cancellation terms give, also
+when the participant could no longer cancel in the app. Both take an optional reason of up to
+500 characters, kept in the history.
+
 ### Attendance corrections
 
 The details of every event except a block list its participants under **Uczestnicy i
-obecność** (`GET /api/v1/schedule-events/{eventId}/attendance`, #111): each participant's
-attendance (present, absent or not marked), who recorded it and when, and the history of every
+obecność**, a scheduled group class once it has started
+(`GET /api/v1/schedule-events/{eventId}/attendance`, #111): each participant's attendance (present, absent or not marked), who recorded it and when, and the history of every
 change with its author and reason. Once the event has started, **Koryguj** sets present or absent
 with an optional reason of up to 500 characters
 (`POST .../reservations/{reservationId}/correct-attendance`), also after the trainers' own time to

@@ -6,6 +6,7 @@ import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -44,7 +45,8 @@ import studioforyou.pl.backend.shared.api.FieldErrorCode;
 /**
  * Coordinates self-service participation in one transaction. Lock order is occurrence,
  * reservations, waiting-list entries, then passes in ascending id order; each participating
- * module accesses only its own persistence.
+ * module accesses only its own persistence. Participants book public classes only; a private
+ * class an administrator booked them on (#110) is shown and can be cancelled like the others.
  */
 @Service
 @Transactional
@@ -85,7 +87,9 @@ class GroupClassBookingService {
 		ProfileDetails profile = this.rules.participant(actorId, profileId);
 		requireWindow(from, to);
 		Instant now = this.clock.instant();
-		List<Occurrence> occurrences = this.schedule.list(from, to).stream()
+		// The participant's own reservations include private classes an administrator booked.
+		List<Occurrence> occurrences = (onlyOwn ? this.schedule.listIncludingPrivate(from, to)
+				: this.schedule.list(from, to)).stream()
 			.filter(event -> !onlyOwn || event.startsAt().isAfter(now)).toList();
 		List<UUID> ids = occurrences.stream().map(Occurrence::id).toList();
 		Map<UUID, Reservation> own = this.reservations.ownActive(profileId, ids);
@@ -118,7 +122,7 @@ class GroupClassBookingService {
 	@Transactional(readOnly = true)
 	GroupClassResponse get(UUID actorId, UUID profileId, UUID eventId) {
 		ProfileDetails profile = this.rules.participant(actorId, profileId);
-		Occurrence event = requireEvent(eventId);
+		Occurrence event = requireVisibleEvent(profileId, eventId);
 		List<UUID> ids = List.of(eventId);
 		Reservation own = this.reservations.ownActive(profileId, ids).get(eventId);
 		Instant now = this.clock.instant();
@@ -131,13 +135,13 @@ class GroupClassBookingService {
 	ReservationResponse getReservation(UUID actorId, UUID profileId, UUID reservationId) {
 		this.rules.participant(actorId, profileId);
 		Reservation reservation = requireReservation(profileId, reservationId);
-		return reservationResponse(reservation, requireEvent(reservation.eventId()), this.clock.instant());
+		return reservationResponse(reservation, requireBookedEvent(reservation.eventId()), this.clock.instant());
 	}
 
 	@Transactional(readOnly = true)
 	List<ParticipantResponse> participants(UUID actorId, UUID profileId, UUID eventId) {
 		this.rules.participant(actorId, profileId);
-		requireEvent(eventId);
+		requireVisibleEvent(profileId, eventId);
 		List<UUID> ids = this.reservations.activeParticipantIdsForBookedProfile(profileId, eventId);
 		if (ids.isEmpty()) {
 			throw new ApiException(ErrorCode.ACCESS_DENIED,
@@ -197,7 +201,7 @@ class GroupClassBookingService {
 		this.rules.participant(actorId, profileId);
 		// Read only the occurrence ID first, then take the agreed locks in owner order.
 		Reservation reference = requireReservation(profileId, reservationId);
-		Occurrence event = this.schedule.lock(reference.eventId());
+		Occurrence event = this.schedule.lockIncludingPrivate(reference.eventId());
 		Reservation reservation = this.reservations.lock(profileId, reservationId)
 			.orElseThrow(GroupClassBookingService::notFoundReservation);
 		Instant now = this.clock.instant();
@@ -211,18 +215,20 @@ class GroupClassBookingService {
 		if (!consequence.allowed()) {
 			throw ParticipationRules.rejected(consequence.reason());
 		}
-		if (!request.expectedEntryReturned().equals(consequence.entryReturned())) {
+		if (!Objects.equals(request.expectedEntryReturned(), consequence.entryReturned())) {
 			throw new ApiException(ErrorCode.CANCELLATION_CONSEQUENCE_CHANGED,
 					"The cancellation consequence has changed. Refresh the class and confirm it again.",
-					Map.of("entryReturned", consequence.entryReturned()));
+					// Without a pass there is no consequence to report.
+					consequence.entryReturned() == null ? Map.of() : Map.of("entryReturned", consequence.entryReturned()));
 		}
 		String kind = now.isAfter(reservation.freeCancelUntil()) ? "LATE" : "IN_TIME";
 		Reservation cancelled = this.reservations.cancel(reservation, actorId, now, consequence.entryReturned(), kind);
 		// The freed place goes to the waiting list in this transaction. The promotion also runs this
 		// cancellation's own pass release, ordered together with the passes it reserves.
 		UUID passId = reservation.customerPassId();
-		this.promotion.fillFreePlaces(event, profileId, now, List.of(new WaitlistPromotion.PassStep(passId,
-				() -> this.entitlements.release(profileId, passId, reservation.id(), consequence.entryReturned(), actorId))));
+		this.promotion.fillFreePlaces(event, profileId, now, passId == null ? List.of()
+				: List.of(new WaitlistPromotion.PassStep(passId, () -> this.entitlements.release(profileId, passId,
+						reservation.id(), consequence.entryReturned(), actorId))));
 		return reservationResponse(cancelled, event, now);
 	}
 
@@ -290,8 +296,7 @@ class GroupClassBookingService {
 			return unavailableCancellation("EVENT_NOT_BOOKABLE");
 		}
 		if (reservation.cancellationAllowed() == null || reservation.lateCancelAllowed() == null
-				|| reservation.lateCancelForfeitsEntry() == null || reservation.freeCancelUntil() == null
-				|| reservation.customerPassId() == null) {
+				|| reservation.lateCancelForfeitsEntry() == null || reservation.freeCancelUntil() == null) {
 			return unavailableCancellation("CANCELLATION_TERMS_UNAVAILABLE");
 		}
 		if (!reservation.cancellationAllowed()) {
@@ -301,7 +306,10 @@ class GroupClassBookingService {
 		if (late && !reservation.lateCancelAllowed()) {
 			return unavailableCancellation("FREE_CANCELLATION_EXPIRED");
 		}
-		return new CancellationAvailability(true, null, !late || !reservation.lateCancelForfeitsEntry());
+		// A place an administrator booked without a pass entry has no entry to return or forfeit.
+		Boolean entryReturned = reservation.customerPassId() == null ? null
+				: !late || !reservation.lateCancelForfeitsEntry();
+		return new CancellationAvailability(true, null, entryReturned);
 	}
 
 	private static CancellationAvailability unavailableCancellation(String reason) {
@@ -314,9 +322,21 @@ class GroupClassBookingService {
 				reservation.cancelKind(), reservation.entryReturned(), cancellation(reservation, event, now), reservation.version());
 	}
 
-	private Occurrence requireEvent(UUID eventId) {
+	/** A public class, or a private one the participant has an active reservation for. */
+	private Occurrence requireVisibleEvent(UUID profileId, UUID eventId) {
 		return this.schedule.find(eventId)
-			.orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "Group class not found."));
+			.or(() -> this.schedule.findIncludingPrivate(eventId)
+				.filter(event -> !this.reservations.ownActive(profileId, List.of(eventId)).isEmpty()))
+			.orElseThrow(GroupClassBookingService::notFoundEvent);
+	}
+
+	/** The class of the participant's own reservation, whatever its visibility. */
+	private Occurrence requireBookedEvent(UUID eventId) {
+		return this.schedule.findIncludingPrivate(eventId).orElseThrow(GroupClassBookingService::notFoundEvent);
+	}
+
+	private static ApiException notFoundEvent() {
+		return new ApiException(ErrorCode.NOT_FOUND, "Group class not found.");
 	}
 
 	private Reservation requireReservation(UUID profileId, UUID reservationId) {

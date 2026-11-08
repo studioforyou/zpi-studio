@@ -267,11 +267,16 @@ class GroupClassBookingTests {
 			.andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
 		var created = bookings.book(actor, profile, event, pass).reservation();
 		String cancelPath = base(profile) + "/reservations/" + created.id() + "/cancel";
-		for (String invalid : List.of("{}", "{\"expectedVersion\":0}", "{\"expectedVersion\":-1,\"expectedEntryReturned\":true}")) {
+		for (String invalid : List.of("{}", "{\"expectedVersion\":-1,\"expectedEntryReturned\":true}")) {
 			mvc.perform(post(cancelPath).header("Authorization", "Bearer " + PARENT_TOKEN)
 				.contentType(MediaType.APPLICATION_JSON).content(invalid))
 				.andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
 		}
+		// Only a reservation without a pass has no consequence to confirm, so null differs from this one.
+		mvc.perform(post(cancelPath).header("Authorization", "Bearer " + PARENT_TOKEN)
+			.contentType(MediaType.APPLICATION_JSON).content("{\"expectedVersion\":0}"))
+			.andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("CANCELLATION_CONSEQUENCE_CHANGED"))
+			.andExpect(jsonPath("$.entryReturned").value(true));
 		mvc.perform(post(cancelPath).header("Authorization", "Bearer " + OTHER_TOKEN)
 			.contentType(MediaType.APPLICATION_JSON).content("{\"expectedVersion\":0,\"expectedEntryReturned\":true}"))
 			.andExpect(status().isNotFound());

@@ -36,23 +36,26 @@ class OwnPassUsageController {
 					+ "Includes expired passes, private sessions and unlimited passes. Does not change balances or attendance. "
 					+ "Unknown or unauthorized participant/pass pairs return 404; internal notes and actors are not exposed.")
 	PageResponse<PassUsageQueries.UsageItem> list(@PathVariable UUID profileId, @PathVariable UUID passId,
+			@RequestParam(defaultValue = "false") boolean includeUpcoming,
 			@RequestParam(defaultValue = "0") @Min(0) int page,
 			@RequestParam(defaultValue = "20") @Min(1) @Max(100) int size, AccountAuthentication authentication) {
-		return queries.list(authentication.requireActiveAccountId(), profileId, passId, page, size);
+		return queries.list(authentication.requireActiveAccountId(), profileId, passId, includeUpcoming, page, size);
 	}
 
 	@GetMapping("/pass-entry-history")
 	@Operation(summary = "Read entry history of my account", operationId = "listAccountPassEntryHistory",
 			description = "Own profile and currently represented children, including expired passes. "
 					+ "Ordered by the latest accounting change, newest first, with the class date separately. "
+					+ "Only ended events and corrections are shown by default; includeUpcoming also shows future and ongoing bookings. "
 					+ "Filters and totals are applied before paging. Date range is from-inclusive, to-exclusive.")
 	PassUsageQueries.AccountHistory accountHistory(@RequestParam(required = false) UUID profileId,
 			@RequestParam(required = false) UUID passId, @RequestParam(required = false) UUID productId,
 			@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant from,
 			@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant to,
+			@RequestParam(defaultValue = "false") boolean includeUpcoming,
 			@RequestParam(defaultValue = "0") @Min(0) int page,
 			@RequestParam(defaultValue = "20") @Min(1) @Max(100) int size, AccountAuthentication authentication) {
-		return queries.accountHistory(authentication.requireActiveAccountId(), profileId, passId, productId, from, to, page, size);
+		return queries.accountHistory(authentication.requireActiveAccountId(), profileId, passId, productId, from, to, includeUpcoming, page, size);
 	}
 
 }

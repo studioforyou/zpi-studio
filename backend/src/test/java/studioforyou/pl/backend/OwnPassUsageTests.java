@@ -264,6 +264,62 @@ class OwnPassUsageTests {
 		accountHistory("").andExpect(status().isForbidden());
 	}
 
+	@Test
+	void upcomingBookingsAreOptInAndFilteredBeforeTotalsAndPagingForTheWholeAccount() throws Exception {
+		UUID past = reservation(own, pass, "Past session", false);
+		ledger(pass, past, "ENTRY_CONSUMED", -1, -3);
+		ledger(pass, null, "CORRECTION", 1, -2);
+		UUID future = reservation(own, pass, "Future private session", true);
+		move(future, 86400, 90000);
+		ledger(pass, future, "ENTRY_RESERVED", -1, 0);
+		UUID ongoing = reservation(own, pass, "Ongoing session", false);
+		move(ongoing, -1800, 1800);
+		ledger(pass, ongoing, "ENTRY_RESERVED", -1, 0);
+		UUID childPass = pass(child, true);
+		UUID childFuture = reservation(child, childPass, "Future child session", false);
+		move(childFuture, 172800, 176400);
+		ledger(childPass, childFuture, "ENTRY_RESERVED", 0, 0);
+		long ledgerCount = jdbc.sql("SELECT count(*) FROM pass_ledger").query(Long.class).single();
+
+		accountHistory("?size=1").andExpect(status().isOk())
+			.andExpect(jsonPath("$.entries.totalItems").value(2))
+			.andExpect(jsonPath("$.entries.totalPages").value(2))
+			.andExpect(jsonPath("$.entries.items[0].kind").value("CORRECTION"));
+		accountHistory("?size=1&page=1").andExpect(status().isOk())
+			.andExpect(jsonPath("$.entries.items[0].title").value("Past session"));
+		accountHistory("?includeUpcoming=true").andExpect(status().isOk())
+			.andExpect(jsonPath("$.entries.totalItems").value(5));
+		accountHistory("?profileId=" + child).andExpect(status().isOk())
+			.andExpect(jsonPath("$.entries.totalItems").value(0));
+		accountHistory("?profileId=" + child + "&includeUpcoming=true").andExpect(status().isOk())
+			.andExpect(jsonPath("$.entries.totalItems").value(1))
+			.andExpect(jsonPath("$.entries.items[0].title").value("Future child session"));
+		perform("parent", own, pass, "").andExpect(status().isOk())
+			.andExpect(jsonPath("$.totalItems").value(2));
+		perform("parent", own, pass, "?includeUpcoming=true").andExpect(status().isOk())
+			.andExpect(jsonPath("$.totalItems").value(4));
+		assertThat(jdbc.sql("SELECT count(*) FROM pass_ledger").query(Long.class).single()).isEqualTo(ledgerCount);
+	}
+
+	@Test
+	void aFinishedSessionAppearsEvenIfItsAccountingStillAwaitsSettlement() throws Exception {
+		UUID booking = reservation(own, pass, "Finishing session", false);
+		ledger(pass, booking, "ENTRY_RESERVED", -1, -1);
+		move(booking, -1800, 1800);
+		accountHistory("").andExpect(status().isOk()).andExpect(jsonPath("$.entries.totalItems").value(0));
+		move(booking, -3600, -1);
+		accountHistory("").andExpect(status().isOk())
+			.andExpect(jsonPath("$.entries.totalItems").value(1))
+			.andExpect(jsonPath("$.entries.items[0].kind").value("RESERVED"));
+	}
+
+	private void move(UUID reservationId, long startsInSeconds, long endsInSeconds) {
+		jdbc.sql("UPDATE schedule_event SET starts_at = :starts, ends_at = :ends WHERE id = (SELECT event_id FROM reservation WHERE id = :id)")
+			.param("id", reservationId)
+			.param("starts", OffsetDateTime.ofInstant(now.plusSeconds(startsInSeconds), ZoneOffset.UTC))
+			.param("ends", OffsetDateTime.ofInstant(now.plusSeconds(endsInSeconds), ZoneOffset.UTC)).update();
+	}
+
 	private ResultActions accountHistory(String suffix) throws Exception {
 		return mvc.perform(get("/api/v1/me/pass-entry-history" + suffix).header("Authorization", "Bearer parent"));
 	}

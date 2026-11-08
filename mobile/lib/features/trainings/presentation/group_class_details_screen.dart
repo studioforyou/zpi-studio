@@ -96,6 +96,9 @@ class _GroupClassDetailsScreenState
     final l10n = AppLocalizations.of(context);
     final participant = _participantName();
     final reservation = event.ownReservation;
+    // The studio may book a place without a pass entry; cancelling it costs nothing.
+    final withoutPass =
+        reservation != null && reservation.customerPassId == null;
     final isReserved = event.isReserved;
     final waiting = event.isWaitlisted ? event.waitlist.ownEntry : null;
     final canReserve =
@@ -105,6 +108,10 @@ class _GroupClassDetailsScreenState
       const SizedBox(height: 16),
       if (isReserved && reservation != null) ...[
         ClassInfoLine(Icons.check_circle_outline, l10n.classesReserved),
+        if (withoutPass) ...[
+          const SizedBox(height: 12),
+          Text(l10n.classesReservedWithoutPass),
+        ],
         if (reservation.freeCancelUntil case final deadline?
             when reservation.cancellation.allowed &&
                 reservation.cancellation.entryReturned == true) ...[
@@ -112,7 +119,8 @@ class _GroupClassDetailsScreenState
           Text(l10n.classesFreeCancelUntil(classDateTime(deadline))),
         ],
         if (!reservation.cancellation.allowed ||
-            reservation.cancellation.entryReturned != true) ...[
+            (!withoutPass &&
+                reservation.cancellation.entryReturned != true)) ...[
           const SizedBox(height: 12),
           Text(
             reservation.cancellation.allowed
@@ -354,7 +362,9 @@ class _GroupClassDetailsScreenState
       ask: () => _confirm(
         event,
         title: l10n.classesCancelTitle,
-        consequence: reservation.cancellation.entryReturned == true
+        consequence: reservation.customerPassId == null
+            ? l10n.classesCancelWithoutPass
+            : reservation.cancellation.entryReturned == true
             ? l10n.classesCancelReturnsEntry
             : l10n.classesCancelForfeitsEntry,
         keep: l10n.classesKeepReservation,

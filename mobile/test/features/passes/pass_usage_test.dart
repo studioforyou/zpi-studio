@@ -296,6 +296,43 @@ void main() {
   });
 
   testWidgets(
+    'upcoming reservations are opt-in and changing the switch resets paging',
+    (tester) async {
+      final api = _Api()
+        ..load = (query) async => _page(
+          page: query.page,
+          total: 40,
+          pages: 2,
+          items: [
+            _entry(
+              query.includeUpcoming ? 'RESERVED' : 'CONSUMED',
+              title: query.includeUpcoming
+                  ? 'Przyszły trening'
+                  : 'Miniony trening',
+            ),
+          ],
+        );
+      await _pump(tester, api);
+      expect(api.calls.single.includeUpcoming, isFalse);
+      expect(find.text('Miniony trening'), findsOneWidget);
+      expect(find.text('Przyszły trening'), findsNothing);
+      await tester.tap(find.text('Następne'));
+      await tester.pumpAndSettle();
+      expect(api.calls.last.page, 1);
+      await tester.tap(find.byType(SwitchListTile));
+      await tester.pumpAndSettle();
+      expect(api.calls.last.includeUpcoming, isTrue);
+      expect(api.calls.last.page, 0);
+      expect(find.text('Przyszły trening'), findsOneWidget);
+      await tester.tap(find.text('Wyczyść filtry'));
+      await tester.pumpAndSettle();
+      expect(api.calls.last.includeUpcoming, isFalse);
+      expect(find.text('Przyszły trening'), findsNothing);
+      expect(find.text('Miniony trening'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
     'uses a table on a wide screen and separates accounting dates from class dates',
     (tester) async {
       await _pump(tester, _Api(), width: 1000, scale: 1.6);
@@ -336,6 +373,7 @@ void main() {
         from: '2026-11-01T00:00:00Z',
         to: '2026-12-01T00:00:00Z',
         page: 2,
+        includeUpcoming: true,
       );
       final result = await api.fetch(query);
       expect(adapter.request!.method, 'GET');
@@ -343,6 +381,7 @@ void main() {
       expect(adapter.request!.queryParameters, {
         'page': 2,
         'size': 20,
+        'includeUpcoming': true,
         'profileId': 'child',
         'passId': 'pass',
         'productId': 'pt',

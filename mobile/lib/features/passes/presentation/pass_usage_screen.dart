@@ -34,6 +34,7 @@ class _PassUsageScreenState extends ConsumerState<PassUsageScreen>
   String? _productId;
   String? _passId;
   DateTimeRange? _range;
+  bool _includeUpcoming = false;
 
   @override
   bool get wantKeepAlive => widget.embedded;
@@ -63,6 +64,7 @@ class _PassUsageScreenState extends ConsumerState<PassUsageScreen>
             _range!.end.day + 1,
           ).toUtc().toIso8601String(),
     page: page,
+    includeUpcoming: _includeUpcoming,
   );
   PassUsageQuery get _query => _queryFor(_page);
   bool get _sameAccount =>
@@ -71,7 +73,8 @@ class _PassUsageScreenState extends ConsumerState<PassUsageScreen>
       _profileId != null ||
       _productId != null ||
       _passId != null ||
-      _range != null;
+      _range != null ||
+      _includeUpcoming;
 
   @override
   void initState() {
@@ -116,6 +119,7 @@ class _PassUsageScreenState extends ConsumerState<PassUsageScreen>
     _productId = null;
     _passId = null;
     _range = null;
+    _includeUpcoming = false;
     widget.onProfileChanged?.call(null);
   });
 
@@ -358,6 +362,13 @@ class _PassUsageScreenState extends ConsumerState<PassUsageScreen>
                                         _change(() => _passId = null),
                                   ),
                               ],
+                            ),
+                            SwitchListTile.adaptive(
+                              contentPadding: EdgeInsets.zero,
+                              title: Text(l10n.passUsageShowUpcoming),
+                              value: _includeUpcoming,
+                              onChanged: (value) =>
+                                  _change(() => _includeUpcoming = value),
                             ),
                             Padding(
                               padding: const EdgeInsets.symmetric(vertical: 12),

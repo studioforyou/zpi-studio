@@ -7,7 +7,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
-/** Read-only pass and reservation-funding facts for an already-authorized trainer view. */
+/** Read-only pass and reservation-funding facts for an already-authorized staff view (trainers, administrators). */
 public interface TraineePasses {
 
 	Map<UUID, List<Pass>> find(Collection<UUID> customerIds, Set<UUID> serviceTypeIds,

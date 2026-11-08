@@ -59,16 +59,21 @@ class DefaultPassUsageHistory implements PassUsageHistory {
 	}
 
 	@Override
-	public PageResponse<Entry> list(Collection<UUID> passIds, Instant from, Instant to, int page, int size) {
+	public PageResponse<Entry> list(Collection<UUID> passIds, Collection<UUID> excludedReservations,
+			Instant from, Instant to, int page, int size) {
 		if (passIds.isEmpty()) {
 			return PageResponse.of(List.of(), page, size, 0);
 		}
 		String where = " WHERE TRUE" + (from == null ? "" : " AND occurred_at >= :from")
-				+ (to == null ? "" : " AND occurred_at < :to");
+				+ (to == null ? "" : " AND occurred_at < :to")
+				+ (excludedReservations.isEmpty() ? "" : " AND (reservation_id IS NULL OR reservation_id NOT IN (:excluded))");
 		var count = bind(jdbc.sql(GROUPED + "SELECT count(*) FROM usage" + where), passIds, from, to);
+		if (!excludedReservations.isEmpty()) count = count.param("excluded", excludedReservations);
 		long total = count.query(Long.class).single();
-		var items = bind(jdbc.sql(GROUPED + "SELECT * FROM usage" + where
-				+ " ORDER BY occurred_at DESC, id DESC LIMIT :size OFFSET :offset"), passIds, from, to)
+		var pageQuery = bind(jdbc.sql(GROUPED + "SELECT * FROM usage" + where
+				+ " ORDER BY occurred_at DESC, id DESC LIMIT :size OFFSET :offset"), passIds, from, to);
+		if (!excludedReservations.isEmpty()) pageQuery = pageQuery.param("excluded", excludedReservations);
+		var items = pageQuery
 			.param("size", size).param("offset", (long) page * size)
 			.query((row, number) -> {
 				boolean unlimited = row.getBoolean("unlimited");

@@ -3,6 +3,7 @@ import { Alert, Badge, Button, Divider, Drawer, Group, Stack, Text } from '@mant
 import { useQuery } from '@tanstack/react-query';
 import { pl } from '@/shared/i18n/pl';
 import { EventAttendanceSection } from './EventAttendanceSection';
+import { EventReservationsSection } from './EventReservationsSection';
 import { getRecurrenceSeries, scheduleKeys, type ScheduleEvent } from './scheduleApi';
 import { eventTitle, formatTimeRange } from './scheduleFormat';
 import { formatDate, formatDayLong, toZoned } from './studioTime';
@@ -17,6 +18,19 @@ type EventDetailsDrawerProps = {
 };
 
 const statusColors = { SCHEDULED: 'blue', COMPLETED: 'green', CANCELLED: 'gray' } as const;
+
+/**
+ * Places of a scheduled group class are booked and cancelled until it starts; from then on its
+ * participants' attendance is shown instead.
+ */
+function managesBookings(event: ScheduleEvent): boolean {
+  return (
+    event.kind === 'CLASS' &&
+    event.serviceTypeId !== null &&
+    event.status === 'SCHEDULED' &&
+    new Date(event.startsAt).getTime() > Date.now()
+  );
+}
 
 export function EventDetailsDrawer({
   event,
@@ -135,7 +149,11 @@ export function EventDetailsDrawer({
           {event.kind !== 'BLOCK' && (
             <>
               <Divider />
-              <EventAttendanceSection event={event} timeZone={lookups.timeZone} />
+              {managesBookings(event) ? (
+                <EventReservationsSection event={event} />
+              ) : (
+                <EventAttendanceSection event={event} timeZone={lookups.timeZone} />
+              )}
             </>
           )}
           <Divider />

@@ -5,6 +5,7 @@ import 'package:mobile/features/schedule/data/schedule_api.dart';
 import 'package:mobile/features/schedule/presentation/widgets/schedule_calendar.dart';
 import 'package:mobile/features/trainings/data/trainee_overview_api.dart';
 import 'package:mobile/features/trainings/presentation/widgets/trainee_overview_widgets.dart';
+import 'package:mobile/features/trainings/presentation/widgets/trainee_profile_view.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
 
 class TraineeOverviewScreen extends ConsumerWidget {
@@ -81,7 +82,7 @@ class _OverviewScreenState extends ConsumerState<_OverviewScreen>
     final l10n = AppLocalizations.of(context);
     final result = ref.watch(traineeOverviewProvider(widget.query));
     return DefaultTabController(
-      length: 2,
+      length: 3,
       child: Scaffold(
         appBar: AppBar(
           title: Text(
@@ -100,6 +101,7 @@ class _OverviewScreenState extends ConsumerState<_OverviewScreen>
             tabs: [
               Tab(text: l10n.traineeOverviewPackages),
               Tab(text: l10n.traineeOverviewHistory),
+              Tab(text: l10n.traineeProfileTab),
             ],
           ),
         ),
@@ -232,6 +234,7 @@ class _OverviewScreenState extends ConsumerState<_OverviewScreen>
                   ),
                 ),
               ),
+              TraineeProfileView(query: widget.query),
             ],
           ),
         ),

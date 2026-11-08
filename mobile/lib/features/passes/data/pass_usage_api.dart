@@ -13,6 +13,7 @@ typedef PassUsageQuery = ({
   String? passId,
   String? from,
   String? to,
+  bool includeUpcoming,
   int page,
 });
 
@@ -136,6 +137,7 @@ class PassUsageApi {
         queryParameters: {
           'page': query.page,
           'size': 20,
+          'includeUpcoming': query.includeUpcoming,
           if (query.profileId != null) 'profileId': query.profileId,
           if (query.productId != null) 'productId': query.productId,
           if (query.passId != null) 'passId': query.passId,
