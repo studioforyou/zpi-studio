@@ -36,6 +36,15 @@ public enum ErrorCode {
 	/** The staff member's account does not have the TRAINER role. */
 	STAFF_NOT_TRAINER(HttpStatus.UNPROCESSABLE_CONTENT),
 
+	// documents
+	DOCUMENT_ALREADY_ACCEPTED(HttpStatus.CONFLICT),
+	/** A required document cannot be withdrawn by the participant, only an optional consent. */
+	DOCUMENT_REVOCATION_NOT_ALLOWED(HttpStatus.UNPROCESSABLE_CONTENT),
+
+	// staff
+	/** The staff member already has availability on that day at an overlapping time. */
+	AVAILABILITY_OVERLAP(HttpStatus.CONFLICT),
+
 	// offering
 	PASS_VARIANT_ALREADY_EXISTS(HttpStatus.CONFLICT),
 	PASS_PRODUCT_ARCHIVED(HttpStatus.UNPROCESSABLE_CONTENT),
@@ -69,6 +78,32 @@ public enum ErrorCode {
 	RESERVATION_NOT_ACTIVE(HttpStatus.UNPROCESSABLE_CONTENT),
 	CANCELLATION_TERMS_UNAVAILABLE(HttpStatus.UNPROCESSABLE_CONTENT),
 	CANCELLATION_CONSEQUENCE_CHANGED(HttpStatus.CONFLICT),
+
+	// booking: attendance
+	/** Attendance is recorded only once the event has started. */
+	ATTENDANCE_NOT_OPEN(HttpStatus.UNPROCESSABLE_CONTENT),
+	/** The trainer's time to record attendance is over; an administrator corrects it from then on. */
+	ATTENDANCE_CLOSED(HttpStatus.UNPROCESSABLE_CONTENT),
+	/** A cancelled event has no attendance to record. */
+	EVENT_CANCELLED(HttpStatus.UNPROCESSABLE_CONTENT),
+	// booking: waiting list of a full group class
+	/** The participant already has an active reservation for the class. */
+	ALREADY_RESERVED(HttpStatus.CONFLICT),
+	/** The class still has free places, so the participant books one instead of waiting. */
+	CLASS_NOT_FULL(HttpStatus.CONFLICT),
+	WAITLIST_DISABLED(HttpStatus.UNPROCESSABLE_CONTENT),
+	/** The participant is no longer waiting: they got a place or the entry was closed. */
+	WAITLIST_ENTRY_NOT_WAITING(HttpStatus.UNPROCESSABLE_CONTENT),
+	/** No place is offered to the participant to confirm. */
+	WAITLIST_ENTRY_NOT_OFFERED(HttpStatus.UNPROCESSABLE_CONTENT),
+	/** The time to confirm the offered place has run out; it goes to the next participant. */
+	WAITLIST_OFFER_EXPIRED(HttpStatus.CONFLICT),
+	// booking: places booked by administrators
+	/**
+	 * The class is full or the participant does not meet a requirement the administrator has not
+	 * confirmed overriding; the {@code issues} property lists all of them.
+	 */
+	BOOKING_OVERRIDE_REQUIRED(HttpStatus.CONFLICT),
 
 	// scheduling: rooms and the service types allowed in them
 	RESOURCE_NAME_ALREADY_USED(HttpStatus.CONFLICT),

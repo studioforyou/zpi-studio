@@ -1,5 +1,8 @@
 package studioforyou.pl.backend.booking;
 
+import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
@@ -10,7 +13,7 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
 /**
- * Who takes part in events, for other modules' reports.
+ * Who takes part in events, for other modules' reports and notifications.
  */
 @Repository
 public class Participations {
@@ -39,6 +42,35 @@ public class Participations {
 				.set());
 		}
 		return participants;
+	}
+
+	/**
+	 * Reservations that were not cancelled for any of the events, e.g. for reminders to their
+	 * participants.
+	 */
+	public List<ActiveReservation> findActiveReservations(Collection<UUID> eventIds) {
+		List<UUID> ids = List.copyOf(eventIds);
+		List<ActiveReservation> reservations = new ArrayList<>();
+		for (int start = 0; start < ids.size(); start += BATCH_SIZE) {
+			reservations.addAll(jdbc.sql("""
+					SELECT id, event_id, customer_id, created_at
+					FROM reservation
+					WHERE event_id IN (:eventIds) AND status = 'ACTIVE'
+					""")
+				.param("eventIds", ids.subList(start, Math.min(start + BATCH_SIZE, ids.size())))
+				.query((rs, rowNum) -> new ActiveReservation(rs.getObject("id", UUID.class),
+						rs.getObject("event_id", UUID.class), rs.getObject("customer_id", UUID.class),
+						rs.getObject("created_at", OffsetDateTime.class).toInstant()))
+				.list());
+		}
+		return reservations;
+	}
+
+	/**
+	 * @param customerId the participant's customer profile
+	 * @param createdAt when the reservation was made
+	 */
+	public record ActiveReservation(UUID id, UUID eventId, UUID customerId, Instant createdAt) {
 	}
 
 }

@@ -175,6 +175,37 @@ function stubApi(...routes: Route[]) {
       if (url === '/api/v1/training-groups') {
         return json({ items: [] });
       }
+      const attendance = /^\/api\/v1\/schedule-events\/([^/]+)\/attendance$/.exec(url);
+      if (attendance) {
+        return json({
+          eventId: attendance[1],
+          eventKind: 'CLASS',
+          eventStatus: 'SCHEDULED',
+          startsAt: '2026-11-03T17:00:00Z',
+          endsAt: '2026-11-03T18:00:00Z',
+          correctable: false,
+          trainerMarkingClosesAt: '2026-11-04T06:00:00Z',
+          trainerMarkingOpen: false,
+          participants: [],
+        });
+      }
+      const reservations = /^\/api\/v1\/schedule-events\/([^/]+)\/reservations$/.exec(url);
+      if (reservations) {
+        return json({
+          eventId: reservations[1],
+          eventStatus: 'SCHEDULED',
+          startsAt: '2026-11-03T17:00:00Z',
+          capacity: 10,
+          activeReservations: 0,
+          heldOffers: 0,
+          availablePlaces: 10,
+          waitingCount: 0,
+          bookable: true,
+          bookableReason: null,
+          clientBookingReason: null,
+          participants: [],
+        });
+      }
       const rules = /^\/api\/v1\/resources\/([^/]+)\/service-types$/.exec(url);
       if (rules) {
         return json({ items: roomRules[rules[1]] ?? [] });
@@ -475,6 +506,11 @@ test('changes who runs the following occurrences of a series', async () => {
   const drawer = await screen.findByRole('dialog');
   expect(within(drawer).getByText('Anna Kowalska — Prowadzący')).toBeInTheDocument();
   expect(await within(drawer).findByText('co tydzień, wtorek, 18:00')).toBeInTheDocument();
+  // Before the class starts, its places are booked here; attendance follows once it has started.
+  expect(
+    await within(drawer).findByRole('button', { name: 'Zapisz uczestnika' }),
+  ).toBeInTheDocument();
+  expect(within(drawer).queryByText('Uczestnicy i obecność')).not.toBeInTheDocument();
   await userEvent.click(within(drawer).getByRole('button', { name: 'Zmień obsadę i salę' }));
 
   const dialog = await screen.findByRole('dialog', { name: /Obsada i sala/ });

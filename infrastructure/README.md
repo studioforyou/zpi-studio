@@ -15,6 +15,7 @@ infrastructure/
 │       ├── iam.tf           # Backend service account
 │       ├── registry.tf      # Artifact Registry (Docker images)
 │       ├── cloud_run.tf     # Backend service on Cloud Run
+│       ├── scheduler.tf     # Cloud Scheduler job for notifications
 │       ├── variables.tf
 │       ├── outputs.tf
 │       └── versions.tf
@@ -37,10 +38,18 @@ Each environment lives in its own directory under `envs/` and has its own state.
 - Service account for the backend (read access to those secrets, Firebase Authentication Admin for accepting invitations)
 - Artifact Registry repository `zpi-studio`
 - Cloud Run service `zpi-backend-<env>` connected to the database through the VPC
+- Firebase Cloud Messaging access for the backend (`roles/firebasecloudmessaging.admin`)
+- Service account `zpi-scheduler-<env>` and the Cloud Scheduler job `zpi-notifications-<env>`, which calls `POST /internal/jobs/notifications/run` every 5 minutes with that account's OIDC token
 
 The backend receives `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME` and `SPRING_DATASOURCE_PASSWORD` (the last one from Secret Manager), and `FIREBASE_PROJECT_ID` set to the GCP project ID, because Firebase Authentication runs in the same project. Flyway migrations run when the application starts.
 
 For e-mail invitations it also gets `MAIL_PROVIDER=BREVO`, `MAIL_FROM` (the `mail_from` variable, a sender verified in Brevo), `BREVO_API_KEY` (from Secret Manager) and `INVITATION_LINK_BASE_URL`.
+
+### Notifications
+
+The backend sends push notifications through FCM (`PUSH_PROVIDER=FCM`, with the backend service account's credentials). Cloud Run scales to zero and has no CPU between requests, so timed work (class reminders, retries of failed pushes, re-delivery of unfinished domain events) is triggered from outside: Cloud Scheduler calls the job endpoint every 5 minutes (`notification_job_schedule`). The request carries a Google-signed OIDC token of `zpi-scheduler-<env>`. The backend accepts it only with audience `JOBS_OIDC_AUDIENCE` (the service URL) and e-mail `JOBS_OIDC_SERVICE_ACCOUNT`, and Terraform sets both. The service URL is built from the project number (`https://zpi-backend-<env>-<number>.<region>.run.app`), because the service cannot refer to its own `uri`.
+
+To run the job by hand: `gcloud scheduler jobs run zpi-notifications-<env> --location=<region> --project=<project_id>`.
 
 ## Prerequisites
 

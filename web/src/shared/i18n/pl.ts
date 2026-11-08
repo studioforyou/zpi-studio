@@ -1,3 +1,9 @@
+function passEntryCount(count: number): string {
+  const plural = new Intl.PluralRules('pl').select(count);
+  const unit = plural === 'one' ? 'wejście' : plural === 'few' ? 'wejścia' : 'wejść';
+  return `${count} ${unit}`;
+}
+
 export const pl = {
   appName: 'studio4U',
   panelName: 'Panel administratora',
@@ -682,12 +688,44 @@ export const pl = {
       validity: 'Ważność',
       price: 'Cena',
       status: 'Status',
-      actions: 'Akcje',
+      actions: 'Działania',
+    },
+    entriesLeft: (remaining: number, total: number) =>
+      remaining > total ? `${remaining} (pierwotnie ${total})` : `${remaining} z ${total}`,
+    correction: {
+      title: 'Koryguj wejścia',
+      newBalance: 'Nowa liczba pozostałych wejść',
+      balanceHint: 'Wpisz liczbę wejść, które mają pozostać w karnecie.',
+      summary: 'Podsumowanie korekty',
+      before: 'Obecnie',
+      after: 'Po korekcie',
+      difference: (delta: number) => `${delta > 0 ? '+' : '−'}${passEntryCount(Math.abs(delta))}`,
+      noChange: 'Bez zmian',
+      reason: 'Powód (opcjonalnie)',
+      reasonPlaceholder: 'np. Zwrot błędnie odjętego wejścia',
+      historyNote: 'Korekta zostanie zapisana z datą, autorem i podanym powodem.',
+      invalidBalance: 'Podaj całkowitą liczbę pozostałych wejść od 0 do 32767.',
+      unlimited: 'Karnet bez limitu nie wymaga korekty liczby wejść.',
+      save: 'Potwierdź korektę',
+      cancel: 'Anuluj',
+      refresh: 'Odśwież liczbę wejść',
+      refreshed: 'Liczba wejść została odświeżona. Sprawdź ją i wpisz docelową wartość ponownie.',
+      errors: {
+        conflict:
+          'Karnet zmienił się od otwarcia formularza. Odśwież liczbę wejść przed kolejną korektą.',
+        uncertain:
+          'Nie udało się potwierdzić zapisu. Korekta mogła zostać zapisana. Odśwież liczbę wejść i sprawdź ją przed kolejną korektą.',
+        validation:
+          'Nie można wykonać tej korekty. Sprawdź liczbę wejść; uwzględnij też wejścia, które mogą wrócić z rezerwacji.',
+        notFound: 'Nie znaleziono karnetu tego uczestnika. Zamknij formularz i odśwież listę.',
+        accessDenied: 'Nie masz uprawnień do korygowania wejść.',
+        refresh: 'Nie udało się odświeżyć liczby wejść. Spróbuj ponownie.',
+        unknown: 'Nie udało się zapisać korekty. Sprawdź dane i spróbuj ponownie.',
+      },
     },
     extend: 'Przedłuż',
     suspend: 'Zawieś',
     suspendedPeriod: (from: string, to: string) => `Zawieszony ${from} – ${to}`,
-    entriesLeft: (remaining: number, total: number) => `${remaining} z ${total}`,
     statuses: {
       PENDING_PAYMENT: 'Czeka na płatność',
       SCHEDULED: 'Zaplanowany',
@@ -881,6 +919,192 @@ export const pl = {
       notEditable: 'Obsadę można zmieniać tylko w zaplanowanych wydarzeniach.',
       close: 'Zamknij',
     },
+    attendance: {
+      title: 'Uczestnicy i obecność',
+      loading: 'Wczytywanie uczestników…',
+      loadError: 'Nie udało się wczytać uczestników.',
+      retry: 'Spróbuj ponownie',
+      empty: 'Nikt nie jest zapisany na to wydarzenie.',
+      summary: (present: number, absent: number, unmarked: number) =>
+        `Obecni: ${present} · Nieobecni: ${absent} · Bez oznaczenia: ${unmarked}`,
+      notStarted: 'Obecność można korygować po rozpoczęciu wydarzenia.',
+      cancelled: 'Wydarzenie odwołano, więc nie ma obecności do oznaczenia.',
+      trainerUntil: (time: string) => `Prowadzący mogą oznaczać obecność do ${time}.`,
+      trainerClosed: (time: string) =>
+        `Czas prowadzących na oznaczenie obecności minął ${time}. Zmiany wprowadza administrator.`,
+      statuses: { UNMARKED: 'Bez oznaczenia', PRESENT: 'Obecność', ABSENT: 'Nieobecność' },
+      child: 'Dziecko',
+      markedBy: (who: string | null, time: string) => (who ? `${who}, ${time}` : time),
+      correct: 'Koryguj',
+      correctFor: (name: string) => `Koryguj obecność: ${name}`,
+      history: (count: number) => `Historia zmian (${count})`,
+      historyKinds: {
+        MARKED: 'Prowadzący',
+        DEFAULTED: 'Oznaczenie zajęć jako odbytych',
+        CORRECTED: 'Korekta',
+      },
+      change: (from: string, to: string) => `${from} → ${to}`,
+      unknownAuthor: 'nieznana osoba',
+      reasonLabel: (reason: string) => `Powód: ${reason}`,
+      correction: {
+        title: 'Korekta obecności',
+        attendance: 'Obecność',
+        current: (status: string) => `Obecnie: ${status}`,
+        reason: 'Powód (opcjonalnie)',
+        reasonPlaceholder: 'np. uczestnik przyszedł spóźniony',
+        passNote:
+          'Wejście z karnetu jest rozliczane przy pierwszym oznaczeniu obecności lub nieobecności, więc ta zmiana nie zmienia salda. W razie potrzeby skoryguj wejścia karnetu osobno.',
+        historyNote: 'Poprzednia wartość, Ty, czas i powód zostaną zapisane w historii zmian.',
+        unchanged: 'Wybierz inną wartość niż obecna.',
+        cancel: 'Anuluj',
+        save: 'Zapisz korektę',
+        errors: {
+          conflict:
+            'Obecność została w międzyczasie zmieniona. Lista została odświeżona — sprawdź stan i zapisz ponownie.',
+          notOpen: 'Wydarzenie jeszcze się nie rozpoczęło.',
+          cancelled: 'Wydarzenie zostało odwołane.',
+          notActive: 'Uczestnik wypisał się z wydarzenia.',
+          validation: 'Sprawdź dane korekty. Powód może mieć najwyżej 500 znaków.',
+          unknown: 'Nie udało się zapisać korekty. Spróbuj ponownie.',
+        },
+      },
+    },
+    reservations: {
+      title: 'Uczestnicy',
+      loading: 'Wczytywanie uczestników…',
+      loadError: 'Nie udało się wczytać uczestników.',
+      retry: 'Spróbuj ponownie',
+      empty: 'Nikt nie jest jeszcze zapisany na te zajęcia.',
+      places: (active: number, capacity: number | null) =>
+        capacity === null
+          ? `Zapisanych: ${active} (bez limitu miejsc)`
+          : `Zapisanych: ${active} z ${capacity}`,
+      overCapacity: (count: number) => `ponad limit: ${count}`,
+      heldOffers: (count: number) =>
+        `miejsca czekające na potwierdzenie z listy rezerwowej: ${count}`,
+      waiting: (count: number) => `Na liście rezerwowej: ${count}`,
+      clientWindow: {
+        BOOKING_NOT_OPEN:
+          'Zapisy dla klientów jeszcze się nie otworzyły. Jako administrator możesz zapisać uczestnika już teraz.',
+        BOOKING_CLOSED:
+          'Zapisy dla klientów są już zamknięte. Jako administrator możesz zapisać uczestnika do startu zajęć.',
+      },
+      notBookable:
+        'Zapisywać i wypisywać można tylko na zaplanowane zajęcia, które jeszcze się nie zaczęły.',
+      book: 'Zapisz uczestnika',
+      cancel: 'Wypisz',
+      cancelFor: (name: string) => `Wypisz: ${name}`,
+      child: 'Dziecko',
+      noPass: 'bez karnetu',
+      sources: {
+        SELF: 'zapis samodzielny',
+        GUARDIAN: 'zapis przez opiekuna',
+        STAFF: 'zapis przez administratora',
+        WAITLIST: 'z listy rezerwowej',
+        GROUP_AUTO: 'zapis automatyczny',
+      },
+      bookedBy: (who: string | null) => (who ? `zapisał(a): ${who}` : 'zapis przez administratora'),
+      reasonLabel: (reason: string) => `Powód: ${reason}`,
+      overridden: (issues: string) => `Zapisano mimo: ${issues}`,
+      issueShort: {
+        CLASS_FULL: 'braku miejsc',
+        SERVICE_TYPE_UNAVAILABLE: 'usługi wycofanej z oferty',
+        AGE_RESTRICTION: 'limitu wieku',
+        REQUIRED_DOCUMENTS_MISSING: 'braku wymaganych dokumentów',
+        NO_ELIGIBLE_PASS: 'braku karnetu',
+      },
+      issues: {
+        CLASS_FULL: 'Zajęcia są pełne. Zapis przekroczy limit miejsc.',
+        SERVICE_TYPE_UNAVAILABLE: 'Usługa tych zajęć nie jest już w ofercie.',
+        AGE_RESTRICTION:
+          'Wiek uczestnika (albo brak daty urodzenia) nie mieści się w limicie wieku usługi.',
+        REQUIRED_DOCUMENTS_MISSING:
+          'Uczestnik nie zaakceptował dokumentów wymaganych na te zajęcia.',
+        NO_ELIGIBLE_PASS:
+          'Uczestnik nie ma karnetu, który obejmuje te zajęcia. Zostanie zapisany bez pobrania wejścia.',
+      },
+      booking: {
+        title: 'Zapisz uczestnika na zajęcia',
+        participant: 'Uczestnik',
+        participantPlaceholder: 'Wpisz imię, nazwisko, telefon lub e-mail',
+        noParticipants: 'Nie znaleziono uczestników.',
+        searchError: 'Nie udało się wyszukać uczestników.',
+        noEmail: 'brak adresu e-mail',
+        guardianEmail: (email: string) => `dziecko · ${email}`,
+        checking: 'Sprawdzanie, czy uczestnik może zostać zapisany…',
+        optionsError: 'Nie udało się sprawdzić warunków zapisu.',
+        blocked: {
+          ALREADY_RESERVED: 'Ten uczestnik jest już zapisany na te zajęcia.',
+          CUSTOMER_NOT_ACTIVE: 'Profil uczestnika jest nieaktywny.',
+          EVENT_NOT_BOOKABLE: 'Zajęcia są odwołane, odbyte albo już się zaczęły.',
+        } as Record<string, string>,
+        waitlist: {
+          WAITING: 'Uczestnik czeka na liście rezerwowej. Zapis usunie go z kolejki.',
+          OFFERED:
+            'Uczestnik ma zaproponowane miejsce z listy rezerwowej. Zapis wykorzysta to miejsce.',
+        },
+        pass: 'Karnet',
+        passPlaceholder: 'Wybierz karnet, z którego pobrać wejście',
+        passLabel: (name: string, remaining: number | null, validUntil: string | null) =>
+          [
+            name,
+            remaining === null ? 'bez limitu wejść' : `zostało: ${passEntryCount(remaining)}`,
+            validUntil ? `ważny do ${validUntil}` : null,
+          ]
+            .filter(Boolean)
+            .join(' · '),
+        issuesTitle: 'Wymaga potwierdzenia',
+        confirmIssues: 'Rozumiem i zapisuję uczestnika mimo to',
+        reason: 'Powód (opcjonalnie)',
+        reasonPlaceholder: 'np. ustalone telefonicznie',
+        historyNote: 'Zapis, Ty, czas i powód zostaną zapisane w historii.',
+        required: 'To pole jest wymagane.',
+        cancel: 'Anuluj',
+        save: 'Zapisz',
+        errors: {
+          override:
+            'Warunki zapisu zmieniły się w międzyczasie. Sprawdź aktualne ostrzeżenia i potwierdź je ponownie.',
+          notBookable: 'Zajęcia są odwołane, odbyte albo już się zaczęły.',
+          notActive: 'Profil uczestnika jest nieaktywny.',
+          pass: 'Wybranego karnetu nie można użyć na te zajęcia. Wybierz inny.',
+          validation: 'Sprawdź dane zapisu. Powód może mieć najwyżej 500 znaków.',
+          notFound: 'Nie znaleziono zajęć, uczestnika albo karnetu.',
+          unknown: 'Nie udało się zapisać uczestnika. Spróbuj ponownie.',
+        },
+      },
+      cancellation: {
+        title: 'Wypisz uczestnika z zajęć',
+        pass: (name: string | null) => `Karnet: ${name ?? 'bez nazwy'}`,
+        noPass: 'Uczestnik jest zapisany bez karnetu, więc nie ma wejścia do zwrotu.',
+        suggested: {
+          returned: 'Według zasad odwołania wejście wraca na karnet.',
+          forfeited: 'Według zasad odwołania to późne wypisanie, więc wejście przepada.',
+          unknown:
+            'Rezerwacja nie ma zapisanych zasad odwołania. Zdecyduj, czy wejście wraca na karnet.',
+        },
+        participantCannot: 'Uczestnik nie mógłby się już wypisać sam w aplikacji.',
+        entry: 'Wejście z karnetu',
+        returnEntry: 'Zwróć wejście na karnet',
+        forfeitEntry: 'Wejście przepada',
+        reason: 'Powód (opcjonalnie)',
+        reasonPlaceholder: 'np. choroba zgłoszona telefonicznie',
+        waitlistNote:
+          'Zwolnione miejsce od razu trafi do pierwszej osoby z listy rezerwowej, która spełnia warunki.',
+        historyNote: 'Wypisanie, Ty, czas i powód zostaną zapisane w historii.',
+        required: 'Zdecyduj, czy wejście wraca na karnet.',
+        cancel: 'Anuluj',
+        save: 'Wypisz',
+        errors: {
+          conflict:
+            'Rezerwacja zmieniła się w międzyczasie. Lista została odświeżona. Sprawdź stan i spróbuj ponownie.',
+          started: 'Zajęcia już się zaczęły. Wypisać można tylko przed ich startem.',
+          notBookable: 'Zajęcia są odwołane albo odbyte.',
+          validation: 'Sprawdź dane wypisu. Powód może mieć najwyżej 500 znaków.',
+          notFound: 'Nie znaleziono tej rezerwacji.',
+          unknown: 'Nie udało się wypisać uczestnika. Spróbuj ponownie.',
+        },
+      },
+    },
     assignmentFields: {
       leads: 'Prowadzący',
       assistants: 'Asystenci',
@@ -988,6 +1212,97 @@ export const pl = {
         'Sprawdź dane: termin musi być w przyszłości, a limit miejsc nie może przekraczać pojemności sal.',
       network: 'Nie można połączyć się z backendem.',
       unexpected: 'Wystąpił nieoczekiwany błąd.',
+    },
+  },
+  communication: {
+    title: 'Komunikacja',
+    sectionsLabel: 'Sekcje komunikacji',
+    tabs: {
+      notifications: 'Powiadomienia',
+    },
+    notifications: {
+      title: 'Powiadomienia w aplikacji mobilnej',
+      intro:
+        'Wybierz, które powiadomienia push studio wysyła, kiedy i z jaką treścią. Zmiany dotyczą powiadomień tworzonych od teraz.',
+      loading: 'Wczytywanie powiadomień…',
+      loadError: 'Nie udało się wczytać ustawień powiadomień.',
+      toggleError: 'Nie udało się zmienić ustawienia. Spróbuj ponownie.',
+      retry: 'Spróbuj ponownie',
+      empty: 'Brak rodzajów powiadomień.',
+      enabled: 'Wysyłane',
+      leadTimes: 'Przypomnienia',
+      content: 'Treść powiadomienia',
+      before: (time: string) => `${time} przed`,
+      edit: 'Edytuj',
+      types: {
+        CLASS_REMINDER: {
+          name: 'Przypomnienie o zajęciach',
+          description:
+            'Wysyłane uczestnikom z aktywną rezerwacją przed zajęciami lub treningiem. Powiadomienia dziecka dostaje rodzic.',
+        },
+      },
+      placeholders: {
+        CLASS_REMINDER: {
+          zajęcia: {
+            label: 'Nazwa zajęć',
+            description: 'Nazwa zajęć lub treningu',
+            example: 'Pole dance',
+          },
+          dzień: {
+            label: 'Dzień',
+            description: '„dziś”, „jutro” albo dzień tygodnia z datą, np. „wtorek 12.11”',
+            example: 'jutro',
+          },
+          godzina: {
+            label: 'Godzina',
+            description: 'Godzina rozpoczęcia, np. „18:00”',
+            example: '18:00',
+          },
+          sala: {
+            label: 'Sala',
+            description: 'Nazwa sali albo „studio”, gdy sala nie jest przypisana',
+            example: 'Sala 1',
+          },
+          'ile przed': {
+            label: 'Ile czasu przed',
+            description: 'Ile czasu przed zajęciami wysyłane jest przypomnienie, np. „2 godz.”',
+            example: '2 godz.',
+          },
+        },
+      },
+      form: {
+        leadTimes: 'Kiedy wysłać',
+        leadTimesHint: 'Od 1 do 5 przypomnień, od 5 minut do 14 dni przed rozpoczęciem.',
+        leadTimeAmount: (n: number) => `Przypomnienie ${n}: ile`,
+        leadTimeUnit: (n: number) => `Przypomnienie ${n}: jednostka`,
+        removeLeadTime: (n: number) => `Usuń przypomnienie ${n}`,
+        addLeadTime: 'Dodaj przypomnienie',
+        beforeStart: 'przed rozpoczęciem',
+        units: { MINUTES: 'minut', HOURS: 'godzin', DAYS: 'dni' },
+        title: 'Tytuł',
+        body: 'Treść',
+        placeholders: 'Wstaw do tekstu',
+        placeholdersHint:
+          'Kliknij, aby wstawić pole w miejscu kursora w tytule lub treści. Przy wysyłce aplikacja zamieni je na prawdziwe dane.',
+        insertPlaceholder: (label: string) => `Wstaw: ${label}`,
+        preview: 'Podgląd',
+        previewHint: 'Tak klient zobaczy powiadomienie (przykładowe dane).',
+        required: 'To pole jest wymagane.',
+        tooLong: (max: number) => `Maksymalnie ${max} znaków.`,
+        unknownPlaceholders: (names: string[]) =>
+          names.length === 1
+            ? `Nieznane pole ${names[0]}. Wstaw pole przyciskiem poniżej.`
+            : `Nieznane pola ${names.join(', ')}. Wstaw pola przyciskami poniżej.`,
+        leadTimesRequired: 'Dodaj co najmniej jedno przypomnienie.',
+        leadTimeInvalid: 'Podaj liczbę całkowitą większą od zera.',
+        leadTimeRange: 'Przypomnienie musi być od 5 minut do 14 dni przed rozpoczęciem.',
+        leadTimesDistinct: 'Przypomnienia muszą mieć różne terminy.',
+        invalidValue: 'Nieprawidłowa wartość.',
+        saveError: 'Nie udało się zapisać ustawień.',
+        network: 'Nie można połączyć się z backendem.',
+        cancel: 'Anuluj',
+        save: 'Zapisz',
+      },
     },
   },
   system: {

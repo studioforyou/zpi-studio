@@ -21,7 +21,7 @@ final class GroupClassDtos {
 			Instant startsAt, Instant endsAt, String status, Integer capacity, int activeReservations,
 			@Schema(description = "null means that the event has no capacity limit.") Integer availablePlaces,
 			List<InstructorResponse> staff, List<RoomResponse> resources, ReservationResponse ownReservation,
-			BookingAvailability booking, int version) {
+			BookingAvailability booking, WaitlistAvailability waitlist, int version) {
 	}
 
 	@Schema(name = "GroupClassParticipant")
@@ -46,6 +46,40 @@ final class GroupClassDtos {
 	record EligiblePassResponse(UUID id, String productName, Short entriesRemaining, LocalDate validUntil) {
 	}
 
+	@Schema(name = "GroupClassWaitlist")
+	record WaitlistAvailability(
+			@Schema(description = "Whether this profile can join the waiting list now: the class is full and the profile could book it otherwise.")
+			boolean allowed,
+			@Schema(description = "Stable reason code, null when joining is allowed. CLASS_NOT_FULL means a place can be booked.")
+			String reason,
+			@Schema(description = "Participants waiting for a place.") int waitingCount,
+			@Schema(description = "Minutes a participant has to confirm a place offered from the list; 0 books it at once.")
+			int confirmationMinutes,
+			@Schema(description = "This profile's place in the queue or its offered place; null when it is not on the list.")
+			WaitlistEntryResponse ownEntry) {
+	}
+
+	@Schema(name = "OwnGroupClassWaitlistEntry")
+	record WaitlistEntryResponse(UUID id, UUID eventId, UUID customerId,
+			@Schema(description = "WAITING; OFFERED (a freed place is held until offerExpiresAt for the participant to confirm); PROMOTED (got the place from the list); BOOKED (booked a free place directly); CANCELLED (left the list); or EXPIRED (did not confirm in time).")
+			String status,
+			@Schema(description = "The pass chosen when joining. A promotion charges it or, when it can no longer be used, another eligible pass.")
+			UUID customerPassId, Instant joinedAt, Instant resolvedAt,
+			@Schema(description = "The reservation the participant got while on the list; null otherwise.") UUID reservationId,
+			@Schema(description = "1-based place among the participants still waiting; null when a place is offered or the entry is resolved.")
+			Integer position,
+			@Schema(description = "Until when an offered place can be confirmed; null unless OFFERED.") Instant offerExpiresAt,
+			@Schema(description = "Why the participant would be skipped if a place freed up now, with the booking reason codes or CUSTOMER_NOT_ACTIVE; null when they would get it or no longer wait.")
+			String promotionBlockedReason) {
+
+		static WaitlistEntryResponse of(WaitlistStore.WaitlistEntry entry, Integer position, String promotionBlockedReason) {
+			return new WaitlistEntryResponse(entry.id(), entry.eventId(), entry.customerId(), entry.status(),
+					entry.customerPassId(), entry.joinedAt(), entry.resolvedAt(), entry.reservationId(), position,
+					WaitlistStore.OFFERED.equals(entry.status()) ? entry.offerExpiresAt() : null, promotionBlockedReason);
+		}
+
+	}
+
 	@Schema(name = "OwnGroupClassReservation")
 	record ReservationResponse(UUID id, UUID eventId, UUID customerId, String status, UUID customerPassId,
 			Instant freeCancelUntil, Instant cancelledAt, String cancelKind,
@@ -55,7 +89,8 @@ final class GroupClassDtos {
 
 	@Schema(name = "GroupClassCancellationAvailability")
 	record CancellationAvailability(boolean allowed, String reason,
-			@Schema(description = "Current consequence to confirm; null when cancellation is unavailable.")
+			@Schema(description = "Current consequence to confirm; null when cancellation is unavailable or the reservation "
+					+ "has no pass (an administrator booked it without a pass entry, so there is no entry to return).")
 			Boolean entryReturned) {
 	}
 
@@ -73,10 +108,17 @@ final class GroupClassDtos {
 	record BookRequest(@NotNull UUID customerPassId) {
 	}
 
+	@Schema(name = "JoinGroupClassWaitlistRequest")
+	record JoinWaitlistRequest(
+			@Schema(description = "One of the profile's eligible passes, charged when a place is given from the list.")
+			@NotNull UUID customerPassId) {
+	}
+
 	@Schema(name = "CancelOwnGroupClassReservationRequest")
 	record CancelRequest(@NotNull @Min(0) Integer expectedVersion,
-			@Schema(description = "The entry-return consequence the customer confirmed. A changed consequence rejects the cancellation.")
-			@NotNull Boolean expectedEntryReturned) {
+			@Schema(description = "The entry-return consequence the customer confirmed: cancellation.entryReturned, null for a "
+					+ "reservation without a pass. A changed consequence rejects the cancellation.")
+			Boolean expectedEntryReturned) {
 	}
 
 }

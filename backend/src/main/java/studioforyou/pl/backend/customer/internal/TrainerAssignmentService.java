@@ -165,6 +165,39 @@ public class TrainerAssignmentService implements OwnTrainees {
 	}
 
 	/**
+	 * Personal and contact details of an active participant the signed-in trainer currently works
+	 * with. An ended assignment or an inactive profile is reported as not found, so the details
+	 * stop being available as soon as the cooperation ends.
+	 */
+	@Transactional(readOnly = true)
+	public TraineeProfile getOwnTraineeProfile(UUID customerId, UUID trainerAccountId) {
+		AssignmentRow assignment = findActive(customerId, ownStaffId(trainerAccountId))
+			.orElseThrow(TrainerAssignmentService::notAssigned);
+		ProfileRow profile = jdbc.sql("""
+				SELECT id, kind, first_name, last_name, birth_date, phone, emergency_contact_name, emergency_phone
+				FROM customer_profile
+				WHERE id = :id AND status = 'ACTIVE'
+				""")
+			.param("id", customerId)
+			.query(ProfileRow.class)
+			.optional()
+			.orElseThrow(TrainerAssignmentService::notAssigned);
+		List<Guardian> guardians = jdbc.sql("""
+				SELECT guardian.id, guardian.first_name, guardian.last_name, guardian.phone, g.relation
+				FROM guardianship g
+				JOIN customer_profile guardian ON guardian.id = g.guardian_id AND guardian.status = 'ACTIVE'
+				WHERE g.child_id = :id AND g.ended_at IS NULL
+				ORDER BY g.created_at, guardian.id
+				""")
+			.param("id", customerId)
+			.query(Guardian.class)
+			.list();
+		return new TraineeProfile(profile.id(), profile.kind(), profile.firstName(), profile.lastName(),
+				profile.birthDate(), profile.phone(), profile.emergencyContactName(), profile.emergencyPhone(),
+				guardians, assignment.startedAt().toInstant());
+	}
+
+	/**
 	 * Assigns an active participant to the signed-in trainer, who is also recorded as the one
 	 * who made the assignment. The rules are the same as when an administrator assigns them.
 	 */
@@ -302,6 +335,11 @@ public class TrainerAssignmentService implements OwnTrainees {
 
 	}
 
+	private record ProfileRow(UUID id, CustomerKind kind, String firstName, String lastName, LocalDate birthDate,
+			String phone, String emergencyContactName, String emergencyPhone) {
+
+	}
+
 	private record TraineeRow(UUID id, CustomerKind kind, String firstName, String lastName, LocalDate birthDate,
 			boolean active, UUID accountId, UUID assignedBy, OffsetDateTime startedAt) {
 
@@ -333,5 +371,25 @@ public class TrainerAssignmentService implements OwnTrainees {
 
 	}
 
-}
+	/**
+	 * What a trainer may know about a participant they work with: no e-mail address and nothing
+	 * about health.
+	 *
+	 * @param birthDate the date of birth, or {@code null} if unknown
+	 * @param phone the participant's phone number, or {@code null}
+	 * @param emergencyContactName the emergency contact, or {@code null} if none
+	 * @param guardians current guardians of a child; empty for an adult
+	 * @param assignedAt when the cooperation started
+	 */
+	public record TraineeProfile(UUID id, CustomerKind kind, String firstName, String lastName, LocalDate birthDate,
+			String phone, String emergencyContactName, String emergencyPhone, List<Guardian> guardians,
+			Instant assignedAt) {
 
+	}
+
+	/** A current guardian of a child participant. */
+	public record Guardian(UUID id, String firstName, String lastName, String phone, String relation) {
+
+	}
+
+}

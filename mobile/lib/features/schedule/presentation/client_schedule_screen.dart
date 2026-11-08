@@ -5,6 +5,8 @@ import 'package:mobile/core/auth/auth_controller.dart';
 import 'package:mobile/core/auth/session.dart';
 import 'package:mobile/features/schedule/data/client_schedule_api.dart';
 import 'package:mobile/features/schedule/data/schedule_api.dart';
+import 'package:mobile/features/schedule/data/schedule_service_types.dart';
+import 'package:mobile/features/schedule/data/studio_trainers.dart';
 import 'package:mobile/features/schedule/presentation/client_schedule_filter.dart';
 import 'package:mobile/features/schedule/presentation/widgets/client_schedule_event_tile.dart';
 import 'package:mobile/features/schedule/presentation/widgets/client_schedule_filters.dart';
@@ -111,6 +113,12 @@ class _ClientCalendarState extends ConsumerState<_ClientCalendar> {
     await request;
   }
 
+  /// The service catalogue and the trainers for the offer's filters,
+  /// refreshed on every build; empty while they load or when they cannot be
+  /// loaded.
+  Map<String, ScheduleServiceType> _serviceTypes = const {};
+  List<StudioTrainer> _trainers = const [];
+
   Widget _filters(BuildContext context, List<ScheduleEvent> events) {
     final classes = _classes(events);
     final l10n = AppLocalizations.of(context);
@@ -134,7 +142,8 @@ class _ClientCalendarState extends ConsumerState<_ClientCalendar> {
         for (final id in _filter.instructors)
           if (_instructorLabels[id] case final String label) id: label,
       },
-      reservationsOnly: widget.reservationsOnly,
+      serviceTypes: _serviceTypes,
+      trainers: _trainers,
       onChanged: (filter) {
         if (mounted && isCurrentBookingScope(ref, widget.scope)) {
           setState(() => _filter = filter);
@@ -146,6 +155,14 @@ class _ClientCalendarState extends ConsumerState<_ClientCalendar> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    // Own reservations are few, so they have no filters.
+    final filtered = !widget.reservationsOnly;
+    final serviceTypes = _serviceTypes = filtered
+        ? ref.watch(scheduleServiceTypesProvider).value ?? const {}
+        : const <String, ScheduleServiceType>{};
+    _trainers = filtered
+        ? ref.watch(studioTrainersProvider).value ?? const []
+        : const [];
     return Column(
       children: [
         if (widget.session.profiles.length > 1)
@@ -192,8 +209,8 @@ class _ClientCalendarState extends ConsumerState<_ClientCalendar> {
             )),
             where: (event) =>
                 event is ClientScheduleEvent &&
-                _filter.matches(event.groupClass),
-            filtersBuilder: _filters,
+                (!filtered || _filter.matches(event.groupClass, serviceTypes)),
+            filtersBuilder: filtered ? _filters : null,
             eventBuilder: (context, event) {
               final groupClass = (event as ClientScheduleEvent).groupClass;
               return ClientScheduleEventTile(

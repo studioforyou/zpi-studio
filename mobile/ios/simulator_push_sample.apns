@@ -1,0 +1,13 @@
+{
+  "Simulator Target Bundle": "pl.studioforyou.mobile",
+  "aps": {
+    "alert": {
+      "title": "Przypomnienie o zajęciach",
+      "body": "Pole dance: jutro, godz. 18:00. Sala: Duża."
+    },
+    "sound": "default"
+  },
+  "type": "CLASS_REMINDER",
+  "notificationId": "00000000-0000-0000-0000-000000000000",
+  "profileId": "00000000-0000-0000-0000-000000000000"
+}

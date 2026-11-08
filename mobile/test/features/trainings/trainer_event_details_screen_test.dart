@@ -50,16 +50,75 @@ class _FakeParticipantsApi implements EventParticipantsApi {
   _FakeParticipantsApi(this.participants);
 
   List<EventParticipant> participants;
+  EventStatus status = EventStatus.scheduled;
+
+  /// The trainer's time: before it by default, so attendance cannot be marked.
+  DateTime opensAt = DateTime(2100);
+  DateTime closesAt = DateTime(2100, 1, 2);
+  bool markingOpen = false;
+
   bool fails = false;
+  AttendanceException? rejection;
   int calls = 0;
+  final marks = <Map<String, Attendance>>[];
+  int completions = 0;
+
+  EventAttendance get _sheet => EventAttendance(
+    eventStatus: status,
+    markingOpensAt: opensAt,
+    markingClosesAt: closesAt,
+    markingOpen: markingOpen,
+    participants: participants,
+  );
+
+  /// Opens the trainer's time, as after the start of the class.
+  void open() {
+    opensAt = DateTime.now().subtract(const Duration(hours: 1));
+    closesAt = DateTime(2100);
+    markingOpen = true;
+  }
 
   @override
-  Future<List<EventParticipant>> fetch(String eventId) async {
+  Future<EventAttendance> fetchAttendance(String eventId) async {
     calls++;
     if (fails) {
-      throw const ApiException(statusCode: 500, message: 'Server error');
+      throw const AttendanceException(statusCode: 500);
     }
-    return participants;
+    return _sheet;
+  }
+
+  @override
+  Future<EventAttendance> mark(
+    String eventId,
+    Map<String, Attendance> marks,
+  ) async {
+    if (rejection case final rejection?) throw rejection;
+    this.marks.add(marks);
+    participants = [
+      for (final participant in participants)
+        _participant(
+          participant.displayName,
+          attendance:
+              marks[participant.reservationId] ?? participant.attendance,
+        ),
+    ];
+    return _sheet;
+  }
+
+  @override
+  Future<EventAttendance> complete(String eventId) async {
+    completions++;
+    status = EventStatus.completed;
+    participants = [
+      for (final participant in participants)
+        _participant(
+          participant.displayName,
+          attendance: participant.attendance == Attendance.unmarked
+              ? Attendance.present
+              : participant.attendance,
+        ),
+    ];
+    return _sheet;
   }
 }
 
@@ -88,6 +147,7 @@ EventParticipant _participant(
   String name, {
   bool isChild = false,
   DateTime? birthDate,
+  Attendance attendance = Attendance.unmarked,
 }) => EventParticipant(
   reservationId: 'reservation-$name',
   customerId: 'customer-$name',
@@ -95,6 +155,7 @@ EventParticipant _participant(
   isChild: isChild,
   birthDate: birthDate,
   bookedAt: DateTime(2026, 10, 30, 12),
+  attendance: attendance,
 );
 
 void main() {
@@ -228,5 +289,127 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Pole dance dla dzieci'), findsOneWidget);
+  });
+
+  testWidgets('the trainer records attendance once the class has started', (
+    tester,
+  ) async {
+    participantsApi
+      ..participants = [_participant('Ola Nowak'), _participant('Piotr Żak')]
+      ..open();
+    await pumpScreen(tester);
+
+    expect(
+      find.textContaining('Obecność możesz oznaczać i zmieniać do'),
+      findsOne,
+    );
+    expect(find.text('Obecni: 0 · Nieobecni: 0 · Bez oznaczenia: 2'), findsOne);
+
+    await tester.tap(find.byIcon(Icons.check).first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byIcon(Icons.close).last);
+    await tester.pumpAndSettle();
+
+    expect(participantsApi.marks, [
+      {'reservation-Ola Nowak': Attendance.present},
+      {'reservation-Piotr Żak': Attendance.absent},
+    ]);
+    expect(find.text('Obecni: 1 · Nieobecni: 1 · Bez oznaczenia: 0'), findsOne);
+  });
+
+  testWidgets('marking the class as held records the unmarked as present', (
+    tester,
+  ) async {
+    participantsApi
+      ..participants = [
+        _participant('Ola Nowak', attendance: Attendance.absent),
+        _participant('Piotr Żak'),
+      ]
+      ..open();
+    await pumpScreen(tester);
+
+    await tester.tap(find.text('Oznacz zajęcia jako odbyte'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text(
+        '1 osoba bez oznaczonej obecności zostanie oznaczona jako obecna.',
+      ),
+      findsOne,
+    );
+    await tester.tap(find.text('Oznacz jako odbyte'));
+    await tester.pumpAndSettle();
+
+    expect(participantsApi.completions, 1);
+    expect(find.text('Zajęcia oznaczone jako odbyte.'), findsOne);
+    expect(find.text('Obecni: 1 · Nieobecni: 1 · Bez oznaczenia: 0'), findsOne);
+    expect(find.text('Oznacz zajęcia jako odbyte'), findsNothing);
+  });
+
+  testWidgets('dismissing the confirmation keeps the class unchanged', (
+    tester,
+  ) async {
+    participantsApi
+      ..participants = [_participant('Piotr Żak')]
+      ..open();
+    await pumpScreen(tester);
+
+    await tester.tap(find.text('Oznacz zajęcia jako odbyte'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Wróć'));
+    await tester.pumpAndSettle();
+
+    expect(participantsApi.completions, 0);
+    expect(find.text('Oznacz zajęcia jako odbyte'), findsOne);
+  });
+
+  testWidgets('after the trainer\'s time attendance can only be read', (
+    tester,
+  ) async {
+    participantsApi
+      ..participants = [
+        _participant('Ola Nowak', attendance: Attendance.present),
+        _participant('Piotr Żak'),
+      ]
+      ..opensAt = DateTime(2026, 11, 3, 18)
+      ..closesAt = DateTime(2026, 11, 4, 7);
+    await pumpScreen(tester);
+
+    expect(
+      find.text(
+        'Czas na oznaczenie obecności minął. Korekty wprowadza administrator.',
+      ),
+      findsOne,
+    );
+    expect(find.byType(SegmentedButton<Attendance>), findsOne);
+    await tester.tap(find.byIcon(Icons.close));
+    await tester.pumpAndSettle();
+    expect(participantsApi.marks, isEmpty);
+    expect(find.text('Oznacz zajęcia jako odbyte'), findsNothing);
+  });
+
+  testWidgets('a rejected mark is explained and the sheet loaded again', (
+    tester,
+  ) async {
+    participantsApi
+      ..participants = [_participant('Ola Nowak')]
+      ..open()
+      ..rejection = const AttendanceException(
+        statusCode: 422,
+        code: 'ATTENDANCE_CLOSED',
+      );
+    await pumpScreen(tester);
+    expect(participantsApi.calls, 1);
+
+    await tester.tap(find.byIcon(Icons.check));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text(
+        'Czas na oznaczenie obecności minął. Korekty wprowadza administrator.',
+      ),
+      findsOne,
+    );
+    expect(participantsApi.calls, 2);
   });
 }

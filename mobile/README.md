@@ -99,7 +99,11 @@ The client **Oferta** and **Mój grafik** tabs directly reuse the trainer's `Sch
 
 Calendar screens, adapters, filters and the timeline live in `lib/features/schedule/`. Booking details and reusable booking widgets live in `lib/features/trainings/presentation/`, with widgets in its `widgets/` directory. The feature is based on main containing #108 (PR #216, `ac773de`).
 
-The screens use the profile-scoped group-class booking API. They support choosing an eligible pass, booking, cancellation with a short entry consequence before confirmation, and viewing co-participants while booked. Data is scoped to both account and selected participant; switching to a child cannot reuse another participant's action. Successful mutations refresh class availability, own reservations and pass balances.
+The screens use the profile-scoped group-class booking API. They support choosing an eligible pass, booking, cancellation with a short entry consequence before confirmation, and viewing co-participants while booked. Data is scoped to both account and selected participant; switching to a child cannot reuse another participant's action. Successful mutations refresh class availability, own reservations and pass balances. A place the studio booked for the participant (#110) appears among their reservations, also for a private class; one booked without a pass says so (*Studio zapisało to miejsce bez karnetu.*) and its cancellation has no entry consequence (`cancellation.entryReturned` is `null` and is sent back as such).
+
+Waiting list (#94): on a full class the details screen offers **Dołącz do listy rezerwowej** instead of the disabled **Zapisz się**, with the same pass choice as booking (nothing is charged on joining) or the reason why joining is not possible. A waiting participant sees their position (`Pozycja na liście: 2 z 3`), a warning when a freed place would currently skip them (`promotionBlockedReason`, with the documents shortcut when needed) and **Opuść listę rezerwową** behind a confirmation. When a place frees up, the server books the first eligible waiting participant automatically, so the class then simply shows **Masz rezerwację**. Calendar tiles of upcoming classes (day, week and month views) mark the place with an hourglass (`Lista rezerwowa · 2`). The screen reads the class's `waitlist` field and uses `POST .../group-classes/{eventId}/waitlist-entries` and `POST .../waitlist-entries/{id}/cancel`; when the waiting list is disabled for the class, or a server does not send the field, a full class keeps the old disabled **Zapisz się**.
+
+When the class's booking policy requires confirming a freed place (`waitlist.confirmationMinutes > 0`, set in the admin panel as *Wymagaj potwierdzenia zwolnionego miejsca*), the texts say so, and a participant whose place is held sees **Zwolniło się miejsce dla Ciebie** with the deadline (`offerExpiresAt`), **Potwierdź miejsce** (`POST .../waitlist-entries/{id}/confirm`) and **Zrezygnuj z miejsca** (the same `/cancel`, which passes the place on). An expired or currently blocked offer cannot be confirmed; tiles mark a held place as *Miejsce do potwierdzenia*.
 
 The history icon in **Mój grafik** opens the training history (`/client/reservations/history`, #97): the selected participant's past bookings month by month, with attendance, cancellations and a monthly attendance rate.
 
@@ -112,3 +116,55 @@ Tapping an event in the trainer's **Grafik** opens `TrainerEventDetailsScreen`
 occupancy against capacity, and the participants with an active reservation,
 each with a child marker and their age on the day of the class. The event and
 its participants are cached per account, like the trainer's schedule.
+
+The participants come from the event's attendance sheet
+(`GET /api/v1/me/schedule-events/{eventId}/attendance`, #102). From the event's
+start until 12 hours after its end, the lead and assistants mark each
+participant present or absent (`PATCH .../attendance`) and can change it
+again; **Oznacz zajęcia jako odbyte** (`POST .../complete`) records everyone
+still unmarked as present and marks the event as held. After that time the
+marks are read only and an administrator corrects them in the web panel.
+## Push notifications and inbox
+
+Push notifications use Firebase Cloud Messaging (`firebase_messaging`).
+`lib/core/push/` wraps FCM (`PushMessaging`, replaced by `NoPushMessaging`
+when Firebase is not initialized, e.g. in widget tests) and registers the
+device (`PushDevice`): after sign-in the app asks for permission and sends the
+FCM token to `POST /api/v1/me/devices`, again when FCM replaces the token, and
+removes it with `DELETE /api/v1/me/devices/{token}` before sign-out. A refused
+permission or a missing token only means the notifications stay in the inbox.
+
+`lib/app/push/push_notifications.dart` connects pushes with the app. Tapping a
+class reminder opens **Mój grafik** of the participant it is about, switching
+to the child's profile if needed; other notifications open the notifications
+screen.
+The notification is marked read. A message that arrives while the app is open
+is shown as a snack bar and refreshes the inbox.
+
+The bell in the top right corner of the **Wiadomości** tab opens the
+notifications screen (`/client/messages/notifications`,
+`/trainer/messages/notifications`): the inbox of the active role
+(`GET /api/v1/me/notifications?role=...`) with a top right action that marks
+everything read. The unread count is a badge on the bell and on the tab.
+
+### iOS
+
+The Dart code is ready for iOS, but iOS pushes need a paid Apple Developer
+account, which the project does not have yet. Until then `token()` returns
+`null` on iOS (no APNs token) and the app silently skips registration. Once
+the account exists:
+
+1. Create an APNs authentication key (Certificates, Identifiers & Profiles →
+   Keys, with Apple Push Notifications service) and upload it in Firebase
+   console → Project settings → Cloud Messaging → Apple app configuration, for
+   each Firebase project (dev and stage).
+2. In Xcode (`ios/Runner.xcworkspace`, target Runner → Signing & Capabilities)
+   add **Push Notifications** and **Background Modes** with **Remote
+   notifications**. This creates `Runner.entitlements` with `aps-environment`.
+3. Make sure the App ID `pl.studioforyou.mobile` has Push Notifications
+   enabled.
+
+No Dart change is needed. On the iOS Simulator (Xcode 14+ on Apple silicon or
+a T2 Mac), pushes also need the steps above; to try only the tap handling, drag
+`ios/simulator_push_sample.apns` onto the simulator (put a real `profileId`
+in it first).

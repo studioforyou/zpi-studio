@@ -7,6 +7,8 @@ import 'package:mobile/core/auth/auth_controller.dart';
 import 'package:mobile/core/auth/auth_state.dart';
 import 'package:mobile/core/auth/session.dart';
 import 'package:mobile/core/network/api_exception.dart';
+import 'package:mobile/features/schedule/data/schedule_api.dart';
+import 'package:mobile/features/trainings/data/trainee_overview_api.dart';
 import 'package:mobile/features/trainings/data/trainees_api.dart';
 import 'package:mobile/features/trainings/presentation/new_client_account_screen.dart';
 import 'package:mobile/features/trainings/presentation/new_cooperation_screen.dart';
@@ -31,6 +33,34 @@ class _SignedInAuthController extends AuthController {
 
   @override
   AuthState build() => Authenticated(session);
+}
+
+class _EmptyOverviewApi implements TraineeOverviewApi {
+  @override
+  Future<PersonalTrainingsSnapshot> fetchOwnCalendar(
+    ScheduleWindow window,
+  ) async => PersonalTrainingsSnapshot(
+    checkedOn: DateTime(2026, 11, 4),
+    checkedAt: DateTime(2026, 11, 4, 12),
+    items: const [],
+  );
+
+  @override
+  Future<TraineeOverviewList> fetchList() async => TraineeOverviewList(
+    checkedOn: DateTime(2026, 11, 4),
+    checkedAt: DateTime(2026, 11, 4, 12),
+    items: const [],
+  );
+
+  @override
+  Future<TraineeOverviewDetails> fetchDetails(String customerId) =>
+      throw UnimplementedError();
+
+  @override
+  Future<List<TraineeTraining>> fetchCalendar(
+    String customerId,
+    ScheduleWindow window,
+  ) async => [];
 }
 
 class _FakeTraineesApi implements TraineesApi {
@@ -158,6 +188,7 @@ void main() {
             () => _SignedInAuthController(session),
           ),
           traineesApiProvider.overrideWithValue(api),
+          traineeOverviewApiProvider.overrideWithValue(_EmptyOverviewApi()),
         ],
         child: MaterialApp.router(
           routerConfig: router,
@@ -167,6 +198,8 @@ void main() {
         ),
       ),
     );
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(Tab, 'Podopieczni'));
     await tester.pumpAndSettle();
   }
 

@@ -2,6 +2,7 @@ package studioforyou.pl.backend.booking.internal;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Types;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -31,6 +32,16 @@ class ReservationStore {
 			rs.getObject("late_cancel_allowed_snapshot", Boolean.class),
 			rs.getObject("late_cancel_forfeits_entry_snapshot", Boolean.class), rs.getInt("version"));
 
+	private static final RowMapper<AttendanceRow> ATTENDANCE = (rs, row) -> new AttendanceRow(
+			rs.getObject("id", UUID.class), rs.getObject("customer_id", UUID.class), rs.getString("status"),
+			rs.getObject("customer_pass_id", UUID.class), rs.getString("attendance"),
+			rs.getObject("attendance_marked_by", UUID.class), instant(rs, "attendance_marked_at"),
+			instant(rs, "created_at"), rs.getInt("version"));
+
+	private static final RowMapper<RosterRow> ROSTER = (rs, row) -> new RosterRow(MAPPER.mapRow(rs, row),
+			rs.getObject("makeup_credit_id", UUID.class), rs.getString("source"), rs.getObject("booked_by", UUID.class),
+			instant(rs, "created_at"));
+
 	private final JdbcClient jdbc;
 
 	ReservationStore(JdbcClient jdbc) {
@@ -45,6 +56,26 @@ class ReservationStore {
 	Optional<Reservation> lock(UUID customerId, UUID reservationId) {
 		return this.jdbc.sql("SELECT * FROM reservation WHERE id = :id AND customer_id = :customer FOR UPDATE")
 			.param("id", reservationId).param("customer", customerId).query(MAPPER).optional();
+	}
+
+	/** Locks one reservation of the event, whatever its status, after the caller has locked the event. */
+	Optional<Reservation> lockInEvent(UUID eventId, UUID reservationId) {
+		return this.jdbc.sql("SELECT * FROM reservation WHERE id = :id AND event_id = :event FOR UPDATE")
+			.param("id", reservationId).param("event", eventId).query(MAPPER).optional();
+	}
+
+	/** Active reservations of the event with who booked them, earliest booking first. */
+	List<RosterRow> roster(UUID eventId) {
+		return this.jdbc.sql("""
+				SELECT * FROM reservation
+				WHERE event_id = :event AND status = 'ACTIVE' ORDER BY created_at, id
+				""").param("event", eventId).query(ROSTER).list();
+	}
+
+	/** One reservation of the event with who booked it, whatever its status. */
+	Optional<RosterRow> rosterRow(UUID eventId, UUID reservationId) {
+		return this.jdbc.sql("SELECT * FROM reservation WHERE id = :id AND event_id = :event")
+			.param("id", reservationId).param("event", eventId).query(ROSTER).optional();
 	}
 
 	Optional<Reservation> lockActive(UUID customerId, UUID eventId) {
@@ -143,13 +174,61 @@ class ReservationStore {
 			.param("pass", passId).param("id", reservationId).query(MAPPER).single();
 	}
 
-	Reservation cancel(Reservation reservation, UUID actorId, Instant now, boolean entryReturned, String kind) {
+	/** @param entryReturned whether the pass entry was returned; {@code null} for a reservation without a pass */
+	Reservation cancel(Reservation reservation, UUID actorId, Instant now, Boolean entryReturned, String kind) {
 		return this.jdbc.sql("""
 				UPDATE reservation SET status = 'CANCELLED', cancelled_at = :now, cancelled_by = :actor,
 				cancel_kind = :kind, entry_returned = :returned, updated_at = :now, version = version + 1
 				WHERE id = :id RETURNING *
 				""").param("now", utc(now)).param("actor", actorId).param("kind", kind)
-			.param("returned", entryReturned).param("id", reservation.id()).query(MAPPER).single();
+			.param("returned", entryReturned, Types.BOOLEAN).param("id", reservation.id()).query(MAPPER).single();
+	}
+
+	/** Active reservations of the event with their attendance, earliest booking first. */
+	List<AttendanceRow> attendance(UUID eventId) {
+		return this.jdbc.sql("""
+				SELECT * FROM reservation
+				WHERE event_id = :event AND status = 'ACTIVE' ORDER BY created_at, id
+				""").param("event", eventId).query(ATTENDANCE).list();
+	}
+
+	/** Locks the event's active reservations in id order, after the caller has locked the event. */
+	List<AttendanceRow> lockAttendance(UUID eventId) {
+		return this.jdbc.sql("""
+				SELECT * FROM reservation
+				WHERE event_id = :event AND status = 'ACTIVE' ORDER BY id FOR UPDATE
+				""").param("event", eventId).query(ATTENDANCE).list();
+	}
+
+	/** Locks one reservation of the event, whatever its status, after the caller has locked the event. */
+	Optional<AttendanceRow> lockAttendance(UUID eventId, UUID reservationId) {
+		return this.jdbc.sql("SELECT * FROM reservation WHERE id = :id AND event_id = :event FOR UPDATE")
+			.param("id", reservationId).param("event", eventId).query(ATTENDANCE).optional();
+	}
+
+	/** Reservations of the event among the given ones that are no longer active. */
+	List<UUID> inactiveAmong(UUID eventId, Collection<UUID> reservationIds) {
+		return this.jdbc.sql("""
+				SELECT id FROM reservation
+				WHERE event_id = :event AND id IN (:ids) AND status <> 'ACTIVE'
+				""").param("event", eventId).param("ids", List.copyOf(reservationIds)).query(UUID.class).list();
+	}
+
+	AttendanceRow markAttendance(UUID reservationId, String attendance, UUID actorId, Instant now) {
+		return this.jdbc.sql("""
+				UPDATE reservation SET attendance = :attendance, attendance_marked_by = :actor,
+				attendance_marked_at = :now, updated_at = :now, version = version + 1
+				WHERE id = :id RETURNING *
+				""").param("attendance", attendance).param("actor", actorId).param("now", utc(now))
+			.param("id", reservationId).query(ATTENDANCE).single();
+	}
+
+	/** Records the trainer's confirmation that a personal session took place, keeping an earlier one. */
+	void confirmByTrainer(UUID eventId, Instant now) {
+		this.jdbc.sql("""
+				UPDATE reservation SET trainer_confirmed_at = :now, updated_at = :now, version = version + 1
+				WHERE event_id = :event AND status = 'ACTIVE' AND trainer_confirmed_at IS NULL
+				""").param("now", utc(now)).param("event", eventId).update();
 	}
 
 	private static Instant instant(ResultSet rs, String column) throws SQLException {
@@ -171,6 +250,25 @@ class ReservationStore {
 	}
 
 	record ActiveReservation(UUID id, UUID customerId, Instant bookedAt) {
+	}
+
+	/**
+	 * A reservation with who booked it, as the studio staff manage it.
+	 *
+	 * @param source {@code SELF}, {@code GUARDIAN}, {@code STAFF}, {@code GROUP_AUTO} or {@code WAITLIST}
+	 * @param bookedBy the account that booked the place
+	 */
+	record RosterRow(Reservation reservation, UUID makeupCreditId, String source, UUID bookedBy, Instant bookedAt) {
+	}
+
+	/**
+	 * A reservation's attendance.
+	 *
+	 * @param attendance {@code UNMARKED}, {@code PRESENT} or {@code ABSENT}
+	 * @param attendanceMarkedBy the account that recorded the current attendance, or {@code null}
+	 */
+	record AttendanceRow(UUID id, UUID customerId, String status, UUID customerPassId, String attendance,
+			UUID attendanceMarkedBy, Instant attendanceMarkedAt, Instant bookedAt, int version) {
 	}
 
 }

@@ -39,9 +39,12 @@ class DefaultGroupClassSchedule implements GroupClassSchedule {
 
 	@Override
 	public List<Occurrence> list(Instant from, Instant to) {
-		return occurrences(queries.findEvents(new TimetableFilter(from, to, List.of(EventKind.CLASS), null,
-				List.of(EventVisibility.PUBLIC), null, null, null, null, null))
-			.stream().filter(e -> e.serviceTypeId() != null).toList());
+		return classes(from, to, List.of(EventVisibility.PUBLIC));
+	}
+
+	@Override
+	public List<Occurrence> listIncludingPrivate(Instant from, Instant to) {
+		return classes(from, to, List.of(EventVisibility.PUBLIC, EventVisibility.PRIVATE));
 	}
 
 	@Override
@@ -51,19 +54,50 @@ class DefaultGroupClassSchedule implements GroupClassSchedule {
 
 	@Override
 	public Optional<Occurrence> find(UUID id) {
-		return queries.findEvent(id)
-			.filter(e -> e.kind() == EventKind.CLASS && e.visibility() == EventVisibility.PUBLIC && e.serviceTypeId() != null)
-			.map(event -> occurrence(event, services.findById(event.serviceTypeId())
-				.map(ServiceTypeSummary::calendarColor).orElse(null)));
+		return findClass(id, true);
+	}
+
+	@Override
+	public Optional<Occurrence> findIncludingPrivate(UUID id) {
+		return findClass(id, false);
 	}
 
 	@Override
 	@Transactional(propagation = Propagation.MANDATORY)
 	public Occurrence lock(UUID id) {
-		jdbc.sql("SELECT id FROM schedule_event WHERE id = :id AND kind = 'CLASS' AND visibility = 'PUBLIC' AND service_type_id IS NOT NULL FOR UPDATE")
+		return lock(id, "AND visibility = 'PUBLIC'");
+	}
+
+	@Override
+	@Transactional(propagation = Propagation.MANDATORY)
+	public Occurrence lockIncludingPrivate(UUID id) {
+		return lock(id, "");
+	}
+
+	private Optional<Occurrence> findClass(UUID id, boolean onlyPublic) {
+		return queries.findEvent(id)
+			.filter(e -> e.kind() == EventKind.CLASS && e.serviceTypeId() != null
+					&& (!onlyPublic || e.visibility() == EventVisibility.PUBLIC))
+			.map(event -> occurrence(event, services.findById(event.serviceTypeId())
+				.map(ServiceTypeSummary::calendarColor).orElse(null)));
+	}
+
+	private Occurrence lock(UUID id, String visibility) {
+		jdbc.sql("SELECT id FROM schedule_event WHERE id = :id AND kind = 'CLASS' " + visibility
+				+ " AND service_type_id IS NOT NULL FOR UPDATE")
 			.param("id", id).query(UUID.class).optional()
-			.orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "Group class not found."));
-		return find(id).orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "Group class not found."));
+			.orElseThrow(DefaultGroupClassSchedule::notFound);
+		return findIncludingPrivate(id).orElseThrow(DefaultGroupClassSchedule::notFound);
+	}
+
+	private List<Occurrence> classes(Instant from, Instant to, List<EventVisibility> visibilities) {
+		return occurrences(queries.findEvents(new TimetableFilter(from, to, List.of(EventKind.CLASS), null,
+				visibilities, null, null, null, null, null))
+			.stream().filter(e -> e.serviceTypeId() != null).toList());
+	}
+
+	private static ApiException notFound() {
+		return new ApiException(ErrorCode.NOT_FOUND, "Group class not found.");
 	}
 
 	private List<Occurrence> occurrences(List<ScheduleEventResponse> events) {
