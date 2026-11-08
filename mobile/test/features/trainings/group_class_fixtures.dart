@@ -1,19 +1,22 @@
+/// Without [withPass] the studio booked the place without a pass entry, so
+/// there is no entry consequence.
 Map<String, dynamic> reservationJson({
   String profileId = 'self',
   bool active = true,
   bool entryReturned = true,
+  bool withPass = true,
 }) => {
   'id': 'reservation-1',
   'eventId': 'class-1',
   'customerId': profileId,
   'status': active ? 'ACTIVE' : 'CANCELLED',
-  'customerPassId': 'pass-1',
+  'customerPassId': withPass ? 'pass-1' : null,
   'freeCancelUntil': '2030-11-02T10:00:00Z',
-  'entryReturned': active ? null : entryReturned,
+  'entryReturned': active || !withPass ? null : entryReturned,
   'cancellation': {
     'allowed': active,
     'reason': active ? null : 'RESERVATION_NOT_ACTIVE',
-    'entryReturned': entryReturned,
+    'entryReturned': withPass ? entryReturned : null,
   },
   'version': 3,
 };
@@ -44,6 +47,7 @@ Map<String, dynamic> groupClassJson({
   int? availablePlaces = 3,
   bool reserved = false,
   bool entryReturned = true,
+  bool reservedWithPass = true,
   bool allowed = true,
   String? reason,
   int passCount = 1,
@@ -71,7 +75,11 @@ Map<String, dynamic> groupClassJson({
     {'resourceId': 'room-1', 'name': 'Sala Turkusowa'},
   ],
   'ownReservation': reserved
-      ? reservationJson(profileId: profileId, entryReturned: entryReturned)
+      ? reservationJson(
+          profileId: profileId,
+          entryReturned: entryReturned,
+          withPass: reservedWithPass,
+        )
       : null,
   'booking': {
     'allowed': allowed && !reserved,

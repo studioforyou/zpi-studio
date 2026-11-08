@@ -969,6 +969,142 @@ export const pl = {
         },
       },
     },
+    reservations: {
+      title: 'Uczestnicy',
+      loading: 'Wczytywanie uczestników…',
+      loadError: 'Nie udało się wczytać uczestników.',
+      retry: 'Spróbuj ponownie',
+      empty: 'Nikt nie jest jeszcze zapisany na te zajęcia.',
+      places: (active: number, capacity: number | null) =>
+        capacity === null
+          ? `Zapisanych: ${active} (bez limitu miejsc)`
+          : `Zapisanych: ${active} z ${capacity}`,
+      overCapacity: (count: number) => `ponad limit: ${count}`,
+      heldOffers: (count: number) =>
+        `miejsca czekające na potwierdzenie z listy rezerwowej: ${count}`,
+      waiting: (count: number) => `Na liście rezerwowej: ${count}`,
+      clientWindow: {
+        BOOKING_NOT_OPEN:
+          'Zapisy dla klientów jeszcze się nie otworzyły. Jako administrator możesz zapisać uczestnika już teraz.',
+        BOOKING_CLOSED:
+          'Zapisy dla klientów są już zamknięte. Jako administrator możesz zapisać uczestnika do startu zajęć.',
+      },
+      notBookable:
+        'Zapisywać i wypisywać można tylko na zaplanowane zajęcia, które jeszcze się nie zaczęły.',
+      book: 'Zapisz uczestnika',
+      cancel: 'Wypisz',
+      cancelFor: (name: string) => `Wypisz: ${name}`,
+      child: 'Dziecko',
+      noPass: 'bez karnetu',
+      sources: {
+        SELF: 'zapis samodzielny',
+        GUARDIAN: 'zapis przez opiekuna',
+        STAFF: 'zapis przez administratora',
+        WAITLIST: 'z listy rezerwowej',
+        GROUP_AUTO: 'zapis automatyczny',
+      },
+      bookedBy: (who: string | null) => (who ? `zapisał(a): ${who}` : 'zapis przez administratora'),
+      reasonLabel: (reason: string) => `Powód: ${reason}`,
+      overridden: (issues: string) => `Zapisano mimo: ${issues}`,
+      issueShort: {
+        CLASS_FULL: 'braku miejsc',
+        SERVICE_TYPE_UNAVAILABLE: 'usługi wycofanej z oferty',
+        AGE_RESTRICTION: 'limitu wieku',
+        REQUIRED_DOCUMENTS_MISSING: 'braku wymaganych dokumentów',
+        NO_ELIGIBLE_PASS: 'braku karnetu',
+      },
+      issues: {
+        CLASS_FULL: 'Zajęcia są pełne. Zapis przekroczy limit miejsc.',
+        SERVICE_TYPE_UNAVAILABLE: 'Usługa tych zajęć nie jest już w ofercie.',
+        AGE_RESTRICTION:
+          'Wiek uczestnika (albo brak daty urodzenia) nie mieści się w limicie wieku usługi.',
+        REQUIRED_DOCUMENTS_MISSING:
+          'Uczestnik nie zaakceptował dokumentów wymaganych na te zajęcia.',
+        NO_ELIGIBLE_PASS:
+          'Uczestnik nie ma karnetu, który obejmuje te zajęcia. Zostanie zapisany bez pobrania wejścia.',
+      },
+      booking: {
+        title: 'Zapisz uczestnika na zajęcia',
+        participant: 'Uczestnik',
+        participantPlaceholder: 'Wpisz imię, nazwisko, telefon lub e-mail',
+        noParticipants: 'Nie znaleziono uczestników.',
+        searchError: 'Nie udało się wyszukać uczestników.',
+        noEmail: 'brak adresu e-mail',
+        guardianEmail: (email: string) => `dziecko · ${email}`,
+        checking: 'Sprawdzanie, czy uczestnik może zostać zapisany…',
+        optionsError: 'Nie udało się sprawdzić warunków zapisu.',
+        blocked: {
+          ALREADY_RESERVED: 'Ten uczestnik jest już zapisany na te zajęcia.',
+          CUSTOMER_NOT_ACTIVE: 'Profil uczestnika jest nieaktywny.',
+          EVENT_NOT_BOOKABLE: 'Zajęcia są odwołane, odbyte albo już się zaczęły.',
+        } as Record<string, string>,
+        waitlist: {
+          WAITING: 'Uczestnik czeka na liście rezerwowej. Zapis usunie go z kolejki.',
+          OFFERED:
+            'Uczestnik ma zaproponowane miejsce z listy rezerwowej. Zapis wykorzysta to miejsce.',
+        },
+        pass: 'Karnet',
+        passPlaceholder: 'Wybierz karnet, z którego pobrać wejście',
+        passLabel: (name: string, remaining: number | null, validUntil: string | null) =>
+          [
+            name,
+            remaining === null ? 'bez limitu wejść' : `zostało: ${passEntryCount(remaining)}`,
+            validUntil ? `ważny do ${validUntil}` : null,
+          ]
+            .filter(Boolean)
+            .join(' · '),
+        issuesTitle: 'Wymaga potwierdzenia',
+        confirmIssues: 'Rozumiem i zapisuję uczestnika mimo to',
+        reason: 'Powód (opcjonalnie)',
+        reasonPlaceholder: 'np. ustalone telefonicznie',
+        historyNote: 'Zapis, Ty, czas i powód zostaną zapisane w historii.',
+        required: 'To pole jest wymagane.',
+        cancel: 'Anuluj',
+        save: 'Zapisz',
+        errors: {
+          override:
+            'Warunki zapisu zmieniły się w międzyczasie. Sprawdź aktualne ostrzeżenia i potwierdź je ponownie.',
+          notBookable: 'Zajęcia są odwołane, odbyte albo już się zaczęły.',
+          notActive: 'Profil uczestnika jest nieaktywny.',
+          pass: 'Wybranego karnetu nie można użyć na te zajęcia. Wybierz inny.',
+          validation: 'Sprawdź dane zapisu. Powód może mieć najwyżej 500 znaków.',
+          notFound: 'Nie znaleziono zajęć, uczestnika albo karnetu.',
+          unknown: 'Nie udało się zapisać uczestnika. Spróbuj ponownie.',
+        },
+      },
+      cancellation: {
+        title: 'Wypisz uczestnika z zajęć',
+        pass: (name: string | null) => `Karnet: ${name ?? 'bez nazwy'}`,
+        noPass: 'Uczestnik jest zapisany bez karnetu, więc nie ma wejścia do zwrotu.',
+        suggested: {
+          returned: 'Według zasad odwołania wejście wraca na karnet.',
+          forfeited: 'Według zasad odwołania to późne wypisanie, więc wejście przepada.',
+          unknown:
+            'Rezerwacja nie ma zapisanych zasad odwołania. Zdecyduj, czy wejście wraca na karnet.',
+        },
+        participantCannot: 'Uczestnik nie mógłby się już wypisać sam w aplikacji.',
+        entry: 'Wejście z karnetu',
+        returnEntry: 'Zwróć wejście na karnet',
+        forfeitEntry: 'Wejście przepada',
+        reason: 'Powód (opcjonalnie)',
+        reasonPlaceholder: 'np. choroba zgłoszona telefonicznie',
+        waitlistNote:
+          'Zwolnione miejsce od razu trafi do pierwszej osoby z listy rezerwowej, która spełnia warunki.',
+        historyNote: 'Wypisanie, Ty, czas i powód zostaną zapisane w historii.',
+        required: 'Zdecyduj, czy wejście wraca na karnet.',
+        cancel: 'Anuluj',
+        save: 'Wypisz',
+        errors: {
+          conflict:
+            'Rezerwacja zmieniła się w międzyczasie. Lista została odświeżona. Sprawdź stan i spróbuj ponownie.',
+          started: 'Zajęcia już się zaczęły. Wypisać można tylko przed ich startem.',
+          notBookable: 'Zajęcia są odwołane albo odbyte.',
+          validation: 'Sprawdź dane wypisu. Powód może mieć najwyżej 500 znaków.',
+          notFound: 'Nie znaleziono tej rezerwacji.',
+          unknown: 'Nie udało się wypisać uczestnika. Spróbuj ponownie.',
+        },
+      },
+    },
     assignmentFields: {
       leads: 'Prowadzący',
       assistants: 'Asystenci',

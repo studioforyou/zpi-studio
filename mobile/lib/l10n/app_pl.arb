@@ -436,6 +436,8 @@
   "classesDismiss": "Wróć",
   "classesCancelReturnsEntry": "Odwołasz bez utraty wejścia.",
   "classesCancelForfeitsEntry": "Odwołanie po terminie — bez zwrotu wejścia.",
+  "classesReservedWithoutPass": "Studio zapisało to miejsce bez karnetu.",
+  "classesCancelWithoutPass": "Rezerwacja jest bez karnetu, więc odwołanie nie zmienia wejść.",
   "classesFreeCancelUntil": "Bezpłatne odwołanie do {date}",
   "@classesFreeCancelUntil": {"placeholders": {"date": {"type": "String"}}},
   "classesCancelSuccess": "Rezerwacja odwołana.",

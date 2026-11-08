@@ -98,6 +98,12 @@ public enum ErrorCode {
 	WAITLIST_ENTRY_NOT_OFFERED(HttpStatus.UNPROCESSABLE_CONTENT),
 	/** The time to confirm the offered place has run out; it goes to the next participant. */
 	WAITLIST_OFFER_EXPIRED(HttpStatus.CONFLICT),
+	// booking: places booked by administrators
+	/**
+	 * The class is full or the participant does not meet a requirement the administrator has not
+	 * confirmed overriding; the {@code issues} property lists all of them.
+	 */
+	BOOKING_OVERRIDE_REQUIRED(HttpStatus.CONFLICT),
 
 	// scheduling: rooms and the service types allowed in them
 	RESOURCE_NAME_ALREADY_USED(HttpStatus.CONFLICT),

@@ -89,7 +89,8 @@ final class GroupClassDtos {
 
 	@Schema(name = "GroupClassCancellationAvailability")
 	record CancellationAvailability(boolean allowed, String reason,
-			@Schema(description = "Current consequence to confirm; null when cancellation is unavailable.")
+			@Schema(description = "Current consequence to confirm; null when cancellation is unavailable or the reservation "
+					+ "has no pass (an administrator booked it without a pass entry, so there is no entry to return).")
 			Boolean entryReturned) {
 	}
 
@@ -115,8 +116,9 @@ final class GroupClassDtos {
 
 	@Schema(name = "CancelOwnGroupClassReservationRequest")
 	record CancelRequest(@NotNull @Min(0) Integer expectedVersion,
-			@Schema(description = "The entry-return consequence the customer confirmed. A changed consequence rejects the cancellation.")
-			@NotNull Boolean expectedEntryReturned) {
+			@Schema(description = "The entry-return consequence the customer confirmed: cancellation.entryReturned, null for a "
+					+ "reservation without a pass. A changed consequence rejects the cancellation.")
+			Boolean expectedEntryReturned) {
 	}
 
 }

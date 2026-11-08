@@ -4,6 +4,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.Period;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -88,20 +89,40 @@ class ParticipationRules {
 
 	/** Why this participant cannot take part (service, age, documents or funding), or null. */
 	String participantReason(ProfileDetails participant, Occurrence event, LocalDate date, List<EligiblePass> passes) {
+		List<String> unmet = unmetRequirements(participant, event, date, passes, true);
+		return unmet.isEmpty() ? null : unmet.getFirst();
+	}
+
+	/**
+	 * Every requirement of the class this participant does not meet, in the order
+	 * {@link #participantReason} checks them, for an administrator who may override them.
+	 */
+	List<String> unmetRequirements(ProfileDetails participant, Occurrence event, LocalDate date,
+			List<EligiblePass> passes) {
+		return unmetRequirements(participant, event, date, passes, false);
+	}
+
+	private List<String> unmetRequirements(ProfileDetails participant, Occurrence event, LocalDate date,
+			List<EligiblePass> passes, boolean firstOnly) {
+		List<String> unmet = new ArrayList<>();
 		ServiceTypes.Definition service = this.services.findDefinitionById(event.serviceTypeId()).orElse(null);
 		if (service == null || !service.active()) {
-			return "SERVICE_TYPE_UNAVAILABLE";
+			unmet.add("SERVICE_TYPE_UNAVAILABLE");
 		}
-		if (!ageAllowed(participant.birthDate(), date, service.minAge(), service.maxAge())) {
-			return "AGE_RESTRICTION";
+		if (service != null && !ageAllowed(participant.birthDate(), date, service.minAge(), service.maxAge())) {
+			unmet.add("AGE_RESTRICTION");
+		}
+		// Each check costs a query, so self-service stops at the first unmet requirement.
+		if (firstOnly && !unmet.isEmpty()) {
+			return unmet.subList(0, 1);
 		}
 		if (this.documents.hasMissing(participant.id(), event.serviceTypeId(), participant.kind().name())) {
-			return "REQUIRED_DOCUMENTS_MISSING";
+			unmet.add("REQUIRED_DOCUMENTS_MISSING");
 		}
 		if (passes.isEmpty()) {
-			return "NO_ELIGIBLE_PASS";
+			unmet.add("NO_ELIGIBLE_PASS");
 		}
-		return null;
+		return unmet;
 	}
 
 	/**
