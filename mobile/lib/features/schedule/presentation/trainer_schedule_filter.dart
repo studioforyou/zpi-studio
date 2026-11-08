@@ -1,4 +1,6 @@
 import 'package:mobile/features/schedule/data/schedule_api.dart';
+import 'package:mobile/features/schedule/data/schedule_service_types.dart';
+import 'package:mobile/features/schedule/presentation/service_type_filter_labels.dart';
 
 /// The trainer's part in an event.
 enum TrainerRoleFilter {
@@ -18,6 +20,8 @@ class TrainerScheduleFilter {
   const TrainerScheduleFilter({
     this.kinds = const {},
     this.rooms = const {},
+    this.levels = const {},
+    this.ageGroups = const {},
     this.showCancelled = true,
     this.role = TrainerRoleFilter.any,
   });
@@ -27,6 +31,12 @@ class TrainerScheduleFilter {
 
   /// Names of rooms an event must use one of; any room when empty.
   final Set<String> rooms;
+
+  /// Service level codes, e.g. `BEGINNER`; any level when empty.
+  final Set<String> levels;
+
+  /// Age groups of the service; any age group when empty.
+  final Set<AgeGroup> ageGroups;
   final bool showCancelled;
   final TrainerRoleFilter role;
 
@@ -34,15 +44,29 @@ class TrainerScheduleFilter {
   int get activeCount =>
       (kinds.isEmpty ? 0 : 1) +
       (rooms.isEmpty ? 0 : 1) +
+      (levels.isEmpty ? 0 : 1) +
+      (ageGroups.isEmpty ? 0 : 1) +
       (showCancelled ? 0 : 1) +
       (role == TrainerRoleFilter.any ? 0 : 1);
 
   /// Whether [event] passes the filter for the trainer with [staffId].
-  bool matches(ScheduleEvent event, String? staffId) {
+  /// [serviceTypes] gives the level and age limits of the event's service.
+  bool matches(
+    ScheduleEvent event,
+    String? staffId, [
+    Map<String, ScheduleServiceType> serviceTypes = const {},
+  ]) {
     if (kinds.isNotEmpty && !kinds.contains(event.kind)) {
       return false;
     }
     if (rooms.isNotEmpty && !event.roomNames.any(rooms.contains)) {
+      return false;
+    }
+    if (!matchesServiceType(
+      serviceTypes[event.serviceTypeId],
+      levels: levels,
+      ageGroups: ageGroups,
+    )) {
       return false;
     }
     if (!showCancelled && event.status == EventStatus.cancelled) {
@@ -60,12 +84,16 @@ class TrainerScheduleFilter {
   TrainerScheduleFilter copyWith({
     Set<EventKind>? kinds,
     Set<String>? rooms,
+    Set<String>? levels,
+    Set<AgeGroup>? ageGroups,
     bool? showCancelled,
     TrainerRoleFilter? role,
   }) {
     return TrainerScheduleFilter(
       kinds: kinds ?? this.kinds,
       rooms: rooms ?? this.rooms,
+      levels: levels ?? this.levels,
+      ageGroups: ageGroups ?? this.ageGroups,
       showCancelled: showCancelled ?? this.showCancelled,
       role: role ?? this.role,
     );

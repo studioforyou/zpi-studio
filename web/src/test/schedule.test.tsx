@@ -175,6 +175,20 @@ function stubApi(...routes: Route[]) {
       if (url === '/api/v1/training-groups') {
         return json({ items: [] });
       }
+      const attendance = /^\/api\/v1\/schedule-events\/([^/]+)\/attendance$/.exec(url);
+      if (attendance) {
+        return json({
+          eventId: attendance[1],
+          eventKind: 'CLASS',
+          eventStatus: 'SCHEDULED',
+          startsAt: '2026-11-03T17:00:00Z',
+          endsAt: '2026-11-03T18:00:00Z',
+          correctable: false,
+          trainerMarkingClosesAt: '2026-11-04T06:00:00Z',
+          trainerMarkingOpen: false,
+          participants: [],
+        });
+      }
       const rules = /^\/api\/v1\/resources\/([^/]+)\/service-types$/.exec(url);
       if (rules) {
         return json({ items: roomRules[rules[1]] ?? [] });

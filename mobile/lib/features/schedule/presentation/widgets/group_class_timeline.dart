@@ -297,12 +297,20 @@ class _TimelineCard extends StatelessWidget {
     final occupancyColor = event.isFull
         ? theme.colorScheme.error
         : Colors.green.shade700;
+    final waiting = classWaitingEntry(event);
+    // The card has room only for an icon, so the label is in its tooltip.
+    final waitlist = waiting == null
+        ? null
+        : classWaitlistMarker(l10n, waiting);
     return Semantics(
       button: true,
-      label: '${event.name}, ${classTime(event)}, ${classPlaces(l10n, event)}',
+      label:
+          '${event.name}, ${classTime(event)}, ${classPlaces(l10n, event)}'
+          '${waitlist == null ? '' : ', $waitlist'}',
       child: Tooltip(
         message:
-            '${event.name}\n${classTime(event)}\n${classPlaces(l10n, event)}',
+            '${event.name}\n${classTime(event)}\n${classPlaces(l10n, event)}'
+            '${waitlist == null ? '' : '\n$waitlist'}',
         child: Material(
           color: serviceColor.withValues(alpha: 0.11),
           borderRadius: BorderRadius.circular(10),
@@ -333,7 +341,12 @@ class _TimelineCard extends StatelessWidget {
                         ),
                       ),
                       if (event.isReserved)
-                        const Icon(Icons.check_circle, size: 14),
+                        const Icon(Icons.check_circle, size: 14)
+                      else if (waiting != null) ...[
+                        const Icon(Icons.hourglass_top, size: 14),
+                        if (waiting.position case final position?)
+                          Text('$position', style: theme.textTheme.labelSmall),
+                      ],
                     ],
                   );
                   if (tiny) {

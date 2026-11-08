@@ -151,6 +151,35 @@ class SeedGroupClassBookingTests {
 	}
 
 	@Test
+	void theSeededWaitingListGivesAFreedPlaceToTomaszOnceHeAcceptsThePoleConsent() {
+		UUID event = UUID.fromString("19000000-0000-0000-0000-000000000003");
+		UUID tomaszAccount = UUID.fromString("03000000-0000-0000-0000-000000000005");
+		UUID tomasz = UUID.fromString("07000000-0000-0000-0000-000000000002");
+		UUID monikaAccount = UUID.fromString("03000000-0000-0000-0000-000000000006");
+		UUID monika = UUID.fromString("07000000-0000-0000-0000-000000000003");
+		var queue = bookings.get(tomaszAccount, tomasz, event).waitlist();
+		assertThat(queue.waitingCount()).isEqualTo(2);
+		assertThat(queue.ownEntry().position()).isEqualTo(1);
+		assertThat(queue.ownEntry().promotionBlockedReason()).isEqualTo("REQUIRED_DOCUMENTS_MISSING");
+		jdbc.sql("""
+				INSERT INTO document_acceptance (document_version_id, customer_id, accepted_by)
+				VALUES ('38000000-0000-0000-0000-000000000004', :tomasz, :account)
+				""").param("tomasz", tomasz).param("account", tomaszAccount).update();
+		assertThat(bookings.get(tomaszAccount, tomasz, event).waitlist().ownEntry().promotionBlockedReason()).isNull();
+
+		var own = bookings.get(monikaAccount, monika, event).ownReservation();
+		bookings.cancel(monikaAccount, monika, own.id(), new CancelRequest(own.version(), true));
+
+		var promoted = bookings.get(tomaszAccount, tomasz, event);
+		// The seed entry has no chosen pass, so his eligible Open pass funds the place.
+		assertThat(promoted.ownReservation().customerPassId())
+			.isEqualTo(UUID.fromString("28000000-0000-0000-0000-000000001002"));
+		assertThat(promoted.availablePlaces()).isZero();
+		// Julia's entry was added by the studio owner's account, which does not act for her, so she still waits.
+		assertThat(promoted.waitlist().waitingCount()).isEqualTo(1);
+	}
+
+	@Test
 	void seededClientCanBrowseCancelAndRebookWithTheRealPassAndDocumentRequirements() {
 		UUID actor = UUID.fromString("03000000-0000-0000-0000-000000000004");
 		UUID profile = UUID.fromString("07000000-0000-0000-0000-000000000001");

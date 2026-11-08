@@ -3,6 +3,7 @@ import 'package:mobile/core/auth/auth_repository.dart';
 import 'package:mobile/core/auth/auth_state.dart';
 import 'package:mobile/core/auth/choice_store.dart';
 import 'package:mobile/core/auth/session.dart';
+import 'package:mobile/core/push/push_device.dart';
 
 class AuthController extends Notifier<AuthState> {
   @override
@@ -44,6 +45,8 @@ class AuthController extends Notifier<AuthState> {
   }
 
   Future<void> logout() async {
+    // While still signed in, so that the backend knows whose device it is.
+    await ref.read(pushDeviceProvider).unregister();
     await ref.read(authRepositoryProvider).logout();
     state = const Unauthenticated();
   }

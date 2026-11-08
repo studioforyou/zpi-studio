@@ -12,6 +12,7 @@ import 'package:mobile/core/auth/auth_state.dart';
 import 'package:mobile/core/auth/session.dart';
 import 'package:mobile/core/network/api_exception.dart';
 import 'package:mobile/features/schedule/data/schedule_api.dart';
+import 'package:mobile/features/schedule/data/schedule_service_types.dart';
 import 'package:mobile/features/schedule/presentation/widgets/schedule_calendar.dart';
 import 'package:mobile/features/trainings/data/trainee_overview_api.dart';
 import 'package:mobile/features/trainings/data/trainees_api.dart';
@@ -61,6 +62,7 @@ PersonalTrainingsSnapshot _snapshot(
             status: EventStatus.scheduled,
             title: 'Trening personalny',
             serviceTypeName: 'Trening personalny',
+            serviceTypeId: 'pt-service',
             startsAt: start,
             endsAt: start.add(const Duration(hours: 1)),
             capacity: 2,
@@ -147,6 +149,9 @@ class _ScheduleApi extends ScheduleApi {
           status: EventStatus.scheduled,
           title: title,
           serviceTypeName: title,
+          serviceTypeId: kind == EventKind.personalTraining
+              ? 'pt-service'
+              : 'group-service',
           startsAt: training.startsAt,
           endsAt: training.endsAt,
           capacity: 2,
@@ -176,6 +181,7 @@ class _Adapter implements HttpClientAdapter {
       'status': 'SCHEDULED',
       'title': 'PT',
       'serviceTypeName': 'PT',
+      'serviceTypeId': 'pt-service',
       'startsAt': '2026-11-04T08:00:00Z',
       'endsAt': '2026-11-04T09:00:00Z',
       'capacity': 2,
@@ -219,6 +225,7 @@ Future<ProviderContainer> _pump(
   bool settle = true,
   double width = 600,
   double scale = 1,
+  Map<String, ScheduleServiceType> serviceTypes = const {},
 }) async {
   tester.view.physicalSize = Size(width, 1000);
   tester.view.devicePixelRatio = 1;
@@ -231,6 +238,7 @@ Future<ProviderContainer> _pump(
       traineeOverviewApiProvider.overrideWithValue(api),
       scheduleApiProvider.overrideWithValue(_ScheduleApi()),
       traineesApiProvider.overrideWithValue(_NoTrainees()),
+      scheduleServiceTypesProvider.overrideWith((ref) async => serviceTypes),
     ],
   );
   addTearDown(() async {
@@ -280,6 +288,9 @@ void main() {
       expect(result.items.map((session) => session.id).toSet(), hasLength(2));
       expect(result.items.map((session) => session.eventId).toSet(), {
         'shared-event',
+      });
+      expect(result.items.map((session) => session.serviceTypeId).toSet(), {
+        'pt-service',
       });
     },
   );
@@ -369,6 +380,60 @@ void main() {
       expect(find.text('Anna Nowak'), findsOneWidget);
       expect(find.text('Wolny termin personalny'), findsOneWidget);
       expect(find.text('Calisthenics'), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'level and age filters keep matching enriched personal sessions',
+    (tester) async {
+      await _pump(
+        tester,
+        _Api(),
+        serviceTypes: const {
+          'pt-service': ScheduleServiceType(
+            id: 'pt-service',
+            level: 'BEGINNER',
+            minAge: 18,
+            maxAge: null,
+          ),
+          'group-service': ScheduleServiceType(
+            id: 'group-service',
+            level: 'INTERMEDIATE',
+            minAge: 6,
+            maxAge: 12,
+          ),
+        },
+      );
+      await tester.tap(find.text('Filtry'));
+      await tester.pumpAndSettle();
+      Future<void> select(String text) async {
+        final choice = find.descendant(
+          of: find.byType(BottomSheet),
+          matching: find.text(text),
+        );
+        await tester.ensureVisible(choice);
+        await tester.tap(choice);
+        await tester.pumpAndSettle();
+      }
+
+      await select('Początkujący');
+      expect(find.text('Tomasz Lewandowski'), findsOneWidget);
+      expect(find.text('Anna Nowak'), findsOneWidget);
+      expect(find.text('Wolny termin personalny'), findsOneWidget);
+      expect(find.text('Calisthenics'), findsNothing);
+
+      await select('Początkujący');
+      await select('Dorośli');
+      expect(find.text('Tomasz Lewandowski'), findsOneWidget);
+      expect(find.text('Anna Nowak'), findsOneWidget);
+      expect(find.text('Calisthenics'), findsNothing);
+
+      await select('Dorośli');
+      await select('Dzieci');
+      expect(find.text('Tomasz Lewandowski'), findsNothing);
+      expect(find.text('Anna Nowak'), findsNothing);
+      expect(find.text('Wolny termin personalny'), findsNothing);
+      expect(find.text('Calisthenics'), findsOneWidget);
     },
   );
 

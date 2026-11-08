@@ -3,8 +3,6 @@ package studioforyou.pl.backend.booking.internal;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.LocalDate;
-import java.time.Period;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -25,15 +23,18 @@ import studioforyou.pl.backend.booking.internal.GroupClassDtos.InstructorRespons
 import studioforyou.pl.backend.booking.internal.GroupClassDtos.ReservationResponse;
 import studioforyou.pl.backend.booking.internal.GroupClassDtos.RoomResponse;
 import studioforyou.pl.backend.booking.internal.GroupClassDtos.ParticipantResponse;
+import studioforyou.pl.backend.booking.internal.GroupClassDtos.WaitlistAvailability;
+import studioforyou.pl.backend.booking.internal.GroupClassDtos.WaitlistEntryResponse;
+import studioforyou.pl.backend.booking.internal.ParticipationRules.Terms;
 import studioforyou.pl.backend.booking.internal.ReservationStore.PastReservation;
 import studioforyou.pl.backend.booking.internal.ReservationStore.Reservation;
+import studioforyou.pl.backend.booking.internal.WaitlistStore.QueuedEntry;
+import studioforyou.pl.backend.booking.internal.WaitlistStore.WaitlistEntry;
 import studioforyou.pl.backend.configuration.BookingPolicies;
-import studioforyou.pl.backend.configuration.StudioSettings;
 import studioforyou.pl.backend.customer.CustomerProfiles;
 import studioforyou.pl.backend.customer.CustomerProfiles.ProfileDetails;
-import studioforyou.pl.backend.documents.DocumentRequirements;
 import studioforyou.pl.backend.membership.BookingEntitlements;
-import studioforyou.pl.backend.offering.ServiceTypes;
+import studioforyou.pl.backend.membership.BookingEntitlements.EligiblePass;
 import studioforyou.pl.backend.scheduling.GroupClassSchedule;
 import studioforyou.pl.backend.scheduling.GroupClassSchedule.Occurrence;
 import studioforyou.pl.backend.shared.api.ApiException;
@@ -42,7 +43,8 @@ import studioforyou.pl.backend.shared.api.FieldErrorCode;
 
 /**
  * Coordinates self-service participation in one transaction. Lock order is occurrence,
- * reservation, then pass; each participating module accesses only its own persistence.
+ * reservations, waiting-list entries, then passes in ascending id order; each participating
+ * module accesses only its own persistence.
  */
 @Service
 @Transactional
@@ -52,38 +54,35 @@ class GroupClassBookingService {
 
 	private final ReservationStore reservations;
 
+	private final WaitlistStore waitlist;
+
 	private final GroupClassSchedule schedule;
 
 	private final CustomerProfiles customers;
 
-	private final ServiceTypes services;
-
-	private final BookingPolicies policies;
-
 	private final BookingEntitlements entitlements;
 
-	private final DocumentRequirements documents;
+	private final ParticipationRules rules;
 
-	private final StudioSettings studio;
+	private final WaitlistPromotion promotion;
 
 	private final Clock clock = Clock.systemUTC();
 
-	GroupClassBookingService(ReservationStore reservations, GroupClassSchedule schedule,
-			CustomerProfiles customers, ServiceTypes services, BookingPolicies policies,
-			BookingEntitlements entitlements, DocumentRequirements documents, StudioSettings studio) {
+	GroupClassBookingService(ReservationStore reservations, WaitlistStore waitlist, GroupClassSchedule schedule,
+			CustomerProfiles customers, BookingEntitlements entitlements, ParticipationRules rules,
+			WaitlistPromotion promotion) {
 		this.reservations = reservations;
+		this.waitlist = waitlist;
 		this.schedule = schedule;
 		this.customers = customers;
-		this.services = services;
-		this.policies = policies;
 		this.entitlements = entitlements;
-		this.documents = documents;
-		this.studio = studio;
+		this.rules = rules;
+		this.promotion = promotion;
 	}
 
 	@Transactional(readOnly = true)
 	List<GroupClassResponse> list(UUID actorId, UUID profileId, Instant from, Instant to, boolean onlyOwn) {
-		ProfileDetails profile = requireProfile(actorId, profileId);
+		ProfileDetails profile = this.rules.participant(actorId, profileId);
 		requireWindow(from, to);
 		Instant now = this.clock.instant();
 		List<Occurrence> occurrences = this.schedule.list(from, to).stream()
@@ -91,15 +90,19 @@ class GroupClassBookingService {
 		List<UUID> ids = occurrences.stream().map(Occurrence::id).toList();
 		Map<UUID, Reservation> own = this.reservations.ownActive(profileId, ids);
 		Map<UUID, Integer> counts = this.reservations.activeCounts(ids);
+		Map<UUID, Integer> held = this.waitlist.heldOffers(ids, now);
+		Map<UUID, Integer> waiting = this.waitlist.waitingCounts(ids);
+		Map<UUID, QueuedEntry> queued = this.waitlist.ownWaiting(profileId, ids);
 		return occurrences.stream().filter(event -> !onlyOwn || own.containsKey(event.id()))
-			.map(event -> project(profile, event, own.get(event.id()), counts.getOrDefault(event.id(), 0), now))
+			.map(event -> project(profile, event, own.get(event.id()), counts.getOrDefault(event.id(), 0),
+					held.getOrDefault(event.id(), 0), waiting.getOrDefault(event.id(), 0), queued.get(event.id()), now))
 			.toList();
 	}
 
 	/** Booked events that started in [from, to), latest first, with what became of each booking. */
 	@Transactional(readOnly = true)
 	List<HistoryEntryResponse> history(UUID actorId, UUID profileId, Instant from, Instant to) {
-		requireProfile(actorId, profileId);
+		this.rules.participant(actorId, profileId);
 		requireWindow(from, to);
 		Instant now = this.clock.instant();
 		if (!from.isBefore(now)) {
@@ -114,22 +117,26 @@ class GroupClassBookingService {
 
 	@Transactional(readOnly = true)
 	GroupClassResponse get(UUID actorId, UUID profileId, UUID eventId) {
-		ProfileDetails profile = requireProfile(actorId, profileId);
+		ProfileDetails profile = this.rules.participant(actorId, profileId);
 		Occurrence event = requireEvent(eventId);
-		Reservation own = this.reservations.ownActive(profileId, List.of(eventId)).get(eventId);
-		return project(profile, event, own, this.reservations.activeCount(eventId), this.clock.instant());
+		List<UUID> ids = List.of(eventId);
+		Reservation own = this.reservations.ownActive(profileId, ids).get(eventId);
+		Instant now = this.clock.instant();
+		return project(profile, event, own, this.reservations.activeCount(eventId), this.waitlist.heldOffers(eventId, now),
+				this.waitlist.waitingCounts(ids).getOrDefault(eventId, 0), this.waitlist.ownWaiting(profileId, ids).get(eventId),
+				now);
 	}
 
 	@Transactional(readOnly = true)
 	ReservationResponse getReservation(UUID actorId, UUID profileId, UUID reservationId) {
-		requireProfile(actorId, profileId);
+		this.rules.participant(actorId, profileId);
 		Reservation reservation = requireReservation(profileId, reservationId);
 		return reservationResponse(reservation, requireEvent(reservation.eventId()), this.clock.instant());
 	}
 
 	@Transactional(readOnly = true)
 	List<ParticipantResponse> participants(UUID actorId, UUID profileId, UUID eventId) {
-		requireProfile(actorId, profileId);
+		this.rules.participant(actorId, profileId);
 		requireEvent(eventId);
 		List<UUID> ids = this.reservations.activeParticipantIdsForBookedProfile(profileId, eventId);
 		if (ids.isEmpty()) {
@@ -145,38 +152,49 @@ class GroupClassBookingService {
 	}
 
 	BookingResult book(UUID actorId, UUID profileId, UUID eventId, UUID customerPassId) {
-		ProfileDetails profile = requireProfile(actorId, profileId);
+		ProfileDetails profile = this.rules.participant(actorId, profileId);
 		Occurrence event = this.schedule.lock(eventId);
 		Instant now = this.clock.instant();
 		Reservation existing = this.reservations.lockActive(profileId, eventId).orElse(null);
 		if (existing != null) {
 			return new BookingResult(reservationResponse(existing, event, now), false);
 		}
-		BookingPolicies.Definition policy = this.policies.forOccurrence(event.serviceTypeId(),
-				event.trainingGroupId(), event.id());
-		LocalDate eventDate = LocalDate.ofInstant(event.startsAt(), this.studio.zone());
-		BookingAvailability availability = availability(profile, event, null,
-				this.reservations.activeCount(eventId), eventDate, policy.effective(), now);
-		if (!availability.allowed()) {
-			throw rejected(availability.reason());
+		// Places of offers that ran out go to the queue before anyone else can book them.
+		this.promotion.passOnExpiredOffers(event, now);
+		Terms terms = this.rules.terms(event);
+		BookingPolicies.Values rules = terms.rules();
+		String reason = ParticipationRules.windowReason(event, rules, now);
+		if (reason == null && event.capacity() != null
+				&& this.reservations.activeCount(eventId) + this.waitlist.heldOffers(eventId, now) >= event.capacity()) {
+			reason = "CLASS_FULL";
 		}
-		BookingPolicies.Values rules = policy.effective();
+		if (reason == null) {
+			reason = this.rules.participantReason(profile, event, terms.date(),
+					this.rules.passes(profileId, event, terms.date()));
+		}
+		if (reason != null) {
+			throw ParticipationRules.rejected(reason);
+		}
+		// A participant waiting for this class who books a free place leaves the queue with it.
+		WaitlistEntry waiting = this.waitlist.lockOpen(profileId, eventId).orElse(null);
 		UUID reservationId = UUID.randomUUID();
 		boolean ownProfile = this.customers.findOwnProfile(actorId)
 			.map(own -> own.id().equals(profileId)).orElse(false);
 		this.reservations.insert(reservationId, eventId, profileId, actorId,
-				ownProfile ? "SELF" : "GUARDIAN", policy.policyId(),
-				event.startsAt().minus(Duration.ofHours(rules.freeCancelHours())),
+				ownProfile ? "SELF" : "GUARDIAN", terms.policy().policyId(), terms.freeCancelUntil(event),
 				rules.cancellationAllowed(), rules.lateCancelAllowed(), rules.lateCancelForfeitsEntry());
 		// Insert before the ledger FK, but attach funding only after its owner's validation/lock.
 		// Otherwise concurrent inserts can both take pass FK KEY SHARE locks before upgrading them.
-		this.entitlements.reserve(profileId, customerPassId, event.serviceTypeId(), eventDate, reservationId, actorId);
+		this.entitlements.reserve(profileId, customerPassId, event.serviceTypeId(), terms.date(), reservationId, actorId);
 		Reservation created = this.reservations.attachPass(reservationId, customerPassId);
+		if (waiting != null) {
+			this.waitlist.resolve(waiting.id(), WaitlistStore.BOOKED, reservationId, now);
+		}
 		return new BookingResult(reservationResponse(created, event, now), true);
 	}
 
 	ReservationResponse cancel(UUID actorId, UUID profileId, UUID reservationId, CancelRequest request) {
-		requireProfile(actorId, profileId);
+		this.rules.participant(actorId, profileId);
 		// Read only the occurrence ID first, then take the agreed locks in owner order.
 		Reservation reference = requireReservation(profileId, reservationId);
 		Occurrence event = this.schedule.lock(reference.eventId());
@@ -191,32 +209,52 @@ class GroupClassBookingService {
 		}
 		CancellationAvailability consequence = cancellation(reservation, event, now);
 		if (!consequence.allowed()) {
-			throw rejected(consequence.reason());
+			throw ParticipationRules.rejected(consequence.reason());
 		}
 		if (!request.expectedEntryReturned().equals(consequence.entryReturned())) {
 			throw new ApiException(ErrorCode.CANCELLATION_CONSEQUENCE_CHANGED,
 					"The cancellation consequence has changed. Refresh the class and confirm it again.",
 					Map.of("entryReturned", consequence.entryReturned()));
 		}
-		this.entitlements.release(profileId, reservation.customerPassId(), reservation.id(),
-				consequence.entryReturned(), actorId);
 		String kind = now.isAfter(reservation.freeCancelUntil()) ? "LATE" : "IN_TIME";
 		Reservation cancelled = this.reservations.cancel(reservation, actorId, now, consequence.entryReturned(), kind);
+		// The freed place goes to the waiting list in this transaction. The promotion also runs this
+		// cancellation's own pass release, ordered together with the passes it reserves.
+		UUID passId = reservation.customerPassId();
+		this.promotion.fillFreePlaces(event, profileId, now, List.of(new WaitlistPromotion.PassStep(passId,
+				() -> this.entitlements.release(profileId, passId, reservation.id(), consequence.entryReturned(), actorId))));
 		return reservationResponse(cancelled, event, now);
 	}
 
-	private GroupClassResponse project(ProfileDetails profile, Occurrence event, Reservation own,
-			int activeCount, Instant now) {
-		LocalDate date = LocalDate.ofInstant(event.startsAt(), this.studio.zone());
-		BookingPolicies.Values policy = this.policies.forOccurrence(event.serviceTypeId(),
-				event.trainingGroupId(), event.id()).effective();
-		Integer availablePlaces = event.capacity() == null ? null : Math.max(0, event.capacity() - activeCount);
+	/** {@code heldOffers} are places offered from the waiting list, not available to others. */
+	private GroupClassResponse project(ProfileDetails profile, Occurrence event, Reservation own, int activeCount,
+			int heldOffers, int waitingCount, QueuedEntry queued, Instant now) {
+		Terms terms = this.rules.terms(event);
+		BookingPolicies.Values policy = terms.rules();
+		Integer availablePlaces = event.capacity() == null ? null
+				: Math.max(0, event.capacity() - activeCount - heldOffers);
+		List<EligiblePass> passes = this.rules.passes(profile.id(), event, terms.date());
+		boolean full = availablePlaces != null && availablePlaces == 0;
+		boolean waitlistEnabled = Boolean.TRUE.equals(policy.waitlistEnabled());
+		WaitlistEntry entry = queued == null ? null : queued.entry();
+		String window = ParticipationRules.windowReason(event, policy, now);
+		// The participant's own checks cost queries, so they run only when an answer depends on them.
+		String participant = own == null && window == null && (!full || entry != null || waitlistEnabled)
+				? this.rules.participantReason(profile, event, terms.date(), passes) : null;
+		String booking = own != null ? "ALREADY_RESERVED" : window != null ? window : full ? "CLASS_FULL" : participant;
+		String joining = own != null ? "ALREADY_RESERVED" : entry != null ? "WAITLIST_ALREADY_JOINED"
+				: window != null ? window : !waitlistEnabled ? "WAITLIST_DISABLED" : !full ? "CLASS_NOT_FULL" : participant;
+		WaitlistEntryResponse ownEntry = entry == null ? null : WaitlistEntryResponse.of(entry, queued.position(),
+				this.rules.promotionReason(entry, profile, event, terms, passes, now));
 		return new GroupClassResponse(event.id(), event.title(), event.serviceTypeId(), event.serviceTypeName(),
 				event.calendarColor(), event.startsAt(), event.endsAt(), event.status(), event.capacity(), activeCount, availablePlaces,
 				event.staff().stream().map(staff -> new InstructorResponse(staff.staffId(), staff.displayName(), staff.role())).toList(),
 				event.resources().stream().map(room -> new RoomResponse(room.resourceId(), room.name())).toList(),
 				own == null ? null : reservationResponse(own, event, now),
-				availability(profile, event, own, activeCount, date, policy, now), event.version());
+				new BookingAvailability(booking == null, booking, passes.stream().map(pass -> new EligiblePassResponse(
+						pass.id(), pass.productName(), pass.entriesRemaining(), pass.validUntil())).toList()),
+				new WaitlistAvailability(joining == null, joining, waitingCount, WaitlistPromotion.confirmMinutes(terms),
+						ownEntry), event.version());
 	}
 
 	private static HistoryEntryResponse historyEntry(Occurrence event, PastReservation reservation) {
@@ -239,55 +277,6 @@ class GroupClassBookingService {
 			case "PRESENT", "ABSENT" -> reservation.attendance();
 			case null, default -> "UNMARKED";
 		};
-	}
-
-	private BookingAvailability availability(ProfileDetails profile, Occurrence event, Reservation own,
-			int count, LocalDate date, BookingPolicies.Values rules, Instant now) {
-		List<EligiblePassResponse> passes = this.entitlements.eligible(profile.id(), event.serviceTypeId(), date)
-			.stream().map(pass -> new EligiblePassResponse(pass.id(), pass.productName(), pass.entriesRemaining(), pass.validUntil())).toList();
-		String reason = null;
-		if (own != null) {
-			reason = "ALREADY_RESERVED";
-		}
-		else if (!"SCHEDULED".equals(event.status()) || !event.startsAt().isAfter(now)) {
-			reason = "EVENT_NOT_BOOKABLE";
-		}
-		else if (now.isBefore(event.startsAt().minus(Duration.ofDays(rules.bookingOpensDaysBefore())))) {
-			reason = "BOOKING_NOT_OPEN";
-		}
-		else if (!now.isBefore(event.startsAt().minus(Duration.ofMinutes(rules.bookingClosesMinutesBefore())))) {
-			reason = "BOOKING_CLOSED";
-		}
-		else if (event.capacity() != null && count >= event.capacity()) {
-			reason = "CLASS_FULL";
-		}
-		else {
-			ServiceTypes.Definition service = this.services.findDefinitionById(event.serviceTypeId()).orElse(null);
-			if (service == null || !service.active()) {
-				reason = "SERVICE_TYPE_UNAVAILABLE";
-			}
-			else if (!ageAllowed(profile.birthDate(), date, service.minAge(), service.maxAge())) {
-				reason = "AGE_RESTRICTION";
-			}
-			else if (this.documents.hasMissing(profile.id(), event.serviceTypeId(), profile.kind().name())) {
-				reason = "REQUIRED_DOCUMENTS_MISSING";
-			}
-			else if (passes.isEmpty()) {
-				reason = "NO_ELIGIBLE_PASS";
-			}
-		}
-		return new BookingAvailability(reason == null, reason, passes);
-	}
-
-	static boolean ageAllowed(LocalDate birthDate, LocalDate occurrenceDate, Short minAge, Short maxAge) {
-		if (minAge == null && maxAge == null) {
-			return true;
-		}
-		if (birthDate == null || birthDate.isAfter(occurrenceDate)) {
-			return false;
-		}
-		int age = Period.between(birthDate, occurrenceDate).getYears();
-		return (minAge == null || age >= minAge) && (maxAge == null || age <= maxAge);
 	}
 
 	static CancellationAvailability cancellation(Reservation reservation, Occurrence event, Instant now) {
@@ -325,14 +314,6 @@ class GroupClassBookingService {
 				reservation.cancelKind(), reservation.entryReturned(), cancellation(reservation, event, now), reservation.version());
 	}
 
-	private ProfileDetails requireProfile(UUID actorId, UUID profileId) {
-		if (!this.customers.isActingFor(actorId, profileId)) {
-			throw new ApiException(ErrorCode.NOT_FOUND, "Participant not found.");
-		}
-		return this.customers.findById(profileId)
-			.orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "Participant not found."));
-	}
-
 	private Occurrence requireEvent(UUID eventId) {
 		return this.schedule.find(eventId)
 			.orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "Group class not found."));
@@ -345,10 +326,6 @@ class GroupClassBookingService {
 
 	private static ApiException notFoundReservation() {
 		return new ApiException(ErrorCode.NOT_FOUND, "Reservation not found.");
-	}
-
-	private static ApiException rejected(String reason) {
-		return new ApiException(ErrorCode.valueOf(reason), "The requested operation is unavailable: " + reason + ".");
 	}
 
 	private static void requireWindow(Instant from, Instant to) {

@@ -58,6 +58,19 @@ resource "google_cloud_run_v2_service" "backend" {
         value = var.invitation_link_base_url
       }
       env {
+        name  = "PUSH_PROVIDER"
+        value = "FCM"
+      }
+      env {
+        # Cloud Scheduler's OIDC token for /internal/** must carry this audience and e-mail (see scheduler.tf).
+        name  = "JOBS_OIDC_AUDIENCE"
+        value = local.backend_url
+      }
+      env {
+        name  = "JOBS_OIDC_SERVICE_ACCOUNT"
+        value = google_service_account.scheduler.email
+      }
+      env {
         name = "BREVO_API_KEY"
         value_source {
           secret_key_ref {

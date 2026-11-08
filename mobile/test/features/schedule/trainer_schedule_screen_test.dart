@@ -7,6 +7,7 @@ import 'package:mobile/core/auth/auth_state.dart';
 import 'package:mobile/core/auth/session.dart';
 import 'package:mobile/core/network/api_exception.dart';
 import 'package:mobile/features/schedule/data/schedule_api.dart';
+import 'package:mobile/features/schedule/data/schedule_service_types.dart';
 import 'package:mobile/features/schedule/presentation/trainer_schedule_filter.dart';
 import 'package:mobile/features/schedule/presentation/trainer_schedule_screen.dart';
 import 'package:mobile/features/schedule/presentation/widgets/schedule_calendar.dart';
@@ -55,14 +56,39 @@ class _FakeScheduleApi implements ScheduleApi {
       events.singleWhere((event) => event.id == eventId);
 }
 
+class _FakeServiceTypesApi implements ScheduleServiceTypesApi {
+  const _FakeServiceTypesApi(this.types);
+
+  final List<ScheduleServiceType> types;
+
+  @override
+  Future<Map<String, ScheduleServiceType>> fetchAll() async => {
+    for (final type in types) type.id: type,
+  };
+}
+
 class _FakeParticipantsApi implements EventParticipantsApi {
   final eventIds = <String>[];
 
   @override
-  Future<List<EventParticipant>> fetch(String eventId) async {
+  Future<EventAttendance> fetchAttendance(String eventId) async {
     eventIds.add(eventId);
-    return const [];
+    return EventAttendance(
+      eventStatus: EventStatus.scheduled,
+      markingOpensAt: DateTime(2100),
+      markingClosesAt: DateTime(2100, 1, 2),
+      markingOpen: false,
+      participants: const [],
+    );
   }
+
+  @override
+  Future<EventAttendance> mark(String eventId, Map<String, Attendance> marks) =>
+      throw UnimplementedError();
+
+  @override
+  Future<EventAttendance> complete(String eventId) =>
+      throw UnimplementedError();
 }
 
 DateTime _today() {
@@ -80,6 +106,7 @@ ScheduleEvent _event(
   EventStatus status = EventStatus.scheduled,
   bool isLead = true,
   String room = 'Pole room',
+  String? serviceTypeId,
 }) {
   return ScheduleEvent(
     id: title,
@@ -87,6 +114,7 @@ ScheduleEvent _event(
     status: status,
     title: title,
     serviceTypeName: null,
+    serviceTypeId: serviceTypeId,
     startsAt: startsAt,
     endsAt: startsAt.add(const Duration(hours: 1)),
     capacity: 10,
@@ -110,8 +138,9 @@ void main() {
 
   Future<_FakeScheduleApi> pumpScreen(
     WidgetTester tester,
-    List<ScheduleEvent> events,
-  ) async {
+    List<ScheduleEvent> events, {
+    List<ScheduleServiceType> serviceTypes = const [],
+  }) async {
     // Tall enough for a whole week of events.
     tester.view.physicalSize = const Size(800, 3000);
     tester.view.devicePixelRatio = 1;
@@ -131,6 +160,9 @@ void main() {
             ),
           ),
           eventParticipantsApiProvider.overrideWithValue(participantsApi),
+          scheduleServiceTypesApiProvider.overrideWithValue(
+            _FakeServiceTypesApi(serviceTypes),
+          ),
         ],
         child: const MaterialApp(
           localizationsDelegates: AppLocalizations.localizationsDelegates,
@@ -358,6 +390,75 @@ void main() {
     expect(find.text('Filtry'), findsOneWidget);
     expect(find.text('Pole dance'), findsOneWidget);
     expect(find.text('PT with Tomasz'), findsOneWidget);
+  });
+
+  testWidgets('filters by service level and age group', (tester) async {
+    await pumpScreen(
+      tester,
+      [
+        _event(
+          'Pole dance',
+          EventKind.groupClass,
+          DateTime(today.year, today.month, today.day, 18),
+          serviceTypeId: 'pole-beginner',
+        ),
+        _event(
+          'Kids acrobatics',
+          EventKind.groupClass,
+          DateTime(today.year, today.month, today.day, 16),
+          serviceTypeId: 'kids-acro',
+        ),
+        _event(
+          'Consultation',
+          EventKind.consultation,
+          DateTime(today.year, today.month, today.day, 10),
+        ),
+      ],
+      serviceTypes: const [
+        ScheduleServiceType(
+          id: 'pole-beginner',
+          level: 'BEGINNER',
+          minAge: 16,
+          maxAge: null,
+        ),
+        ScheduleServiceType(
+          id: 'kids-acro',
+          level: 'INTERMEDIATE',
+          minAge: 6,
+          maxAge: 12,
+        ),
+      ],
+    );
+    Future<void> tapInSheet(String text) async {
+      await tester.tap(
+        find.descendant(
+          of: find.byType(BottomSheet),
+          matching: find.text(text),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    await tester.tap(find.text('Filtry'));
+    await tester.pumpAndSettle();
+    expect(find.text('Poziom'), findsOneWidget);
+    expect(find.text('Grupa wiekowa'), findsOneWidget);
+
+    await tapInSheet('Początkujący');
+    expect(find.text('Pole dance'), findsOneWidget);
+    expect(find.text('Kids acrobatics'), findsNothing);
+    // An event without a service has no level.
+    expect(find.text('Consultation'), findsNothing);
+    await tapInSheet('Początkujący');
+
+    await tapInSheet('Dzieci');
+    expect(find.text('Pole dance'), findsNothing);
+    expect(find.text('Kids acrobatics'), findsOneWidget);
+    expect(find.text('Consultation'), findsNothing);
+
+    Navigator.of(tester.element(find.byType(BottomSheet))).pop();
+    await tester.pumpAndSettle();
+    expect(find.text('Filtry (1)'), findsOneWidget);
   });
 
   test('a role filter needs the trainer among the event staff', () {

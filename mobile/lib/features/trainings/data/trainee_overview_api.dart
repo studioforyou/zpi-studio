@@ -90,6 +90,7 @@ class TraineeTraining extends ScheduleEvent {
          status: event.status,
          title: event.title,
          serviceTypeName: event.serviceTypeName,
+         serviceTypeId: event.serviceTypeId,
          startsAt: event.startsAt,
          endsAt: event.endsAt,
          capacity: event.capacity,
