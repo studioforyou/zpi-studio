@@ -58,6 +58,87 @@ public class CustomerProfiles {
 			.optional();
 	}
 
+	/**
+	 * Profiles the account acts for: its own active profile and the active children its own
+	 * profile is a current guardian of.
+	 */
+	public Set<UUID> findProfileIdsActedForBy(UUID accountId) {
+		return jdbc.sql("""
+				SELECT id FROM customer_profile
+				WHERE account_id = :accountId AND status = 'ACTIVE'
+				UNION
+				SELECT c.id
+				FROM customer_profile guardian
+				JOIN guardianship g ON g.guardian_id = guardian.id AND g.ended_at IS NULL
+				JOIN customer_profile c ON c.id = g.child_id AND c.status = 'ACTIVE'
+				WHERE guardian.account_id = :accountId AND guardian.status = 'ACTIVE'
+				""")
+			.param("accountId", accountId)
+			.query(UUID.class)
+			.set();
+	}
+
+	/**
+	 * Accounts that act for any of the given active profiles: a profile's own account, or the
+	 * accounts of a child's current guardians.
+	 */
+	public Set<UUID> findAccountsActingFor(Collection<UUID> profileIds) {
+		if (profileIds.isEmpty()) {
+			return Set.of();
+		}
+		return jdbc.sql("""
+				SELECT p.account_id
+				FROM customer_profile p
+				WHERE p.id IN (:ids) AND p.status = 'ACTIVE' AND p.account_id IS NOT NULL
+				UNION
+				SELECT guardian.account_id
+				FROM guardianship g
+				JOIN customer_profile c ON c.id = g.child_id AND c.status = 'ACTIVE'
+				JOIN customer_profile guardian ON guardian.id = g.guardian_id AND guardian.status = 'ACTIVE'
+				WHERE g.child_id IN (:ids) AND g.ended_at IS NULL AND guardian.account_id IS NOT NULL
+				""")
+			.param("ids", profileIds)
+			.query(UUID.class)
+			.set();
+	}
+
+	/**
+	 * The account that represents an active participant: its own account or, for a child, the
+	 * account of its earliest current guardian.
+	 */
+	public Optional<UUID> findContactAccount(UUID profileId) {
+		return jdbc.sql("""
+				SELECT COALESCE(p.account_id, (
+				           SELECT guardian.account_id
+				           FROM guardianship g
+				           JOIN customer_profile guardian ON guardian.id = g.guardian_id
+				           WHERE g.child_id = p.id AND g.ended_at IS NULL AND guardian.account_id IS NOT NULL
+				             AND guardian.status = 'ACTIVE'
+				           ORDER BY g.created_at, guardian.id
+				           LIMIT 1))
+				FROM customer_profile p
+				WHERE p.id = :id AND p.status = 'ACTIVE'
+				""")
+			.param("id", profileId)
+			.query(UUID.class)
+			.optional();
+	}
+
+	/** Names of the own profiles of the given accounts, whatever their status; accounts without one are left out. */
+	public Map<UUID, String> displayNamesByAccount(Collection<UUID> accountIds) {
+		if (accountIds.isEmpty()) {
+			return Map.of();
+		}
+		record Row(UUID accountId, String firstName, String lastName) {
+		}
+		return jdbc.sql("SELECT account_id, first_name, last_name FROM customer_profile WHERE account_id IN (:ids)")
+			.param("ids", accountIds)
+			.query(Row.class)
+			.list()
+			.stream()
+			.collect(Collectors.toMap(Row::accountId, (row) -> row.firstName() + " " + row.lastName()));
+	}
+
 	/** Creates the own (adult) customer profile of a new account. */
 	public UUID createOwnProfile(UUID accountId, String firstName, String lastName, UUID createdBy) {
 		return jdbc.sql("""

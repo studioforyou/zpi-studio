@@ -18,6 +18,7 @@ import 'package:mobile/features/accounts/presentation/staff_profile_edit_screen.
 import 'package:mobile/features/accounts/presentation/widgets/choice_tile.dart';
 import 'package:mobile/features/accounts/presentation/widgets/profile_header.dart';
 import 'package:mobile/features/communication/data/notifications_api.dart';
+import 'package:mobile/features/communication/data/conversations_api.dart';
 import 'package:mobile/features/schedule/data/schedule_api.dart';
 import 'package:mobile/features/schedule/data/schedule_service_types.dart';
 
@@ -147,6 +148,9 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          unreadMessagesProvider.overrideWith(
+            (ref, accountId) => Stream.value(0),
+          ),
           authRepositoryProvider.overrideWithValue(_SignedInRepository()),
           dioProvider.overrideWithValue(dio),
           unreadCountProvider.overrideWith((ref, scope) async => 0),

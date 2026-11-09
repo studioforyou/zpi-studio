@@ -14,6 +14,7 @@ import 'package:mobile/core/auth/session.dart';
 import 'package:mobile/core/network/dio_provider.dart';
 import 'package:mobile/features/accounts/data/staff_profile_api.dart';
 import 'package:mobile/features/accounts/presentation/customer_profile_edit_screen.dart';
+import 'package:mobile/features/communication/data/conversations_api.dart';
 
 const _session = Session(
   accountId: 'account-1',
@@ -139,6 +140,9 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          unreadMessagesProvider.overrideWith(
+            (ref, accountId) => Stream.value(0),
+          ),
           authRepositoryProvider.overrideWithValue(
             _SignedInRepository(session),
           ),

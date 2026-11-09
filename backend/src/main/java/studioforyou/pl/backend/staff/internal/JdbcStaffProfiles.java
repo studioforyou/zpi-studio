@@ -133,6 +133,22 @@ public class JdbcStaffProfiles implements StaffProfiles {
 
 	@Override
 	@Transactional(readOnly = true)
+	public Map<UUID, String> displayNamesByAccount(Collection<UUID> accountIds) {
+		if (accountIds.isEmpty()) {
+			return Map.of();
+		}
+		Map<UUID, String> names = new HashMap<>();
+		jdbc.sql("SELECT account_id, first_name, last_name FROM staff_profile WHERE account_id IN (:ids)")
+			.param("ids", accountIds)
+			.query((rs) -> {
+				names.put(rs.getObject("account_id", UUID.class),
+						rs.getString("first_name") + " " + rs.getString("last_name"));
+			});
+		return names;
+	}
+
+	@Override
+	@Transactional(readOnly = true)
 	public List<StaffMember> findAllById(Collection<UUID> ids) {
 		if (ids.isEmpty()) {
 			return List.of();
