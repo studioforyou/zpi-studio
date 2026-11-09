@@ -123,6 +123,8 @@ String classReason(AppLocalizations l10n, String? reason) => switch (reason) {
   'GROUP_MEMBERSHIP_REQUIRED' => l10n.classesGroupRequired,
   'REQUIRED_DOCUMENTS_MISSING' => l10n.classesDocumentsRequired,
   'NO_ELIGIBLE_PASS' => l10n.classesNoEligiblePass,
+  'MAKEUP_CREDIT_NOT_AVAILABLE' => l10n.makeupUnavailable,
+  'MAKEUP_CREDIT_NOT_USABLE' => l10n.makeupNotUsable,
   'PASS_NOT_USABLE' ||
   'PASS_ENTRIES_EXHAUSTED' ||
   'PASS_SERVICE_MISMATCH' => l10n.classesNoEligiblePass,

@@ -269,6 +269,19 @@ class SeedDataTests {
 				""").query().singleRow();
 	}
 
+	@Test
+	@Transactional
+	void makeupBookingExamplesPreserveTesterDecisions() {
+		Map<String, Long> counts = rowCounts();
+		jdbc.sql("UPDATE makeup_credit SET status = 'EXPIRED', expires_at = CURRENT_TIMESTAMP - INTERVAL '1 hour' WHERE id = '33000000-0000-0000-0000-000000012001'").update();
+		var before = jdbc.sql("SELECT * FROM makeup_credit WHERE id = '33000000-0000-0000-0000-000000012001'").query().singleRow();
+		var script = new ResourceDatabasePopulator(new ClassPathResource("db/seed/R__seed_12_makeup_booking.sql"));
+		script.execute(dataSource);
+		script.execute(dataSource);
+		assertThat(jdbc.sql("SELECT * FROM makeup_credit WHERE id = '33000000-0000-0000-0000-000000012001'").query().singleRow()).isEqualTo(before);
+		assertThat(rowCounts()).isEqualTo(counts);
+	}
+
 	private Map<String, Long> rowCounts() {
 		List<String> tables = jdbc.sql("""
 				SELECT table_name

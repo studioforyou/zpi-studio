@@ -89,7 +89,12 @@ class ParticipationRules {
 
 	/** Why this participant cannot take part (service, age, documents or funding), or null. */
 	String participantReason(ProfileDetails participant, Occurrence event, LocalDate date, List<EligiblePass> passes) {
-		List<String> unmet = unmetRequirements(participant, event, date, passes, true);
+		return participantReason(participant, event, date, !passes.isEmpty());
+	}
+
+	/** A make-up credit can fund the class without requiring another active pass. */
+	String participantReason(ProfileDetails participant, Occurrence event, LocalDate date, boolean funded) {
+		List<String> unmet = unmetRequirements(participant, event, date, funded, true);
 		return unmet.isEmpty() ? null : unmet.getFirst();
 	}
 
@@ -99,11 +104,11 @@ class ParticipationRules {
 	 */
 	List<String> unmetRequirements(ProfileDetails participant, Occurrence event, LocalDate date,
 			List<EligiblePass> passes) {
-		return unmetRequirements(participant, event, date, passes, false);
+		return unmetRequirements(participant, event, date, !passes.isEmpty(), false);
 	}
 
 	private List<String> unmetRequirements(ProfileDetails participant, Occurrence event, LocalDate date,
-			List<EligiblePass> passes, boolean firstOnly) {
+			boolean funded, boolean firstOnly) {
 		List<String> unmet = new ArrayList<>();
 		ServiceTypes.Definition service = this.services.findDefinitionById(event.serviceTypeId()).orElse(null);
 		if (service == null || !service.active()) {
@@ -119,7 +124,7 @@ class ParticipationRules {
 		if (this.documents.hasMissing(participant.id(), event.serviceTypeId(), participant.kind().name())) {
 			unmet.add("REQUIRED_DOCUMENTS_MISSING");
 		}
-		if (passes.isEmpty()) {
+		if (!funded) {
 			unmet.add("NO_ELIGIBLE_PASS");
 		}
 		return unmet;

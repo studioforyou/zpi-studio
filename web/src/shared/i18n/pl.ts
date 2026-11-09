@@ -996,6 +996,7 @@ export const pl = {
       cancelFor: (name: string) => `Wypisz: ${name}`,
       child: 'Dziecko',
       noPass: 'bez karnetu',
+      makeup: (passName: string | null) => (passName ? `Odróbka · ${passName}` : 'Odróbka'),
       sources: {
         SELF: 'zapis samodzielny',
         GUARDIAN: 'zapis przez opiekuna',
@@ -1076,6 +1077,16 @@ export const pl = {
         title: 'Wypisz uczestnika z zajęć',
         pass: (name: string | null) => `Karnet: ${name ?? 'bez nazwy'}`,
         noPass: 'Uczestnik jest zapisany bez karnetu, więc nie ma wejścia do zwrotu.',
+        makeup: {
+          note: 'Rezerwacja z odróbki. Zwrot zachowuje jej pierwotny termin ważności.',
+          entry: 'Rozliczenie odróbki',
+          returned: 'Według zasad odwołania odróbka wraca do wykorzystania.',
+          forfeited:
+            'Odróbka nie wróci do wykorzystania z powodu zasad odwołania lub końca jej ważności.',
+          unknown: 'Zdecyduj, czy odróbka wraca do wykorzystania.',
+          returnEntry: 'Zwróć odróbkę',
+          forfeitEntry: 'Nie zwracaj odróbki',
+        },
         suggested: {
           returned: 'Według zasad odwołania wejście wraca na karnet.',
           forfeited: 'Według zasad odwołania to późne wypisanie, więc wejście przepada.',
