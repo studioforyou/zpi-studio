@@ -348,7 +348,7 @@ class TrainerAvailabilityTests {
 			.andExpect(status().isNoContent());
 		assertThat(countRows(trainerStaffId)).isEqualTo(3);
 
-		perform(TRAINER, delete(PATH + "/" + past).param("date", monday.minusDays(7).toString()), null)
+		perform(TRAINER, delete(PATH + "/" + past).param("date", monday.minusDays(14).toString()), null)
 			.andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.errors[0].field").value("date"));
 	}
