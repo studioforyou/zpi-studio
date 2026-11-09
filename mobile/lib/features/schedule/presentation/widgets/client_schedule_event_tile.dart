@@ -8,10 +8,12 @@ class ClientScheduleEventTile extends StatelessWidget {
   const ClientScheduleEventTile({
     required this.event,
     required this.onTap,
+    this.participant,
     super.key,
   });
   final GroupClass event;
   final VoidCallback onTap;
+  final Widget? participant;
 
   @override
   Widget build(BuildContext context) {
@@ -49,6 +51,10 @@ class ClientScheduleEventTile extends StatelessWidget {
                               style: theme.textTheme.labelLarge,
                             ),
                           ),
+                          if (participant != null) ...[
+                            Flexible(child: participant!),
+                            const SizedBox(width: 8),
+                          ],
                           const Icon(Icons.chevron_right, size: 20),
                         ],
                       ),

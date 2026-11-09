@@ -278,7 +278,15 @@ class _HistoryTile extends StatelessWidget {
                         ),
                       ],
                     ),
-                    if (entry.outcome == TrainingOutcome.lateCancelled &&
+                    if (entry.cancellationEffect == 'MAKEUP_GRANTED' ||
+                        entry.cancellationEffect == 'MAKEUP_RETURNED')
+                      Text(
+                        entry.cancellationEffect == 'MAKEUP_GRANTED'
+                            ? l10n.personalMakeupGranted
+                            : l10n.personalMakeupReturned,
+                        style: theme.textTheme.bodySmall,
+                      )
+                    else if (entry.outcome == TrainingOutcome.lateCancelled &&
                         entry.entryReturned == false)
                       Text(
                         l10n.trainingHistoryEntryNotReturned,
