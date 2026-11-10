@@ -161,3 +161,40 @@ test('does not save duplicate reminder times', async () => {
   expect(within(dialog).getByText('Przypomnienia muszą mieć różne terminy.')).toBeInTheDocument();
   expect(patches).toEqual([]);
 });
+
+test('counts a pass reminder back from 9:00 on the last day and previews pass fields', async () => {
+  const expiring = {
+    code: 'PASS_EXPIRING',
+    enabled: true,
+    timed: true,
+    leadTimesMinutes: [4320, 1440],
+    title: 'Karnet wkrótce wygaśnie',
+    body: '{{karnet}} jest ważny do {{ważny do}}.',
+    placeholders: [
+      { name: 'karnet', description: 'Name of the pass' },
+      { name: 'ważny do', description: 'Last day' },
+      { name: 'ile przed', description: 'Lead time' },
+    ],
+    updatedAt: null,
+  };
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string, init: RequestInit) => {
+      if (url === '/api/v1/notification-types' && init.method === 'GET') {
+        return json({ items: [expiring] });
+      }
+      throw new Error(`Unexpected request: ${init.method} ${url}`);
+    }),
+  );
+  renderWithProviders(<CommunicationPage />);
+  expect(await screen.findByText('Karnet wkrótce wygaśnie')).toBeInTheDocument();
+  expect(screen.getByText('3 dni przed')).toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: 'Edytuj' }));
+  const dialog = await screen.findByRole('dialog');
+  expect(within(dialog).getAllByText('przed 9:00 ostatniego dnia')).toHaveLength(2);
+  expect(
+    within(dialog).getByText(/przed godziną 9:00 ostatniego dnia ważności/),
+  ).toBeInTheDocument();
+  const preview = within(dialog).getByLabelText('Podgląd');
+  expect(within(preview).getByText('Karnet 8 wejść jest ważny do 12.11.2026.')).toBeInTheDocument();
+});

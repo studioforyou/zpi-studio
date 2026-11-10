@@ -89,6 +89,7 @@ class BookingEntitlementsTests {
 
 	@AfterEach
 	void tearDown() {
+		PassNotificationCleanup.deleteNotifications(jdbc, List.of(actor));
 		jdbc.sql("DELETE FROM pass_ledger WHERE pass_id IN (SELECT id FROM customer_pass WHERE customer_id = :customer)")
 			.param("customer", customer).update();
 		jdbc.sql("DELETE FROM pass_suspension WHERE pass_id IN (SELECT id FROM customer_pass WHERE customer_id = :customer)")

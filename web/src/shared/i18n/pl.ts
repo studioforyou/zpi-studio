@@ -1240,6 +1240,19 @@ export const pl = {
           description:
             'Wysyłane uczestnikom z aktywną rezerwacją przed zajęciami lub treningiem. Powiadomienia dziecka dostaje rodzic.',
         },
+        PASS_EXPIRING: {
+          name: 'Karnet wkrótce wygaśnie',
+          description:
+            'Wysyłane przed ostatnim dniem ważności karnetu. Pomijane, gdy uczestnik ma już kolejny karnet albo nie zostały mu wejścia. Powiadomienia dziecka dostaje rodzic.',
+          leadTimeAnchor: 'przed 9:00 ostatniego dnia',
+          leadTimesHint:
+            'Od 1 do 5 przypomnień, od 5 minut do 14 dni przed godziną 9:00 ostatniego dnia ważności karnetu.',
+        },
+        PASS_LAST_ENTRY_USED: {
+          name: 'Wykorzystano ostatnie wejście',
+          description:
+            'Wysyłane od razu, gdy zapis na zajęcia zabierze ostatnie wejście z karnetu. Raz na karnet i pomijane, gdy uczestnik ma już kolejny karnet. Powiadomienia dziecka dostaje rodzic.',
+        },
       },
       placeholders: {
         CLASS_REMINDER: {
@@ -1267,6 +1280,36 @@ export const pl = {
             label: 'Ile czasu przed',
             description: 'Ile czasu przed zajęciami wysyłane jest przypomnienie, np. „2 godz.”',
             example: '2 godz.',
+          },
+        },
+        PASS_EXPIRING: {
+          karnet: {
+            label: 'Nazwa karnetu',
+            description: 'Nazwa karnetu, np. „Karnet 8 wejść”',
+            example: 'Karnet 8 wejść',
+          },
+          'ważny do': {
+            label: 'Ważny do',
+            description: 'Ostatni dzień ważności karnetu, np. „12.11.2026”',
+            example: '12.11.2026',
+          },
+          'ile przed': {
+            label: 'Ile czasu przed',
+            description:
+              'Ile czasu przed godziną 9:00 ostatniego dnia wysyłane jest przypomnienie, np. „3 dni”',
+            example: '3 dni',
+          },
+        },
+        PASS_LAST_ENTRY_USED: {
+          karnet: {
+            label: 'Nazwa karnetu',
+            description: 'Nazwa karnetu, np. „Karnet 8 wejść”',
+            example: 'Karnet 8 wejść',
+          },
+          'ważny do': {
+            label: 'Ważny do',
+            description: 'Ostatni dzień ważności karnetu, np. „12.11.2026”',
+            example: '12.11.2026',
           },
         },
       },

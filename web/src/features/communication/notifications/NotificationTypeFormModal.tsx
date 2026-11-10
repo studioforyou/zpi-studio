@@ -184,7 +184,7 @@ export function NotificationTypeFormModal({ opened, onClose, type }: Props) {
                 {texts.leadTimes}
               </Text>
               <Text size="xs" c="dimmed">
-                {texts.leadTimesHint}
+                {typeTexts(type.code).leadTimesHint ?? texts.leadTimesHint}
               </Text>
               {leadTimes.map((value, index) => (
                 <Group key={index} gap="xs" align="flex-end" wrap="nowrap">
@@ -206,7 +206,7 @@ export function NotificationTypeFormModal({ opened, onClose, type }: Props) {
                     w={130}
                   />
                   <Text size="sm" pb={8}>
-                    {texts.beforeStart}
+                    {typeTexts(type.code).leadTimeAnchor ?? texts.beforeStart}
                   </Text>
                   <ActionIcon
                     variant="subtle"

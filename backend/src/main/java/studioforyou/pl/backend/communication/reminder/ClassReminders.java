@@ -175,7 +175,7 @@ public class ClassReminders {
 	}
 
 	/** E.g. "2 godz.", "1 godz. 30 min", "45 min", "2 dni". */
-	static String leadTime(int minutes) {
+	public static String leadTime(int minutes) {
 		if (minutes % 1440 == 0) {
 			int days = minutes / 1440;
 			return days == 1 ? "1 dzień" : days + " dni";

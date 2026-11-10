@@ -16,6 +16,7 @@ import 'package:mobile/core/push/push_device.dart';
 import 'package:mobile/core/push/push_messaging.dart';
 import 'package:mobile/features/communication/data/conversations_api.dart';
 import 'package:mobile/features/communication/data/notifications_api.dart';
+import 'package:mobile/features/passes/data/passes_api.dart';
 import 'package:mobile/features/schedule/data/schedule_service_types.dart';
 import 'package:mobile/features/schedule/data/studio_trainers.dart';
 import 'package:mobile/features/trainings/data/group_classes_api.dart';
@@ -173,6 +174,7 @@ void main() {
           groupClassesProvider.overrideWith((ref, query) async => const []),
           scheduleServiceTypesProvider.overrideWith((ref) async => const {}),
           studioTrainersProvider.overrideWith((ref) async => const []),
+          ownPassesProvider.overrideWith((ref, profileId) async => const []),
           pushMessagingProvider.overrideWithValue(push),
           devicesApiProvider.overrideWithValue(devices),
           notificationsApiProvider.overrideWithValue(notifications),
@@ -253,6 +255,40 @@ void main() {
         expect(session.activeProfileId, 'child-2');
         expect(location(container), clientReservationsPath);
         expect(notifications.read, ['n1']);
+      },
+    );
+
+    testWidgets(
+      'a tapped pass notification about a child opens the child\'s passes',
+      (tester) async {
+        final push = _Push();
+        final notifications = _Notifications();
+        final container = await pumpApp(
+          tester,
+          push: push,
+          devices: _Devices(),
+          notifications: notifications,
+        );
+        await tester.tap(find.text('Anna').first);
+        await tester.pumpAndSettle();
+
+        push.opened.add(
+          const PushMessage(
+            data: {
+              'type': 'PASS_LAST_ENTRY_USED',
+              'notificationId': 'n2',
+              'passId': 'pass-1',
+              'profileId': 'child-2',
+            },
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final session =
+            (container.read(authControllerProvider) as Authenticated).session;
+        expect(session.activeProfileId, 'child-2');
+        expect(location(container), clientPassesPath);
+        expect(notifications.read, ['n2']);
       },
     );
 

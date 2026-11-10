@@ -11,6 +11,7 @@ import org.springframework.modulith.events.IncompleteEventPublications;
 import org.springframework.stereotype.Service;
 
 import studioforyou.pl.backend.communication.notification.NotificationDispatcher;
+import studioforyou.pl.backend.communication.pass.PassExpiryReminders;
 import studioforyou.pl.backend.communication.reminder.ClassReminders;
 
 /**
@@ -18,6 +19,8 @@ import studioforyou.pl.backend.communication.reminder.ClassReminders;
  * 5 minutes through {@link NotificationJobController} (locally {@link LocalNotificationScheduler}
  * can). Notifications about business events are sent right after the event, not here; this job
  * only catches up on the ones whose sending failed or was interrupted.
+ * <p>
+ * Today the timed notifications are class reminders and reminders about expiring passes.
  */
 @Service
 public class NotificationJobs {
@@ -29,13 +32,16 @@ public class NotificationJobs {
 
 	private final ClassReminders classReminders;
 
+	private final PassExpiryReminders passExpiryReminders;
+
 	private final NotificationDispatcher dispatcher;
 
 	private final IncompleteEventPublications incompleteEvents;
 
-	NotificationJobs(ClassReminders classReminders, NotificationDispatcher dispatcher,
-			IncompleteEventPublications incompleteEvents) {
+	NotificationJobs(ClassReminders classReminders, PassExpiryReminders passExpiryReminders,
+			NotificationDispatcher dispatcher, IncompleteEventPublications incompleteEvents) {
 		this.classReminders = classReminders;
+		this.passExpiryReminders = passExpiryReminders;
 		this.dispatcher = dispatcher;
 		this.incompleteEvents = incompleteEvents;
 	}
@@ -44,6 +50,7 @@ public class NotificationJobs {
 	public RunResult run() {
 		Instant now = Instant.now();
 		int reminders = safely("class reminders", () -> classReminders.sendDue(now));
+		reminders += safely("pass expiry reminders", () -> passExpiryReminders.sendDue(now));
 		int retried = safely("delivery retries", () -> dispatcher.retryUndelivered(now));
 		safely("incomplete events", () -> {
 			incompleteEvents.resubmitIncompletePublicationsOlderThan(INCOMPLETE_EVENT_AGE);
@@ -63,7 +70,7 @@ public class NotificationJobs {
 	}
 
 	/**
-	 * @param remindersCreated new class reminders
+	 * @param remindersCreated new reminders about classes and expiring passes
 	 * @param deliveriesRetried notifications sent again after a failed or interrupted delivery
 	 */
 	public record RunResult(Instant ranAt, int remindersCreated, int deliveriesRetried) {

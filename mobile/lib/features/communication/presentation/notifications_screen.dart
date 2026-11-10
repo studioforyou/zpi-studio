@@ -203,12 +203,12 @@ class _NotificationTile extends ConsumerWidget {
     final theme = Theme.of(context);
     final unread = notification.isUnread;
     return ListTile(
-      leading: Icon(
-        notification.type == 'CLASS_REMINDER'
-            ? Icons.event_outlined
-            : Icons.notifications_outlined,
-        color: theme.colorScheme.primary,
-      ),
+      leading: Icon(switch (notification.type) {
+        'CLASS_REMINDER' => Icons.event_outlined,
+        'PASS_EXPIRING' ||
+        'PASS_LAST_ENTRY_USED' => Icons.confirmation_number_outlined,
+        _ => Icons.notifications_outlined,
+      }, color: theme.colorScheme.primary),
       title: Text(
         notification.title,
         style: unread ? const TextStyle(fontWeight: FontWeight.w600) : null,

@@ -59,6 +59,14 @@ class PushNotifications {
     }
   }
 
+  /// The client screen each notification type opens, for the participant in
+  /// its `profileId`. Other types open the notifications screen.
+  static const _clientPaths = {
+    'CLASS_REMINDER': clientReservationsPath,
+    'PASS_EXPIRING': clientPassesPath,
+    'PASS_LAST_ENTRY_USED': clientPassesPath,
+  };
+
   /// Opens what a notification is about (its `data`) and marks it read. A
   /// notification tapped before the session is ready opens once it is.
   void open(Map<String, String> data) {
@@ -72,9 +80,9 @@ class PushNotifications {
 
     final session = auth.session;
     final router = _ref.read(appRouterProvider);
-    if (data['type'] == 'CLASS_REMINDER' &&
-        session.roles.contains(AppRole.client)) {
-      // A reminder about a child opens the child's reservations.
+    final clientPath = _clientPaths[data['type']];
+    if (clientPath != null && session.roles.contains(AppRole.client)) {
+      // A notification about a child opens the child's screen.
       final choice = session.choices
           .where(
             (choice) =>
@@ -87,7 +95,7 @@ class PushNotifications {
               session.activeProfileId != choice.profile?.id)) {
         _ref.read(authControllerProvider.notifier).choose(choice);
       }
-      router.go(clientReservationsPath);
+      router.go(clientPath);
       return;
     }
     router.go(
