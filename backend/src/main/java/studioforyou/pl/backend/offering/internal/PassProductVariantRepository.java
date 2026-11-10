@@ -1,6 +1,8 @@
 package studioforyou.pl.backend.offering.internal;
 
 import java.util.Optional;
+import java.util.Collection;
+import java.util.List;
 import java.util.UUID;
 
 import org.springframework.data.jpa.repository.Query;
@@ -10,6 +12,9 @@ public interface PassProductVariantRepository extends Repository<PassProductVari
 
 	@Query("SELECT v FROM PassProductVariant v JOIN FETCH v.product WHERE v.id = :id")
 	Optional<PassProductVariant> findWithProductById(UUID id);
+
+	@Query("SELECT v FROM PassProductVariant v JOIN FETCH v.product WHERE v.id IN :ids")
+	List<PassProductVariant> findWithProductsByIdIn(Collection<UUID> ids);
 
 	@Query(value = """
 			SELECT EXISTS (

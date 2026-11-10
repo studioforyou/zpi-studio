@@ -63,6 +63,11 @@ class DefaultGroupClassSchedule implements GroupClassSchedule {
 	}
 
 	@Override
+	public List<Occurrence> findAllById(Collection<UUID> ids) {
+		return occurrences(queries.findEventsById(ids));
+	}
+
+	@Override
 	@Transactional(propagation = Propagation.MANDATORY)
 	public Occurrence lock(UUID id) {
 		return lock(id, "AND visibility = 'PUBLIC'");
