@@ -21,7 +21,16 @@ public enum NotificationType {
 			new Placeholder(Placeholder.DAY, "Day of the class: \"dziś\", \"jutro\" or the weekday and date, e.g. \"wtorek 12.11\""),
 			new Placeholder(Placeholder.TIME, "Start time in the studio time zone, e.g. \"18:00\""),
 			new Placeholder(Placeholder.ROOM, "Room names, or \"studio\" when no room is assigned"),
-			new Placeholder(Placeholder.LEAD_TIME, "How long before the start the reminder is sent, e.g. \"2 godz.\"")));
+			new Placeholder(Placeholder.LEAD_TIME, "How long before the start the reminder is sent, e.g. \"2 godz.\""))),
+
+	/**
+	 * A new message in a conversation the recipient takes part in, sent right after it is written to
+	 * every other participant.
+	 */
+	NEW_MESSAGE((short) 4, false, List.of(
+			new Placeholder(Placeholder.SENDER, "Who wrote the message; in a group or class chat with the chat's name, e.g. \"Pilates · Anna Nowak\""),
+			new Placeholder(Placeholder.CONVERSATION, "Name of the conversation: the other person's name, or the group or class chat's name"),
+			new Placeholder(Placeholder.TEXT, "The beginning of the message, at most 100 characters")));
 
 	private final short id;
 
@@ -79,6 +88,15 @@ public enum NotificationType {
 
 		/** How long before the start the reminder is sent. */
 		public static final String LEAD_TIME = "ile przed";
+
+		/** Who wrote the message. */
+		public static final String SENDER = "od";
+
+		/** Name of the conversation. */
+		public static final String CONVERSATION = "rozmowa";
+
+		/** The beginning of the message. */
+		public static final String TEXT = "treść";
 
 	}
 

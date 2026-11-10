@@ -161,3 +161,43 @@ test('does not save duplicate reminder times', async () => {
   expect(within(dialog).getByText('Przypomnienia muszą mieć różne terminy.')).toBeInTheDocument();
   expect(patches).toEqual([]);
 });
+
+test('shows the new message notification without reminder times and previews message fields', async () => {
+  const newMessage = {
+    code: 'NEW_MESSAGE',
+    enabled: true,
+    timed: false,
+    leadTimesMinutes: [],
+    title: '{{od}}',
+    body: '{{treść}}',
+    placeholders: [
+      { name: 'od', description: 'Sender' },
+      { name: 'rozmowa', description: 'Conversation' },
+      { name: 'treść', description: 'Message' },
+    ],
+    updatedAt: null,
+  };
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string, init: RequestInit) => {
+      if (url === '/api/v1/notification-types' && init.method === 'GET') {
+        return json({ items: [newMessage] });
+      }
+      throw new Error(`Unexpected request: ${init.method} ${url}`);
+    }),
+  );
+  renderWithProviders(<CommunicationPage />);
+  expect(await screen.findByText('Nowa wiadomość')).toBeInTheDocument();
+  expect(
+    screen.getByText(/Wiadomości z czatu grupowego dziecka dostaje rodzic\./),
+  ).toBeInTheDocument();
+  expect(screen.queryByText(/przed$/)).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: 'Edytuj' }));
+  const dialog = await screen.findByRole('dialog');
+  expect(
+    within(dialog).queryByRole('button', { name: 'Dodaj przypomnienie' }),
+  ).not.toBeInTheDocument();
+  const preview = within(dialog).getByLabelText('Podgląd');
+  expect(within(preview).getByText('Pole dance · Anna Wiśniewska')).toBeInTheDocument();
+  expect(within(preview).getByText('Weźcie wodę i ręcznik.')).toBeInTheDocument();
+});

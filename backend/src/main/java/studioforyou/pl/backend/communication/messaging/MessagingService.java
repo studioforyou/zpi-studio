@@ -21,6 +21,7 @@ import java.util.stream.Collectors;
 
 import org.jspecify.annotations.Nullable;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -43,12 +44,14 @@ import studioforyou.pl.backend.communication.messaging.MessagingDtos.MessagePrev
 import studioforyou.pl.backend.communication.messaging.MessagingDtos.MessageResponse;
 import studioforyou.pl.backend.communication.messaging.MessagingDtos.Person;
 import studioforyou.pl.backend.communication.messaging.MessagingDtos.TrainerResponse;
+import studioforyou.pl.backend.communication.notification.NotificationRole;
 import studioforyou.pl.backend.configuration.StudioSettings;
 import studioforyou.pl.backend.customer.CustomerKind;
 import studioforyou.pl.backend.customer.CustomerProfiles;
 import studioforyou.pl.backend.customer.CustomerProfiles.ProfileDetails;
 import studioforyou.pl.backend.customer.StaffAssignments;
 import studioforyou.pl.backend.customer.TrainerAccounts;
+import studioforyou.pl.backend.identity.AccountRoles;
 import studioforyou.pl.backend.scheduling.ScheduledEvents;
 import studioforyou.pl.backend.scheduling.ScheduledEvents.EventSummary;
 import studioforyou.pl.backend.shared.api.ApiException;
@@ -102,10 +105,14 @@ class MessagingService {
 
 	private final StudioSettings settings;
 
+	private final AccountRoles accountRoles;
+
+	private final ApplicationEventPublisher publisher;
+
 	MessagingService(ConversationStore store, ConversationAudience audience, ScheduledEvents events,
 			TrainingGroups groups, Participations participations, CustomerProfiles customers,
 			StaffAssignments assignments, StaffProfiles staff, TrainerAccounts trainerAccounts,
-			StudioSettings settings) {
+			StudioSettings settings, AccountRoles accountRoles, ApplicationEventPublisher publisher) {
 		this.store = store;
 		this.audience = audience;
 		this.events = events;
@@ -116,6 +123,8 @@ class MessagingService {
 		this.staff = staff;
 		this.trainerAccounts = trainerAccounts;
 		this.settings = settings;
+		this.accountRoles = accountRoles;
+		this.publisher = publisher;
 	}
 
 	List<ConversationSummaryResponse> list(UUID accountId) {
@@ -198,7 +207,59 @@ class MessagingService {
 		}
 		Message message = store.insertMessage(conversationId, accountId, text);
 		store.markRead(conversationId, accountId);
+		publisher.publishEvent(new MessageSent(conversationId, message.id(), accountId));
 		return message(message, access, accountId, names(List.of(accountId)));
+	}
+
+	/**
+	 * Who gets a notification about a sent message, and what it shows. Empty when the message was
+	 * deleted in the meantime. The recipients are the other people who can read the conversation
+	 * now: the counterpart of a 1:1 conversation, or the leaders and members of a group or class
+	 * chat (for a child, its guardians). Each gets it for the role it has in the conversation.
+	 */
+	@Transactional(readOnly = true)
+	Optional<NewMessage> newMessage(MessageSent sent) {
+		Optional<Conversation> found = store.find(sent.conversationId());
+		Optional<Message> message = store.findMessage(sent.conversationId(), sent.messageId());
+		if (found.isEmpty() || message.isEmpty() || message.get().deletedAt() != null) {
+			return Optional.empty();
+		}
+		Conversation chat = found.get();
+		Map<UUID, NotificationRole> recipients = new HashMap<>();
+		String chatTitle = null;
+		if (chat.kind() == ConversationKind.DIRECT) {
+			UUID other = store.findCounterparts(sent.senderId(), List.of(chat.id())).get(chat.id());
+			if (other != null) {
+				Map<UUID, Set<String>> roles = accountRoles.rolesOf(List.of(other, sent.senderId()));
+				recipients.put(other, directRole(roles.getOrDefault(other, Set.of()),
+						roles.getOrDefault(sent.senderId(), Set.of()).contains(NotificationRole.TRAINER.name())));
+			}
+		}
+		else {
+			audience.members(chat).forEach((account) -> recipients.put(account, NotificationRole.CLIENT));
+			audience.leaders(chat).forEach((account) -> recipients.put(account, NotificationRole.TRAINER));
+			String groupName = (chat.kind() == ConversationKind.GROUP)
+					? groups.names(List.of(chat.trainingGroupId())).get(chat.trainingGroupId()) : null;
+			chatTitle = title(chat, null, groupName, audience.event(chat).orElse(null));
+		}
+		recipients.remove(sent.senderId());
+		String sender = name(sent.senderId(), names(List.of(sent.senderId())));
+		return Optional.of(new NewMessage(chat.id(), chat.kind() == ConversationKind.DIRECT ? null : chatTitle,
+				sender, Objects.requireNonNullElse(message.get().body(), ""), recipients));
+	}
+
+	/**
+	 * The role a 1:1 conversation concerns for the recipient. Such a conversation is between a client
+	 * and a trainer, so an account with both roles gets it as a client when a trainer wrote, and as
+	 * a trainer when a client wrote.
+	 */
+	static NotificationRole directRole(Set<String> recipientRoles, boolean senderIsTrainer) {
+		boolean trainer = recipientRoles.contains(NotificationRole.TRAINER.name());
+		boolean client = recipientRoles.contains(NotificationRole.CLIENT.name());
+		if (trainer && client) {
+			return senderIsTrainer ? NotificationRole.CLIENT : NotificationRole.TRAINER;
+		}
+		return trainer ? NotificationRole.TRAINER : NotificationRole.CLIENT;
 	}
 
 	void deleteMessage(UUID conversationId, UUID messageId, UUID accountId) {
@@ -558,6 +619,18 @@ class MessagingService {
 
 	private static ApiException messageNotFound() {
 		return new ApiException(ErrorCode.NOT_FOUND, "Message not found.");
+	}
+
+	/**
+	 * A sent message to notify about.
+	 *
+	 * @param chatTitle the name of a group or class chat; {@code null} for a 1:1 conversation
+	 * @param senderName who wrote it
+	 * @param body the message text
+	 * @param recipients the accounts to notify and the role it concerns for each
+	 */
+	record NewMessage(UUID conversationId, @Nullable String chatTitle, String senderName, String body,
+			Map<UUID, NotificationRole> recipients) {
 	}
 
 	/** A conversation that was opened, and whether it was created by this request. */

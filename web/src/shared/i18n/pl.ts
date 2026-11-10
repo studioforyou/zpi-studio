@@ -1240,6 +1240,11 @@ export const pl = {
           description:
             'Wysyłane uczestnikom z aktywną rezerwacją przed zajęciami lub treningiem. Powiadomienia dziecka dostaje rodzic.',
         },
+        NEW_MESSAGE: {
+          name: 'Nowa wiadomość',
+          description:
+            'Wysyłane od razu po każdej wiadomości w czacie wszystkim pozostałym uczestnikom rozmowy, klientom i trenerom. Wiadomości z czatu grupowego dziecka dostaje rodzic.',
+        },
       },
       placeholders: {
         CLASS_REMINDER: {
@@ -1267,6 +1272,24 @@ export const pl = {
             label: 'Ile czasu przed',
             description: 'Ile czasu przed zajęciami wysyłane jest przypomnienie, np. „2 godz.”',
             example: '2 godz.',
+          },
+        },
+        NEW_MESSAGE: {
+          od: {
+            label: 'Od kogo',
+            description:
+              'Autor wiadomości; w czacie grupowym poprzedzony nazwą czatu, np. „Pole dance · Anna Wiśniewska”',
+            example: 'Pole dance · Anna Wiśniewska',
+          },
+          rozmowa: {
+            label: 'Rozmowa',
+            description: 'Nazwa czatu grupowego albo autor wiadomości w rozmowie prywatnej',
+            example: 'Pole dance',
+          },
+          treść: {
+            label: 'Treść',
+            description: 'Początek wiadomości, do 100 znaków',
+            example: 'Weźcie wodę i ręcznik.',
           },
         },
       },

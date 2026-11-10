@@ -1,5 +1,6 @@
 package studioforyou.pl.backend;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasItem;
@@ -17,7 +18,9 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 import java.util.UUID;
+import java.util.function.BooleanSupplier;
 
 import com.jayway.jsonpath.JsonPath;
 import org.junit.jupiter.api.AfterEach;
@@ -129,6 +132,7 @@ class ConversationTests {
 	@AfterEach
 	void tearDown() {
 		String accounts = "SELECT id FROM account WHERE email LIKE '%" + EMAIL_DOMAIN + "'";
+		NotificationCleanup.deleteNotifications(jdbc, accounts);
 		String conversations = "SELECT id FROM conversation WHERE created_by IN (" + accounts + ")";
 		jdbc.sql("DELETE FROM message WHERE conversation_id IN (" + conversations + ")").update();
 		jdbc.sql("DELETE FROM conversation_participant WHERE conversation_id IN (" + conversations + ")").update();
@@ -146,7 +150,7 @@ class ConversationTests {
 				+ "('Zielińska', 'Nowak', 'Kaczmarek') AND (account_id IS NULL OR account_id IN (" + accounts + "))";
 		jdbc.sql("DELETE FROM guardianship WHERE child_id IN (" + profiles + ")").update();
 		jdbc.sql("DELETE FROM customer_profile WHERE id IN (:ids)")
-			.param("ids", java.util.List.of(client, child, outsider))
+			.param("ids", List.of(client, child, outsider))
 			.update();
 		jdbc.sql("DELETE FROM customer_profile WHERE account_id IN (" + accounts + ")").update();
 		jdbc.sql("DELETE FROM staff_profile WHERE account_id IN (" + accounts + ")").update();
@@ -453,9 +457,87 @@ class ConversationTests {
 		perform(CLIENT, get(CONVERSATIONS + "/group-chat-targets"), null).andExpect(status().isForbidden());
 	}
 
+	@Test
+	void aNewMessageNotifiesTheOtherPersonInTheRoleItConcerns() throws Exception {
+		assignTrainee(client);
+		String id = idOf(perform(TRAINER, post(CONVERSATIONS + "/trainee"), "{\"customerId\":\"" + client + "\"}"));
+
+		String fromTrainer = idOf(send(TRAINER, id, "Pamiętaj o rozgrzewce bioder."));
+		await(() -> notifications(clientAccount).size() == 1);
+		assertThat(notifications(clientAccount)).containsExactly(
+				"CLIENT|Anna Wiśniewska|Pamiętaj o rozgrzewce bioder.|" + id + "|" + fromTrainer + "|CLIENT");
+
+		send(CLIENT, id, "Dzięki! " + "a".repeat(120)).andExpect(status().isCreated());
+		await(() -> notifications(trainerAccount).size() == 1);
+		assertThat(notifications(trainerAccount)).singleElement()
+			.asString()
+			.startsWith("TRAINER|Marta Zielińska|Dzięki! " + "a".repeat(91) + "…|" + id + "|");
+
+		send(TRAINER, id, "Do jutra").andExpect(status().isCreated());
+		await(() -> notifications(clientAccount).size() == 2);
+		assertThat(notifications(trainerAccount)).hasSize(1);
+	}
+
+	@Test
+	void aMessageInAClassChatNotifiesItsLeadersAndMembersButNotTheSender() throws Exception {
+		UUID event = insertEvent(null, Instant.now().plus(2, ChronoUnit.DAYS));
+		assignStaff(event, trainer);
+		reserve(event, client);
+		reserve(event, child);
+		String id = idOf(perform(TRAINER, post(CONVERSATIONS + "/group-chats"), eventChatJson(event, true)));
+
+		send(CLIENT, id, "Będę 10 min później").andExpect(status().isCreated());
+		await(() -> notifications(trainerAccount).size() == 1 && notifications(parentAccount).size() == 1);
+		assertThat(notifications(trainerAccount)).singleElement()
+			.asString()
+			.startsWith("TRAINER|" + TITLE + " · Marta Zielińska|Będę 10 min później|" + id + "|");
+		assertThat(notifications(parentAccount)).singleElement()
+			.asString()
+			.startsWith("CLIENT|" + TITLE + " · Marta Zielińska|");
+		assertThat(notifications(clientAccount)).isEmpty();
+	}
+
+	@Test
+	void noMessageNotificationsWhileTheTypeIsSwitchedOff() throws Exception {
+		assignTrainee(client);
+		String id = idOf(perform(TRAINER, post(CONVERSATIONS + "/trainee"), "{\"customerId\":\"" + client + "\"}"));
+		jdbc.sql("UPDATE notification_type SET is_enabled = FALSE WHERE code = 'NEW_MESSAGE'").update();
+		try {
+			send(TRAINER, id, "Jutro o 18?").andExpect(status().isCreated());
+			NotificationCleanup.deleteNotifications(jdbc, "SELECT CAST('" + trainerAccount + "' AS UUID)");
+			assertThat(notifications(clientAccount)).isEmpty();
+		}
+		finally {
+			jdbc.sql("UPDATE notification_type SET is_enabled = TRUE WHERE code = 'NEW_MESSAGE'").update();
+		}
+	}
+
 	private ResultActions send(String token, String conversationId, String body) throws Exception {
 		return perform(token, post(CONVERSATIONS + "/" + conversationId + "/messages"),
 				"{\"body\":\"" + body + "\"}");
+	}
+
+	/** The account's message notifications as role|title|body|conversation|message|role in the data. */
+	private List<String> notifications(UUID account) {
+		return jdbc.sql("""
+				SELECT n.recipient_role || '|' || n.title || '|' || n.body || '|' || (n.payload ->> 'conversationId')
+				    || '|' || (n.payload ->> 'messageId') || '|' || (n.payload ->> 'role')
+				FROM notification n
+				JOIN notification_type t ON t.id = n.notification_type_id
+				WHERE t.code = 'NEW_MESSAGE' AND n.recipient_id = :account
+				ORDER BY n.created_at
+				""")
+			.param("account", account)
+			.query(String.class)
+			.list();
+	}
+
+	/** Notifications are created in the background right after the commit. */
+	private static void await(BooleanSupplier condition) throws InterruptedException {
+		long deadline = System.currentTimeMillis() + 5000;
+		while (!condition.getAsBoolean() && System.currentTimeMillis() < deadline) {
+			Thread.sleep(50);
+		}
 	}
 
 	private static String eventChatJson(UUID event, boolean clientsCanReply) {

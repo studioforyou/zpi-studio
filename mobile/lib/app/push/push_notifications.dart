@@ -7,9 +7,16 @@ import 'package:mobile/core/auth/app_role.dart';
 import 'package:mobile/core/auth/auth_controller.dart';
 import 'package:mobile/core/auth/auth_state.dart';
 import 'package:mobile/core/push/push_device.dart';
+import 'package:mobile/core/auth/session.dart';
 import 'package:mobile/core/push/push_messaging.dart';
+import 'package:mobile/features/communication/data/conversations_api.dart';
 import 'package:mobile/features/communication/data/notifications_api.dart';
+import 'package:mobile/features/communication/data/open_conversation.dart';
+import 'package:mobile/features/communication/presentation/messages_screen.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
+
+/// The notification type of a new message in a conversation.
+const newMessageType = 'NEW_MESSAGE';
 
 /// Shows push messages that arrive while the app is open.
 final notificationMessengerKey = GlobalKey<ScaffoldMessengerState>();
@@ -72,6 +79,11 @@ class PushNotifications {
 
     final session = auth.session;
     final router = _ref.read(appRouterProvider);
+    final conversationId = data['conversationId'];
+    if (data['type'] == newMessageType && conversationId != null) {
+      _openConversation(session, conversationId, data['role']);
+      return;
+    }
     if (data['type'] == 'CLASS_REMINDER' &&
         session.roles.contains(AppRole.client)) {
       // A reminder about a child opens the child's reservations.
@@ -97,6 +109,39 @@ class PushNotifications {
     );
   }
 
+  /// Opens a conversation in the role the message concerns, above that
+  /// role's messages tab.
+  void _openConversation(
+    Session session,
+    String conversationId,
+    String? roleCode,
+  ) {
+    var role = session.activeRole;
+    final concerned = AppRole.fromApi(roleCode ?? '');
+    if (concerned != null &&
+        concerned != role &&
+        session.roles.contains(concerned)) {
+      // Conversations belong to the account: a client reads them in their own
+      // profile rather than a child's.
+      final choices = session.choices.where((c) => c.role == concerned);
+      final choice =
+          choices.where((c) => !(c.profile?.isChild ?? false)).firstOrNull ??
+          choices.firstOrNull;
+      if (choice != null) {
+        _ref.read(authControllerProvider.notifier).choose(choice);
+        role = concerned;
+      }
+    }
+    final open = _ref.read(openConversationProvider);
+    if (open.id == conversationId && role == session.activeRole) {
+      open.messageArrived(conversationId);
+      return;
+    }
+    final router = _ref.read(appRouterProvider)
+      ..go(role == AppRole.client ? clientMessagesPath : trainerMessagesPath);
+    unawaited(router.push(conversationLocation(role, conversationId)));
+  }
+
   /// Reloads the inbox and the unread badge.
   void refresh() {
     _ref
@@ -115,6 +160,20 @@ class PushNotifications {
 
   void _showInApp(PushMessage message) {
     refresh();
+    final conversationId = message.data['conversationId'];
+    if (message.data['type'] == newMessageType && conversationId != null) {
+      _ref
+        ..invalidate(conversationsProvider)
+        ..invalidate(unreadMessagesProvider);
+      // The conversation on screen shows the message itself.
+      final open = _ref.read(openConversationProvider);
+      if (open.id == conversationId) {
+        open.messageArrived(conversationId);
+        final notificationId = message.data['notificationId'];
+        if (notificationId != null) unawaited(_markRead(notificationId));
+        return;
+      }
+    }
     final messenger = notificationMessengerKey.currentState;
     final text = [
       message.title,

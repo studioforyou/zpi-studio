@@ -60,6 +60,8 @@ void on(ClassCancelled event) {
 
 Spring Modulith's event publication registry (`event_publication`) stores the event in the same transaction as the business change. The listener runs after the commit, on another thread, so a failing push never fails the user's request. A listener that fails or does not finish stays in the registry, and the notification job delivers it again after 2 minutes; the dedup key keeps the notification single. Completed publications are deleted (`spring.modulith.events.completion-mode: delete`).
 
+New messages (`NEW_MESSAGE`, #153) work this way inside `communication`: `MessagingService.send` publishes `MessageSent`, and `MessageNotifications` sends one push per message to every other participant of the conversation. In a private conversation the recipient gets it in the role they talk in there; in a group or class chat members get it as clients (a child's chat goes to the guardians) and leaders as trainers. The title is the sender, preceded by the chat name in a group or class chat, and the text is the message cut to 100 characters. The push `data` has `conversationId`, `messageId` and `role`, so the app opens the conversation in that role.
+
 ## Tests
 
 Requires JDK 21. From `backend/`, run only the module architecture test without a Spring context, database, or Docker:
