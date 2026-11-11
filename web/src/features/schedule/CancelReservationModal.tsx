@@ -25,6 +25,7 @@ function cancellationError(error: unknown): string {
   if (error instanceof ApiError) {
     switch (error.code) {
       case 'VERSION_CONFLICT':
+      case 'CANCELLATION_CONSEQUENCE_CHANGED':
         return messages.conflict;
       case 'EVENT_ALREADY_STARTED':
         return messages.started;
@@ -50,7 +51,8 @@ function suggestion(suggested: boolean | null): EntryChoice | null {
 export function CancelReservationModal({ eventId, reservation, onClose }: Props) {
   const queryClient = useQueryClient();
   const texts = pl.schedule.reservations.cancellation;
-  const hasPass = reservation.customerPassId !== null;
+  const isMakeup = reservation.makeupCreditId != null;
+  const hasPass = reservation.customerPassId !== null || isMakeup;
   const suggested = reservation.cancellation.suggestedEntryReturned;
   const [entry, setEntry] = useState<EntryChoice | null>(suggestion(suggested));
   const [reason, setReason] = useState('');
@@ -84,10 +86,16 @@ export function CancelReservationModal({ eventId, reservation, onClose }: Props)
 
   const suggestedText =
     suggested === null
-      ? texts.suggested.unknown
+      ? isMakeup
+        ? texts.makeup.unknown
+        : texts.suggested.unknown
       : suggested
-        ? texts.suggested.returned
-        : texts.suggested.forfeited;
+        ? isMakeup
+          ? texts.makeup.returned
+          : texts.suggested.returned
+        : isMakeup
+          ? texts.makeup.forfeited
+          : texts.suggested.forfeited;
 
   return (
     <Modal
@@ -108,6 +116,7 @@ export function CancelReservationModal({ eventId, reservation, onClose }: Props)
             </Text>
           )}
         </Stack>
+        {isMakeup && <Text size="sm">{texts.makeup.note}</Text>}
         {hasPass ? (
           <>
             <Text size="sm">{suggestedText}</Text>
@@ -117,14 +126,22 @@ export function CancelReservationModal({ eventId, reservation, onClose }: Props)
               </Text>
             )}
             <Radio.Group
-              label={texts.entry}
+              label={isMakeup ? texts.makeup.entry : texts.entry}
               value={entry}
               onChange={(value) => setEntry(value as EntryChoice)}
               error={submitted && entry === null ? texts.required : undefined}
             >
               <Group mt="xs">
-                <Radio value="RETURN" label={texts.returnEntry} disabled={pending} />
-                <Radio value="FORFEIT" label={texts.forfeitEntry} disabled={pending} />
+                <Radio
+                  value="RETURN"
+                  label={isMakeup ? texts.makeup.returnEntry : texts.returnEntry}
+                  disabled={pending}
+                />
+                <Radio
+                  value="FORFEIT"
+                  label={isMakeup ? texts.makeup.forfeitEntry : texts.forfeitEntry}
+                  disabled={pending}
+                />
               </Group>
             </Radio.Group>
           </>

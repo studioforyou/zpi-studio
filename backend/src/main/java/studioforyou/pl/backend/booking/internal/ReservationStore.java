@@ -30,7 +30,8 @@ class ReservationStore {
 			rs.getObject("entry_returned", Boolean.class),
 			rs.getObject("cancellation_allowed_snapshot", Boolean.class),
 			rs.getObject("late_cancel_allowed_snapshot", Boolean.class),
-			rs.getObject("late_cancel_forfeits_entry_snapshot", Boolean.class), rs.getInt("version"));
+			rs.getObject("late_cancel_forfeits_entry_snapshot", Boolean.class), rs.getInt("version"),
+			rs.getObject("makeup_credit_id", UUID.class));
 
 	private static final RowMapper<AttendanceRow> ATTENDANCE = (rs, row) -> new AttendanceRow(
 			rs.getObject("id", UUID.class), rs.getObject("customer_id", UUID.class), rs.getString("status"),
@@ -174,7 +175,12 @@ class ReservationStore {
 			.param("pass", passId).param("id", reservationId).query(MAPPER).single();
 	}
 
-	/** @param entryReturned whether the pass entry was returned; {@code null} for a reservation without a pass */
+	Reservation attachMakeup(UUID reservationId, UUID creditId) {
+		return this.jdbc.sql("UPDATE reservation SET makeup_credit_id = :credit WHERE id = :id RETURNING *")
+			.param("credit", creditId).param("id", reservationId).query(MAPPER).single();
+	}
+
+	/** @param entryReturned whether the pass entry or make-up credit was returned; null without funding */
 	Reservation cancel(Reservation reservation, UUID actorId, Instant now, Boolean entryReturned, String kind) {
 		return this.jdbc.sql("""
 				UPDATE reservation SET status = 'CANCELLED', cancelled_at = :now, cancelled_by = :actor,
@@ -242,7 +248,8 @@ class ReservationStore {
 
 	record Reservation(UUID id, UUID eventId, UUID customerId, String status, UUID customerPassId,
 			Instant freeCancelUntil, Instant cancelledAt, String cancelKind, Boolean entryReturned,
-			Boolean cancellationAllowed, Boolean lateCancelAllowed, Boolean lateCancelForfeitsEntry, int version) {
+			Boolean cancellationAllowed, Boolean lateCancelAllowed, Boolean lateCancelForfeitsEntry, int version,
+			UUID makeupCreditId) {
 	}
 
 	record PastReservation(UUID id, UUID eventId, String status, String cancelKind, Boolean entryReturned,
