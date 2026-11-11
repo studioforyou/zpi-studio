@@ -205,7 +205,6 @@ Map<String, dynamic> _notice(
   List<String> rooms = const ['Sala A'],
   List<String> previousLeads = const ['Anna Trener'],
   List<String> leads = const ['Anna Trener'],
-  bool seen = false,
 }) {
   final startsAt = DateTime(2030, 11, 5, 18);
   final endsAt = DateTime(2030, 11, 5, 19);
@@ -223,11 +222,10 @@ Map<String, dynamic> _notice(
     'previousLeads': previousLeads,
     'leads': leads,
     'createdAt': _utc(DateTime(2030, 11, 1)),
-    'seen': seen,
   };
 }
 
-/// The open notices kept by the server, closed and marked seen as asked.
+/// The open notices kept by the server, closed as asked.
 class _ChangesApi implements ScheduleChangesApi {
   _ChangesApi([List<Map<String, dynamic>> notices = const []])
     : _notices = [...notices];
@@ -235,7 +233,6 @@ class _ChangesApi implements ScheduleChangesApi {
   final List<Map<String, dynamic>> _notices;
   final dismissed = <String>[];
   bool dismissedAll = false;
-  bool markedSeen = false;
 
   @override
   Future<List<ScheduleChangeNotice>> fetch(ChangesOwner owner) async => [
@@ -252,14 +249,6 @@ class _ChangesApi implements ScheduleChangesApi {
   Future<void> dismissAll(ChangesOwner owner) async {
     dismissedAll = true;
     _notices.clear();
-  }
-
-  @override
-  Future<void> markSeen(ChangesOwner owner) async {
-    markedSeen = true;
-    for (final notice in _notices) {
-      notice['seen'] = true;
-    }
   }
 }
 
@@ -639,11 +628,12 @@ void main() {
       expect(find.text('Pokaż'), findsNothing);
     });
 
-    testWidgets('the tab counts notices until it is opened', (tester) async {
+    testWidgets('the tab counts the notices until they are closed', (
+      tester,
+    ) async {
       final changes = _ChangesApi([
         _notice('n-1', title: 'Stretching'),
         _notice('n-2', title: 'Stretching'),
-        _notice('n-3', title: 'Stretching', seen: true),
       ]);
       await tester.pumpWidget(
         ProviderScope(
@@ -654,8 +644,11 @@ void main() {
           child: _app(
             Consumer(
               builder: (context, ref, _) => TextButton(
-                onPressed: () => noticeScheduleChanges(ref),
-                child: Text('${watchUnseenScheduleChanges(ref)}'),
+                onPressed: () => dismissAllScheduleChanges(
+                  ref,
+                  ref.read(currentChangesOwnerProvider)!,
+                ),
+                child: Text('${watchOpenScheduleChanges(ref)}'),
               ),
             ),
           ),
@@ -666,7 +659,7 @@ void main() {
       expect(find.text('2'), findsOneWidget);
       await tester.tap(find.text('2'));
       await tester.pumpAndSettle();
-      expect(changes.markedSeen, isTrue);
+      expect(changes.dismissedAll, isTrue);
       expect(find.text('0'), findsOneWidget);
     });
   });

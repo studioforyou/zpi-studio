@@ -75,7 +75,6 @@ class ScheduleChangeNotice {
     required this.previousLeads,
     required this.leads,
     required this.createdAt,
-    required this.seen,
   });
 
   factory ScheduleChangeNotice.fromJson(Map<String, dynamic> json) {
@@ -101,7 +100,6 @@ class ScheduleChangeNotice {
       previousLeads: names('previousLeads'),
       leads: names('leads'),
       createdAt: time('createdAt'),
-      seen: json['seen'] as bool? ?? false,
     );
   }
 
@@ -118,9 +116,6 @@ class ScheduleChangeNotice {
   final List<String> previousLeads;
   final List<String> leads;
   final DateTime createdAt;
-
-  /// Whether the person opened their schedule since the notice appeared.
-  final bool seen;
 
   bool get timeChanged =>
       previousStartsAt != startsAt || previousEndsAt != endsAt;
@@ -151,9 +146,6 @@ class ScheduleChangesApi {
 
   Future<void> dismissAll(ChangesOwner owner) =>
       _dio.post<void>('${owner.path}/dismiss-all');
-
-  Future<void> markSeen(ChangesOwner owner) =>
-      _dio.post<void>('${owner.path}/seen');
 }
 
 final scheduleChangesApiProvider = Provider<ScheduleChangesApi>(
@@ -208,32 +200,9 @@ final currentScheduleChangesProvider =
       return ref.watch(scheduleChangesProvider(owner)).value ?? const [];
     });
 
-/// The number on the schedule tab: notices that appeared since the user last
-/// opened it.
-int watchUnseenScheduleChanges(WidgetRef ref) => ref
-    .watch(currentScheduleChangesProvider)
-    .where((notice) => !notice.seen)
-    .length;
-
-final _markingSeen = <ChangesOwner>{};
-
-/// Opening the schedule tab clears its number.
-void noticeScheduleChanges(WidgetRef ref) {
-  final owner = ref.read(currentChangesOwnerProvider);
-  if (owner == null ||
-      _markingSeen.contains(owner) ||
-      ref.read(currentScheduleChangesProvider).every((notice) => notice.seen)) {
-    return;
-  }
-  _markingSeen.add(owner);
-  unawaited(
-    _update(
-      ref,
-      owner,
-      (api) => api.markSeen(owner),
-    ).whenComplete(() => _markingSeen.remove(owner)),
-  );
-}
+/// The number on the schedule tab: the notices the user has not closed yet.
+int watchOpenScheduleChanges(WidgetRef ref) =>
+    ref.watch(currentScheduleChangesProvider).length;
 
 /// Closes one notice.
 Future<void> dismissScheduleChange(

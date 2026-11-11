@@ -112,15 +112,9 @@ _Tab _tab(
   String Function(AppLocalizations) label, {
   List<RouteBase> routes = const [],
   int Function(WidgetRef)? badge,
-  void Function(WidgetRef)? onShown,
 }) => (
   route: GoRoute(path: path, builder: (_, _) => screen, routes: routes),
-  destination: ShellDestination(
-    icon: icon,
-    label: label,
-    badge: badge,
-    onShown: onShown,
-  ),
+  destination: ShellDestination(icon: icon, label: label, badge: badge),
 );
 
 /// One shell per role, with one branch per tab.
@@ -159,8 +153,7 @@ StatefulShellRoute _clientShell() => _roleShell([
         builder: (_, _) => const TrainingHistoryScreen(),
       ),
     ],
-    badge: watchUnseenScheduleChanges,
-    onShown: noticeScheduleChanges,
+    badge: watchOpenScheduleChanges,
   ),
   _tab(
     clientMessagesPath,
@@ -218,8 +211,7 @@ StatefulShellRoute _trainerShell() => _roleShell([
         builder: (_, _) => const AddClassScreen(),
       ),
     ],
-    badge: watchUnseenScheduleChanges,
-    onShown: noticeScheduleChanges,
+    badge: watchOpenScheduleChanges,
   ),
   _tab(
     trainerTrainingsPath,

@@ -100,21 +100,6 @@ class SeriesChange {
   final List<String>? usualRooms;
 
   bool get moved => usualStartsAt != null;
-
-  /// The same change without its lead, e.g. to describe a stand-in's class.
-  SeriesChange get withoutInstructors => SeriesChange(
-    usualStartsAt: usualStartsAt,
-    usualEndsAt: usualEndsAt,
-    usualRooms: usualRooms,
-  );
-
-  /// A signature of the change, to tell whether a participant has seen it.
-  String get signature => [
-    usualStartsAt?.toIso8601String(),
-    usualEndsAt?.toIso8601String(),
-    usualInstructors?.join(','),
-    usualRooms?.join(','),
-  ].join('|');
 }
 
 /// An event in the studio's schedule.
