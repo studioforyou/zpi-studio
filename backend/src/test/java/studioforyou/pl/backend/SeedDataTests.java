@@ -217,6 +217,40 @@ class SeedDataTests {
 	}
 
 	@Test
+	void seededTraineeCardsShowHealthNotesOnlyToTrainersTheParticipantSharedThemWith() throws Exception {
+		String cards = "/api/v1/me/trainees/07000000-0000-0000-0000-0000000000%s/card";
+		String marek = seedToken(2);
+		String tomasz = seedGet(marek, cards.formatted("02"), false);
+		assertThat(JsonPath.<String>read(tomasz, "$.healthAccess")).isEqualTo("GRANTED");
+		assertThat(JsonPath.<String>read(tomasz, "$.goals")).isNotBlank();
+		assertThat(JsonPath.<List<String>>read(tomasz, "$.healthNotes[?(@.archivedAt == null)].kind"))
+			.containsExactly("OTHER", "INJURY");
+		assertThat(JsonPath.<List<String>>read(tomasz, "$.healthNotes[?(@.archivedAt != null)].archivedBy"))
+			.containsExactly("Marek Nowak");
+		String monika = seedGet(marek, cards.formatted("03"), false);
+		assertThat(JsonPath.<String>read(monika, "$.healthAccess")).isEqualTo("NOT_SHARED");
+		assertThat(JsonPath.<Object>read(monika, "$.healthNotes")).isNull();
+		assertThat(JsonPath.<String>read(monika, "$.goals")).isNotBlank();
+
+		String katarzyna = seedGet(seedToken(3), cards.formatted("01"), false);
+		assertThat(JsonPath.<String>read(katarzyna, "$.healthAccess")).isEqualTo("GRANTED");
+		assertThat(JsonPath.<List<String>>read(katarzyna, "$.healthNotes[*].kind")).containsExactly("CONDITION", "INJURY");
+		assertThat(JsonPath.<List<String>>read(katarzyna, "$.healthNotes[*].reportedBy"))
+			.containsExactly("Katarzyna Zielińska", "Katarzyna Zielińska");
+		assertThat(JsonPath.<String>read(katarzyna, "$.healthNotes[1].archivedBy")).isEqualTo("Ewa Wiśniewska");
+
+		String anna = seedToken(1);
+		String julia = seedGet(anna, cards.formatted("08"), false);
+		assertThat(JsonPath.<Integer>read(julia, "$.version")).isZero();
+		assertThat(JsonPath.<Object>read(julia, "$.goals")).isNull();
+		for (String customer : List.of("05", "06")) {
+			String card = seedGet(anna, cards.formatted(customer), false);
+			assertThat(JsonPath.<String>read(card, "$.healthAccess")).isEqualTo("NOT_SHARED");
+			assertThat(JsonPath.<String>read(card, "$.sportExperience")).isNotBlank();
+		}
+	}
+
+	@Test
 	@Transactional
 	void extendedPersonalSeedBalancesPackagesAndPreservesChangedRelationshipsAndCredits() {
 		assertThat(jdbc.sql("""
