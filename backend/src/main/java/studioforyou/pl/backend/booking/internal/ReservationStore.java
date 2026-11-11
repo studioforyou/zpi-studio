@@ -144,13 +144,13 @@ class ReservationStore {
 	/** One reservation per event the customer booked: the active one, otherwise the latest cancelled. */
 	List<PastReservation> history(UUID customerId) {
 		return this.jdbc.sql("""
-				SELECT DISTINCT ON (event_id) id, event_id, status, cancel_kind, entry_returned, attendance
+				SELECT DISTINCT ON (event_id) id, event_id, status, cancel_kind, entry_returned, attendance, personal_cancellation_effect
 				FROM reservation WHERE customer_id = :customer
 				ORDER BY event_id, status = 'ACTIVE' DESC, created_at DESC, id
 				""").param("customer", customerId)
 			.query((rs, row) -> new PastReservation(rs.getObject("id", UUID.class),
 					rs.getObject("event_id", UUID.class), rs.getString("status"), rs.getString("cancel_kind"),
-					rs.getObject("entry_returned", Boolean.class), rs.getString("attendance")))
+					rs.getObject("entry_returned", Boolean.class), rs.getString("attendance"), rs.getString("personal_cancellation_effect")))
 			.list();
 	}
 
@@ -253,7 +253,7 @@ class ReservationStore {
 	}
 
 	record PastReservation(UUID id, UUID eventId, String status, String cancelKind, Boolean entryReturned,
-			String attendance) {
+			String attendance, String cancellationEffect) {
 	}
 
 	record ActiveReservation(UUID id, UUID customerId, Instant bookedAt) {

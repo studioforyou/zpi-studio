@@ -10,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import studioforyou.pl.backend.scheduling.GroupClassSchedule;
 import studioforyou.pl.backend.scheduling.PersonalTrainingSchedule;
+import studioforyou.pl.backend.scheduling.internal.ScheduleDtos.ScheduleEventResponse;
 
 @Service
 @Transactional(readOnly = true)
@@ -24,7 +25,16 @@ class DefaultPersonalTrainingSchedule implements PersonalTrainingSchedule {
 	@Override
 	public List<GroupClassSchedule.Occurrence> findOwn(Collection<UUID> eventIds, UUID staffId,
 			Instant from, Instant to) {
-		return queries.findOwnPersonalEvents(eventIds, staffId, from, to).stream()
+		return project(queries.findOwnPersonalEvents(eventIds, staffId, from, to));
+	}
+
+	@Override
+	public List<GroupClassSchedule.Occurrence> findReserved(Collection<UUID> eventIds, Instant from, Instant to) {
+		return project(queries.findReservedPersonalEvents(eventIds, from, to));
+	}
+
+	private static List<GroupClassSchedule.Occurrence> project(List<ScheduleEventResponse> events) {
+		return events.stream()
 			.map(event -> new GroupClassSchedule.Occurrence(event.id(), event.title(), event.serviceTypeId(),
 					event.serviceTypeName(), null, event.trainingGroupId(), event.startsAt(), event.endsAt(),
 					event.status().name(), event.capacity(),

@@ -324,7 +324,7 @@ class GroupClassBookingService {
 				event.calendarColor(), event.startsAt(), event.endsAt(),
 				event.staff().stream().map(staff -> new InstructorResponse(staff.staffId(), staff.displayName(), staff.role())).toList(),
 				event.resources().stream().map(room -> new RoomResponse(room.resourceId(), room.name())).toList(),
-				outcome(reservation, event), reservation.entryReturned());
+				outcome(reservation, event), reservation.entryReturned(), reservation.cancellationEffect());
 	}
 
 	/** The customer's own cancellation outranks the studio's, which outranks attendance. */

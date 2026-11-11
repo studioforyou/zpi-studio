@@ -271,6 +271,48 @@ class SeedDataTests {
 
 	@Test
 	@Transactional
+	void personalActionExamplesKeepACancellationAndNeverReopenTheCreditOnRerun() {
+		Map<String, Long> beforeCounts = rowCounts();
+		jdbc.sql("UPDATE reservation SET status='CANCELLED', personal_cancellation_effect='MAKEUP_RETURNED', version=1 WHERE id='30000000-0000-0000-0000-000000013005'").update();
+		jdbc.sql("UPDATE makeup_credit SET status='AVAILABLE', used_at=NULL, used_reservation_id=NULL WHERE id='33000000-0000-0000-0000-000000013001'").update();
+		var reservation = jdbc.sql("SELECT * FROM reservation WHERE id='30000000-0000-0000-0000-000000013005'").query().singleRow();
+		var credit = jdbc.sql("SELECT * FROM makeup_credit WHERE id='33000000-0000-0000-0000-000000013001'").query().singleRow();
+		var seed = new ResourceDatabasePopulator(new ClassPathResource("db/seed/R__seed_13_personal_training_actions.sql"));
+		seed.execute(dataSource); seed.execute(dataSource);
+		assertThat(rowCounts()).isEqualTo(beforeCounts);
+		assertThat(jdbc.sql("SELECT * FROM reservation WHERE id='30000000-0000-0000-0000-000000013005'").query().singleRow()).isEqualTo(reservation);
+		assertThat(jdbc.sql("SELECT * FROM makeup_credit WHERE id='33000000-0000-0000-0000-000000013001'").query().singleRow()).isEqualTo(credit);
+	}
+
+	@Test
+	void familyScheduleSeedOffersBothCancellationConsequencesAndSeparateChildEvents() throws Exception {
+		String token = seedToken(6);
+		String parent = "/api/v1/me/profiles/07000000-0000-0000-0000-000000000003";
+		String child = "/api/v1/me/profiles/07000000-0000-0000-0000-000000000004";
+		String early = seedGet(token, parent + "/personal-trainings/30000000-0000-0000-0000-000000013009", false);
+		assertThat(JsonPath.<String>read(early, "$.cancellation.effect")).isEqualTo("MAKEUP_GRANTED");
+		assertThat(JsonPath.<Boolean>read(early, "$.cancellation.late")).isFalse();
+		String late = seedGet(token, parent + "/personal-trainings/30000000-0000-0000-0000-000000013010", false);
+		assertThat(JsonPath.<String>read(late, "$.cancellation.effect")).isEqualTo("ENTRY_FORFEITED");
+		assertThat(JsonPath.<Boolean>read(late, "$.cancellation.allowed")).isTrue();
+		assertThat(JsonPath.<Boolean>read(late, "$.cancellation.late")).isTrue();
+		String personal = seedGet(token, child + "/personal-trainings", true);
+		assertThat(JsonPath.<List<String>>read(personal, "$.items[*].id"))
+			.contains("19000000-0000-0000-0000-000000013011")
+			.doesNotContain("19000000-0000-0000-0000-000000013009");
+		String groups = seedGet(token, child + "/reservations", true);
+		assertThat(JsonPath.<List<String>>read(groups, "$.items[*].id"))
+			.contains("19000000-0000-0000-0000-000000013012");
+		var balance = jdbc.sql("""
+			SELECT p.entries_remaining::INT AS remaining, SUM(l.entries_delta)::INT AS ledger
+			FROM customer_pass p JOIN pass_ledger l ON l.pass_id=p.id
+			WHERE p.id='28000000-0000-0000-0000-000000013003' GROUP BY p.id
+			""").query().singleRow();
+		assertThat(balance.get("remaining")).isEqualTo(balance.get("ledger"));
+	}
+
+	@Test
+	@Transactional
 	void makeupBookingExamplesPreserveTesterDecisions() {
 		Map<String, Long> counts = rowCounts();
 		jdbc.sql("UPDATE makeup_credit SET status = 'EXPIRED', expires_at = CURRENT_TIMESTAMP - INTERVAL '1 hour' WHERE id = '33000000-0000-0000-0000-000000012001'").update();

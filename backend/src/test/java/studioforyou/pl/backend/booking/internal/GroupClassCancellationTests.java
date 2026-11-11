@@ -95,7 +95,7 @@ class GroupClassCancellationTests {
 	}
 
 	private static PastReservation past(String status, String cancelKind, String attendance) {
-		return new PastReservation(UUID.randomUUID(), UUID.randomUUID(), status, cancelKind, null, attendance);
+		return new PastReservation(UUID.randomUUID(), UUID.randomUUID(), status, cancelKind, null, attendance, null);
 	}
 
 	private static Reservation reservation(Boolean allowed, Boolean lateAllowed, Boolean forfeits) {

@@ -126,6 +126,20 @@ public class ScheduledEvents {
 		return completed;
 	}
 
+	/** Booking calls this only after the last participant cancels, holding the occurrence lock. */
+	@Transactional(propagation = Propagation.MANDATORY)
+	public void cancelPersonal(UUID eventId, UUID actorId) {
+		if (jdbc.sql("""
+				UPDATE schedule_event SET status = 'CANCELLED', cancel_reason = 'OTHER',
+				cancel_note = 'Odwołane przez klienta', cancelled_by = :actor, cancelled_at = now(),
+				updated_at = now(), version = version + 1
+				WHERE id = :id AND kind = 'PERSONAL_TRAINING' AND status = 'SCHEDULED'
+				""").param("id", eventId).param("actor", actorId).update() == 1) {
+			auditLog.append(new AuditLog.Entry(actorId, "scheduling", "schedule_event", eventId, "EVENT_CANCELLED",
+					Map.of("status", new AuditLog.Change("SCHEDULED", "CANCELLED")), "Odwołane przez klienta"));
+		}
+	}
+
 	private static Instant instant(ResultSet rs, String column) throws SQLException {
 		return rs.getObject(column, OffsetDateTime.class).toInstant();
 	}

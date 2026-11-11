@@ -27,6 +27,9 @@ public class Studio {
 	@Column(length = 3)
 	private String currency;
 
+	@Column(name = "pt_dispute_window_hours")
+	private short personalTrainingDisputeHours;
+
 	protected Studio() {
 	}
 
@@ -44,6 +47,10 @@ public class Studio {
 
 	public String getCurrency() {
 		return this.currency;
+	}
+
+	public int getPersonalTrainingDisputeHours() {
+		return this.personalTrainingDisputeHours;
 	}
 
 }

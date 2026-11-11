@@ -209,7 +209,9 @@ class TraineeOverviewQueries {
 			Occurrence event = ownEvents.get(reservation.eventId());
 			Funding accounting = funding.get(reservation.id());
 			String status = "CANCELLED".equals(reservation.status()) ? "CANCELLED" : event.status();
-			String settlement = reservation.disputed() ? "DISPUTED" : reservation.settlementStatus();
+			String settlement = PersonalTrainingService.effectiveSettlement(reservation.settlementStatus(),
+					reservation.trainerConfirmedAt(), event.endsAt(), reservation.disputed(),
+					context.checkedAt(), studio.personalTrainingDisputeHours());
 			boolean requiresAttention = attention(reservation, event, status, settlement, accounting, context.checkedAt());
 			Session session = new Session(event.id(), "PERSONAL_TRAINING", status, event.title(), event.serviceTypeId(),
 					event.serviceTypeName(), event.startsAt(), event.endsAt(), event.capacity(), event.staff(), event.resources(),

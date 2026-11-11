@@ -101,7 +101,7 @@ final class GroupClassDtos {
 			@Schema(description = "PRESENT, ABSENT, UNMARKED (attendance not recorded yet), CANCELLED (in time), LATE_CANCELLED, or CLASS_CANCELLED (by the studio).")
 			String outcome,
 			@Schema(description = "Whether the customer's cancellation returned the pass entry; null without one.")
-			Boolean entryReturned) {
+			Boolean entryReturned, String cancellationEffect) {
 	}
 
 	@Schema(name = "BookGroupClassRequest")
