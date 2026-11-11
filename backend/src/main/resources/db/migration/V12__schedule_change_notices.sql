@@ -21,7 +21,6 @@ CREATE TABLE schedule_change_notice (
     previous_leads     TEXT[] NOT NULL,
     leads              TEXT[] NOT NULL,
     created_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
-    seen_at            TIMESTAMPTZ,
     dismissed_at       TIMESTAMPTZ,
     CHECK ((customer_id IS NULL) <> (staff_id IS NULL))
 );
@@ -32,5 +31,4 @@ CREATE INDEX ix_schedule_change_notice_event ON schedule_change_notice (event_id
 
 COMMENT ON TABLE schedule_change_notice IS '[scheduling] One saved change of an event (time, rooms or staff) told to one participant (customer_id) or one staff member (staff_id), with the values before and after. Shown in the app until the person closes it.';
 COMMENT ON COLUMN schedule_change_notice.kind IS 'CHANGED: the event moved or got other rooms or staff; ASSIGNED: the staff member now works at it; UNASSIGNED: the staff member no longer does.';
-COMMENT ON COLUMN schedule_change_notice.seen_at IS 'When the person opened their schedule after the notice appeared; unseen notices are counted on the schedule tab.';
-COMMENT ON COLUMN schedule_change_notice.dismissed_at IS 'When the person closed the notice.';
+COMMENT ON COLUMN schedule_change_notice.dismissed_at IS 'When the person closed the notice; open notices are counted on the schedule tab.';

@@ -75,15 +75,6 @@ class OwnScheduleChangeController {
 		return ResponseEntity.noContent().build();
 	}
 
-	@PostMapping(PROFILE + "/seen")
-	@Operation(summary = "Mark the changes of my classes seen", operationId = "markOwnScheduleChangesSeen",
-			description = "The participant opened their schedule; the notices stay open but are no longer new.")
-	@ApiResponse(responseCode = "204", description = "Marked.")
-	ResponseEntity<Void> seen(@PathVariable UUID profileId, Authentication authentication) {
-		this.notices.markSeen(customer(authentication, profileId), Instant.now());
-		return ResponseEntity.noContent().build();
-	}
-
 	@GetMapping(STAFF)
 	@PreAuthorize("hasRole('TRAINER')")
 	@Operation(summary = "List the changes of my events as a trainer", operationId = "listOwnStaffScheduleChanges",
@@ -109,16 +100,6 @@ class OwnScheduleChangeController {
 	@ApiResponse(responseCode = "204", description = "Closed.")
 	ResponseEntity<Void> dismissAllStaff(Authentication authentication) {
 		this.notices.dismissAll(staff(authentication), Instant.now());
-		return ResponseEntity.noContent().build();
-	}
-
-	@PostMapping(STAFF + "/seen")
-	@PreAuthorize("hasRole('TRAINER')")
-	@Operation(summary = "Mark the changes of my events seen as a trainer",
-			operationId = "markOwnStaffScheduleChangesSeen")
-	@ApiResponse(responseCode = "204", description = "Marked.")
-	ResponseEntity<Void> seenStaff(Authentication authentication) {
-		this.notices.markSeen(staff(authentication), Instant.now());
 		return ResponseEntity.noContent().build();
 	}
 

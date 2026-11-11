@@ -7,12 +7,17 @@ import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import org.jspecify.annotations.Nullable;
@@ -30,8 +35,9 @@ import org.springframework.stereotype.Component;
  * or the staff leaves one notice for each participant with an active reservation or on the waiting
  * list, and for each staff member before and after the change. A staff member who joins the event
  * gets ASSIGNED, one who leaves it UNASSIGNED, the rest CHANGED, each with the values before and
- * after. A later change is a new notice, even of the same event. Changes of the title or the
- * capacity only, and changes of blocks, tell nobody.
+ * after. A later change is a new notice, even of the same event. A change of several occurrences
+ * at once tells each person once, about the earliest occurrence that concerns them. Changes of the
+ * title or the capacity only, and changes of blocks, tell nobody.
  */
 @Component
 class ScheduleChangeNotices {
@@ -58,44 +64,73 @@ class ScheduleChangeNotices {
 					&& this.staffIds.equals(other.staffIds);
 		}
 
-	}
-
-	/** The event as it is now; call it before a change and again after the change is flushed. */
-	Snapshot snapshot(UUID eventId) {
-		ScheduleEventResponse event = this.queries.findEvent(eventId).orElseThrow();
-		Set<UUID> staff = new LinkedHashSet<>();
-		List<String> leads = new ArrayList<>();
-		for (AssignedStaffResponse member : event.staff()) {
-			staff.add(member.staffId());
-			if (member.role() == StaffRole.LEAD && member.displayName() != null) {
-				leads.add(member.displayName());
+		static Snapshot of(ScheduleEventResponse event) {
+			Set<UUID> staff = new LinkedHashSet<>();
+			List<String> leads = new ArrayList<>();
+			for (AssignedStaffResponse member : event.staff()) {
+				staff.add(member.staffId());
+				if (member.role() == StaffRole.LEAD && member.displayName() != null) {
+					leads.add(member.displayName());
+				}
 			}
+			List<String> rooms = event.resources().stream().map(AssignedResourceResponse::name).toList();
+			String name = (event.title() != null && !event.title().isBlank()) ? event.title()
+					: event.serviceTypeName();
+			return new Snapshot(event.id(), event.kind(), name, event.startsAt(), event.endsAt(), rooms,
+					List.copyOf(leads), staff);
 		}
-		List<String> rooms = event.resources().stream().map(AssignedResourceResponse::name).toList();
-		String name = (event.title() != null && !event.title().isBlank()) ? event.title() : event.serviceTypeName();
-		return new Snapshot(event.id(), event.kind(), name, event.startsAt(), event.endsAt(), rooms,
-				List.copyOf(leads), staff);
+
 	}
 
-	/** Leaves the notices of a change from {@code before} to {@code after}, in the change's transaction. */
-	void record(Snapshot before, Snapshot after) {
-		if (after.kind() == EventKind.BLOCK || before.sameFor(after)) {
+	/** The events as they are now, read in one go; take them before a change. */
+	Map<UUID, Snapshot> snapshots(Collection<UUID> eventIds) {
+		return this.queries.findEventsById(eventIds)
+			.stream()
+			.map(Snapshot::of)
+			.collect(Collectors.toMap(Snapshot::eventId, Function.identity()));
+	}
+
+	/**
+	 * Leaves the notices of a change of the given events, in the change's transaction, once the
+	 * change is flushed. {@code before} holds the events as {@link #snapshots} read them before.
+	 */
+	void record(Map<UUID, Snapshot> before) {
+		Map<UUID, Snapshot> after = snapshots(before.keySet());
+		List<Snapshot> changed = before.values()
+			.stream()
+			.filter((previous) -> after.containsKey(previous.eventId()))
+			.filter((previous) -> previous.kind() != EventKind.BLOCK
+					&& !previous.sameFor(after.get(previous.eventId())))
+			.sorted(Comparator.comparing(Snapshot::startsAt).thenComparing(Snapshot::eventId))
+			.toList();
+		if (changed.isEmpty()) {
 			return;
 		}
-		for (UUID customer : this.participants.participantsToTell(after.eventId())) {
-			insert(before, after, customer, null, "CHANGED");
-		}
-		Set<UUID> staff = new LinkedHashSet<>(before.staffIds());
-		staff.addAll(after.staffIds());
-		for (UUID member : staff) {
-			String kind = !before.staffIds().contains(member) ? "ASSIGNED"
-					: !after.staffIds().contains(member) ? "UNASSIGNED" : "CHANGED";
-			insert(before, after, null, member, kind);
+		Map<UUID, Set<UUID>> customersByEvent = this.participants
+			.participantsToTell(changed.stream().map(Snapshot::eventId).toList());
+		Set<UUID> toldCustomers = new HashSet<>();
+		Set<UUID> toldStaff = new HashSet<>();
+		for (Snapshot previous : changed) {
+			Snapshot current = after.get(previous.eventId());
+			for (UUID customer : customersByEvent.getOrDefault(previous.eventId(), Set.of())) {
+				if (toldCustomers.add(customer)) {
+					insert(previous, current, customer, null, NoticeKind.CHANGED);
+				}
+			}
+			Set<UUID> staff = new LinkedHashSet<>(previous.staffIds());
+			staff.addAll(current.staffIds());
+			for (UUID member : staff) {
+				if (toldStaff.add(member)) {
+					NoticeKind kind = !previous.staffIds().contains(member) ? NoticeKind.ASSIGNED
+							: !current.staffIds().contains(member) ? NoticeKind.UNASSIGNED : NoticeKind.CHANGED;
+					insert(previous, current, null, member, kind);
+				}
+			}
 		}
 	}
 
 	private void insert(Snapshot before, Snapshot after, @Nullable UUID customerId, @Nullable UUID staffId,
-			String kind) {
+			NoticeKind kind) {
 		this.jdbc.sql("""
 				INSERT INTO schedule_change_notice (event_id, customer_id, staff_id, kind, event_name,
 				    previous_starts_at, previous_ends_at, starts_at, ends_at, previous_rooms, rooms,
@@ -106,7 +141,7 @@ class ScheduleChangeNotices {
 			.param("event", after.eventId())
 			.param("customer", customerId)
 			.param("staff", staffId)
-			.param("kind", kind)
+			.param("kind", kind.name())
 			.param("name", after.name())
 			.param("previousStart", Timestamp.from(before.startsAt()))
 			.param("previousEnd", Timestamp.from(before.endsAt()))
@@ -151,7 +186,7 @@ class ScheduleChangeNotices {
 
 	/** Closes one notice; false when the owner has no such open notice. */
 	boolean dismiss(Owner owner, UUID noticeId, Instant now) {
-		return this.jdbc.sql("UPDATE schedule_change_notice SET dismissed_at = :now, seen_at = coalesce(seen_at, :now) "
+		return this.jdbc.sql("UPDATE schedule_change_notice SET dismissed_at = :now "
 				+ "WHERE id = :id AND " + owner.column() + " = :owner AND dismissed_at IS NULL")
 			.params(Map.of("id", noticeId, "owner", owner.id(), "now", Timestamp.from(now)))
 			.update() == 1;
@@ -159,16 +194,8 @@ class ScheduleChangeNotices {
 
 	/** Closes all open notices of the owner; returns how many. */
 	int dismissAll(Owner owner, Instant now) {
-		return this.jdbc.sql("UPDATE schedule_change_notice SET dismissed_at = :now, seen_at = coalesce(seen_at, :now) "
+		return this.jdbc.sql("UPDATE schedule_change_notice SET dismissed_at = :now "
 				+ "WHERE " + owner.column() + " = :owner AND dismissed_at IS NULL")
-			.params(Map.of("owner", owner.id(), "now", Timestamp.from(now)))
-			.update();
-	}
-
-	/** Marks the owner's notices seen, e.g. when they opened their schedule; returns how many. */
-	int markSeen(Owner owner, Instant now) {
-		return this.jdbc.sql("UPDATE schedule_change_notice SET seen_at = :now "
-				+ "WHERE " + owner.column() + " = :owner AND seen_at IS NULL")
 			.params(Map.of("owner", owner.id(), "now", Timestamp.from(now)))
 			.update();
 	}
@@ -187,8 +214,7 @@ class ScheduleChangeNotices {
 			@Schema(example = "Pole dance początkujący") String eventName, Instant previousStartsAt,
 			Instant previousEndsAt, Instant startsAt, Instant endsAt, List<String> previousRooms, List<String> rooms,
 			@Schema(description = "Lead trainers before the change.") List<String> previousLeads,
-			@Schema(description = "Lead trainers after the change.") List<String> leads, Instant createdAt,
-			@Schema(description = "Whether the person opened their schedule since the notice appeared.") boolean seen) {
+			@Schema(description = "Lead trainers after the change.") List<String> leads, Instant createdAt) {
 	}
 
 	private static final RowMapper<NoticeResponse> NOTICE = (rs, rowNum) -> new NoticeResponse(
@@ -196,7 +222,7 @@ class ScheduleChangeNotices {
 			NoticeKind.valueOf(rs.getString("kind")), rs.getString("event_name"), instant(rs, "previous_starts_at"),
 			instant(rs, "previous_ends_at"), instant(rs, "starts_at"), instant(rs, "ends_at"),
 			strings(rs, "previous_rooms"), strings(rs, "rooms"), strings(rs, "previous_leads"), strings(rs, "leads"),
-			instant(rs, "created_at"), rs.getTimestamp("seen_at") != null);
+			instant(rs, "created_at"));
 
 	private static Instant instant(ResultSet rs, String column) throws SQLException {
 		return rs.getTimestamp(column).toInstant();

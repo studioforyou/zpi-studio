@@ -53,7 +53,7 @@ class OccurrenceChangeTest extends ScheduleTestSupport {
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.startsAt").value(at(secondDay.plusDays(1), "19:00").toString()))
 			.andExpect(jsonPath("$.endsAt").value(at(secondDay.plusDays(1), "20:30").toString()))
-			.andExpect(jsonPath("$.originalStartsAt").value(at(secondDay, "18:00").toString()))
+			.andExpect(jsonPath("$.seriesChange.usualStartsAt").value(at(secondDay, "18:00").toString()))
 			.andExpect(jsonPath("$.title").value("Pole dance - extra"))
 			.andExpect(jsonPath("$.capacity").value(8))
 			.andExpect(jsonPath("$.resources[0].resourceId").value(GYM.toString()))
@@ -71,7 +71,7 @@ class OccurrenceChangeTest extends ScheduleTestSupport {
 		}
 		get("/api/v1/schedule-events/" + ids.get(0))
 			.andExpect(jsonPath("$.startsAt").value(at(this.monday.plusDays(1), "18:00").toString()))
-			.andExpect(jsonPath("$.originalStartsAt").value(at(this.monday.plusDays(1), "18:00").toString()));
+			.andExpect(jsonPath("$.seriesChange").doesNotExist());
 		get("/api/v1/recurrence-series/" + seriesId).andExpect(status().isOk())
 			.andExpect(jsonPath("$.localStartTime").value("18:00"))
 			.andExpect(jsonPath("$.defaultResourceId").value(POLE_ROOM.toString()))
@@ -93,7 +93,7 @@ class OccurrenceChangeTest extends ScheduleTestSupport {
 	}
 
 	@Test
-	void aOneOffEventCanBeChangedAndHasNoOriginalStart() throws Exception {
+	void aOneOffEventCanBeChangedAndHasNoSeriesChange() throws Exception {
 		String id = createEvent(poleClass(this.monday, "18:00", "19:00"));
 
 		put("/api/v1/schedule-events/" + id, change(0, at(this.monday, "17:00"), at(this.monday, "18:30"), "null",
@@ -101,7 +101,7 @@ class OccurrenceChangeTest extends ScheduleTestSupport {
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.startsAt").value(at(this.monday, "17:00").toString()))
 			.andExpect(jsonPath("$.capacity").doesNotExist())
-			.andExpect(jsonPath("$.originalStartsAt").doesNotExist())
+			.andExpect(jsonPath("$.seriesChange").doesNotExist())
 			.andExpect(jsonPath("$.isSeriesException").value(false));
 	}
 
@@ -423,8 +423,7 @@ class OccurrenceChangeTest extends ScheduleTestSupport {
 		staffChanges(MAREK_TOKEN).andExpect(jsonPath("$.items.length()").value(1))
 			.andExpect(jsonPath("$.items[0].kind").value("ASSIGNED"))
 			.andExpect(jsonPath("$.items[0].previousLeads[0]").value("Anna Kowalska"))
-			.andExpect(jsonPath("$.items[0].leads[0]").value("Marek Nowak"))
-			.andExpect(jsonPath("$.items[0].seen").value(false));
+			.andExpect(jsonPath("$.items[0].leads[0]").value("Marek Nowak"));
 		staffChanges(ANNA_TOKEN).andExpect(jsonPath("$.items[0].kind").value("UNASSIGNED"));
 		assertThat(customerNotices(customer)).containsExactly("CHANGED");
 
@@ -449,14 +448,40 @@ class OccurrenceChangeTest extends ScheduleTestSupport {
 		staffChanges(ANNA_TOKEN).andExpect(jsonPath("$.items.length()").value(1));
 		assertThat(customerNotices(customer)).containsExactly("CHANGED", "CHANGED");
 
-		// Opening the schedule makes them seen; a change of the title only tells nobody.
-		this.mockMvc.perform(as(MAREK_TOKEN, MockMvcRequestBuilders.post("/api/v1/me/schedule-changes/seen")))
-			.andExpect(status().isNoContent());
-		staffChanges(MAREK_TOKEN).andExpect(jsonPath("$.items[0].seen").value(true));
+		// A change of the title only tells nobody.
 		put("/api/v1/schedule-events/" + id, change(version(id), at(tuesday, "19:00"), at(tuesday, "20:00"),
 				"\"Pole dance - extra\"", "10", staff(MAREK, "LEAD"), room(GYM, true)))
 			.andExpect(status().isOk());
 		assertThat(customerNotices(customer)).hasSize(2);
+	}
+
+	@Test
+	void aChangeOfTheFollowingOccurrencesTellsEachPersonOnceAboutTheEarliest() throws Exception {
+		createTuesdaySeries(3);
+		List<String> ids = occurrenceIds();
+		LocalDate tuesday = this.monday.plusDays(1);
+		UUID reservation = book(ids.get(1), at(tuesday.plusWeeks(1), "06:00"));
+		UUID customer = this.jdbcTemplate.queryForObject("SELECT customer_id FROM reservation WHERE id = ?",
+				UUID.class, reservation);
+		UUID admin = this.jdbcTemplate.queryForObject("SELECT id FROM account WHERE email = ?", UUID.class,
+				"admin" + TEST_EMAIL_DOMAIN);
+		this.jdbcTemplate.update("INSERT INTO reservation (event_id, customer_id, booked_by) VALUES (?, ?, ?)",
+				UUID.fromString(ids.get(2)), customer, admin);
+
+		put("/api/v1/schedule-events/" + ids.get(0) + "/assignments", """
+				{"version": 0, "scope": "THIS_AND_FOLLOWING", "staff": [{"staffId": "%s", "role": "LEAD"}],
+				 "resources": [{"resourceId": "%s"}]}
+				""".formatted(MAREK, POLE_ROOM))
+			.andExpect(status().isOk());
+
+		staffChanges(MAREK_TOKEN).andExpect(jsonPath("$.items.length()").value(1))
+			.andExpect(jsonPath("$.items[0].kind").value("ASSIGNED"))
+			.andExpect(jsonPath("$.items[0].eventId").value(ids.get(0)));
+		staffChanges(ANNA_TOKEN).andExpect(jsonPath("$.items.length()").value(1))
+			.andExpect(jsonPath("$.items[0].kind").value("UNASSIGNED"));
+		assertThat(this.jdbcTemplate.queryForList(
+				"SELECT event_id FROM schedule_change_notice WHERE customer_id = ?", UUID.class, customer))
+			.containsExactly(UUID.fromString(ids.get(1)));
 	}
 
 	private ResultActions staffChanges(String token) throws Exception {

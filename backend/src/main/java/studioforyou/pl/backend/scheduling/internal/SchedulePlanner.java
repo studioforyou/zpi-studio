@@ -204,10 +204,8 @@ class SchedulePlanner {
 			.toList();
 		lockAndRejectConflicts(occurrences, assignments, zone, targets.stream().map(ScheduleEvent::getId).toList());
 
-		Map<UUID, ScheduleChangeNotices.Snapshot> before = new LinkedHashMap<>();
-		for (ScheduleEvent target : targets) {
-			before.put(target.getId(), this.notices.snapshot(target.getId()));
-		}
+		Map<UUID, ScheduleChangeNotices.Snapshot> before = this.notices
+			.snapshots(targets.stream().map(ScheduleEvent::getId).toList());
 		for (ScheduleEvent target : targets) {
 			boolean changed = target.replaceAssignments(assignments.staff(), assignments.resources());
 			if (changed && !following) {
@@ -219,7 +217,7 @@ class SchedulePlanner {
 				.ifPresent((series) -> series.setDefaults(assignments.leadStaffId(), assignments.mainResourceId()));
 		}
 		this.events.flush();
-		before.forEach((id, snapshot) -> this.notices.record(snapshot, this.notices.snapshot(id)));
+		this.notices.record(before);
 		return this.queries.findEvent(eventId).orElseThrow();
 	}
 

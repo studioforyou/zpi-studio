@@ -426,8 +426,7 @@ class ScheduleQueries {
 		ScheduleEventResponse toResponse(String serviceTypeName, @Nullable SeriesChange change,
 				List<AssignedStaffResponse> staff, List<AssignedResourceResponse> resources) {
 			return new ScheduleEventResponse(this.id, this.kind, this.status, this.visibility, this.title,
-					this.serviceTypeId, serviceTypeName, this.seriesId, this.seriesException, this.originalStartsAt,
-					change, this.trainingGroupId, this.startsAt, this.endsAt, this.capacity, staff, resources,
+					this.serviceTypeId, serviceTypeName, this.seriesId, this.seriesException, change, this.trainingGroupId, this.startsAt, this.endsAt, this.capacity, staff, resources,
 					this.cancelReason, this.blockReason, this.guestName, this.version);
 		}
 

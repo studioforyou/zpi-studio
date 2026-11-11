@@ -3,8 +3,11 @@ package studioforyou.pl.backend.booking.internal;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -50,9 +53,14 @@ class ScheduleChangesForBooking implements EventParticipantCounts {
 	}
 
 	@Override
-	public Set<UUID> participantsToTell(UUID eventId) {
-		Set<UUID> participants = new LinkedHashSet<>(this.reservations.activeParticipantIds(eventId));
-		participants.addAll(this.waitlist.waitingCustomerIds(eventId));
+	public Map<UUID, Set<UUID>> participantsToTell(Collection<UUID> eventIds) {
+		Map<UUID, Set<UUID>> participants = new HashMap<>();
+		this.reservations.activeParticipantIdsByEvent(eventIds)
+			.forEach((event, customers) -> participants.computeIfAbsent(event, (key) -> new LinkedHashSet<>())
+				.addAll(customers));
+		this.waitlist.waitingCustomerIdsByEvent(eventIds)
+			.forEach((event, customers) -> participants.computeIfAbsent(event, (key) -> new LinkedHashSet<>())
+				.addAll(customers));
 		return participants;
 	}
 

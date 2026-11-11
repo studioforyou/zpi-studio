@@ -6,6 +6,7 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -116,8 +117,8 @@ class OccurrenceChanges {
 		Assignments assignments = assignments(event, capacity, request.staff(), request.resources());
 		this.planner.lockAndRejectConflicts(List.of(occurrence), assignments, zone, List.of(eventId));
 
-		Snapshot before = Snapshot.of(event);
-		ScheduleChangeNotices.Snapshot seen = this.notices.snapshot(eventId);
+		TimeAndCapacity before = TimeAndCapacity.of(event);
+		Map<UUID, ScheduleChangeNotices.Snapshot> noticeBefore = this.notices.snapshots(List.of(eventId));
 		boolean moved = event.reschedule(occurrence.startsAt(), occurrence.endsAt());
 		boolean detailsChanged = event.changeDetails(title(request.title(), event), capacity);
 		boolean assignmentsChanged = event.replaceAssignments(assignments.staff(), assignments.resources());
@@ -126,7 +127,7 @@ class OccurrenceChanges {
 		}
 		this.events.flush();
 		publishChange(before, event);
-		this.notices.record(seen, this.notices.snapshot(eventId));
+		this.notices.record(noticeBefore);
 		return this.queries.findEvent(eventId).orElseThrow();
 	}
 
@@ -172,15 +173,15 @@ class OccurrenceChanges {
 				resources, event);
 		this.planner.lockAndRejectConflicts(List.of(occurrence), assignments, zone, List.of(eventId));
 
-		Snapshot before = Snapshot.of(event);
-		ScheduleChangeNotices.Snapshot seen = this.notices.snapshot(eventId);
+		TimeAndCapacity before = TimeAndCapacity.of(event);
+		Map<UUID, ScheduleChangeNotices.Snapshot> noticeBefore = this.notices.snapshots(List.of(eventId));
 		event.reschedule(occurrence.startsAt(), occurrence.endsAt());
 		event.changeDetails(title(series.getTitle(), event), capacity);
 		event.replaceAssignments(assignments.staff(), assignments.resources());
 		event.clearSeriesException();
 		this.events.flush();
 		publishChange(before, event);
-		this.notices.record(seen, this.notices.snapshot(eventId));
+		this.notices.record(noticeBefore);
 		return this.queries.findEvent(eventId).orElseThrow();
 	}
 
@@ -198,7 +199,7 @@ class OccurrenceChanges {
 	}
 
 	/** Tells the other modules about a new time or capacity, after the change is flushed. */
-	private void publishChange(Snapshot before, ScheduleEvent event) {
+	private void publishChange(TimeAndCapacity before, ScheduleEvent event) {
 		Integer capacity = toInteger(event.getCapacity());
 		boolean timeChanged = !before.startsAt().equals(event.getStartsAt())
 				|| !before.endsAt().equals(event.getEndsAt());
@@ -269,10 +270,10 @@ class OccurrenceChanges {
 	}
 
 	/** The time and capacity of an event before a change. */
-	private record Snapshot(Instant startsAt, Instant endsAt, @Nullable Integer capacity) {
+	private record TimeAndCapacity(Instant startsAt, Instant endsAt, @Nullable Integer capacity) {
 
-		static Snapshot of(ScheduleEvent event) {
-			return new Snapshot(event.getStartsAt(), event.getEndsAt(), toInteger(event.getCapacity()));
+		static TimeAndCapacity of(ScheduleEvent event) {
+			return new TimeAndCapacity(event.getStartsAt(), event.getEndsAt(), toInteger(event.getCapacity()));
 		}
 
 	}

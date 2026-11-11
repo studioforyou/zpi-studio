@@ -195,8 +195,6 @@ final class ScheduleDtos {
 			@Schema(example = "Pole dance - początkujący") String serviceTypeName,
 			@Schema(description = "The series that generated the event; null for a one-off event.") UUID seriesId,
 			@Schema(description = "The occurrence differs from its series' rule.") boolean isSeriesException,
-			@Schema(description = "The start the series' rule gives the occurrence; it differs from startsAt when "
-					+ "this one occurrence was moved. null for a one-off event.") Instant originalStartsAt,
 			@Schema(description = "What a one-off change of this occurrence changed against its series: time, lead "
 					+ "trainers or rooms; null when none of them differs.") SeriesChange seriesChange,
 			UUID trainingGroupId,
@@ -318,8 +316,8 @@ final class ScheduleDtos {
 			@NotNull @Schema(example = "2026-11-03T18:30:00Z") Instant endsAt,
 			@Size(max = MAX_TITLE_LENGTH) @Schema(description = "The service type's name when missing.") String title,
 			@Min(1) @Max(Short.MAX_VALUE)
-			@Schema(description = "Maximum number of participants; null = no limit. Not below the number of "
-					+ "active reservations.") Integer capacity,
+			@Schema(description = "Maximum number of participants; null = no limit. Not below the places "
+					+ "already taken: active reservations and held waiting-list offers.") Integer capacity,
 			@NotNull List<@Valid @NotNull StaffAssignmentRequest> staff,
 			@NotNull List<@Valid @NotNull ResourceAssignmentRequest> resources) {
 	}

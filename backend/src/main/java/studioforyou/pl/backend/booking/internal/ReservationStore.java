@@ -96,6 +96,23 @@ class ReservationStore {
 			.param("event", eventId).query(UUID.class).list();
 	}
 
+	/** Per event, the customers with an active reservation of it. */
+	Map<UUID, List<UUID>> activeParticipantIdsByEvent(Collection<UUID> eventIds) {
+		if (eventIds.isEmpty()) {
+			return Map.of();
+		}
+		return this.jdbc.sql("""
+				SELECT event_id, customer_id FROM reservation
+				WHERE event_id IN (:events) AND status = 'ACTIVE' ORDER BY event_id, customer_id
+				""")
+			.param("events", eventIds)
+			.query((rs, row) -> Map.entry(rs.getObject("event_id", UUID.class), rs.getObject("customer_id", UUID.class)))
+			.list()
+			.stream()
+			.collect(Collectors.groupingBy(Map.Entry::getKey,
+					Collectors.mapping(Map.Entry::getValue, Collectors.toList())));
+	}
+
 	/** Active reservations of the event, earliest booking first. */
 	List<ActiveReservation> activeReservations(UUID eventId) {
 		return this.jdbc.sql("""

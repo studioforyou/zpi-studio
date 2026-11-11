@@ -1,5 +1,7 @@
 package studioforyou.pl.backend.scheduling;
 
+import java.util.Collection;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -10,15 +12,16 @@ import java.util.UUID;
 public interface EventParticipantCounts {
 
 	/**
-	 * The number of active reservations of the event. The schedule calls it while it holds the
-	 * event's row lock, the same lock a booking takes, so the count cannot grow meanwhile.
+	 * The places taken in the event: active reservations and places held for waiting-list offers
+	 * that have not run out. The schedule calls it while it holds the event's row lock, the same
+	 * lock a booking takes, so the count cannot grow meanwhile.
 	 */
 	int activeParticipants(UUID eventId);
 
 	/**
-	 * The participants a change of the event concerns: those with an active reservation and those
-	 * still on its waiting list.
+	 * Per event, the participants a change of it concerns: those with an active reservation and
+	 * those still on its waiting list. Events without such participants are left out.
 	 */
-	Set<UUID> participantsToTell(UUID eventId);
+	Map<UUID, Set<UUID>> participantsToTell(Collection<UUID> eventIds);
 
 }
