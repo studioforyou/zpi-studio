@@ -41,8 +41,9 @@ Cloud Run scales to zero and has no CPU between requests, so the backend does no
 One run:
 
 1. sends class reminders that are due: for every active reservation of a class that is not cancelled, each reminder time from `start - lead time` for 30 minutes, if the reservation already existed then;
-2. retries pushes that failed in the last 12 hours (after 2 minutes, at most 3 failed attempts);
-3. re-delivers domain events whose listener has not finished (see below).
+2. sends reminders about expiring passes (`PASS_EXPIRING`, #146): each reminder time counts back from 9:00 on the last day of the pass, for 30 minutes, if the pass already existed then; passes with no entries left and participants who already hold a following pass are skipped;
+3. retries pushes that failed in the last 12 hours (after 2 minutes, at most 3 failed attempts);
+4. re-delivers domain events whose listener has not finished (see below).
 
 Locally, with Docker Compose, `JOBS_LOCAL_SCHEDULER_ENABLED=true` runs the same job inside the backend every 5 minutes instead.
 

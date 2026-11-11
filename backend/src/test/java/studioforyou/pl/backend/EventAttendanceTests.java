@@ -110,6 +110,7 @@ class EventAttendanceTests {
 	@AfterEach
 	void tearDown() {
 		String accounts = "SELECT id FROM account WHERE email LIKE '%" + EMAIL_DOMAIN + "'";
+		PassNotificationCleanup.deleteNotifications(jdbc, accounts);
 		String events = "SELECT id FROM schedule_event WHERE title = '" + EVENT_TITLE + "'";
 		String reservations = "SELECT id FROM reservation WHERE event_id IN (" + events + ")";
 		String passes = "SELECT id FROM customer_pass WHERE variant_id = '" + variant + "'";

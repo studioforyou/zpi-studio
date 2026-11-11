@@ -21,7 +21,24 @@ public enum NotificationType {
 			new Placeholder(Placeholder.DAY, "Day of the class: \"dziś\", \"jutro\" or the weekday and date, e.g. \"wtorek 12.11\""),
 			new Placeholder(Placeholder.TIME, "Start time in the studio time zone, e.g. \"18:00\""),
 			new Placeholder(Placeholder.ROOM, "Room names, or \"studio\" when no room is assigned"),
-			new Placeholder(Placeholder.LEAD_TIME, "How long before the start the reminder is sent, e.g. \"2 godz.\"")));
+			new Placeholder(Placeholder.LEAD_TIME, "How long before the start the reminder is sent, e.g. \"2 godz.\""))),
+
+	/**
+	 * Reminder that a pass is about to expire, sent before 9:00 on its last day. Not sent when the
+	 * participant already has a following pass or no entries are left.
+	 */
+	PASS_EXPIRING((short) 2, true, List.of(
+			new Placeholder(Placeholder.PASS, "Name of the pass"),
+			new Placeholder(Placeholder.VALID_UNTIL, "Last day of the pass, e.g. \"12.11.2026\""),
+			new Placeholder(Placeholder.LEAD_TIME, "How long before 9:00 on the last day the reminder is sent, e.g. \"3 dni\""))),
+
+	/**
+	 * A booking used the last entry of a pass. Sent once per pass, and not when the participant
+	 * already has a following pass.
+	 */
+	PASS_LAST_ENTRY_USED((short) 3, false, List.of(
+			new Placeholder(Placeholder.PASS, "Name of the pass"),
+			new Placeholder(Placeholder.VALID_UNTIL, "Last day of the pass, e.g. \"12.11.2026\"")));
 
 	private final short id;
 
@@ -79,6 +96,12 @@ public enum NotificationType {
 
 		/** How long before the start the reminder is sent. */
 		public static final String LEAD_TIME = "ile przed";
+
+		/** Name of the pass. */
+		public static final String PASS = "karnet";
+
+		/** Last day of the pass. */
+		public static final String VALID_UNTIL = "ważny do";
 
 	}
 

@@ -37,6 +37,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
+import studioforyou.pl.backend.PassNotificationCleanup;
 import studioforyou.pl.backend.TestcontainersConfiguration;
 import studioforyou.pl.backend.booking.internal.GroupClassDtos.CancelRequest;
 import studioforyou.pl.backend.booking.internal.GroupClassDtos.GroupClassResponse;
@@ -136,6 +137,7 @@ class StaffBookingTests {
 		String events = "SELECT id FROM schedule_event WHERE service_type_id = '" + service + "'";
 		String reservations = "SELECT id FROM reservation WHERE event_id IN (" + events + ")";
 		String accounts = "SELECT id FROM account WHERE email LIKE '%" + EMAIL_DOMAIN + "'";
+		PassNotificationCleanup.deleteNotifications(jdbc, accounts);
 		jdbc.sql("DELETE FROM audit_log WHERE entity_id IN (" + reservations + ")").update();
 		jdbc.sql("DELETE FROM pass_ledger WHERE pass_id IN (SELECT id FROM customer_pass WHERE variant_id = :variant)")
 			.param("variant", variant).update();
