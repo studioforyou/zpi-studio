@@ -352,6 +352,34 @@ test('cancels a place returning the entry although the terms would forfeit it', 
   });
 });
 
+test('recognizes a makeup booking and sends the credit return decision', async () => {
+  const makeup: EventReservation = {
+    ...ola,
+    customerPassId: null,
+    makeupCreditId: 'makeup-1',
+    cancellation: {
+      ...ola.cancellation,
+      suggestedEntryReturned: true,
+      participant: { allowed: true, reason: null, entryReturned: true },
+    },
+  };
+  const fetchMock = stubApi({ ...roster, participants: [makeup] });
+  renderWithProviders(<EventReservationsSection event={event} />);
+  expect(await screen.findByText(/Odróbka · Karnet 8 wejść/)).toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: 'Wypisz: Ola Nowak' }));
+  const dialog = await screen.findByRole('dialog', { name: 'Wypisz uczestnika z zajęć' });
+  expect(within(dialog).getByRole('radio', { name: 'Zwróć odróbkę' })).toBeChecked();
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Wypisz' }));
+  await vi.waitFor(() =>
+    expect(requests(fetchMock, 'POST', cancelUrl('reservation-ola'))).toHaveLength(1),
+  );
+  expect(sentBody(fetchMock, 'POST', cancelUrl('reservation-ola'))).toEqual({
+    expectedVersion: 0,
+    returnEntry: true,
+    reason: null,
+  });
+});
+
 test('cancels a place without a pass and explains a conflict', async () => {
   const fetchMock = stubApi(roster, {
     cancel: () => json({ status: 409, code: 'VERSION_CONFLICT', detail: 'Changed' }, 409),

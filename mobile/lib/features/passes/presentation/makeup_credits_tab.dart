@@ -6,6 +6,8 @@ import 'package:intl/intl.dart';
 import 'package:mobile/core/auth/auth_controller.dart';
 import 'package:mobile/core/auth/auth_state.dart';
 import 'package:mobile/features/passes/data/makeup_credits_api.dart';
+import 'package:mobile/features/passes/data/makeup_booking_api.dart';
+import 'package:mobile/features/passes/presentation/makeup_booking_screen.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
 
 class MakeupCreditsTab extends ConsumerWidget {
@@ -130,7 +132,25 @@ class _CreditsListState extends ConsumerState<_CreditsList>
                   ),
                   const SizedBox(height: 12),
                   for (final credit in result.items)
-                    _MakeupCreditCard(credit: credit),
+                    _MakeupCreditCard(
+                      credit: credit,
+                      onBook: () {
+                        if (makeupBookingScope(
+                              ref.read(authControllerProvider),
+                            ) !=
+                            widget.scope) {
+                          return;
+                        }
+                        Navigator.of(context).push<void>(
+                          MaterialPageRoute(
+                            builder: (_) => MakeupBookingScreen(
+                              scope: widget.scope,
+                              creditId: credit.id,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
                   if (result.totalPages > 1 || _page > 0)
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -220,9 +240,10 @@ class _CreditsSummary extends StatelessWidget {
 }
 
 class _MakeupCreditCard extends StatelessWidget {
-  const _MakeupCreditCard({required this.credit});
+  const _MakeupCreditCard({required this.credit, required this.onBook});
 
   final MakeupCredit credit;
+  final VoidCallback onBook;
 
   @override
   Widget build(BuildContext context) {
@@ -252,6 +273,12 @@ class _MakeupCreditCard extends StatelessWidget {
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant,
                     ),
+                  ),
+                  const SizedBox(height: 4),
+                  TextButton.icon(
+                    onPressed: onBook,
+                    icon: const Icon(Icons.event_repeat_outlined, size: 18),
+                    label: Text(l10n.makeupChooseClass),
                   ),
                 ],
               ),

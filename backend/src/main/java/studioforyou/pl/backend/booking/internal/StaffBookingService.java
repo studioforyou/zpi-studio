@@ -42,6 +42,7 @@ import studioforyou.pl.backend.customer.CustomerProfiles;
 import studioforyou.pl.backend.customer.CustomerProfiles.ProfileDetails;
 import studioforyou.pl.backend.membership.BookingEntitlements;
 import studioforyou.pl.backend.membership.BookingEntitlements.EligiblePass;
+import studioforyou.pl.backend.membership.MakeupEntitlements;
 import studioforyou.pl.backend.membership.TraineePasses;
 import studioforyou.pl.backend.membership.TraineePasses.Funding;
 import studioforyou.pl.backend.membership.TraineePasses.FundingRequest;
@@ -104,6 +105,8 @@ class StaffBookingService {
 
 	private final BookingEntitlements entitlements;
 
+	private final MakeupEntitlements makeups;
+
 	private final TraineePasses passes;
 
 	private final ParticipationRules rules;
@@ -121,12 +124,13 @@ class StaffBookingService {
 	StaffBookingService(ReservationStore reservations, WaitlistStore waitlist, GroupClassSchedule schedule,
 			CustomerProfiles customers, BookingEntitlements entitlements, TraineePasses passes,
 			ParticipationRules rules, WaitlistPromotion promotion, StaffProfiles staffProfiles, ScheduledEvents events,
-			AuditLog auditLog) {
+			AuditLog auditLog, MakeupEntitlements makeups) {
 		this.reservations = reservations;
 		this.waitlist = waitlist;
 		this.schedule = schedule;
 		this.customers = customers;
 		this.entitlements = entitlements;
+		this.makeups = makeups;
 		this.passes = passes;
 		this.rules = rules;
 		this.promotion = promotion;
@@ -306,11 +310,15 @@ class StaffBookingService {
 			throw ParticipationRules.rejected(unavailable);
 		}
 		UUID passId = reservation.customerPassId();
-		if (passId != null && request.returnEntry() == null) {
+		UUID creditId = reservation.makeupCreditId();
+		if ((passId != null || creditId != null) && request.returnEntry() == null) {
 			throw ApiException.invalidField("returnEntry", FieldErrorCode.REQUIRED,
 					"Decide whether the pass entry is returned.");
 		}
-		Boolean returned = passId == null ? null : request.returnEntry();
+		Boolean returned = passId == null && creditId == null ? null : request.returnEntry();
+		if (creditId != null) {
+			this.makeups.release(reservation.customerId(), creditId, reservationId, returned, returned);
+		}
 		String kind = isLate(reservation, now) ? "LATE" : "IN_TIME";
 		this.reservations.cancel(reservation, actorId, now, returned, kind);
 		UUID customerId = reservation.customerId();
@@ -348,7 +356,8 @@ class StaffBookingService {
 	 * stored terms.
 	 */
 	static Boolean suggestedEntryReturned(Reservation reservation, Instant now) {
-		if (reservation.customerPassId() == null || reservation.freeCancelUntil() == null) {
+		if ((reservation.customerPassId() == null && reservation.makeupCreditId() == null)
+				|| reservation.freeCancelUntil() == null) {
 			return null;
 		}
 		return !isLate(reservation, now) || Boolean.FALSE.equals(reservation.lateCancelForfeitsEntry());
@@ -414,20 +423,27 @@ class StaffBookingService {
 			.toList();
 	}
 
-	private static EventReservationResponse response(Occurrence event, RosterRow row, ProfileDetails profile,
+	private EventReservationResponse response(Occurrence event, RosterRow row, ProfileDetails profile,
 			Funding funding, AuditLog.Recorded booking, Map<UUID, String> names, Instant now) {
 		Reservation reservation = row.reservation();
 		boolean staff = STAFF_SOURCE.equals(row.source());
 		String unavailable = cancellationReason(reservation, event, now);
+		Boolean suggested = suggestedEntryReturned(reservation, now);
+		GroupClassDtos.CancellationAvailability participant = GroupClassBookingService.cancellation(reservation, event, now);
+		if (reservation.makeupCreditId() != null && !this.makeups.canReturn(profile.id(),
+				reservation.makeupCreditId(), reservation.id(), now)) {
+			suggested = suggested == null ? null : false;
+			participant = new GroupClassDtos.CancellationAvailability(participant.allowed(), participant.reason(),
+					participant.entryReturned() == null ? null : false);
+		}
 		StaffCancellationResponse cancellation = new StaffCancellationResponse(unavailable == null, unavailable,
-				isLate(reservation, now), suggestedEntryReturned(reservation, now),
-				GroupClassBookingService.cancellation(reservation, event, now));
+				isLate(reservation, now), suggested, participant);
 		return new EventReservationResponse(reservation.id(), profile.id(), profile.kind(), profile.firstName(),
 				profile.lastName(), profile.displayName(), reservation.status(), row.bookedAt(), row.source(),
 				staff ? names.get(row.bookedBy()) : null, booking == null ? null : booking.reason(),
 				booking == null ? List.of() : overriddenIssues(booking), reservation.customerPassId(),
 				funding == null ? null : funding.passName(), cancellation, reservation.cancelledAt(),
-				reservation.entryReturned(), reservation.version());
+				reservation.entryReturned(), reservation.version(), reservation.makeupCreditId());
 	}
 
 	/** The audit records of the administrators' bookings of the reservations. */

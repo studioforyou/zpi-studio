@@ -165,7 +165,14 @@ function Participant({
           )}
         </Group>
         <Text size="xs" c="dimmed">
-          {[participant.customerPassId ? participant.passName : texts.noPass, source]
+          {[
+            participant.makeupCreditId
+              ? texts.makeup(participant.passName)
+              : participant.customerPassId
+                ? participant.passName
+                : texts.noPass,
+            source,
+          ]
             .filter(Boolean)
             .join(' · ')}
         </Text>

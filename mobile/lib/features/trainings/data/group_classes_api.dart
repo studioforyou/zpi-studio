@@ -86,6 +86,7 @@ class ClassReservation {
     required this.entryReturned,
     required this.cancellation,
     required this.version,
+    this.makeupCreditId,
   });
 
   factory ClassReservation.fromJson(Map<String, dynamic> json) =>
@@ -101,6 +102,7 @@ class ClassReservation {
           json['cancellation'] as Map<String, dynamic>,
         ),
         version: json['version'] as int,
+        makeupCreditId: json['makeupCreditId'] as String?,
       );
 
   final String id;
@@ -112,6 +114,7 @@ class ClassReservation {
   final bool? entryReturned;
   final ClassCancellation cancellation;
   final int version;
+  final String? makeupCreditId;
 
   bool get isActive => status == 'ACTIVE';
 }

@@ -85,7 +85,8 @@ final class StaffBookingDtos {
 			Instant cancelledAt,
 			@Schema(description = "Whether the cancellation returned the pass entry; null while active or without a pass.")
 			Boolean entryReturned,
-			@Schema(description = "The reservation's version, sent back with a cancellation.") int version) {
+			@Schema(description = "The reservation's version, sent back with a cancellation.") int version,
+			@Schema(description = "The make-up credit funding the place, or null.") UUID makeupCreditId) {
 	}
 
 	@Schema(name = "StaffCancellation", description = "Whether an administrator can cancel the place now and what "
