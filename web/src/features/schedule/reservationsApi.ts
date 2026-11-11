@@ -47,6 +47,7 @@ export type EventReservation = {
   overriddenIssues: BookingIssue[];
   /** `null`: booked without a pass entry. */
   customerPassId: string | null;
+  makeupCreditId?: string | null;
   passName: string | null;
   cancellation: StaffCancellation;
   cancelledAt: string | null;

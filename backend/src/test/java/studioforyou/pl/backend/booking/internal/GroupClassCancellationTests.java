@@ -45,7 +45,7 @@ class GroupClassCancellationTests {
 	@Test
 	void aReservationWithoutAPassIsCancelledOnItsTermsWithoutAnEntryConsequence() {
 		var passless = new Reservation(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), "ACTIVE", null,
-				DEADLINE, null, null, null, true, false, true, 0);
+				DEADLINE, null, null, null, true, false, true, 0, null);
 		var inTime = GroupClassBookingService.cancellation(passless, event(), DEADLINE);
 		assertThat(inTime.allowed()).isTrue();
 		assertThat(inTime.entryReturned()).isNull();
@@ -100,7 +100,7 @@ class GroupClassCancellationTests {
 
 	private static Reservation reservation(Boolean allowed, Boolean lateAllowed, Boolean forfeits) {
 		return new Reservation(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), "ACTIVE", UUID.randomUUID(),
-				DEADLINE, null, null, null, allowed, lateAllowed, forfeits, 0);
+				DEADLINE, null, null, null, allowed, lateAllowed, forfeits, 0, null);
 	}
 
 	private static Occurrence event() {
