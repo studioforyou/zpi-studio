@@ -257,9 +257,7 @@ export function EventDetailsDrawer({
         >
           <Stack>
             <Text size="sm">
-              {texts.restore.body(
-                formatDateTime(moved ?? event.startsAt, lookups.timeZone),
-              )}
+              {texts.restore.body(formatDateTime(moved ?? event.startsAt, lookups.timeZone))}
             </Text>
             {restore.isError && <Alert color="red">{scheduleErrorMessage(restore.error)}</Alert>}
             <Group justify="flex-end">
