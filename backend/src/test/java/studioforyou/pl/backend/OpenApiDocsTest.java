@@ -159,6 +159,14 @@ class OpenApiDocsTest {
 		assertThat((String) JsonPath.read(json,
 				"$.paths['/api/v1/schedule-events/{eventId}/booking-options'].get.operationId"))
 			.isEqualTo("getStaffBookingOptions");
+		String own = "$.paths['/api/v1/me/schedule-events/{eventId}";
+		assertThat((Map<String, Object>) JsonPath.read(json, own + "/reservations']")).containsOnlyKeys("post");
+		assertThat((String) JsonPath.read(json, own + "/reservations'].post.operationId"))
+			.isEqualTo("bookOwnEventReservation");
+		assertThat((Map<String, Object>) JsonPath.read(json, own + "/reservations'].post.responses"))
+			.containsKeys("200", "201", "400", "401", "403", "404", "409", "422");
+		assertThat((String) JsonPath.read(json, own + "/booking-options'].get.operationId"))
+			.isEqualTo("getOwnEventBookingOptions");
 		assertThat((Map<String, Object>) JsonPath.read(json, "$.components.schemas.StaffBookRequest.properties"))
 			.containsOnlyKeys("customerId", "customerPassId", "acceptedIssues", "reason");
 		assertThat((Map<String, Object>) JsonPath.read(json,

@@ -33,6 +33,8 @@ import studioforyou.pl.backend.booking.internal.StaffBookingDtos.StaffBookReques
 import studioforyou.pl.backend.booking.internal.StaffBookingDtos.StaffBookingOptionsResponse;
 import studioforyou.pl.backend.booking.internal.StaffBookingDtos.StaffCancelRequest;
 import studioforyou.pl.backend.booking.internal.StaffBookingDtos.StaffCancellationResponse;
+import studioforyou.pl.backend.booking.internal.StaffBookingDtos.TrainerBookRequest;
+import studioforyou.pl.backend.booking.internal.StaffBookingDtos.TrainerBookingOptionsResponse;
 import studioforyou.pl.backend.booking.internal.WaitlistStore.QueuedEntry;
 import studioforyou.pl.backend.booking.internal.WaitlistStore.WaitlistEntry;
 import studioforyou.pl.backend.configuration.BookingPolicies;
@@ -45,6 +47,7 @@ import studioforyou.pl.backend.membership.TraineePasses.Funding;
 import studioforyou.pl.backend.membership.TraineePasses.FundingRequest;
 import studioforyou.pl.backend.scheduling.GroupClassSchedule;
 import studioforyou.pl.backend.scheduling.GroupClassSchedule.Occurrence;
+import studioforyou.pl.backend.scheduling.ScheduledEvents;
 import studioforyou.pl.backend.shared.api.ApiException;
 import studioforyou.pl.backend.shared.api.ErrorCode;
 import studioforyou.pl.backend.shared.api.FieldErrorCode;
@@ -52,7 +55,10 @@ import studioforyou.pl.backend.staff.StaffProfiles;
 
 /**
  * Administrators book and cancel group-class places for participants (#110), e.g. after a phone
- * call or at the desk, for public and private classes until they start.
+ * call or at the desk, for public and private classes until they start. Trainers book participants
+ * on the group classes they run or assist (#106), e.g. a person who asked them to join, on the rules
+ * of the participant's own booking: within the booking window, on a free place, meeting every
+ * requirement and on an eligible pass. Cancelling stays with administrators.
  * <p>
  * The booking window does not bind them. They may book a full class or a participant who does not
  * meet the class's requirements once they confirm each of these issues; a participant without a
@@ -106,13 +112,16 @@ class StaffBookingService {
 
 	private final StaffProfiles staffProfiles;
 
+	private final ScheduledEvents events;
+
 	private final AuditLog auditLog;
 
 	private final Clock clock = Clock.systemUTC();
 
 	StaffBookingService(ReservationStore reservations, WaitlistStore waitlist, GroupClassSchedule schedule,
 			CustomerProfiles customers, BookingEntitlements entitlements, TraineePasses passes,
-			ParticipationRules rules, WaitlistPromotion promotion, StaffProfiles staffProfiles, AuditLog auditLog) {
+			ParticipationRules rules, WaitlistPromotion promotion, StaffProfiles staffProfiles, ScheduledEvents events,
+			AuditLog auditLog) {
 		this.reservations = reservations;
 		this.waitlist = waitlist;
 		this.schedule = schedule;
@@ -122,6 +131,7 @@ class StaffBookingService {
 		this.rules = rules;
 		this.promotion = promotion;
 		this.staffProfiles = staffProfiles;
+		this.events = events;
 		this.auditLog = auditLog;
 	}
 
@@ -176,6 +186,14 @@ class StaffBookingService {
 	 * reservation returns it without charging another entry, like self-service.
 	 */
 	BookingResult book(UUID actorId, UUID eventId, StaffBookRequest request) {
+		return place(actorId, eventId, request, false);
+	}
+
+	/**
+	 * Books a place on the rules of self-service; {@code selfServiceRules} turns every issue an
+	 * administrator could confirm, and the booking window, into a rejection.
+	 */
+	private BookingResult place(UUID actorId, UUID eventId, StaffBookRequest request, boolean selfServiceRules) {
 		UUID customerId = request.customerId();
 		Occurrence event = this.schedule.lockIncludingPrivate(eventId);
 		ProfileDetails participant = requireParticipant(customerId);
@@ -189,6 +207,10 @@ class StaffBookingService {
 			throw new ApiException(ErrorCode.CUSTOMER_NOT_ACTIVE, "The participant's profile is not active.");
 		}
 		String unbookable = bookableReason(event, now);
+		Terms terms = this.rules.terms(event);
+		if (unbookable == null && selfServiceRules) {
+			unbookable = ParticipationRules.windowReason(event, terms.rules(), now);
+		}
 		if (unbookable != null) {
 			throw ParticipationRules.rejected(unbookable);
 		}
@@ -197,10 +219,13 @@ class StaffBookingService {
 		// A waiting participant booked by an administrator leaves the queue with the place, and a place
 		// offered to them is the one they get.
 		WaitlistEntry waiting = this.waitlist.lockOpen(customerId, eventId).orElse(null);
-		Terms terms = this.rules.terms(event);
 		List<EligiblePass> eligible = this.rules.passes(customerId, event, terms.date());
 		List<BookingIssue> issues = issues(participant, event, terms, eligible,
 				this.reservations.activeCount(eventId), othersHeldOffers(eventId, waiting, now));
+		if (selfServiceRules && !issues.isEmpty()) {
+			// The order of the issues is the order self-service checks them in.
+			throw ParticipationRules.rejected(issues.getFirst().name());
+		}
 		Set<BookingIssue> accepted = request.acceptedIssues() == null ? Set.of() : request.acceptedIssues();
 		if (!accepted.containsAll(issues)) {
 			throw new ApiException(ErrorCode.BOOKING_OVERRIDE_REQUIRED,
@@ -236,6 +261,28 @@ class StaffBookingService {
 				reason(request.reason())));
 		return new BookingResult(response(event, this.reservations.rosterRow(eventId, reservationId).orElseThrow(), now),
 				true);
+	}
+
+	/**
+	 * Whether the signed-in trainer can book the participant on a group class they run or assist:
+	 * the participant's own booking would be allowed, with the reason of the first rule it breaks
+	 * otherwise.
+	 */
+	@Transactional(readOnly = true)
+	TrainerBookingOptionsResponse ownOptions(UUID accountId, UUID eventId, UUID customerId) {
+		requireAssigned(accountId, eventId);
+		StaffBookingOptionsResponse options = options(eventId, customerId);
+		String reason = options.reason() != null ? options.reason() : options.clientBookingReason() != null
+				? options.clientBookingReason() : options.issues().isEmpty() ? null : options.issues().getFirst().name();
+		return new TrainerBookingOptionsResponse(eventId, customerId, reason == null, reason, options.reservationId(),
+				options.waitlistStatus(), options.eligiblePasses());
+	}
+
+	/** Books the participant on a group class the signed-in trainer runs or assists, on self-service rules. */
+	BookingResult ownBook(UUID accountId, UUID eventId, TrainerBookRequest request) {
+		requireAssigned(accountId, eventId);
+		return place(accountId, eventId,
+				new StaffBookRequest(request.customerId(), request.customerPassId(), Set.of(), request.reason()), true);
 	}
 
 	/**
@@ -408,9 +455,25 @@ class StaffBookingService {
 		return names;
 	}
 
+	/**
+	 * The trainer runs or assists the event; otherwise, and for an account without a staff profile,
+	 * the same answer as for a missing class, so other trainers' classes stay hidden.
+	 */
+	private void requireAssigned(UUID accountId, UUID eventId) {
+		UUID staffId = this.staffProfiles.findByAccount(accountId)
+			.orElseThrow(StaffBookingService::eventNotFound)
+			.id();
+		if (!this.events.isAssigned(eventId, staffId)) {
+			throw eventNotFound();
+		}
+	}
+
+	private static ApiException eventNotFound() {
+		return new ApiException(ErrorCode.NOT_FOUND, "Group class not found.");
+	}
+
 	private Occurrence requireEvent(UUID eventId) {
-		return this.schedule.findIncludingPrivate(eventId)
-			.orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "Group class not found."));
+		return this.schedule.findIncludingPrivate(eventId).orElseThrow(StaffBookingService::eventNotFound);
 	}
 
 	private ProfileDetails requireParticipant(UUID customerId) {

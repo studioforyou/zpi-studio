@@ -124,6 +124,22 @@ participant present or absent (`PATCH .../attendance`) and can change it
 again; **Oznacz zajęcia jako odbyte** (`POST .../complete`) records everyone
 still unmarked as present and marks the event as held. After that time the
 marks are read only and an administrator corrects them in the web panel.
+
+Until a scheduled group class starts, the **+** next to *Uczestnicy* (#106)
+opens `AddClassParticipantsScreen`: the trainer searches active clients
+(`GET /api/v1/customers`) and books them one after another; clients already on
+the class are marked *Już zapisany*. The trainer books on the rules of the
+client's own booking. Tapping a client loads
+`GET /api/v1/me/schedule-events/{eventId}/booking-options?customerId=` in a
+bottom sheet. A client who could not book themselves (booking window, a full
+class, age, documents, no eligible pass, …) gets the reason and no booking
+button. Otherwise the sheet shows the pass to charge (a single eligible pass is
+chosen automatically), a note when the client is on the waiting list, and an
+optional note for the history. **Zapisz na zajęcia** sends
+`POST .../reservations`; a rule broken meanwhile, e.g. the class filled up,
+loads the conditions again and shows why. A booking refreshes the class's
+participants.
+
 ## Push notifications and inbox
 
 Push notifications use Firebase Cloud Messaging (`firebase_messaging`).

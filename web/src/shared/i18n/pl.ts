@@ -999,11 +999,11 @@ export const pl = {
       sources: {
         SELF: 'zapis samodzielny',
         GUARDIAN: 'zapis przez opiekuna',
-        STAFF: 'zapis przez administratora',
+        STAFF: 'zapis przez kadrę studia',
         WAITLIST: 'z listy rezerwowej',
         GROUP_AUTO: 'zapis automatyczny',
       },
-      bookedBy: (who: string | null) => (who ? `zapisał(a): ${who}` : 'zapis przez administratora'),
+      bookedBy: (who: string | null) => (who ? `zapisał(a): ${who}` : 'zapis przez kadrę studia'),
       reasonLabel: (reason: string) => `Powód: ${reason}`,
       overridden: (issues: string) => `Zapisano mimo: ${issues}`,
       issueShort: {
