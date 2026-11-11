@@ -2,10 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:mobile/core/auth/app_role.dart';
 import 'package:mobile/core/auth/auth_controller.dart';
 import 'package:mobile/core/auth/auth_state.dart';
 import 'package:mobile/core/auth/session.dart';
 import 'package:mobile/core/network/api_exception.dart';
+import 'package:mobile/features/communication/data/conversations_api.dart';
+import 'package:mobile/features/communication/presentation/chat_format.dart';
+import 'package:mobile/features/communication/presentation/messages_screen.dart';
 import 'package:mobile/features/trainings/data/trainees_api.dart';
 import 'package:mobile/features/trainings/data/trainee_overview_api.dart';
 import 'package:mobile/features/trainings/presentation/widgets/trainee_overview_widgets.dart';
@@ -152,6 +156,7 @@ class _TraineesTabState extends ConsumerState<TraineesTab>
                               '/trainer/trainings/trainees/${trainee.customerId}',
                             )
                           : null,
+                      onWrite: () => _write(context, ref, trainee),
                       onEnd: () => _endCooperation(context, ref, trainee),
                     ),
                 ],
@@ -159,6 +164,36 @@ class _TraineesTabState extends ConsumerState<TraineesTab>
             );
           },
         );
+  }
+
+  /// Opens the conversation with the trainee, creating it if needed.
+  Future<void> _write(
+    BuildContext context,
+    WidgetRef ref,
+    Trainee trainee,
+  ) async {
+    final l10n = AppLocalizations.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final conversation = await ref
+          .read(conversationsApiProvider)
+          .startWithTrainee(trainee.customerId);
+      if (context.mounted) {
+        await context.push(
+          conversationLocation(AppRole.trainer, conversation.id),
+        );
+      }
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            e is ApiException && e.statusCode == 422
+                ? l10n.messagesNoAccount
+                : messagesErrorMessage(e, l10n),
+          ),
+        ),
+      );
+    }
   }
 
   Future<void> _endCooperation(
@@ -208,6 +243,7 @@ class _TraineesTabState extends ConsumerState<TraineesTab>
 class _TraineeCard extends StatelessWidget {
   const _TraineeCard(
     this.trainee, {
+    required this.onWrite,
     required this.onEnd,
     required this.overview,
     required this.checkedAt,
@@ -216,6 +252,7 @@ class _TraineeCard extends StatelessWidget {
   });
 
   final Trainee trainee;
+  final VoidCallback onWrite;
   final VoidCallback onEnd;
   final VoidCallback? onOpen;
   final TraineeOverview? overview;
@@ -279,6 +316,11 @@ class _TraineeCard extends StatelessWidget {
                     ),
                     tooltip: l10n.traineesActions,
                     itemBuilder: (_) => [
+                      if (trainee.isActive)
+                        PopupMenuItem(
+                          onTap: onWrite,
+                          child: Text(l10n.traineesWrite),
+                        ),
                       PopupMenuItem(
                         onTap: onEnd,
                         child: Text(l10n.traineesEndConfirm),

@@ -8,6 +8,7 @@ import 'package:mobile/core/auth/auth_repository.dart';
 import 'package:mobile/core/auth/session.dart';
 import 'package:mobile/features/accounts/presentation/reset_password_screen.dart';
 import 'package:mobile/features/accounts/presentation/widgets/login_page.dart';
+import 'package:mobile/features/communication/data/conversations_api.dart';
 
 class _ResetAuthRepository implements AuthRepository {
   _ResetAuthRepository({this.failure});
@@ -42,6 +43,9 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          unreadMessagesProvider.overrideWith(
+            (ref, accountId) => Stream.value(0),
+          ),
           authRepositoryProvider.overrideWithValue(repository),
           appConfigProvider.overrideWithValue(
             const AppConfig(

@@ -32,6 +32,9 @@ public interface GroupClassSchedule {
 	 */
 	List<Occurrence> findStartingBetween(Collection<UUID> ids, Instant from, Instant to);
 
+	/** Caller-authorized occurrences, including private and cancelled ones, without a date restriction. */
+	List<Occurrence> findAllById(Collection<UUID> ids);
+
 	/**
 	 * A public group class, holding the same occurrence row lock as schedule edits until the caller's
 	 * transaction ends.

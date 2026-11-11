@@ -13,7 +13,7 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
 /**
- * Who takes part in events, for other modules' reports and notifications.
+ * Who takes part in events, for other modules' reports, notifications and chats.
  */
 @Repository
 public class Participations {
@@ -71,6 +71,21 @@ public class Participations {
 	 * @param createdAt when the reservation was made
 	 */
 	public record ActiveReservation(UUID id, UUID eventId, UUID customerId, Instant createdAt) {
+	}
+
+	/** Events any of the participants has a reservation for that was not cancelled. */
+	public Set<UUID> findActiveEventIds(Collection<UUID> profileIds) {
+		if (profileIds.isEmpty()) {
+			return Set.of();
+		}
+		return jdbc.sql("""
+				SELECT DISTINCT event_id
+				FROM reservation
+				WHERE customer_id IN (:ids) AND status = 'ACTIVE'
+				""")
+			.param("ids", List.copyOf(profileIds))
+			.query(UUID.class)
+			.set();
 	}
 
 }

@@ -4,6 +4,8 @@ import 'package:mobile/core/auth/auth_controller.dart';
 import 'package:mobile/core/auth/auth_state.dart';
 import 'package:mobile/core/auth/session.dart';
 import 'package:mobile/features/passes/data/passes_api.dart';
+import 'package:mobile/features/passes/data/pass_usage_api.dart';
+import 'package:mobile/features/trainings/presentation/training_history_screen.dart';
 import 'package:mobile/features/passes/presentation/makeup_credits_tab.dart';
 import 'package:mobile/features/passes/presentation/pass_checkout_screen.dart';
 import 'package:mobile/features/passes/presentation/pass_format.dart';
@@ -79,6 +81,21 @@ class _OwnPassesTab extends ConsumerWidget {
             final profileName = _profileName(session, profileId);
             Widget card(OwnPass pass) => _OwnPassCard(
               pass,
+              onHistory: () {
+                if (passUsageAccount(ref.read(authControllerProvider)) !=
+                    session.accountId) {
+                  return;
+                }
+                Navigator.of(context).push<void>(
+                  MaterialPageRoute(
+                    builder: (_) => TrainingHistoryScreen(
+                      initialTab: 1,
+                      initialProfileId: profileId,
+                      initialPassId: pass.id,
+                    ),
+                  ),
+                );
+              },
               onBuyNext:
                   pass.variantId == null ||
                       pass.status == PassStatus.pendingPayment
@@ -169,9 +186,10 @@ Future<void> _buyNext(
 }
 
 class _OwnPassCard extends StatelessWidget {
-  const _OwnPassCard(this.pass, {this.onBuyNext});
+  const _OwnPassCard(this.pass, {required this.onHistory, this.onBuyNext});
 
   final OwnPass pass;
+  final VoidCallback onHistory;
 
   /// Buys the same variant again; `null` when the pass has no variant or
   /// still waits for its payment.
@@ -237,24 +255,33 @@ class _OwnPassCard extends StatelessWidget {
                   ),
                 ],
               ),
-            if (onBuyNext != null)
-              Align(
-                alignment: Alignment.centerRight,
-                child: pass.expiringSoon
-                    ? FilledButton(
-                        key: const Key('pass-buy-next-urgent'),
-                        style: FilledButton.styleFrom(
-                          backgroundColor: colors.error,
-                          foregroundColor: colors.onError,
+            Wrap(
+              alignment: WrapAlignment.end,
+              spacing: 8,
+              runSpacing: 4,
+              children: [
+                TextButton.icon(
+                  onPressed: onHistory,
+                  icon: const Icon(Icons.history),
+                  label: Text(l10n.passUsageTitle),
+                ),
+                if (onBuyNext != null)
+                  pass.expiringSoon
+                      ? FilledButton(
+                          key: const Key('pass-buy-next-urgent'),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: colors.error,
+                            foregroundColor: colors.onError,
+                          ),
+                          onPressed: onBuyNext,
+                          child: Text(l10n.passBuyNext),
+                        )
+                      : FilledButton.tonal(
+                          onPressed: onBuyNext,
+                          child: Text(l10n.passBuyNext),
                         ),
-                        onPressed: onBuyNext,
-                        child: Text(l10n.passBuyNext),
-                      )
-                    : FilledButton.tonal(
-                        onPressed: onBuyNext,
-                        child: Text(l10n.passBuyNext),
-                      ),
-              ),
+              ],
+            ),
           ],
         ),
       ),
