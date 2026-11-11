@@ -86,7 +86,7 @@ src/
 | `passes`        | membership, payments                           |
 | `trainings`     | personal_training, group_training              |
 | `communication` | communication                                  |
-| `statistics`    | statistics                                     |
+| `statistics`    | reporting                                      |
 | `auth`          | identity                                       |
 
 ## Schedule
@@ -146,6 +146,46 @@ unchanged; a correction can increase the balance beyond the original allowance.
 Corrections require administrator access. If the pass changed while the form was open,
 refresh its balance and enter the intended correction again. An interrupted response can
 also mean that the correction was saved: refresh and check the balance before trying again.
+
+## Statistics
+
+"Statystyki" is the studio's dashboard. One filter bar above all reports chooses the period (7, 30
+or 90 days, this month, this year or a custom range of up to 731 days) and the events: their type
+(group classes, workshops, personal training; by default the first two, so personal training does
+not skew them), kind of classes, instructor, fixed group and room. The filters and the open tab
+live in the address, e.g. `?tab=outcomes&period=thisMonth&kind=CLASS&staff=<id>`, so a view can be
+linked and survives a reload. Each tab loads only its own reports; the page and its chart library
+(`@mantine/charts`, built on Recharts) are loaded only when the page is first opened.
+
+- **Przegląd**: the headline numbers of every report (occupancy, attendance, no-shows, late
+  cancellations, active and new customers), both trends, and the fullest and emptiest classes,
+  each with a link to its details.
+- **Frekwencja i obłożenie** (#164, `GET /api/v1/reports/class-attendance`): group classes and
+  workshops that already started and were not cancelled. Average occupancy (booked places of the
+  classes with a limit against their places), attendance (attended against booked), average
+  attendees per class and the waiting list, then occupancy and attendance week by week, a heatmap
+  of occupancy with weekdays in columns and start hours in rows, as in the schedule, and a table of
+  classes (a recurring series is one class) that can be summed per kind of classes or fixed group
+  and sorted by any column. Personal training has no occupancy, so with only that type chosen the
+  tab says so instead.
+- **Nieobecności i anulowania** (#166, `GET /api/v1/reports/booking-outcomes`): no-shows, late and
+  in-time cancellations as numbers and shares of the bookings, what became of the bookings,
+  no-shows and late cancellations week by week, how long before the start places were cancelled,
+  and each kind of classes with its current cancellation rules.
+- **Klienci** (#163, `GET /api/v1/reports/customer-activity`): active and new customers against
+  the period of the same length right before. It covers the whole studio: only the period applies,
+  and the tab says so while event filters are chosen.
+
+A participant whose attendance nobody marked counts as present, as when the trainer completes the
+class; the reports also show how many such places there are. Chart colours live in
+`features/statistics/chartColors.ts`: they are checked together for colour vision deficiencies, and
+every chart has a legend and a table or tooltip with the same numbers.
+
+To add a report: put its value in `statisticsTabs.ts`, its label in `pl.statistics.tabs` and its
+panel in `panels` in `StatisticsPage.tsx`. A panel gets the page's `StatisticsFilters`; a report
+about events sends `filters.query` with `eventReportParams` (the backend's `ReportQuery` takes the
+same parameters), and `ReportFrame`, `ChartCard` and `StatTile` give it the loading states and
+look of the other reports.
 
 ## Conventions
 

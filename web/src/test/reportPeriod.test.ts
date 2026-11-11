@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { periodError, periodLength, presetPeriod } from '@/features/accounts/activityPeriod';
+import { periodError, periodLength, presetPeriod } from '@/features/statistics/reportPeriod';
 
 test('presets end today and include it', () => {
   expect(presetPeriod('last7', '2026-10-25')).toEqual({ from: '2026-10-19', to: '2026-10-25' });

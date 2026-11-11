@@ -16,6 +16,7 @@ import java.util.stream.Collectors;
 import javax.sql.DataSource;
 
 import com.jayway.jsonpath.JsonPath;
+import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -242,6 +243,37 @@ class SeedDataTests {
 		assertThat(jdbc.sql("SELECT * FROM makeup_credit WHERE id = '33000000-0000-0000-0000-000000010002'")
 			.query().singleRow()).isEqualTo(changedCredit);
 		assertThat(rowCounts()).isEqualTo(counts);
+	}
+
+	@Test
+	void statisticsHistoryShowsAttendanceNoShowsAndLateCancellations() throws Exception {
+		// Beata, the studio's administrator; the history covers the five weeks before the current one.
+		String token = seedToken(10);
+		LocalDate today = LocalDate.now(ZoneId.of("Europe/Warsaw"));
+		String classes = report(token, "/api/v1/reports/class-attendance", today.minusDays(42), today, null);
+		assertThat(JsonPath.<Integer>read(classes, "$.totals.events")).isGreaterThanOrEqualTo(20);
+		assertThat(JsonPath.<Integer>read(classes, "$.totals.placesBooked")).isPositive();
+		assertThat(JsonPath.<Integer>read(classes, "$.totals.absent")).isPositive();
+		assertThat(JsonPath.<Integer>read(classes, "$.totals.unmarked")).isPositive();
+		assertThat(JsonPath.<Integer>read(classes, "$.totals.waitlisted")).isGreaterThanOrEqualTo(2);
+		String groups = report(token, "/api/v1/reports/booking-outcomes", today.minusDays(42), today, null);
+		assertThat(JsonPath.<Integer>read(groups, "$.totals.cancelledLate")).isGreaterThanOrEqualTo(5);
+		assertThat(JsonPath.<Integer>read(groups, "$.totals.cancelledInTime")).isGreaterThanOrEqualTo(5);
+		String personal = report(token, "/api/v1/reports/booking-outcomes", today.minusDays(42), today,
+				"PERSONAL_TRAINING");
+		assertThat(JsonPath.<Integer>read(personal, "$.totals.cancelledLate")).isPositive();
+		assertThat(JsonPath.<Integer>read(personal, "$.totals.absent")).isPositive();
+	}
+
+	private String report(String token, String path, LocalDate from, LocalDate to, @Nullable String kind)
+			throws Exception {
+		var request = get(path).header("Authorization", "Bearer " + token)
+			.param("from", from.toString())
+			.param("to", to.toString());
+		if (kind != null) {
+			request.param("kind", kind);
+		}
+		return mvc.perform(request).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 	}
 
 	private String seedToken(int accountNo) {
