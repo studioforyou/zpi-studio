@@ -24,13 +24,30 @@ public enum NotificationType {
 			new Placeholder(Placeholder.LEAD_TIME, "How long before the start the reminder is sent, e.g. \"2 godz.\""))),
 
 	/**
+	 * Reminder that a pass is about to expire, sent before 9:00 on its last day. Not sent when the
+	 * participant already has a following pass or no entries are left.
+	 */
+	PASS_EXPIRING((short) 2, true, List.of(
+			new Placeholder(Placeholder.PASS, "Name of the pass"),
+			new Placeholder(Placeholder.VALID_UNTIL, "Last day of the pass, e.g. \"12.11.2026\""),
+			new Placeholder(Placeholder.LEAD_TIME, "How long before 9:00 on the last day the reminder is sent, e.g. \"3 dni\""))),
+
+	/**
+	 * A booking used the last entry of a pass. Sent once per pass, and not when the participant
+	 * already has a following pass.
+	 */
+	PASS_LAST_ENTRY_USED((short) 3, false, List.of(
+			new Placeholder(Placeholder.PASS, "Name of the pass"),
+			new Placeholder(Placeholder.VALID_UNTIL, "Last day of the pass, e.g. \"12.11.2026\"")));
+
+	/**
 	 * A new message in a conversation the recipient takes part in, sent right after it is written to
 	 * every other participant.
 	 */
 	NEW_MESSAGE((short) 4, false, List.of(
 			new Placeholder(Placeholder.SENDER, "Who wrote the message; in a group or class chat with the chat's name, e.g. \"Pilates · Anna Nowak\""),
 			new Placeholder(Placeholder.CONVERSATION, "Name of the conversation: the other person's name, or the group or class chat's name"),
-			new Placeholder(Placeholder.TEXT, "The beginning of the message, at most 100 characters")));
+			new Placeholder(Placeholder.TEXT, "The beginning of the message, at most 100 characters")));		
 
 	private final short id;
 
@@ -88,6 +105,12 @@ public enum NotificationType {
 
 		/** How long before the start the reminder is sent. */
 		public static final String LEAD_TIME = "ile przed";
+
+		/** Name of the pass. */
+		public static final String PASS = "karnet";
+
+		/** Last day of the pass. */
+		public static final String VALID_UNTIL = "ważny do";
 
 		/** Who wrote the message. */
 		public static final String SENDER = "od";

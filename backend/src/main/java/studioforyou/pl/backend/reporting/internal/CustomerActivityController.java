@@ -1,7 +1,6 @@
 package studioforyou.pl.backend.reporting.internal;
 
 import java.time.LocalDate;
-import java.time.temporal.ChronoUnit;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -19,8 +18,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 import studioforyou.pl.backend.reporting.internal.CustomerActivityReport.Comparison;
 import studioforyou.pl.backend.reporting.internal.CustomerActivityReport.CustomerActivity;
-import studioforyou.pl.backend.shared.api.ApiException;
-import studioforyou.pl.backend.shared.api.FieldErrorCode;
 
 /**
  * How many customers use the studio and how many join it, for administrators.
@@ -30,9 +27,6 @@ import studioforyou.pl.backend.shared.api.FieldErrorCode;
 @RequestMapping("/api/v1/reports")
 @Tag(name = "reporting")
 class CustomerActivityController {
-
-	/** Two years, so a whole year can be compared with the one before. */
-	static final long MAX_DAYS = 731;
 
 	private final CustomerActivityReport report;
 
@@ -53,14 +47,8 @@ class CustomerActivityController {
 			@RequestParam @DateTimeFormat(iso = ISO.DATE) LocalDate from,
 			@Parameter(description = "Last day of the period (inclusive).")
 			@RequestParam @DateTimeFormat(iso = ISO.DATE) LocalDate to) {
-		if (to.isBefore(from)) {
-			throw ApiException.invalidField("to", FieldErrorCode.OUT_OF_RANGE, "to must not be before from.");
-		}
-		if (ChronoUnit.DAYS.between(from, to) + 1 > MAX_DAYS) {
-			throw ApiException.invalidField("to", FieldErrorCode.OUT_OF_RANGE,
-					"The period must not be longer than " + MAX_DAYS + " days.");
-		}
-		return CustomerActivityResponse.from(report.compare(from, to));
+		ReportPeriod period = ReportPeriod.of(from, to);
+		return CustomerActivityResponse.from(report.compare(period.from(), period.to()));
 	}
 
 	@Schema(name = "CustomerActivityReport")

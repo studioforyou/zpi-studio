@@ -4,8 +4,10 @@ import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -71,6 +73,106 @@ public class Participations {
 	 * @param createdAt when the reservation was made
 	 */
 	public record ActiveReservation(UUID id, UUID eventId, UUID customerId, Instant createdAt) {
+	}
+
+	/**
+	 * What became of the places booked for each of the events, for reports. Events without any
+	 * reservation or waiting-list entry are left out.
+	 */
+	public Map<UUID, EventOutcomes> countOutcomes(Collection<UUID> eventIds) {
+		List<UUID> ids = List.copyOf(eventIds);
+		Map<UUID, EventOutcomes> outcomes = new HashMap<>();
+		for (int start = 0; start < ids.size(); start += BATCH_SIZE) {
+			List<UUID> batch = ids.subList(start, Math.min(start + BATCH_SIZE, ids.size()));
+			Map<UUID, Integer> waitlisted = new HashMap<>();
+			jdbc.sql("""
+					SELECT event_id, count(DISTINCT customer_id) AS waitlisted
+					FROM waitlist_entry
+					WHERE event_id IN (:eventIds)
+					GROUP BY event_id
+					""")
+				.param("eventIds", batch)
+				.query((rs, rowNum) -> Map.entry(rs.getObject("event_id", UUID.class), rs.getInt("waitlisted")))
+				.list()
+				.forEach((entry) -> waitlisted.put(entry.getKey(), entry.getValue()));
+			jdbc.sql("""
+					SELECT event_id,
+					       count(*) FILTER (WHERE status = 'ACTIVE') AS booked,
+					       count(*) FILTER (WHERE status = 'ACTIVE' AND attendance = 'PRESENT') AS present,
+					       count(*) FILTER (WHERE status = 'ACTIVE' AND attendance = 'ABSENT') AS absent,
+					       count(*) FILTER (WHERE status = 'CANCELLED' AND cancel_kind = 'IN_TIME') AS cancelled_in_time,
+					       count(*) FILTER (WHERE status = 'CANCELLED' AND cancel_kind = 'LATE') AS cancelled_late,
+					       count(*) FILTER (WHERE status = 'CANCELLED' AND cancel_kind = 'LATE'
+					                        AND entry_returned = FALSE) AS late_entries_forfeited
+					FROM reservation
+					WHERE event_id IN (:eventIds)
+					GROUP BY event_id
+					""")
+				.param("eventIds", batch)
+				.query((rs, rowNum) -> {
+					UUID eventId = rs.getObject("event_id", UUID.class);
+					return Map.entry(eventId, new EventOutcomes(rs.getInt("booked"), rs.getInt("present"),
+							rs.getInt("absent"), rs.getInt("cancelled_in_time"), rs.getInt("cancelled_late"),
+							rs.getInt("late_entries_forfeited"), waitlisted.getOrDefault(eventId, 0)));
+				})
+				.list()
+				.forEach((entry) -> outcomes.put(entry.getKey(), entry.getValue()));
+			// A waiting list usually comes with reservations, but nothing guarantees it.
+			waitlisted.forEach((eventId, count) -> outcomes.putIfAbsent(eventId,
+					new EventOutcomes(0, 0, 0, 0, 0, 0, count)));
+		}
+		return outcomes;
+	}
+
+	/**
+	 * The places of one event.
+	 *
+	 * @param booked places not cancelled, whatever their attendance
+	 * @param present places marked present
+	 * @param absent places marked absent: participants who did not come without cancelling
+	 * @param cancelledInTime places the participant (or staff for them) cancelled before the free
+	 * cancellation deadline
+	 * @param cancelledLate places cancelled after the free cancellation deadline
+	 * @param lateEntriesForfeited late cancellations whose pass entry was not returned
+	 * @param waitlisted participants who joined the event's waiting list, whatever became of it
+	 */
+	public record EventOutcomes(int booked, int present, int absent, int cancelledInTime, int cancelledLate,
+			int lateEntriesForfeited, int waitlisted) {
+
+		public static final EventOutcomes NONE = new EventOutcomes(0, 0, 0, 0, 0, 0, 0);
+
+		/** Places nobody has marked present or absent yet. */
+		public int unmarked() {
+			return this.booked - this.present - this.absent;
+		}
+
+	}
+
+	/**
+	 * Places cancelled by the participant or by staff on their behalf, in time or late, for any of
+	 * the events, e.g. to see how long before the start people cancel.
+	 */
+	public List<Cancellation> findCancellations(Collection<UUID> eventIds) {
+		List<UUID> ids = List.copyOf(eventIds);
+		List<Cancellation> cancellations = new ArrayList<>();
+		for (int start = 0; start < ids.size(); start += BATCH_SIZE) {
+			cancellations.addAll(jdbc.sql("""
+					SELECT event_id, cancel_kind, cancelled_at
+					FROM reservation
+					WHERE event_id IN (:eventIds) AND status = 'CANCELLED' AND cancel_kind IN ('IN_TIME', 'LATE')
+					  AND cancelled_at IS NOT NULL
+					""")
+				.param("eventIds", ids.subList(start, Math.min(start + BATCH_SIZE, ids.size())))
+				.query((rs, rowNum) -> new Cancellation(rs.getObject("event_id", UUID.class),
+						"LATE".equals(rs.getString("cancel_kind")),
+						rs.getObject("cancelled_at", OffsetDateTime.class).toInstant()))
+				.list());
+		}
+		return cancellations;
+	}
+
+	/** @param late whether it came after the free cancellation deadline */
+	public record Cancellation(UUID eventId, boolean late, Instant cancelledAt) {
 	}
 
 	/** Events any of the participants has a reservation for that was not cancelled. */

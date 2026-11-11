@@ -11,10 +11,10 @@ import { CommunicationPage } from '@/features/communication/CommunicationPage';
 import { PassesPage } from '@/features/passes/PassesPage';
 import { RoomsPage } from '@/features/schedule/RoomsPage';
 import { SchedulePage } from '@/features/schedule/SchedulePage';
-import { StatisticsPage } from '@/features/statistics/StatisticsPage';
 import { SystemStatusPage } from '@/features/system/SystemStatusPage';
 import { TrainingsPage } from '@/features/trainings/TrainingsPage';
 import { pl } from '@/shared/i18n/pl';
+import { FullPageLoader } from '@/shared/ui/FullPageLoader';
 import { AdminLayout } from './layout/AdminLayout';
 import { paths } from './paths';
 
@@ -47,7 +47,15 @@ export const appRoutes: RouteObject[] = [
           { path: paths.passes, element: <PassesPage /> },
           { path: paths.trainings, element: <TrainingsPage /> },
           { path: paths.communication, element: <CommunicationPage /> },
-          { path: paths.statistics, element: <StatisticsPage /> },
+          {
+            path: paths.statistics,
+            // Loaded when first opened: its chart library would otherwise enlarge every page.
+            lazy: async () => {
+              const { StatisticsPage } = await import('@/features/statistics/StatisticsPage');
+              return { Component: StatisticsPage };
+            },
+            hydrateFallbackElement: <FullPageLoader />,
+          },
           { path: paths.system, element: <SystemStatusPage /> },
           { path: '*', element: notFoundPage },
         ],

@@ -142,6 +142,22 @@ class ScheduleQueries {
 			.params(params).query(EVENT_ROW).list());
 	}
 
+	List<ScheduleEventResponse> findReservedPersonalEvents(Collection<UUID> ids, Instant from, Instant to) {
+		if (ids.isEmpty()) {
+			return List.of();
+		}
+		String sql = EVENT_COLUMNS + " WHERE e.id IN (:ids) AND e.kind = 'PERSONAL_TRAINING'";
+		Map<String, Object> params = new HashMap<>();
+		params.put("ids", ids);
+		if (from != null && to != null) {
+			sql += " AND e.starts_at < :to AND e.ends_at > :from";
+			params.put("from", utc(from));
+			params.put("to", utc(to));
+		}
+		return assemble(jdbc.sql(sql + " ORDER BY e.starts_at, e.ends_at, e.id")
+			.params(params).query(EVENT_ROW).list());
+	}
+
 	long countSeriesOccurrences(UUID seriesId) {
 		return this.jdbc.sql("SELECT count(*) FROM schedule_event WHERE series_id = :seriesId")
 			.param("seriesId", seriesId)

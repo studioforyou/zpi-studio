@@ -4,6 +4,13 @@ function passEntryCount(count: number): string {
   return `${count} ${unit}`;
 }
 
+/** `count` with the Polish form of its noun, e.g. `1 termin`, `2 terminy`, `5 terminów`. */
+function countOf(count: number, one: string, few: string, many: string): string {
+  const plural = new Intl.PluralRules('pl').select(count);
+  const unit = plural === 'one' ? one : plural === 'few' ? few : many;
+  return `${count.toLocaleString('pl-PL')} ${unit}`;
+}
+
 export const pl = {
   appName: 'studio4U',
   panelName: 'Panel administratora',
@@ -143,33 +150,6 @@ export const pl = {
       TRAINER: 'Trener',
       ADMIN: 'Administrator',
       CHILD: 'Dziecko',
-    },
-    activity: {
-      title: 'Klienci',
-      periodLabel: 'Okres',
-      presets: {
-        last7: '7 dni',
-        last30: '30 dni',
-        last90: '90 dni',
-        thisMonth: 'Ten miesiąc',
-        thisYear: 'Ten rok',
-        custom: 'Własny',
-      },
-      from: 'Od',
-      to: 'Do',
-      period: (from: string, to: string, days: number) =>
-        `${from} – ${to} (${days} ${days === 1 ? 'dzień' : 'dni'})`,
-      active: 'Aktywni klienci',
-      new: 'Nowi klienci',
-      previous: (value: string, from: string, to: string) =>
-        `poprzednio ${value} (${from} – ${to})`,
-      noChange: 'bez zmian',
-      loadError: 'Nie udało się wczytać liczby klientów.',
-      errors: {
-        incomplete: 'Wybierz datę początkową i końcową.',
-        reversed: 'Data końcowa nie może być wcześniejsza niż początkowa.',
-        tooLong: (max: number) => `Okres może mieć najwyżej ${max} dni.`,
-      },
     },
     invite: {
       title: 'Dodaj osobę do studia',
@@ -996,14 +976,15 @@ export const pl = {
       cancelFor: (name: string) => `Wypisz: ${name}`,
       child: 'Dziecko',
       noPass: 'bez karnetu',
+      makeup: (passName: string | null) => (passName ? `Odróbka · ${passName}` : 'Odróbka'),
       sources: {
         SELF: 'zapis samodzielny',
         GUARDIAN: 'zapis przez opiekuna',
-        STAFF: 'zapis przez administratora',
+        STAFF: 'zapis przez kadrę studia',
         WAITLIST: 'z listy rezerwowej',
         GROUP_AUTO: 'zapis automatyczny',
       },
-      bookedBy: (who: string | null) => (who ? `zapisał(a): ${who}` : 'zapis przez administratora'),
+      bookedBy: (who: string | null) => (who ? `zapisał(a): ${who}` : 'zapis przez kadrę studia'),
       reasonLabel: (reason: string) => `Powód: ${reason}`,
       overridden: (issues: string) => `Zapisano mimo: ${issues}`,
       issueShort: {
@@ -1076,6 +1057,16 @@ export const pl = {
         title: 'Wypisz uczestnika z zajęć',
         pass: (name: string | null) => `Karnet: ${name ?? 'bez nazwy'}`,
         noPass: 'Uczestnik jest zapisany bez karnetu, więc nie ma wejścia do zwrotu.',
+        makeup: {
+          note: 'Rezerwacja z odróbki. Zwrot zachowuje jej pierwotny termin ważności.',
+          entry: 'Rozliczenie odróbki',
+          returned: 'Według zasad odwołania odróbka wraca do wykorzystania.',
+          forfeited:
+            'Odróbka nie wróci do wykorzystania z powodu zasad odwołania lub końca jej ważności.',
+          unknown: 'Zdecyduj, czy odróbka wraca do wykorzystania.',
+          returnEntry: 'Zwróć odróbkę',
+          forfeitEntry: 'Nie zwracaj odróbki',
+        },
         suggested: {
           returned: 'Według zasad odwołania wejście wraca na karnet.',
           forfeited: 'Według zasad odwołania to późne wypisanie, więc wejście przepada.',
@@ -1240,6 +1231,19 @@ export const pl = {
           description:
             'Wysyłane uczestnikom z aktywną rezerwacją przed zajęciami lub treningiem. Powiadomienia dziecka dostaje rodzic.',
         },
+        PASS_EXPIRING: {
+          name: 'Karnet wkrótce wygaśnie',
+          description:
+            'Wysyłane przed ostatnim dniem ważności karnetu. Pomijane, gdy uczestnik ma już kolejny karnet albo nie zostały mu wejścia. Powiadomienia dziecka dostaje rodzic.',
+          leadTimeAnchor: 'przed 9:00 ostatniego dnia',
+          leadTimesHint:
+            'Od 1 do 5 przypomnień, od 5 minut do 14 dni przed godziną 9:00 ostatniego dnia ważności karnetu.',
+        },
+        PASS_LAST_ENTRY_USED: {
+          name: 'Wykorzystano ostatnie wejście',
+          description:
+            'Wysyłane od razu, gdy zapis na zajęcia zabierze ostatnie wejście z karnetu. Raz na karnet i pomijane, gdy uczestnik ma już kolejny karnet. Powiadomienia dziecka dostaje rodzic.',
+        },
         NEW_MESSAGE: {
           name: 'Nowa wiadomość',
           description:
@@ -1272,6 +1276,36 @@ export const pl = {
             label: 'Ile czasu przed',
             description: 'Ile czasu przed zajęciami wysyłane jest przypomnienie, np. „2 godz.”',
             example: '2 godz.',
+          },
+        },
+        PASS_EXPIRING: {
+          karnet: {
+            label: 'Nazwa karnetu',
+            description: 'Nazwa karnetu, np. „Karnet 8 wejść”',
+            example: 'Karnet 8 wejść',
+          },
+          'ważny do': {
+            label: 'Ważny do',
+            description: 'Ostatni dzień ważności karnetu, np. „12.11.2026”',
+            example: '12.11.2026',
+          },
+          'ile przed': {
+            label: 'Ile czasu przed',
+            description:
+              'Ile czasu przed godziną 9:00 ostatniego dnia wysyłane jest przypomnienie, np. „3 dni”',
+            example: '3 dni',
+          },
+        },
+        PASS_LAST_ENTRY_USED: {
+          karnet: {
+            label: 'Nazwa karnetu',
+            description: 'Nazwa karnetu, np. „Karnet 8 wejść”',
+            example: 'Karnet 8 wejść',
+          },
+          'ważny do': {
+            label: 'Ważny do',
+            description: 'Ostatni dzień ważności karnetu, np. „12.11.2026”',
+            example: '12.11.2026',
           },
         },
         NEW_MESSAGE: {
@@ -1325,6 +1359,194 @@ export const pl = {
         network: 'Nie można połączyć się z backendem.',
         cancel: 'Anuluj',
         save: 'Zapisz',
+      },
+    },
+  },
+  statistics: {
+    title: 'Statystyki',
+    tabs: {
+      overview: 'Przegląd',
+      attendance: 'Frekwencja i obłożenie',
+      outcomes: 'Nieobecności i anulowania',
+      customers: 'Klienci',
+    },
+    filters: {
+      label: 'Filtry',
+      kind: 'Typ',
+      kinds: {
+        CLASS: 'Zajęcia grupowe',
+        WORKSHOP: 'Warsztaty',
+        PERSONAL_TRAINING: 'Treningi personalne',
+      },
+      services: 'Rodzaj zajęć',
+      staff: 'Instruktor',
+      groups: 'Grupa stała',
+      rooms: 'Sala',
+      all: 'Wszystkie',
+      categories: {
+        GROUP_CLASS: 'Zajęcia grupowe',
+        WORKSHOP: 'Warsztaty',
+        PERSONAL_TRAINING: 'Treningi personalne',
+        other: 'Inne',
+      } as Record<string, string>,
+      inactive: (name: string) => `${name} (nieaktywne)`,
+      clear: 'Wyczyść filtry',
+      lookupError: 'Nie udało się wczytać list do filtrów; raporty działają bez nich.',
+      customersNotFiltered:
+        'Raport klientów obejmuje całe studio: filtry typu, rodzaju zajęć, instruktora, grupy i sali go nie dotyczą.',
+      groupKindsOnly:
+        'Obłożenie i frekwencja dotyczą zajęć grupowych i warsztatów. Wybierz je w filtrze „Typ”, aby zobaczyć ten raport.',
+    },
+    overview: {
+      details: 'Szczegóły',
+      wholeStudio: 'całe studio',
+      noShowRate: 'Nieobecności',
+      lateRate: 'Późne anulowania',
+      ofBookings: (count: number, bookings: number) =>
+        `${count.toLocaleString('pl-PL')} z ${countOf(bookings, 'rezerwacji', 'rezerwacji', 'rezerwacji')}`,
+      fullest: 'Najpełniejsze zajęcia',
+      emptiest: 'Najmniej obłożone zajęcia',
+      rankingSubtitle: 'Średnie obłożenie zajęć z limitem miejsc',
+      noRanking: 'Brak zajęć z limitem miejsc w tym okresie.',
+    },
+    period: {
+      label: 'Okres',
+      presets: {
+        last7: '7 dni',
+        last30: '30 dni',
+        last90: '90 dni',
+        thisMonth: 'Ten miesiąc',
+        thisYear: 'Ten rok',
+        custom: 'Własny',
+      },
+      from: 'Od',
+      to: 'Do',
+      summary: (from: string, to: string, days: number) =>
+        `${from} – ${to} (${days} ${days === 1 ? 'dzień' : 'dni'})`,
+      errors: {
+        incomplete: 'Wybierz datę początkową i końcową.',
+        reversed: 'Data końcowa nie może być wcześniejsza niż początkowa.',
+        tooLong: (max: number) => `Okres może mieć najwyżej ${max} dni.`,
+      },
+    },
+    /** Shared by the attendance and cancellation reports. */
+    heldOnly:
+      'Liczą się zajęcia, które już się rozpoczęły i nie zostały odwołane przez studio. Uczestnik bez zaznaczonej obecności liczy się jako obecny, tak jak przy zamknięciu zajęć przez trenera.',
+    customers: {
+      active: 'Aktywni klienci',
+      new: 'Nowi klienci',
+      previous: (value: string, from: string, to: string) =>
+        `poprzednio ${value} (${from} – ${to})`,
+      noChange: 'bez zmian',
+      loadError: 'Nie udało się wczytać liczby klientów.',
+    },
+    attendance: {
+      loadError: 'Nie udało się wczytać frekwencji.',
+      empty:
+        'W tym okresie nie odbyły się żadne zajęcia grupowe ani warsztaty pasujące do filtrów.',
+      occupancy: 'Średnie obłożenie',
+      occupancyDetail: (booked: number, places: number) =>
+        `${booked.toLocaleString('pl-PL')} z ${countOf(places, 'miejsca', 'miejsc', 'miejsc')} zajętych`,
+      occupancyUnknown: 'Żadne z tych zajęć nie ma limitu miejsc.',
+      attendanceRate: 'Frekwencja',
+      attendanceDetail: (attended: number, booked: number) =>
+        `przyszło ${attended.toLocaleString('pl-PL')} z ${countOf(booked, 'zapisanej osoby', 'zapisanych osób', 'zapisanych osób')}`,
+      unmarked: (count: number) =>
+        `w tym ${count.toLocaleString('pl-PL')} bez zaznaczonej obecności`,
+      averageAttendees: 'Średnio na zajęciach',
+      averageDetail: (events: number) =>
+        `obecnych na jednych zajęciach, z ${countOf(events, 'terminu', 'terminów', 'terminów')}`,
+      waitlisted: 'Lista rezerwowa',
+      waitlistedDetail: 'osób czekało na wolne miejsce',
+      trendTitle: 'Obłożenie i frekwencja w czasie',
+      trendSubtitle: {
+        day: 'Dzień po dniu, w procentach',
+        week: 'Tydzień po tygodniu, w procentach',
+        month: 'Miesiąc po miesiącu, w procentach',
+      },
+      series: {
+        occupancy: 'Obłożenie',
+        attendance: 'Frekwencja',
+      },
+      heatmapTitle: 'Kiedy zajęcia są najpełniejsze',
+      heatmapSubtitle: 'Średnie obłożenie według dnia tygodnia i godziny rozpoczęcia',
+      heatmapNoLimit: 'bez limitu',
+      heatmapCell: (day: string, hour: string, occupancy: string, classes: string) =>
+        `${day}, ${hour}: obłożenie ${occupancy}. ${classes}`,
+      heatmapLegend: 'Obłożenie',
+      tableTitle: 'Obłożenie i frekwencja poszczególnych zajęć',
+      groupByLabel: 'Grupuj według',
+      groupBy: {
+        classes: 'Zajęcia',
+        services: 'Rodzaje zajęć',
+        groups: 'Grupy stałe',
+      },
+      noGroup: 'Bez stałej grupy',
+      noService: 'Bez rodzaju zajęć',
+      oneOff: 'jednorazowe',
+      columns: {
+        name: 'Nazwa',
+        events: 'Terminy',
+        attendees: 'Śr. obecnych',
+        occupancy: 'Obłożenie',
+        attendance: 'Frekwencja',
+        waitlisted: 'Lista rezerwowa',
+      },
+      sortBy: (column: string) => `Sortuj według: ${column}`,
+      noLimit: 'bez limitu',
+      weekdays: ['poniedziałek', 'wtorek', 'środa', 'czwartek', 'piątek', 'sobota', 'niedziela'],
+      weekdaysShort: ['pon.', 'wt.', 'śr.', 'czw.', 'pt.', 'sob.', 'niedz.'],
+    },
+    outcomes: {
+      loadError: 'Nie udało się wczytać nieobecności i anulowań.',
+      empty: 'W tym okresie nikt nie zapisał się na zajęcia pasujące do filtrów.',
+      absent: 'Nieobecności',
+      cancelledLate: 'Późne anulowania',
+      cancelledInTime: 'Anulowania na czas',
+      attended: 'Obecni',
+      bookings: 'Rezerwacje',
+      shareOfBookings: (percent: string) => `${percent} rezerwacji`,
+      forfeited: (count: number) => `${count.toLocaleString('pl-PL')} z utratą wejścia z karnetu`,
+      bookingsDetail: (events: number) => `na ${countOf(events, 'termin', 'terminy', 'terminów')}`,
+      splitTitle: 'Co stało się z rezerwacjami',
+      splitLabel: (parts: string) => `Podział rezerwacji: ${parts}`,
+      trendTitle: 'Nieobecności i późne anulowania w czasie',
+      trendSubtitle: {
+        day: 'Dzień po dniu, jako odsetek rezerwacji',
+        week: 'Tydzień po tygodniu, jako odsetek rezerwacji',
+        month: 'Miesiąc po miesiącu, jako odsetek rezerwacji',
+      },
+      tooltipValue: (count: number, percent: string) =>
+        `${count.toLocaleString('pl-PL')} (${percent})`,
+      bucketBookings: (title: string, bookings: number) =>
+        `${title} · ${countOf(bookings, 'rezerwacja', 'rezerwacje', 'rezerwacji')}`,
+      leadTimeTitle: 'Kiedy uczestnicy anulują',
+      leadTimeSubtitle: 'Liczba anulowanych miejsc według czasu, jaki został do rozpoczęcia',
+      leadTimeRange: (from: number, to: number | null) =>
+        to === null ? `${from} h i więcej` : from === 0 ? `do ${to} h` : `${from}–${to} h`,
+      freeCancelRules: (hours: string) =>
+        `Obecnie bezpłatne anulowanie do ${hours} przed rozpoczęciem.`,
+      /** After „do”: `do 1 godziny`, `do 2 godzin`, `do 12 godzin`. */
+      hours: (hours: number) => countOf(hours, 'godziny', 'godzin', 'godzin'),
+      noCancellations: 'W tym okresie nikt nie anulował miejsca.',
+      tableTitle: 'Według rodzaju zajęć',
+      columns: {
+        service: 'Rodzaj zajęć',
+        rules: 'Obecne zasady anulowania',
+        bookings: 'Rezerwacje',
+        split: 'Podział',
+        absent: 'Nieobecności',
+        cancelledLate: 'Późne',
+        cancelledInTime: 'Na czas',
+      },
+      noService: 'Bez rodzaju zajęć',
+      rules: {
+        unknown: '—',
+        notAllowed: 'anulowanie niedozwolone',
+        freeUntil: (hours: string) => `bezpłatnie do ${hours} przed`,
+        lateNotAllowed: 'później niedozwolone',
+        lateForfeits: 'później wejście przepada',
+        lateReturns: 'później wejście wraca',
       },
     },
   },

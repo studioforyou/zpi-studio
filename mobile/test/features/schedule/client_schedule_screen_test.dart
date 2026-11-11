@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile/core/auth/app_role.dart';
 import 'package:mobile/core/auth/auth_controller.dart';
@@ -11,7 +12,9 @@ import 'package:mobile/features/schedule/data/schedule_service_types.dart';
 import 'package:mobile/features/schedule/data/studio_trainers.dart';
 import 'package:mobile/features/schedule/presentation/client_schedule_screen.dart';
 import 'package:mobile/features/schedule/presentation/widgets/schedule_calendar.dart';
+import 'package:mobile/features/schedule/presentation/widgets/schedule_profile_picker.dart';
 import 'package:mobile/features/trainings/data/group_classes_api.dart';
+import 'package:mobile/features/trainings/data/personal_trainings_api.dart';
 import 'package:mobile/features/trainings/presentation/group_class_details_screen.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
 
@@ -218,6 +221,7 @@ class _TrainersApi implements StudioTrainersApi {
 }
 
 void main() {
+  setUp(() => FlutterSecureStorage.setMockInitialValues({}));
   Future<ProviderContainer> pump(
     WidgetTester tester,
     _Api api, {
@@ -238,6 +242,7 @@ void main() {
       overrides: [
         authControllerProvider.overrideWith(_Auth.new),
         groupClassesApiProvider.overrideWithValue(api),
+        personalTrainingsProvider.overrideWith((ref, query) async => const []),
         scheduleServiceTypesApiProvider.overrideWithValue(
           _ServiceTypesApi(serviceTypes),
         ),
@@ -277,7 +282,13 @@ void main() {
       await tester.scrollUntilVisible(
         finder,
         160,
-        scrollable: find.byType(Scrollable).first,
+        scrollable: find
+            .byWidgetPredicate(
+              (widget) =>
+                  widget is Scrollable &&
+                  widget.axisDirection == AxisDirection.down,
+            )
+            .first,
       );
     }
     await tester.ensureVisible(finder);
@@ -510,6 +521,14 @@ void main() {
     expect(find.byType(BottomSheet), findsNothing);
   });
 
+  testWidgets('studio offer has no family profile picker', (tester) async {
+    final api = _Api();
+    await pump(tester, api);
+    expect(find.byType(ScheduleProfilePicker), findsNothing);
+    expect(find.text('Filtry'), findsOneWidget);
+    expect(api.reads, contains('self'));
+  });
+
   testWidgets('own reservations have no filters', (tester) async {
     await pump(
       tester,
@@ -518,6 +537,7 @@ void main() {
     );
     expect(find.text('Pole dance'), findsOneWidget);
     expect(find.text('Filtry'), findsNothing);
+    expect(find.byType(ScheduleProfilePicker), findsOneWidget);
   });
 
   testWidgets('level and age group choices are hidden without service types', (

@@ -17,11 +17,13 @@ import studioforyou.pl.backend.customer.CustomerKind;
 /**
  * Group-class places administrators book and cancel for participants (#110), with what they need
  * to decide: the class's places, the participant's passes and the requirements they would override.
+ * Trainers book participants on their own group classes (#106) on the participant's own booking
+ * rules, without overriding any of them.
  */
 final class StaffBookingDtos {
 
 	private static final String SOURCE = "SELF (the participant), GUARDIAN (a guardian for a child), STAFF (an "
-			+ "administrator), WAITLIST (a freed place given from the waiting list) or GROUP_AUTO.";
+			+ "administrator or the class's trainer), WAITLIST (a freed place given from the waiting list) or GROUP_AUTO.";
 
 	private StaffBookingDtos() {
 	}
@@ -68,9 +70,10 @@ final class StaffBookingDtos {
 			@Schema(example = "Katarzyna Zielińska") String displayName,
 			@Schema(description = "ACTIVE or CANCELLED.") String status, Instant bookedAt,
 			@Schema(description = SOURCE, example = "STAFF") String source,
-			@Schema(description = "The administrator who booked the place for a STAFF booking, or null when unknown.",
+			@Schema(description = "The administrator or trainer who booked the place for a STAFF booking, or null "
+					+ "when unknown.",
 					example = "Beata Wrona") String bookedBy,
-			@Schema(description = "The administrator's reason for a STAFF booking, if given.",
+			@Schema(description = "The reason the administrator or trainer gave for a STAFF booking, if any.",
 					example = "Booked on the phone") String bookingReason,
 			@Schema(description = "Requirements the administrator overrode when booking.")
 			List<BookingIssue> overriddenIssues,
@@ -82,7 +85,8 @@ final class StaffBookingDtos {
 			Instant cancelledAt,
 			@Schema(description = "Whether the cancellation returned the pass entry; null while active or without a pass.")
 			Boolean entryReturned,
-			@Schema(description = "The reservation's version, sent back with a cancellation.") int version) {
+			@Schema(description = "The reservation's version, sent back with a cancellation.") int version,
+			@Schema(description = "The make-up credit funding the place, or null.") UUID makeupCreditId) {
 	}
 
 	@Schema(name = "StaffCancellation", description = "Whether an administrator can cancel the place now and what "
@@ -125,6 +129,28 @@ final class StaffBookingDtos {
 					+ "the booking with 409 BOOKING_OVERRIDE_REQUIRED.")
 			Set<BookingIssue> acceptedIssues,
 			@Schema(description = "Optional reason, kept in the history.", example = "Booked on the phone")
+			@Size(max = 500) String reason) {
+	}
+
+	@Schema(name = "TrainerBookingOptions", description = "Whether the trainer can book the participant on their "
+			+ "group class: on the rules of the participant's own booking, which the trainer cannot override.")
+	record TrainerBookingOptionsResponse(UUID eventId, UUID customerId,
+			@Schema(description = "Whether a place can be booked now.") boolean allowed,
+			@Schema(description = "Why not, the first rule broken in the order the participant's own booking checks "
+					+ "them: ALREADY_RESERVED, CUSTOMER_NOT_ACTIVE, EVENT_NOT_BOOKABLE, BOOKING_NOT_OPEN, BOOKING_CLOSED, "
+					+ "CLASS_FULL, SERVICE_TYPE_UNAVAILABLE, AGE_RESTRICTION, REQUIRED_DOCUMENTS_MISSING or "
+					+ "NO_ELIGIBLE_PASS; null when allowed.") String reason,
+			@Schema(description = "The participant's active reservation for the class, or null.") UUID reservationId,
+			@Schema(description = "WAITING or OFFERED when the participant is on the waiting list; booking takes them "
+					+ "off it. null otherwise.") String waitlistStatus,
+			@Schema(description = "The participant's passes that can fund the class; one of them is charged.")
+			List<EligiblePassResponse> eligiblePasses) {
+	}
+
+	@Schema(name = "TrainerBookRequest")
+	record TrainerBookRequest(@NotNull UUID customerId,
+			@Schema(description = "One of the participant's eligible passes.") @NotNull UUID customerPassId,
+			@Schema(description = "Optional reason, kept in the history.", example = "Asked after the class")
 			@Size(max = 500) String reason) {
 	}
 

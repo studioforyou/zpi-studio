@@ -4,12 +4,14 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import studioforyou.pl.backend.membership.BookingEntitlements;
 import studioforyou.pl.backend.membership.CustomerPassStatus;
+import studioforyou.pl.backend.membership.PassLastEntryUsed;
 import studioforyou.pl.backend.offering.PassVariantLookup;
 import studioforyou.pl.backend.shared.api.ApiException;
 import studioforyou.pl.backend.shared.api.ErrorCode;
@@ -29,13 +31,17 @@ class PassBookingEntitlements implements BookingEntitlements {
 
 	private final CustomerPassLock passLock;
 
+	private final ApplicationEventPublisher events;
+
 	PassBookingEntitlements(CustomerPassRepository passes, PassLedgerRepository ledger,
-			PassSuspensionQueries suspensions, PassVariantLookup variants, CustomerPassLock passLock) {
+			PassSuspensionQueries suspensions, PassVariantLookup variants, CustomerPassLock passLock,
+			ApplicationEventPublisher events) {
 		this.passes = passes;
 		this.ledger = ledger;
 		this.suspensions = suspensions;
 		this.variants = variants;
 		this.passLock = passLock;
+		this.events = events;
 	}
 
 	@Override
@@ -72,6 +78,10 @@ class PassBookingEntitlements implements BookingEntitlements {
 		ledger.save(PassLedgerEntry.reservation(passId, reservationId, PassLedgerKind.ENTRY_RESERVED, delta,
 				actorAccountId));
 		passes.flush();
+		if (delta != 0 && pass.getEntriesRemaining() == 0) {
+			events.publishEvent(new PassLastEntryUsed(passId, pass.getCustomerId(), pass.getProductName(),
+					pass.getValidUntil()));
+		}
 	}
 
 	@Override

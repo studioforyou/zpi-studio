@@ -37,6 +37,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
+import studioforyou.pl.backend.PassNotificationCleanup;
 import studioforyou.pl.backend.TestcontainersConfiguration;
 import studioforyou.pl.backend.booking.internal.GroupClassDtos.CancelRequest;
 import studioforyou.pl.backend.booking.internal.GroupClassDtos.GroupClassResponse;
@@ -44,7 +45,8 @@ import studioforyou.pl.backend.shared.api.ApiException;
 import studioforyou.pl.backend.shared.api.ErrorCode;
 
 /**
- * Administrators book and cancel group-class places on behalf of participants (#110). Firebase ID
+ * Administrators book and cancel group-class places on behalf of participants (#110), and trainers
+ * book participants on the group classes they run or assist (#106). Firebase ID
  * tokens are mocked at the {@link JwtDecoder}; requests run in their own transactions, as in
  * production, and the data is removed after each test.
  */
@@ -58,6 +60,8 @@ class StaffBookingTests {
 	private static final String CLIENT_TOKEN = "staff-booking-client-token";
 
 	private static final String TRAINER_TOKEN = "staff-booking-trainer-token";
+
+	private static final String OTHER_TRAINER_TOKEN = "staff-booking-other-trainer-token";
 
 	private static final String EMAIL_DOMAIN = "@staff-booking.test";
 
@@ -79,6 +83,12 @@ class StaffBookingTests {
 	private JwtDecoder jwtDecoder;
 
 	private UUID admin;
+
+	private UUID trainer;
+
+	private UUID trainerStaff;
+
+	private UUID otherTrainerStaff;
 
 	private UUID client;
 
@@ -107,7 +117,9 @@ class StaffBookingTests {
 		admin = account("admin", "ADMIN", ADMIN_TOKEN);
 		jdbc.sql("INSERT INTO staff_profile (account_id, first_name, last_name) VALUES (:account, 'Beata', 'Wrona')")
 			.param("account", admin).update();
-		account("trainer", "TRAINER", TRAINER_TOKEN);
+		trainer = account("trainer", "TRAINER", TRAINER_TOKEN);
+		trainerStaff = staff(trainer, "Anna", "Kowalska");
+		otherTrainerStaff = staff(account("other-trainer", "TRAINER", OTHER_TRAINER_TOKEN), "Marek", "Nowak");
 		client = account("client", "CLIENT", CLIENT_TOKEN);
 		otherClient = account("other", "CLIENT", null);
 		profile = customer(client, "Ola", "Nowak", LocalDate.now().minusYears(30));
@@ -136,11 +148,13 @@ class StaffBookingTests {
 		String events = "SELECT id FROM schedule_event WHERE service_type_id = '" + service + "'";
 		String reservations = "SELECT id FROM reservation WHERE event_id IN (" + events + ")";
 		String accounts = "SELECT id FROM account WHERE email LIKE '%" + EMAIL_DOMAIN + "'";
+		PassNotificationCleanup.deleteNotifications(jdbc, accounts);
 		jdbc.sql("DELETE FROM audit_log WHERE entity_id IN (" + reservations + ")").update();
 		jdbc.sql("DELETE FROM pass_ledger WHERE pass_id IN (SELECT id FROM customer_pass WHERE variant_id = :variant)")
 			.param("variant", variant).update();
 		jdbc.sql("DELETE FROM waitlist_entry WHERE event_id IN (" + events + ")").update();
 		jdbc.sql("DELETE FROM reservation WHERE event_id IN (" + events + ")").update();
+		jdbc.sql("DELETE FROM event_staff WHERE event_id IN (" + events + ")").update();
 		jdbc.sql("DELETE FROM booking_policy WHERE service_type_id = :service OR event_id IN (" + events + ")")
 			.param("service", service).update();
 		jdbc.sql("DELETE FROM schedule_event WHERE service_type_id = :service").param("service", service).update();
@@ -425,6 +439,163 @@ class StaffBookingTests {
 		assertThat(reservationRows()).isZero();
 	}
 
+	@Test
+	void aTrainerBooksAParticipantOnTheirClassOnThePassAndTheParticipantManagesIt() throws Exception {
+		assign(event, trainerStaff, "LEAD");
+		perform(get(ownOptions(event, profile)), TRAINER_TOKEN).andExpect(status().isOk())
+			.andExpect(jsonPath("$.allowed").value(true))
+			.andExpect(jsonPath("$.reason").value(nullValue()))
+			.andExpect(jsonPath("$.eligiblePasses[0].id").value(pass.toString()));
+
+		UUID reservation = id(ownBook(event, profile, pass, "Zgłosiła się po zajęciach", TRAINER_TOKEN)
+			.andExpect(status().isCreated())
+			.andExpect(jsonPath("$.customerId").value(profile.toString()))
+			.andExpect(jsonPath("$.source").value("STAFF"))
+			.andExpect(jsonPath("$.bookedBy").value("Anna Kowalska"))
+			.andExpect(jsonPath("$.bookingReason").value("Zgłosiła się po zajęciach"))
+			.andExpect(jsonPath("$.overriddenIssues").isEmpty())
+			.andExpect(jsonPath("$.customerPassId").value(pass.toString())));
+		assertThat(balance(pass)).isEqualTo(7);
+		assertThat(jdbc.sql("SELECT booked_by FROM reservation WHERE id = :id").param("id", reservation)
+			.query(UUID.class).single()).isEqualTo(trainer);
+		assertThat(actions(reservation)).containsExactly(StaffBookingService.BOOKED);
+
+		// A retry returns the place without charging another entry.
+		ownBook(event, profile, pass, null, TRAINER_TOKEN).andExpect(status().isOk())
+			.andExpect(jsonPath("$.reservationId").value(reservation.toString()));
+		assertThat(balance(pass)).isEqualTo(7);
+		perform(get(ownOptions(event, profile)), TRAINER_TOKEN)
+			.andExpect(jsonPath("$.allowed").value(false))
+			.andExpect(jsonPath("$.reason").value("ALREADY_RESERVED"));
+		perform(get("/api/v1/me/schedule-events/" + event + "/attendance"), TRAINER_TOKEN)
+			.andExpect(jsonPath("$.participants[0].reservationId").value(reservation.toString()));
+		perform(get(base(event) + "/reservations"), ADMIN_TOKEN)
+			.andExpect(jsonPath("$.participants[0].bookedBy").value("Anna Kowalska"));
+
+		// The participant sees the place and cancels it in time.
+		assertThat(bookings.get(client, profile, event).ownReservation().id()).isEqualTo(reservation);
+		bookings.cancel(client, profile, reservation, new CancelRequest(0, true));
+		assertThat(balance(pass)).isEqualTo(8);
+	}
+
+	@Test
+	void aTrainerCannotBookAParticipantWithoutAPass() throws Exception {
+		assign(event, trainerStaff, "ASSISTANT");
+		UUID noPass = customer(account("no-pass", "CLIENT", null), "Ewa", "Lis", LocalDate.now().minusYears(30));
+		perform(get(ownOptions(event, noPass)), TRAINER_TOKEN)
+			.andExpect(jsonPath("$.allowed").value(false))
+			.andExpect(jsonPath("$.reason").value("NO_ELIGIBLE_PASS"))
+			.andExpect(jsonPath("$.eligiblePasses").isEmpty());
+		ownBook(event, noPass, null, null, TRAINER_TOKEN).andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+		// Another participant's pass cannot fund the place either.
+		ownBook(event, noPass, pass, null, TRAINER_TOKEN).andExpect(status().isUnprocessableContent())
+			.andExpect(jsonPath("$.code").value("NO_ELIGIBLE_PASS"));
+		assertThat(reservationRows()).isZero();
+		assertThat(balance(pass)).isEqualTo(8);
+	}
+
+	@Test
+	void aTrainerBooksOnTheRulesOfTheParticipantsOwnBooking() throws Exception {
+		assign(event, trainerStaff, "LEAD");
+		// A full class: the participant could only join the waiting list.
+		bookings.book(otherClient, otherProfile, event, otherPass);
+		jdbc.sql("UPDATE schedule_event SET capacity = 1 WHERE id = :id").param("id", event).update();
+		perform(get(ownOptions(event, profile)), TRAINER_TOKEN)
+			.andExpect(jsonPath("$.allowed").value(false)).andExpect(jsonPath("$.reason").value("CLASS_FULL"));
+		ownBook(event, profile, pass, null, TRAINER_TOKEN).andExpect(status().isConflict())
+			.andExpect(jsonPath("$.code").value("CLASS_FULL"));
+
+		// The class's requirements.
+		jdbc.sql("UPDATE schedule_event SET capacity = 4 WHERE id = :id").param("id", event).update();
+		jdbc.sql("UPDATE service_type SET min_age = 40 WHERE id = :id").param("id", service).update();
+		perform(get(ownOptions(event, profile)), TRAINER_TOKEN)
+			.andExpect(jsonPath("$.allowed").value(false)).andExpect(jsonPath("$.reason").value("AGE_RESTRICTION"));
+		ownBook(event, profile, pass, null, TRAINER_TOKEN).andExpect(status().isUnprocessableContent())
+			.andExpect(jsonPath("$.code").value("AGE_RESTRICTION"));
+		jdbc.sql("UPDATE service_type SET min_age = NULL WHERE id = :id").param("id", service).update();
+
+		// The booking window binds the trainer like the participant.
+		jdbc.sql("INSERT INTO booking_policy (scope, event_id, booking_closes_minutes_before) VALUES ('EVENT', :event, 10000)")
+			.param("event", event).update();
+		perform(get(ownOptions(event, profile)), TRAINER_TOKEN)
+			.andExpect(jsonPath("$.allowed").value(false)).andExpect(jsonPath("$.reason").value("BOOKING_CLOSED"));
+		ownBook(event, profile, pass, null, TRAINER_TOKEN).andExpect(status().isUnprocessableContent())
+			.andExpect(jsonPath("$.code").value("BOOKING_CLOSED"));
+		jdbc.sql("UPDATE booking_policy SET booking_closes_minutes_before = 0, booking_opens_days_before = 1 "
+				+ "WHERE event_id = :event").param("event", event).update();
+		perform(get(ownOptions(event, profile)), TRAINER_TOKEN)
+			.andExpect(jsonPath("$.allowed").value(false)).andExpect(jsonPath("$.reason").value("BOOKING_NOT_OPEN"));
+		ownBook(event, profile, pass, null, TRAINER_TOKEN).andExpect(status().isUnprocessableContent())
+			.andExpect(jsonPath("$.code").value("BOOKING_NOT_OPEN"));
+
+		assertThat(reservationRows()).isEqualTo(1);
+		assertThat(balance(pass)).isEqualTo(8);
+	}
+
+	@Test
+	void aTrainerBooksOnlyOnTheirOwnGroupClassesBeforeTheyStart() throws Exception {
+		// Another trainer's class looks like a missing one.
+		assign(event, otherTrainerStaff, "LEAD");
+		perform(get(ownOptions(event, profile)), TRAINER_TOKEN).andExpect(status().isNotFound());
+		ownBook(event, profile, pass, null, TRAINER_TOKEN).andExpect(status().isNotFound());
+		ownBook(event, profile, pass, null, OTHER_TRAINER_TOKEN).andExpect(status().isCreated());
+
+		UUID personal = event(1, "PERSONAL_TRAINING", "PRIVATE", startsAt);
+		assign(personal, trainerStaff, "LEAD");
+		perform(get(ownOptions(personal, profile)), TRAINER_TOKEN).andExpect(status().isNotFound());
+		ownBook(personal, profile, pass, null, TRAINER_TOKEN).andExpect(status().isNotFound());
+
+		UUID started = event(4, "CLASS", "PRIVATE", Instant.now().minusSeconds(60));
+		assign(started, trainerStaff, "LEAD");
+		perform(get(ownOptions(started, otherProfile)), TRAINER_TOKEN)
+			.andExpect(jsonPath("$.allowed").value(false))
+			.andExpect(jsonPath("$.reason").value("EVENT_NOT_BOOKABLE"));
+		ownBook(started, otherProfile, otherPass, null, TRAINER_TOKEN).andExpect(status().isUnprocessableContent())
+			.andExpect(jsonPath("$.code").value("EVENT_NOT_BOOKABLE"));
+
+		// Clients and administrators use their own paths; the trainer still cannot cancel places.
+		for (String token : List.of(CLIENT_TOKEN, ADMIN_TOKEN)) {
+			perform(get(ownOptions(event, otherProfile)), token).andExpect(status().isForbidden());
+			ownBook(event, otherProfile, otherPass, null, token).andExpect(status().isForbidden());
+		}
+		UUID reservation = jdbc.sql("SELECT id FROM reservation WHERE event_id = :event").param("event", event)
+			.query(UUID.class).single();
+		perform(post(base(event) + "/reservations/" + reservation + "/cancel").contentType(MediaType.APPLICATION_JSON)
+			.content("{\"expectedVersion\":0,\"returnEntry\":true}"), OTHER_TRAINER_TOKEN)
+			.andExpect(status().isForbidden());
+		assertThat(reservationRows()).isEqualTo(1);
+	}
+
+	private ResultActions ownBook(UUID eventId, UUID customerId, UUID passId, String reason, String token)
+			throws Exception {
+		String body = "{\"customerId\":\"%s\",\"customerPassId\":%s,\"reason\":%s}".formatted(customerId,
+				passId == null ? "null" : "\"" + passId + "\"", reason == null ? "null" : "\"" + reason + "\"");
+		return perform(post(ownBase(eventId) + "/reservations").contentType(MediaType.APPLICATION_JSON).content(body),
+				token);
+	}
+
+	private static String ownBase(UUID eventId) {
+		return "/api/v1/me/schedule-events/" + eventId;
+	}
+
+	private static String ownOptions(UUID eventId, UUID customerId) {
+		return ownBase(eventId) + "/booking-options?customerId=" + customerId;
+	}
+
+	private UUID staff(UUID account, String firstName, String lastName) {
+		return jdbc.sql("""
+				INSERT INTO staff_profile (account_id, first_name, last_name) VALUES (:account, :first, :last)
+				RETURNING id
+				""").param("account", account).param("first", firstName).param("last", lastName)
+			.query(UUID.class).single();
+	}
+
+	private void assign(UUID eventId, UUID staffId, String role) {
+		jdbc.sql("INSERT INTO event_staff (event_id, staff_id, role) VALUES (:event, :staff, :role)")
+			.param("event", eventId).param("staff", staffId).param("role", role).update();
+	}
+
 	private ResultActions book(UUID eventId, UUID customerId, UUID passId, String accepted, String reason)
 			throws Exception {
 		return book(eventId, customerId, passId, accepted, reason, ADMIN_TOKEN);
@@ -432,10 +603,14 @@ class StaffBookingTests {
 
 	private ResultActions book(UUID eventId, UUID customerId, UUID passId, String accepted, String reason, String token)
 			throws Exception {
-		String body = "{\"customerId\":\"%s\",\"customerPassId\":%s,\"acceptedIssues\":%s,\"reason\":%s}".formatted(
+		return perform(post(base(eventId) + "/reservations").contentType(MediaType.APPLICATION_JSON)
+			.content(bookBody(customerId, passId, accepted, reason)), token);
+	}
+
+	private static String bookBody(UUID customerId, UUID passId, String accepted, String reason) {
+		return "{\"customerId\":\"%s\",\"customerPassId\":%s,\"acceptedIssues\":%s,\"reason\":%s}".formatted(
 				customerId, passId == null ? "null" : "\"" + passId + "\"", accepted,
 				reason == null ? "null" : "\"" + reason + "\"");
-		return perform(post(base(eventId) + "/reservations").contentType(MediaType.APPLICATION_JSON).content(body), token);
 	}
 
 	private void cancel(UUID eventId, UUID reservation, boolean returnEntry) throws Exception {

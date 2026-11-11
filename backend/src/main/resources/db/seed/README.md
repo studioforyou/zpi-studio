@@ -57,3 +57,12 @@ The full two-place Thursday pole class (`19000000-…-0003`, Katarzyna and Monik
 Monika's original manually granted available credit incorrectly pointed at her Open pass, whose product has no make-up policy. `R__seed_09_makeup_credits.sql` adds a separate expired four-entry Pole Dance pass with its activation ledger and relinks only that known, unused seed credit. The source product has a make-up policy; the credit can remain valid after the source pass expires.
 
 This is a scoped repair of the original fixture, rather than a change to granting rules. Existing credit dates, status and usage are preserved. Used credits and credits already linked elsewhere are left alone. The new pass is not a purchase, and Monika's existing Open pass, its balance and reservations are untouched. Re-running the seed neither renews credit validity nor adds duplicates. No schema or Firebase account changes are involved.
+
+## Statistics history (seed 12)
+
+`R__seed_12_statistics_history.sql` fills the five weeks before the week the seed first ran, so the panel's "Statystyki" (#164, #166) has something to show. It adds past occurrences of the existing recurring series (pole dance Tuesday and Thursday 18:00, calisthenics Monday 19:00, kids pole dance Saturday 10:00), a full one-off stretching workshop with two participants who waited for a place, and Tomasz's personal sessions with Marek on Fridays at 16:00.
+
+- Bookings use the existing Katarzyna, Tomasz, Monika, Zosia, Adam, Krzysztof, Julia, Karolina and Kuba profiles. Most participants attended; some are marked absent, some cancelled in time (more than 12 hours before, 24 hours for personal training) and some late, from one to eight hours before.
+- Thursday three weeks ago was cancelled by the studio, so the reports leave it out. Thursday a week ago was never completed by the trainer: its attendance stays unmarked.
+- An occurrence seed 03 already holds (the same series and start) is left alone, with the bookings that would point at it.
+- No accounts, customer profiles or passes are created: places are booked without a pass, so no pass balance or ledger changes and no entry is forfeited. Re-running the seed adds nothing and keeps a tester's changes.

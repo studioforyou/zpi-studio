@@ -6,12 +6,15 @@ import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
+
+import org.jspecify.annotations.Nullable;
 
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -60,6 +63,82 @@ public class ScheduledEvents {
 			.param("to", OffsetDateTime.ofInstant(to, ZoneOffset.UTC))
 			.query(UUID.class)
 			.list();
+	}
+
+	/**
+	 * Events starting in {@code [from, to)} that were not cancelled and match the filter, earliest
+	 * first, as reports need them. Blocks have no participants, so they are never included.
+	 */
+	public List<ReportedEvent> findNotCancelledStartingBetween(Instant from, Instant to, EventFilter filter) {
+		if (filter.kinds().isEmpty() || !from.isBefore(to)) {
+			return List.of();
+		}
+		StringBuilder sql = new StringBuilder("""
+				SELECT e.id, e.kind, e.service_type_id, e.training_group_id, e.series_id, e.title, e.starts_at,
+				       e.capacity
+				FROM schedule_event e
+				WHERE e.starts_at >= :from AND e.starts_at < :to AND e.status <> 'CANCELLED' AND e.kind IN (:kinds)
+				  AND e.kind <> 'BLOCK'
+				""");
+		Map<String, Object> params = new HashMap<>();
+		params.put("from", OffsetDateTime.ofInstant(from, ZoneOffset.UTC));
+		params.put("to", OffsetDateTime.ofInstant(to, ZoneOffset.UTC));
+		params.put("kinds", List.copyOf(filter.kinds()));
+		if (!filter.serviceTypeIds().isEmpty()) {
+			sql.append(" AND e.service_type_id IN (:serviceTypeIds)");
+			params.put("serviceTypeIds", List.copyOf(filter.serviceTypeIds()));
+		}
+		if (!filter.trainingGroupIds().isEmpty()) {
+			sql.append(" AND e.training_group_id IN (:trainingGroupIds)");
+			params.put("trainingGroupIds", List.copyOf(filter.trainingGroupIds()));
+		}
+		if (!filter.staffIds().isEmpty()) {
+			sql.append(" AND EXISTS (SELECT 1 FROM event_staff s WHERE s.event_id = e.id AND s.staff_id IN (:staffIds))");
+			params.put("staffIds", List.copyOf(filter.staffIds()));
+		}
+		if (!filter.resourceIds().isEmpty()) {
+			sql.append(" AND EXISTS (SELECT 1 FROM event_resource r WHERE r.event_id = e.id"
+					+ " AND r.resource_id IN (:resourceIds))");
+			params.put("resourceIds", List.copyOf(filter.resourceIds()));
+		}
+		sql.append(" ORDER BY e.starts_at, e.id");
+		return jdbc.sql(sql.toString())
+			.params(params)
+			.query((rs, row) -> new ReportedEvent(rs.getObject("id", UUID.class), rs.getString("kind"),
+					rs.getObject("service_type_id", UUID.class), rs.getObject("training_group_id", UUID.class),
+					rs.getObject("series_id", UUID.class), rs.getString("title"), instant(rs, "starts_at"),
+					rs.getObject("capacity", Integer.class)))
+			.list();
+	}
+
+	/**
+	 * Which events a report covers: an event matches when it is of one of the kinds and, for each
+	 * other collection that is not empty, has one of its values (its service type, its fixed group,
+	 * one of its staff members, one of its rooms). An empty collection other than {@code kinds}
+	 * does not restrict anything.
+	 *
+	 * @param kinds e.g. {@code CLASS}, {@code WORKSHOP} or {@code PERSONAL_TRAINING}
+	 */
+	public record EventFilter(Collection<String> kinds, Collection<UUID> serviceTypeIds, Collection<UUID> staffIds,
+			Collection<UUID> trainingGroupIds, Collection<UUID> resourceIds) {
+
+		/** Every event of the kinds. */
+		public static EventFilter ofKinds(Collection<String> kinds) {
+			return new EventFilter(kinds, List.of(), List.of(), List.of(), List.of());
+		}
+
+	}
+
+	/**
+	 * An event that was not cancelled, as reports see it.
+	 *
+	 * @param kind e.g. {@code CLASS}, {@code WORKSHOP} or {@code PERSONAL_TRAINING}
+	 * @param seriesId the recurring series the event belongs to, or {@code null} for a one-off event
+	 * @param title the event's own title, or {@code null} when it goes by its service type's name
+	 * @param capacity the number of places, or {@code null} when the event has no limit
+	 */
+	public record ReportedEvent(UUID id, String kind, @Nullable UUID serviceTypeId, @Nullable UUID trainingGroupId,
+			@Nullable UUID seriesId, @Nullable String title, Instant startsAt, @Nullable Integer capacity) {
 	}
 
 	/**
@@ -124,6 +203,20 @@ public class ScheduledEvents {
 					"EVENT_COMPLETED", Map.of("status", new AuditLog.Change("SCHEDULED", "COMPLETED")), null));
 		}
 		return completed;
+	}
+
+	/** Booking calls this only after the last participant cancels, holding the occurrence lock. */
+	@Transactional(propagation = Propagation.MANDATORY)
+	public void cancelPersonal(UUID eventId, UUID actorId) {
+		if (jdbc.sql("""
+				UPDATE schedule_event SET status = 'CANCELLED', cancel_reason = 'OTHER',
+				cancel_note = 'Odwołane przez klienta', cancelled_by = :actor, cancelled_at = now(),
+				updated_at = now(), version = version + 1
+				WHERE id = :id AND kind = 'PERSONAL_TRAINING' AND status = 'SCHEDULED'
+				""").param("id", eventId).param("actor", actorId).update() == 1) {
+			auditLog.append(new AuditLog.Entry(actorId, "scheduling", "schedule_event", eventId, "EVENT_CANCELLED",
+					Map.of("status", new AuditLog.Change("SCHEDULED", "CANCELLED")), "Odwołane przez klienta"));
+		}
 	}
 
 	private static Instant instant(ResultSet rs, String column) throws SQLException {

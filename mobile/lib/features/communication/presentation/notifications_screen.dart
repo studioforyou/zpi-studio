@@ -205,6 +205,9 @@ class _NotificationTile extends ConsumerWidget {
     return ListTile(
       leading: Icon(switch (notification.type) {
         'CLASS_REMINDER' => Icons.event_outlined,
+        'PASS_EXPIRING' ||
+        'PASS_LAST_ENTRY_USED' => Icons.confirmation_number_outlined,
+        _ => Icons.notifications_outlined,
         'NEW_MESSAGE' => Icons.chat_bubble_outline,
         _ => Icons.notifications_outlined,
       }, color: theme.colorScheme.primary),
