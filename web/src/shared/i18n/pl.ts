@@ -11,12 +11,19 @@ function countOf(count: number, one: string, few: string, many: string): string 
   return `${count.toLocaleString('pl-PL')} ${unit}`;
 }
 
+/** "1 zajęcia", "3 zajęcia", "5 zajęć". */
+function eventCount(n: number): string {
+  const few = n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14);
+  return `${n} ${n === 1 || few ? 'zajęcia' : 'zajęć'}`;
+}
+
 export const pl = {
   appName: 'studio4U',
   panelName: 'Panel administratora',
   nav: {
     schedule: 'Grafik',
     rooms: 'Sale',
+    timeOff: 'Urlopy',
     accounts: 'Konta',
     passes: 'Karnety',
     trainings: 'Treningi',
@@ -1290,6 +1297,20 @@ export const pl = {
           description:
             'Wysyłane od razu po każdej wiadomości w czacie wszystkim pozostałym uczestnikom rozmowy, klientom i trenerom. Nieprzeczytane wiadomości jednego czatu mają jedno powiadomienie, aktualizowane przy kolejnej wiadomości i oznaczane jako przeczytane po wejściu w rozmowę. Wiadomości z czatu grupowego dziecka dostaje rodzic.',
         },
+        TIME_OFF_APPROVED: {
+          name: 'Nieobecność zatwierdzona',
+          description:
+            'Wysyłane trenerowi od razu, gdy studio zatwierdzi jego wniosek albo samo wpisze mu nieobecność.',
+        },
+        TIME_OFF_REJECTED: {
+          name: 'Wniosek o nieobecność odrzucony',
+          description: 'Wysyłane trenerowi od razu, gdy studio odrzuci jego wniosek.',
+        },
+        TIME_OFF_CANCELLED: {
+          name: 'Nieobecność anulowana przez studio',
+          description:
+            'Wysyłane trenerowi od razu, gdy studio anuluje jego zatwierdzoną nieobecność. Gdy trener sam ją anuluje, nic nie jest wysyłane.',
+        },
       },
       placeholders: {
         CLASS_REMINDER: {
@@ -1370,6 +1391,55 @@ export const pl = {
             label: 'Treść',
             description: 'Początek ostatniej wiadomości, do 100 znaków',
             example: 'Weźcie wodę i ręcznik.',
+          },
+        },
+        TIME_OFF_APPROVED: {
+          rodzaj: {
+            label: 'Rodzaj',
+            description: '„Urlop”, „Zwolnienie lekarskie” albo „Inna niedostępność”',
+            example: 'Urlop',
+          },
+          okres: {
+            label: 'Kiedy',
+            description:
+              'Dni albo godziny nieobecności, np. „19.11–20.11” lub „17.11, 17:00–19:00”',
+            example: '19.11–20.11',
+          },
+          notatka: {
+            label: 'Notatka studia',
+            description: '„Notatka studia: …” albo nic, gdy studio nie dodało notatki',
+            example: 'Notatka studia: Udanego wypoczynku!',
+          },
+        },
+        TIME_OFF_REJECTED: {
+          rodzaj: {
+            label: 'Rodzaj',
+            description: '„Urlop”, „Zwolnienie lekarskie” albo „Inna niedostępność”',
+            example: 'Urlop',
+          },
+          okres: {
+            label: 'Kiedy',
+            description:
+              'Dni albo godziny nieobecności, np. „19.11–20.11” lub „17.11, 17:00–19:00”',
+            example: '19.11–20.11',
+          },
+          notatka: {
+            label: 'Notatka studia',
+            description: '„Notatka studia: …” albo nic, gdy studio nie dodało notatki',
+            example: 'Notatka studia: Udanego wypoczynku!',
+          },
+        },
+        TIME_OFF_CANCELLED: {
+          rodzaj: {
+            label: 'Rodzaj',
+            description: '„Urlop”, „Zwolnienie lekarskie” albo „Inna niedostępność”',
+            example: 'Urlop',
+          },
+          okres: {
+            label: 'Kiedy',
+            description:
+              'Dni albo godziny nieobecności, np. „19.11–20.11” lub „17.11, 17:00–19:00”',
+            example: '19.11–20.11',
           },
         },
       },
@@ -1594,6 +1664,130 @@ export const pl = {
         lateForfeits: 'później wejście przepada',
         lateReturns: 'później wejście wraca',
       },
+    },
+  },
+  timeOff: {
+    title: 'Urlopy i niedostępności',
+    intro:
+      'Wnioski trenerów czekają tu na decyzję. Wniosek widać w grafiku jako ostrzeżenie już przed decyzją, a zatwierdzony urlop blokuje planowanie zajęć temu trenerowi.',
+    add: '+ Dodaj nieobecność',
+    pendingBadge: (count: number) => `${count} do decyzji`,
+    tabs: {
+      pending: 'Do decyzji',
+      upcoming: 'Nadchodzące',
+      history: 'Historia',
+    },
+    tabsLabel: 'Widok nieobecności',
+    staffFilter: 'Trener',
+    staffFilterPlaceholder: 'Wszyscy trenerzy',
+    loading: 'Wczytywanie nieobecności…',
+    loadError: 'Nie udało się wczytać nieobecności.',
+    empty: {
+      pending: 'Brak wniosków do decyzji.',
+      upcoming: 'Brak zaplanowanych nieobecności.',
+      history: 'Brak nieobecności w ostatnich 6 miesiącach.',
+    },
+    columns: {
+      staff: 'Trener',
+      kind: 'Rodzaj',
+      period: 'Kiedy',
+      reason: 'Powód',
+      events: 'Zajęcia w tym czasie',
+      requestedAt: 'Zgłoszono',
+      status: 'Status',
+      approvedBy: 'Zatwierdzone przez',
+      note: 'Notatka studia',
+      decision: 'Decyzja',
+      actions: '',
+    },
+    events: {
+      none: 'brak',
+      count: (n: number) => eventCount(n),
+      unknown: '—',
+    },
+    recordedByStudio: 'dodane przez studio',
+    withdrawn: 'anulowane',
+    studio: 'studio',
+    kinds: {
+      VACATION: 'Urlop',
+      SICK_LEAVE: 'Zwolnienie lekarskie',
+      UNAVAILABLE: 'Inna niedostępność',
+    },
+    statuses: {
+      REQUESTED: 'Oczekuje',
+      APPROVED: 'Zatwierdzony',
+      REJECTED: 'Odrzucony',
+      CANCELLED: 'Anulowany',
+    },
+    review: 'Rozpatrz',
+    cancel: 'Anuluj',
+    noReason: '—',
+    decision: {
+      title: 'Wniosek o nieobecność',
+      requestedAt: (date: string) => `Złożony ${date}`,
+      reason: 'Powód podany przez trenera',
+      staff: 'Trener',
+      kind: 'Rodzaj',
+      period: 'Kiedy',
+      requested: 'Zgłoszono',
+      eventsTitle: 'Zajęcia trenera w tym czasie',
+      eventsLoading: 'Sprawdzanie grafiku…',
+      eventsError: 'Nie udało się sprawdzić grafiku.',
+      noEvents: 'Trener nie ma w tym czasie zaplanowanych zajęć.',
+      eventsHint:
+        'Zatwierdzenie nie zmienia grafiku. Zastępstwo albo odwołanie zajęć ustawiasz w grafiku, a klienci dostaną wtedy informację o zmianie.',
+      eventsCapped: 'Pokazano zajęcia z pierwszych 93 dni nieobecności.',
+      note: 'Notatka dla trenera (opcjonalnie)',
+      notePlaceholder: 'Np. ustalone zastępstwo',
+      approve: 'Zatwierdź',
+      reject: 'Odrzuć',
+      close: 'Zamknij',
+    },
+    cancelConfirm: {
+      title: 'Anulować nieobecność?',
+      body: (staff: string, period: string) =>
+        `${staff}: ${period}. Nieobecność zostanie w historii jako anulowana, a trener znów będzie dostępny w grafiku.`,
+      confirm: 'Anuluj nieobecność',
+      back: 'Wróć',
+    },
+    form: {
+      title: 'Dodaj nieobecność',
+      hint: 'Nieobecność dodana przez studio jest od razu zatwierdzona. Można ją dodać także wstecz. Trener dostanie powiadomienie.',
+      staff: 'Trener',
+      staffPlaceholder: 'Wybierz trenera',
+      kind: 'Rodzaj',
+      wholeDays: 'Całe dni',
+      partOfDay: 'Część dnia',
+      periodType: 'Całe dni albo część dnia',
+      eventsWarning: (n: number) => `W tym czasie trener prowadzi ${eventCount(n)}`,
+      dateFrom: 'Od dnia',
+      dateTo: 'Do dnia (włącznie)',
+      date: 'Dzień',
+      timeFrom: 'Od godziny',
+      timeTo: 'Do godziny',
+      reason: 'Powód',
+      reasonPlaceholder: 'Opcjonalnie',
+      save: 'Dodaj',
+      cancel: 'Anuluj',
+      required: 'To pole jest wymagane.',
+      endBeforeStart: 'Koniec musi być po początku.',
+    },
+    errors: {
+      TIME_OFF_OVERLAP: 'Ten trener ma już w tym czasie inną nieobecność.',
+      TIME_OFF_ALREADY_DECIDED: 'Ktoś już rozpatrzył ten wniosek. Odśwież listę.',
+      TIME_OFF_NOT_CANCELLABLE: 'Tej nieobecności nie można już anulować.',
+      VALIDATION_FAILED:
+        'Sprawdź termin: koniec musi być po początku, a nieobecność może trwać najwyżej rok.',
+      NOT_FOUND: 'Ta nieobecność już nie istnieje.',
+      network: 'Brak połączenia z serwerem.',
+      unexpected: 'Wystąpił nieoczekiwany błąd.',
+    },
+    period: {
+      wholeDay: (date: string) => `${date} (cały dzień)`,
+      days: (from: string, to: string, count: number) =>
+        `${from} – ${to} (${count} ${count === 1 ? 'dzień' : 'dni'})`,
+      sameDay: (date: string, from: string, to: string) => `${date}, ${from}–${to}`,
+      range: (from: string, to: string) => `${from} – ${to}`,
     },
   },
   system: {
