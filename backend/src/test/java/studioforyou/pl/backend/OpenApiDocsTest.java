@@ -57,6 +57,19 @@ class OpenApiDocsTest {
 	}
 
 	@Test
+	void documentsTheFiltersOfEventReportsAsQueryParameters() throws Exception {
+		String json = apiDocs();
+
+		for (String path : List.of("/api/v1/reports/class-attendance", "/api/v1/reports/booking-outcomes")) {
+			List<String> names = JsonPath.read(json, "$.paths['" + path + "'].get.parameters[*].name");
+			assertThat(names).containsExactlyInAnyOrder("from", "to", "kind", "serviceTypeId", "staffId",
+					"trainingGroupId", "resourceId");
+			List<String> places = JsonPath.read(json, "$.paths['" + path + "'].get.parameters[*].in");
+			assertThat(places).containsOnly("query");
+		}
+	}
+
+	@Test
 	void documentsOwnWaitlistEndpoints() throws Exception {
 		String json = apiDocs();
 

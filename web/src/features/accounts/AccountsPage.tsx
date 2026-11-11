@@ -4,7 +4,6 @@ import { Link } from 'react-router';
 import { paths } from '@/app/paths';
 import { pl } from '@/shared/i18n/pl';
 import { AccountsList } from './AccountsList';
-import { CustomerActivitySection } from './CustomerActivitySection';
 import { InviteAccountModal } from './InviteAccountModal';
 
 export function AccountsPage() {
@@ -21,7 +20,6 @@ export function AccountsPage() {
           <Button onClick={() => setInviteOpened(true)}>{pl.accounts.inviteButton}</Button>
         </Group>
       </Group>
-      <CustomerActivitySection />
       <AccountsList />
       <InviteAccountModal opened={inviteOpened} onClose={() => setInviteOpened(false)} />
     </Stack>
