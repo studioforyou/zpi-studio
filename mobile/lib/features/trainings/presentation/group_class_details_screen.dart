@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import 'package:mobile/core/auth/auth_controller.dart';
 import 'package:mobile/features/documents/presentation/documents_screen.dart';
 import 'package:mobile/features/passes/data/passes_api.dart';
+import 'package:mobile/features/schedule/presentation/widgets/series_change_widgets.dart';
 import 'package:mobile/features/trainings/data/group_classes_api.dart';
 import 'package:mobile/features/trainings/presentation/widgets/class_participants_section.dart';
 import 'package:mobile/features/trainings/presentation/widgets/group_class_summary.dart';
@@ -103,7 +104,22 @@ class _GroupClassDetailsScreenState
     final waiting = event.isWaitlisted ? event.waitlist.ownEntry : null;
     final canReserve =
         event.booking.allowed && event.booking.eligiblePasses.isNotEmpty;
+    final change = event.status == 'CANCELLED' ? null : event.seriesChange;
     return [
+      if (change != null) ...[
+        SeriesChangeCard(
+          change: change,
+          startsAt: event.startsAt,
+          endsAt: event.endsAt,
+          instructors: [
+            for (final person in event.staff)
+              if (person.isLead && person.displayName != null)
+                person.displayName!,
+          ],
+          rooms: event.roomNames,
+        ),
+        const SizedBox(height: 12),
+      ],
       GroupClassSummary(event: event, participant: participant),
       const SizedBox(height: 16),
       if (isReserved && reservation != null) ...[
@@ -117,6 +133,15 @@ class _GroupClassDetailsScreenState
                 reservation.cancellation.entryReturned == true) ...[
           const SizedBox(height: 12),
           Text(l10n.classesFreeCancelUntil(classDateTime(deadline))),
+          if (change?.moved ?? false) ...[
+            const SizedBox(height: 4),
+            Text(
+              l10n.changeFreeCancelMoved,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
         ],
         if (!reservation.cancellation.allowed ||
             (!withoutPass &&

@@ -23,6 +23,7 @@ import 'package:mobile/features/communication/presentation/notifications_screen.
 import 'package:mobile/features/documents/presentation/document_screen.dart';
 import 'package:mobile/features/documents/presentation/documents_screen.dart';
 import 'package:mobile/features/passes/presentation/passes_screen.dart';
+import 'package:mobile/features/schedule/data/series_changes.dart';
 import 'package:mobile/features/schedule/presentation/add_class_screen.dart';
 import 'package:mobile/features/schedule/presentation/availability_screen.dart';
 import 'package:mobile/features/schedule/presentation/schedule_screen.dart';
@@ -111,9 +112,15 @@ _Tab _tab(
   String Function(AppLocalizations) label, {
   List<RouteBase> routes = const [],
   int Function(WidgetRef)? badge,
+  void Function(WidgetRef)? onShown,
 }) => (
   route: GoRoute(path: path, builder: (_, _) => screen, routes: routes),
-  destination: ShellDestination(icon: icon, label: label, badge: badge),
+  destination: ShellDestination(
+    icon: icon,
+    label: label,
+    badge: badge,
+    onShown: onShown,
+  ),
 );
 
 /// One shell per role, with one branch per tab.
@@ -152,6 +159,8 @@ StatefulShellRoute _clientShell() => _roleShell([
         builder: (_, _) => const TrainingHistoryScreen(),
       ),
     ],
+    badge: watchUnseenScheduleChanges,
+    onShown: noticeScheduleChanges,
   ),
   _tab(
     clientMessagesPath,
@@ -209,6 +218,8 @@ StatefulShellRoute _trainerShell() => _roleShell([
         builder: (_, _) => const AddClassScreen(),
       ),
     ],
+    badge: watchUnseenScheduleChanges,
+    onShown: noticeScheduleChanges,
   ),
   _tab(
     trainerTrainingsPath,

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mobile/features/schedule/presentation/widgets/series_change_widgets.dart';
 import 'package:mobile/features/trainings/data/group_classes_api.dart';
 import 'package:mobile/features/trainings/presentation/widgets/group_class_widgets.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
@@ -25,6 +26,7 @@ class ClientScheduleEventTile extends StatelessWidget {
         .where((person) => person.isLead && person.displayName != null)
         .map((person) => person.displayName!)
         .join(', ');
+    final change = cancelled ? null : event.seriesChange;
     return Card(
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -41,11 +43,14 @@ class ClientScheduleEventTile extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     spacing: 6,
                     children: [
+                      if (change != null)
+                        ChangeChip(change: change, startsAt: event.startsAt),
                       Row(
                         children: [
                           Expanded(
-                            child: Text(
+                            child: ChangedValue(
                               classTime(event),
+                              usual: usualTimeOf(change, event.startsAt),
                               style: theme.textTheme.labelLarge,
                             ),
                           ),
@@ -61,16 +66,18 @@ class ClientScheduleEventTile extends StatelessWidget {
                           color: cancelled ? theme.colorScheme.error : null,
                         ),
                       ),
-                      Text(
+                      ChangedValue(
                         teachers.isEmpty
                             ? l10n.classesInstructorPending
                             : teachers,
+                        usual: change?.usualInstructors?.join(', '),
                         style: theme.textTheme.bodySmall,
                       ),
-                      Text(
+                      ChangedValue(
                         event.roomNames.isEmpty
                             ? l10n.classesRoomPending
                             : event.roomNames.join(', '),
+                        usual: change?.usualRooms?.join(', '),
                         style: theme.textTheme.bodySmall,
                       ),
                       if (event.isReserved)

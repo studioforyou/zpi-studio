@@ -6,12 +6,15 @@ import 'package:mobile/core/auth/session.dart';
 import 'package:mobile/features/schedule/data/client_schedule_api.dart';
 import 'package:mobile/features/schedule/data/schedule_api.dart';
 import 'package:mobile/features/schedule/data/schedule_service_types.dart';
+import 'package:mobile/features/schedule/data/series_changes.dart';
 import 'package:mobile/features/schedule/data/studio_trainers.dart';
 import 'package:mobile/features/schedule/presentation/client_schedule_filter.dart';
 import 'package:mobile/features/schedule/presentation/widgets/client_schedule_event_tile.dart';
 import 'package:mobile/features/schedule/presentation/widgets/client_schedule_filters.dart';
 import 'package:mobile/features/schedule/presentation/widgets/group_class_timeline.dart';
 import 'package:mobile/features/schedule/presentation/widgets/schedule_calendar.dart';
+import 'package:mobile/features/schedule/presentation/widgets/series_change_widgets.dart';
+import 'package:mobile/features/schedule/presentation/widgets/series_changes_banner.dart';
 import 'package:mobile/features/trainings/data/group_classes_api.dart';
 import 'package:mobile/features/trainings/presentation/group_class_details_screen.dart';
 import 'package:mobile/features/trainings/presentation/widgets/group_class_widgets.dart';
@@ -81,12 +84,14 @@ class _ClientCalendarState extends ConsumerState<_ClientCalendar> {
       if (event is ClientScheduleEvent) event.groupClass,
   ];
 
-  void _openClass(GroupClass event) {
+  void _openClass(GroupClass event) => _openClassById(event.id);
+
+  void _openClassById(String eventId) {
     if (!isCurrentBookingScope(ref, widget.scope)) return;
     Navigator.of(context).push<void>(
       MaterialPageRoute(
         builder: (_) => GroupClassDetailsScreen(
-          query: (scope: widget.scope, eventId: event.id),
+          query: (scope: widget.scope, eventId: eventId),
         ),
       ),
     );
@@ -103,6 +108,9 @@ class _ClientCalendarState extends ConsumerState<_ClientCalendar> {
           ? classReservationsProvider(query)
           : groupClassesProvider(query),
     );
+    if (widget.reservationsOnly) {
+      ref.invalidate(scheduleChangesProvider(ParticipantChanges(widget.scope)));
+    }
     final request = ref.refresh(
       clientScheduleProvider((
         scope: widget.scope,
@@ -198,6 +206,11 @@ class _ClientCalendarState extends ConsumerState<_ClientCalendar> {
               },
             ),
           ),
+        if (widget.reservationsOnly)
+          ScheduleChangesBanner(
+            owner: ParticipantChanges(widget.scope),
+            onOpen: _openClassById,
+          ),
         Expanded(
           child: ScheduleCalendar(
             today: widget.today,
@@ -218,7 +231,17 @@ class _ClientCalendarState extends ConsumerState<_ClientCalendar> {
                 onTap: () => _openClass(groupClass),
               );
             },
-            dayBuilder: (context, events, day) => events.isEmpty
+            movedBuilder: (context, event) {
+              final groupClass = (event as ClientScheduleEvent).groupClass;
+              return MovedAwayTile(
+                name: groupClass.name ?? l10n.classesTitle,
+                startsAt: groupClass.startsAt,
+                usualStartsAt: groupClass.seriesChange!.usualStartsAt!,
+                onTap: () => _openClass(groupClass),
+              );
+            },
+            dayBuilder: (context, events, day, movedAway) =>
+                events.isEmpty && movedAway.isEmpty
                 ? ListView(
                     physics: const AlwaysScrollableScrollPhysics(),
                     children: [
@@ -233,6 +256,7 @@ class _ClientCalendarState extends ConsumerState<_ClientCalendar> {
                   )
                 : GroupClassTimeline(
                     events: _classes(events),
+                    movedAway: _classes(movedAway),
                     day: day,
                     onSelect: _openClass,
                     footer: _legend(context, events),

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:mobile/app/theme/brand_colors.dart';
 import 'package:mobile/features/schedule/data/schedule_api.dart';
+import 'package:mobile/features/schedule/presentation/widgets/series_change_widgets.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
 
 /// How much of the schedule the calendar shows at once.
@@ -15,6 +16,7 @@ typedef ScheduleDayBuilder =
       BuildContext context,
       List<ScheduleEvent> events,
       DateTime day,
+      List<ScheduleEvent> movedAway,
     );
 typedef ScheduleEventColor =
     Color Function(ScheduleEvent event, ColorScheme scheme);
@@ -39,6 +41,7 @@ class ScheduleCalendar extends ConsumerStatefulWidget {
     this.legendBuilder,
     this.showLegend = true,
     this.onRefresh,
+    this.movedBuilder,
   });
 
   /// Events overlapping a window, earliest first.
@@ -64,6 +67,11 @@ class ScheduleCalendar extends ConsumerStatefulWidget {
   /// events overlapping the selected day and must return a vertical scrollable so pull to
   /// refresh remains available (for example an hourly client timetable).
   final ScheduleDayBuilder? dayBuilder;
+
+  /// The placeholder of an event moved this once away from its usual slot,
+  /// shown at the usual time. Without it moved events show only where they
+  /// take place.
+  final ScheduleEventBuilder? movedBuilder;
 
   /// Optional service colours for month markers. Cancelled events remain red.
   final ScheduleEventColor? eventColor;
@@ -179,11 +187,15 @@ class _ScheduleCalendarState extends ConsumerState<ScheduleCalendar> {
                         context,
                         _eventsOn(events, _day),
                         _day,
+                        widget.movedBuilder == null
+                            ? const []
+                            : _movedAwayFrom(events, _day),
                       ) ??
                       _DayList(
                         events: events,
                         day: _day,
                         eventBuilder: widget.eventBuilder,
+                        movedBuilder: widget.movedBuilder,
                         legend: _legend(context, events),
                       ),
                 ScheduleView.week => _WeekList(
@@ -192,6 +204,7 @@ class _ScheduleCalendarState extends ConsumerState<ScheduleCalendar> {
                   today: _today,
                   onDaySelected: _openDay,
                   eventBuilder: widget.eventBuilder,
+                  movedBuilder: widget.movedBuilder,
                   legend: _legend(context, events),
                 ),
                 ScheduleView.month => _MonthGrid(
@@ -202,6 +215,7 @@ class _ScheduleCalendarState extends ConsumerState<ScheduleCalendar> {
                   today: _today,
                   onDaySelected: (day) => setState(() => _day = day),
                   eventBuilder: widget.eventBuilder,
+                  movedBuilder: widget.movedBuilder,
                   eventColor: widget.eventColor,
                   legend: _legend(context, events),
                 ),
@@ -278,6 +292,52 @@ String _periodLabel(ScheduleView view, DateTime day, ScheduleWindow window) {
   }
 }
 
+/// Events moved this once away from a usual time on the day: they take place
+/// at another time, and the day keeps a placeholder at the usual one.
+List<ScheduleEvent> _movedAwayFrom(List<ScheduleEvent> events, DateTime day) {
+  final next = _addDays(day, 1);
+  return [
+    for (final event in events)
+      if (event.seriesChange?.usualStartsAt case final usual?)
+        if (event.status != EventStatus.cancelled &&
+            usual != event.startsAt &&
+            !usual.isBefore(day) &&
+            usual.isBefore(next))
+          event,
+  ];
+}
+
+/// The rows of a day: its events and the placeholders of the events moved
+/// away from it, in the order of their times.
+List<Widget> _dayRows(
+  BuildContext context,
+  List<ScheduleEvent> events,
+  DateTime day,
+  ScheduleEventBuilder? eventBuilder,
+  ScheduleEventBuilder? movedBuilder,
+) {
+  final rows = <({DateTime at, Widget row})>[
+    for (final event in _eventsOn(events, day))
+      (
+        at: event.startsAt,
+        row: eventBuilder?.call(context, event) ?? ScheduleEventTile(event),
+      ),
+    if (movedBuilder != null)
+      for (final event in _movedAwayFrom(events, day))
+        (
+          at: event.seriesChange!.usualStartsAt!,
+          row: movedBuilder(context, event),
+        ),
+  ];
+  // A stable sort keeps the events in the order they were loaded.
+  final order = [for (var i = 0; i < rows.length; i++) i]
+    ..sort((a, b) {
+      final time = rows[a].at.compareTo(rows[b].at);
+      return time != 0 ? time : a.compareTo(b);
+    });
+  return [for (final i in order) rows[i].row];
+}
+
 /// Events that overlap the day.
 List<ScheduleEvent> _eventsOn(List<ScheduleEvent> events, DateTime day) {
   final next = _addDays(day, 1);
@@ -292,25 +352,26 @@ class _DayList extends StatelessWidget {
     required this.events,
     required this.day,
     required this.eventBuilder,
+    required this.movedBuilder,
     required this.legend,
   });
 
   final List<ScheduleEvent> events;
   final DateTime day;
   final ScheduleEventBuilder? eventBuilder;
+  final ScheduleEventBuilder? movedBuilder;
   final Widget? legend;
 
   @override
   Widget build(BuildContext context) {
-    final dayEvents = _eventsOn(events, day);
+    final rows = _dayRows(context, events, day, eventBuilder, movedBuilder);
     return ListView(
       physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.all(16),
       children: [
-        if (dayEvents.isEmpty)
+        if (rows.isEmpty)
           _Message(AppLocalizations.of(context).scheduleEmptyDay),
-        for (final event in dayEvents)
-          eventBuilder?.call(context, event) ?? ScheduleEventTile(event),
+        ...rows,
         ?legend,
       ],
     );
@@ -324,6 +385,7 @@ class _WeekList extends StatelessWidget {
     required this.today,
     required this.onDaySelected,
     required this.eventBuilder,
+    required this.movedBuilder,
     required this.legend,
   });
 
@@ -332,6 +394,7 @@ class _WeekList extends StatelessWidget {
   final DateTime today;
   final ValueChanged<DateTime> onDaySelected;
   final ScheduleEventBuilder? eventBuilder;
+  final ScheduleEventBuilder? movedBuilder;
   final Widget? legend;
 
   @override
@@ -345,7 +408,13 @@ class _WeekList extends StatelessWidget {
         for (var i = 0; i < 7; i++)
           ...() {
             final day = _addDays(window.from, i);
-            final dayEvents = _eventsOn(events, day);
+            final rows = _dayRows(
+              context,
+              events,
+              day,
+              eventBuilder,
+              movedBuilder,
+            );
             return [
               InkWell(
                 onTap: () => onDaySelected(day),
@@ -361,10 +430,9 @@ class _WeekList extends StatelessWidget {
                   ),
                 ),
               ),
-              if (dayEvents.isEmpty)
+              if (rows.isEmpty)
                 Text(l10n.scheduleEmptyDay, style: textTheme.bodySmall),
-              for (final event in dayEvents)
-                eventBuilder?.call(context, event) ?? ScheduleEventTile(event),
+              ...rows,
             ];
           }(),
         ?legend,
@@ -382,6 +450,7 @@ class _MonthGrid extends StatelessWidget {
     required this.today,
     required this.onDaySelected,
     required this.eventBuilder,
+    required this.movedBuilder,
     required this.eventColor,
     required this.legend,
   });
@@ -393,6 +462,7 @@ class _MonthGrid extends StatelessWidget {
   final DateTime today;
   final ValueChanged<DateTime> onDaySelected;
   final ScheduleEventBuilder? eventBuilder;
+  final ScheduleEventBuilder? movedBuilder;
   final ScheduleEventColor? eventColor;
   final Widget? legend;
 
@@ -400,7 +470,13 @@ class _MonthGrid extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final textTheme = Theme.of(context).textTheme;
-    final selectedEvents = _eventsOn(events, selected);
+    final selectedRows = _dayRows(
+      context,
+      events,
+      selected,
+      eventBuilder,
+      movedBuilder,
+    );
     return ListView(
       physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.all(16),
@@ -445,10 +521,9 @@ class _MonthGrid extends StatelessWidget {
           style: textTheme.titleSmall,
         ),
         const SizedBox(height: 4),
-        if (selectedEvents.isEmpty)
+        if (selectedRows.isEmpty)
           Text(l10n.scheduleEmptyDay, style: textTheme.bodySmall),
-        for (final event in selectedEvents)
-          eventBuilder?.call(context, event) ?? ScheduleEventTile(event),
+        ...selectedRows,
         ?legend,
       ],
     );
@@ -559,7 +634,8 @@ class ScheduleEventTile extends StatelessWidget {
     final color = scheduleEventColor(event, scheme);
     final cancelled = event.status == EventStatus.cancelled;
     final time = DateFormat('HH:mm');
-    final details = [eventKindLabel(l10n, event.kind), ...event.roomNames];
+    final change = cancelled ? null : event.seriesChange;
+    final usualRooms = change?.usualRooms;
 
     return Card(
       clipBehavior: Clip.antiAlias,
@@ -577,12 +653,21 @@ class ScheduleEventTile extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     spacing: 2,
                     children: [
+                      if (change != null)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 4),
+                          child: ChangeChip(
+                            change: change,
+                            startsAt: event.startsAt,
+                          ),
+                        ),
                       Row(
                         children: [
                           Expanded(
-                            child: Text(
+                            child: ChangedValue(
                               '${time.format(event.startsAt)}–'
                               '${time.format(event.endsAt)}',
+                              usual: usualTimeOf(change, event.startsAt),
                               style: textTheme.labelLarge,
                             ),
                           ),
@@ -611,7 +696,25 @@ class ScheduleEventTile extends StatelessWidget {
                           color: cancelled ? scheme.error : null,
                         ),
                       ),
-                      Text(details.join(' · '), style: textTheme.bodySmall),
+                      ChangedValue(
+                        [
+                          eventKindLabel(l10n, event.kind),
+                          ...event.roomNames,
+                        ].join(' · '),
+                        usual: usualRooms?.join(', '),
+                        style: textTheme.bodySmall,
+                      ),
+                      if (change?.usualInstructors case final usual?)
+                        ChangedValue(
+                          [
+                            for (final person in event.staff)
+                              if (person.isLead && person.displayName != null)
+                                person.displayName!,
+                          ].join(', '),
+                          usual: usual.join(', '),
+                          prefix: '${l10n.classesInstructor}: ',
+                          style: textTheme.bodySmall,
+                        ),
                     ],
                   ),
                 ),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mobile/features/schedule/presentation/widgets/series_change_widgets.dart';
 import 'package:mobile/features/trainings/data/group_classes_api.dart';
 import 'package:mobile/features/trainings/presentation/widgets/group_class_widgets.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
@@ -26,6 +27,7 @@ class GroupClassSummary extends StatelessWidget {
         .where((person) => person.isLead && person.displayName != null)
         .map((person) => person.displayName!)
         .join(', ');
+    final change = cancelled ? null : event.seriesChange;
     return Card(
       clipBehavior: Clip.antiAlias,
       child: IntrinsicHeight(
@@ -44,8 +46,9 @@ class GroupClassSummary extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       spacing: 4,
                       children: [
-                        Text(
+                        ChangedValue(
                           classTime(event),
+                          usual: usualTimeOf(change, event.startsAt),
                           style: theme.textTheme.labelLarge,
                         ),
                         Text(
@@ -76,13 +79,19 @@ class GroupClassSummary extends StatelessWidget {
                       ),
                     ClassInfoLine(
                       Icons.person_outline,
-                      '${l10n.classesInstructor}: '
-                      '${teachers.isEmpty ? l10n.classesInstructorPending : teachers}',
+                      '${l10n.classesInstructor}: ',
+                      value: teachers.isEmpty
+                          ? l10n.classesInstructorPending
+                          : teachers,
+                      usual: change?.usualInstructors?.join(', '),
                     ),
                     ClassInfoLine(
                       Icons.meeting_room_outlined,
-                      '${l10n.classesRoom}: '
-                      '${event.roomNames.isEmpty ? l10n.classesRoomPending : event.roomNames.join(', ')}',
+                      '${l10n.classesRoom}: ',
+                      value: event.roomNames.isEmpty
+                          ? l10n.classesRoomPending
+                          : event.roomNames.join(', '),
+                      usual: change?.usualRooms?.join(', '),
                     ),
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,

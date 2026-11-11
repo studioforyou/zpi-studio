@@ -5,6 +5,7 @@ import 'package:mobile/core/auth/auth_controller.dart';
 import 'package:mobile/core/auth/auth_state.dart';
 import 'package:mobile/features/schedule/data/schedule_api.dart';
 import 'package:mobile/features/schedule/presentation/widgets/schedule_calendar.dart';
+import 'package:mobile/features/schedule/presentation/widgets/series_change_widgets.dart';
 import 'package:mobile/features/trainings/data/event_participants_api.dart';
 import 'package:mobile/features/trainings/presentation/widgets/group_class_widgets.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
@@ -25,6 +26,7 @@ class TrainerEventDetailsScreen extends ConsumerWidget {
         AuthRestoring() || Unauthenticated() => const SizedBox(),
         Authenticated(:final session) => _Details(
           query: (accountId: session.accountId, eventId: eventId),
+          staffId: session.staffProfileId,
         ),
       },
     );
@@ -32,9 +34,12 @@ class TrainerEventDetailsScreen extends ConsumerWidget {
 }
 
 class _Details extends ConsumerWidget {
-  const _Details({required this.query});
+  const _Details({required this.query, required this.staffId});
 
   final EventParticipantsQuery query;
+
+  /// The signed-in trainer, to tell whether they stand in for someone.
+  final String? staffId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -55,10 +60,37 @@ class _Details extends ConsumerWidget {
                 ),
               ],
               error: (_, _) => [ClassesLoadError(onRetry: () => _retry(ref))],
-              data: (event) => [
-                _EventSummary(event),
-                _AttendanceSection(event: event, query: query),
-              ],
+              data: (event) {
+                return [
+                  if (event.status != EventStatus.cancelled)
+                    if (event.seriesChange case final change?) ...[
+                      SeriesChangeCard(
+                        change: change,
+                        startsAt: event.startsAt,
+                        endsAt: event.endsAt,
+                        instructors: [_EventSummary._names(event, lead: true)],
+                        rooms: event.roomNames,
+                      ),
+                      if (change.usualInstructors case final usual?
+                          when event.staff.any(
+                            (person) =>
+                                person.isLead && person.staffId == staffId,
+                          ))
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(4, 10, 4, 0),
+                          child: ClassInfoLine(
+                            Icons.swap_horiz,
+                            AppLocalizations.of(
+                              context,
+                            ).changeStandIn(usual.join(', ')),
+                          ),
+                        ),
+                      const SizedBox(height: 12),
+                    ],
+                  _EventSummary(event),
+                  _AttendanceSection(event: event, query: query),
+                ];
+              },
             ),
       ),
     );
@@ -96,6 +128,7 @@ class _EventSummary extends StatelessWidget {
     final name = event.name ?? eventKindLabel(l10n, event.kind);
     final leads = _names(event, lead: true);
     final assistants = _names(event, lead: false);
+    final change = cancelled ? null : event.seriesChange;
     return Card(
       clipBehavior: Clip.antiAlias,
       child: IntrinsicHeight(
@@ -117,9 +150,10 @@ class _EventSummary extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       spacing: 4,
                       children: [
-                        Text(
+                        ChangedValue(
                           '${time.format(event.startsAt)}–'
                           '${time.format(event.endsAt)}',
+                          usual: usualTimeOf(change, event.startsAt),
                           style: theme.textTheme.labelLarge,
                         ),
                         Text(
@@ -148,8 +182,11 @@ class _EventSummary extends StatelessWidget {
                     ),
                     ClassInfoLine(
                       Icons.person_outline,
-                      '${l10n.classesInstructor}: '
-                      '${leads.isEmpty ? l10n.classesInstructorPending : leads}',
+                      '${l10n.classesInstructor}: ',
+                      value: leads.isEmpty
+                          ? l10n.classesInstructorPending
+                          : leads,
+                      usual: change?.usualInstructors?.join(', '),
                     ),
                     if (assistants.isNotEmpty)
                       ClassInfoLine(
@@ -158,8 +195,11 @@ class _EventSummary extends StatelessWidget {
                       ),
                     ClassInfoLine(
                       Icons.meeting_room_outlined,
-                      '${l10n.classesRoom}: '
-                      '${event.roomNames.isEmpty ? l10n.classesRoomPending : event.roomNames.join(', ')}',
+                      '${l10n.classesRoom}: ',
+                      value: event.roomNames.isEmpty
+                          ? l10n.classesRoomPending
+                          : event.roomNames.join(', '),
+                      usual: change?.usualRooms?.join(', '),
                     ),
                     if (cancelled)
                       ClassInfoLine(Icons.event_busy, l10n.eventStatusCancelled)

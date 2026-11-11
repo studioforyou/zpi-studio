@@ -61,6 +61,62 @@ class EventStaff {
   final bool isLead;
 }
 
+/// How a one-off change makes an occurrence of a series differ from the
+/// series' rule (`SeriesChange` in the backend). Each part is `null` when it is
+/// as usual.
+class SeriesChange {
+  const SeriesChange({
+    this.usualStartsAt,
+    this.usualEndsAt,
+    this.usualInstructors,
+    this.usualRooms,
+  });
+
+  static SeriesChange? fromJson(Object? json) {
+    if (json is! Map<String, dynamic>) return null;
+    DateTime? time(String key) => json[key] == null
+        ? null
+        : DateTime.parse(json[key] as String).toLocal();
+    List<String>? names(String key) =>
+        (json[key] as List?)?.map((name) => name as String).toList();
+    return SeriesChange(
+      usualStartsAt: time('usualStartsAt'),
+      usualEndsAt: time('usualEndsAt'),
+      usualInstructors: names('usualInstructors'),
+      usualRooms: names('usualRooms'),
+    );
+  }
+
+  /// The usual start in the device's local time, when the time changed.
+  final DateTime? usualStartsAt;
+
+  /// The usual end in the device's local time, when the time changed.
+  final DateTime? usualEndsAt;
+
+  /// Who usually leads the event, when someone else leads it this once.
+  final List<String>? usualInstructors;
+
+  /// The usual rooms, when the event is in another room this once.
+  final List<String>? usualRooms;
+
+  bool get moved => usualStartsAt != null;
+
+  /// The same change without its lead, e.g. to describe a stand-in's class.
+  SeriesChange get withoutInstructors => SeriesChange(
+    usualStartsAt: usualStartsAt,
+    usualEndsAt: usualEndsAt,
+    usualRooms: usualRooms,
+  );
+
+  /// A signature of the change, to tell whether a participant has seen it.
+  String get signature => [
+    usualStartsAt?.toIso8601String(),
+    usualEndsAt?.toIso8601String(),
+    usualInstructors?.join(','),
+    usualRooms?.join(','),
+  ].join('|');
+}
+
 /// An event in the studio's schedule.
 class ScheduleEvent {
   const ScheduleEvent({
@@ -75,6 +131,7 @@ class ScheduleEvent {
     required this.staff,
     required this.roomNames,
     this.serviceTypeId,
+    this.seriesChange,
   });
 
   factory ScheduleEvent.fromJson(Map<String, dynamic> json) {
@@ -96,6 +153,7 @@ class ScheduleEvent {
         for (final resource in json['resources'] as List)
           (resource as Map<String, dynamic>)['name'] as String,
       ],
+      seriesChange: SeriesChange.fromJson(json['seriesChange']),
     );
   }
 
@@ -118,6 +176,10 @@ class ScheduleEvent {
   final int? capacity;
   final List<EventStaff> staff;
   final List<String> roomNames;
+
+  /// How a one-off change makes this occurrence differ from its series, or
+  /// `null` when it is as usual.
+  final SeriesChange? seriesChange;
 
   /// The event's own title, else the name of its service type.
   String? get name => title ?? serviceTypeName;

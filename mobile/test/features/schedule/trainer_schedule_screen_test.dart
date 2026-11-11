@@ -7,6 +7,7 @@ import 'package:mobile/core/auth/auth_state.dart';
 import 'package:mobile/core/auth/session.dart';
 import 'package:mobile/core/network/api_exception.dart';
 import 'package:mobile/features/schedule/data/schedule_api.dart';
+import 'package:mobile/features/schedule/data/series_changes.dart';
 import 'package:mobile/features/schedule/data/schedule_service_types.dart';
 import 'package:mobile/features/schedule/presentation/trainer_schedule_filter.dart';
 import 'package:mobile/features/schedule/presentation/trainer_schedule_screen.dart';
@@ -152,6 +153,9 @@ void main() {
         overrides: [
           authControllerProvider.overrideWith(_SignedInAuthController.new),
           scheduleApiProvider.overrideWithValue(api),
+          scheduleChangesProvider.overrideWith(
+            (ref, owner) => Stream.value([]),
+          ),
           ownPersonalTrainingsProvider.overrideWith(
             (ref, query) async => PersonalTrainingsSnapshot(
               checkedOn: query.window.from,
@@ -298,6 +302,9 @@ void main() {
         overrides: [
           authControllerProvider.overrideWith(_SignedInAuthController.new),
           scheduleApiProvider.overrideWithValue(api),
+          scheduleChangesProvider.overrideWith(
+            (ref, owner) => Stream.value([]),
+          ),
           ownPersonalTrainingsProvider.overrideWith(
             (ref, query) async => PersonalTrainingsSnapshot(
               checkedOn: query.window.from,

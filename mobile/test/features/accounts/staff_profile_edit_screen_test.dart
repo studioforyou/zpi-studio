@@ -6,6 +6,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mobile/features/schedule/data/series_changes.dart';
 import 'package:mobile/app/app.dart';
 import 'package:mobile/core/auth/app_role.dart';
 import 'package:mobile/core/auth/auth_controller.dart';
@@ -153,6 +154,10 @@ void main() {
           ),
           authRepositoryProvider.overrideWithValue(_SignedInRepository()),
           dioProvider.overrideWithValue(dio),
+          // The schedule tab's number asks for changes; series_change_test covers it.
+          scheduleChangesProvider.overrideWith(
+            (ref, owner) => Stream.value([]),
+          ),
           unreadCountProvider.overrideWith((ref, scope) async => 0),
         ],
         child: const App(),
