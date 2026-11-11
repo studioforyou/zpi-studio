@@ -276,6 +276,7 @@ ConversationSummary _summary(
 
 void main() {
   late _FakeConversationsApi api;
+  var notificationCountLoads = 0;
 
   setUp(() => api = _FakeConversationsApi());
 
@@ -319,7 +320,10 @@ void main() {
         overrides: [
           authControllerProvider.overrideWith(() => _SignedIn(session)),
           conversationsApiProvider.overrideWithValue(api),
-          unreadCountProvider.overrideWith((ref, scope) async => 0),
+          unreadCountProvider.overrideWith((ref, scope) async {
+            notificationCountLoads++;
+            return UnreadNotifications.none;
+          }),
         ],
         child: MaterialApp.router(
           routerConfig: router,
@@ -695,6 +699,26 @@ void main() {
         expect(open.id, isNull);
       },
     );
+
+    testWidgets('reading a conversation refreshes the bell', (tester) async {
+      api.summaries = [
+        _summary('d', 'Ewa Lis', ConversationKind.direct, unread: 1),
+      ];
+      api.conversations['d'] = _direct('d', 'Ewa Lis');
+      api.messages['d'] = [
+        _message('1', 'Dzień dobry', sender: 'x', name: 'Ewa Lis'),
+      ];
+      await pump(tester, session: _client, initialLocation: '/client/messages');
+      final listed = notificationCountLoads;
+
+      // Opening it reads the conversation and the notifications about it: back
+      // on the list, the bell is up to date.
+      await tester.tap(find.text('Ewa Lis'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byType(BackButton));
+      await tester.pumpAndSettle();
+      expect(notificationCountLoads, greaterThan(listed));
+    });
 
     testWidgets('sends a message', (tester) async {
       api.conversations['d'] = _direct('d', 'Ewa Lis');

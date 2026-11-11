@@ -6,6 +6,7 @@ import com.google.auth.oauth2.GoogleCredentials;
 import com.google.firebase.FirebaseApp;
 import com.google.firebase.FirebaseOptions;
 import com.google.firebase.messaging.AndroidConfig;
+import com.google.firebase.messaging.AndroidNotification;
 import com.google.firebase.messaging.ApnsConfig;
 import com.google.firebase.messaging.Aps;
 import com.google.firebase.messaging.FirebaseMessaging;
@@ -43,8 +44,14 @@ class FcmPushSender implements PushSender {
 			.setToken(message.token())
 			.setNotification(Notification.builder().setTitle(message.title()).setBody(message.body()).build())
 			.putAllData(message.data())
-			.setAndroidConfig(AndroidConfig.builder().setPriority(AndroidConfig.Priority.HIGH).build())
-			.setApnsConfig(ApnsConfig.builder().setAps(Aps.builder().setSound("default").build()).build())
+			.setAndroidConfig(AndroidConfig.builder()
+				.setPriority(AndroidConfig.Priority.HIGH)
+				.setNotification(AndroidNotification.builder().setTag(message.tag()).build())
+				.build())
+			.setApnsConfig(ApnsConfig.builder()
+				.putHeader("apns-collapse-id", message.tag())
+				.setAps(Aps.builder().setSound("default").build())
+				.build())
 			.build();
 		try {
 			return PushResult.sent(messaging().send(fcmMessage));

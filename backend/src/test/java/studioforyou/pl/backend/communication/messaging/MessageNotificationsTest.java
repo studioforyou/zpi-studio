@@ -2,6 +2,7 @@ package studioforyou.pl.backend.communication.messaging;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.List;
 import java.util.Set;
 
 import org.junit.jupiter.api.Test;
@@ -29,6 +30,21 @@ class MessageNotificationsTest {
 			.endsWith("ręcznik, Weźcie…")
 			.startsWith("Weźcie wodę");
 		assertThat(MessageNotifications.preview("a".repeat(150))).isEqualTo("a".repeat(99) + "…");
+	}
+
+	@Test
+	void namesUpToTwoWritersAndCountsInPolish() {
+		assertThat(MessageNotifications.senders(List.of("Ewa Lis"))).isEqualTo("Ewa Lis");
+		assertThat(MessageNotifications.senders(List.of("Ewa Lis", "Jan Kos"))).isEqualTo("Ewa Lis, Jan Kos");
+		assertThat(MessageNotifications.senders(List.of("A", "B", "C"))).isEqualTo("A, B i 1 inna osoba");
+		assertThat(MessageNotifications.senders(List.of("A", "B", "C", "D"))).isEqualTo("A, B i 2 inne osoby");
+		assertThat(MessageNotifications.senders(List.of("A", "B", "C", "D", "E", "F", "G")))
+			.isEqualTo("A, B i 5 innych osób");
+		assertThat(MessageNotifications.count(1)).isEqualTo("1 nowa wiadomość");
+		assertThat(MessageNotifications.count(3)).isEqualTo("3 nowe wiadomości");
+		assertThat(MessageNotifications.count(5)).isEqualTo("5 nowych wiadomości");
+		assertThat(MessageNotifications.count(12)).isEqualTo("12 nowych wiadomości");
+		assertThat(MessageNotifications.count(22)).isEqualTo("22 nowe wiadomości");
 	}
 
 }

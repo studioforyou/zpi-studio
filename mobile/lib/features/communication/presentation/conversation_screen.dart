@@ -9,6 +9,7 @@ import 'package:mobile/core/auth/auth_controller.dart';
 import 'package:mobile/core/auth/auth_state.dart';
 import 'package:mobile/core/network/api_exception.dart';
 import 'package:mobile/features/communication/data/conversations_api.dart';
+import 'package:mobile/features/communication/data/notifications_api.dart';
 import 'package:mobile/features/communication/data/open_conversation.dart';
 import 'package:mobile/features/communication/presentation/chat_format.dart';
 import 'package:mobile/features/communication/presentation/widgets/chat_avatar.dart';
@@ -183,14 +184,22 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
 
   void _markRead() {
     _api.markRead(widget.conversationId).then((_) {
-      final session = switch (ref.read(authControllerProvider)) {
-        Authenticated(:final session) => session,
-        _ => null,
-      };
-      if (session != null && mounted) {
-        ref.invalidate(unreadMessagesProvider(session.accountId));
-      }
+      if (mounted) _refreshUnread();
     }, onError: (_) {});
+  }
+
+  /// The conversation is read, and with it the notifications about it: the
+  /// badges and the bell show it.
+  void _refreshUnread() {
+    final session = switch (ref.read(authControllerProvider)) {
+      Authenticated(:final session) => session,
+      _ => null,
+    };
+    if (session == null) return;
+    ref
+      ..invalidate(unreadMessagesProvider(session.accountId))
+      ..invalidate(unreadCountProvider)
+      ..invalidate(inboxProvider);
   }
 
   Future<void> _send() async {
@@ -210,6 +219,8 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
           _messages = [..._messages, message];
         }
       });
+      // Writing reads the conversation.
+      _refreshUnread();
     } catch (e) {
       _showError(e, sending: true);
       unawaited(_poll());

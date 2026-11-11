@@ -70,6 +70,7 @@ class _Notifications implements NotificationsApi {
 
   List<AppNotification> items;
   int unread;
+  int unreadAboutMessages = 0;
   final fetched = <String>[];
   final read = <String>[];
   final readAll = <String>[];
@@ -86,7 +87,8 @@ class _Notifications implements NotificationsApi {
   }
 
   @override
-  Future<int> unreadCount(String role) async => unread;
+  Future<UnreadNotifications> unreadCount(String role) async =>
+      UnreadNotifications(count: unread, newMessages: unreadAboutMessages);
 
   @override
   Future<void> markRead(String notificationId) async =>
@@ -194,6 +196,7 @@ void main() {
       required _Devices devices,
       required _Notifications notifications,
       AuthRepository? auth,
+      int unreadMessages = 0,
     }) async {
       final container = ProviderContainer(
         overrides: [
@@ -210,7 +213,7 @@ void main() {
           notificationsApiProvider.overrideWithValue(notifications),
           conversationsApiProvider.overrideWithValue(_Conversations()),
           unreadMessagesProvider.overrideWith(
-            (ref, accountId) => Stream.value(0),
+            (ref, accountId) => Stream.value(unreadMessages),
           ),
           conversationsProvider.overrideWith(
             (ref, accountId) async => const [],
@@ -502,6 +505,32 @@ void main() {
       await tester.pumpAndSettle();
       expect(location(container), '/client/messages/chat/c2');
       expect(notifications.read, ['n3', 'n4']);
+    });
+
+    testWidgets('the messages tab counts a message once, the bell its '
+        'notification', (tester) async {
+      // Three unread messages; two notifications: one about them, one other.
+      final notifications = _Notifications(unread: 2)..unreadAboutMessages = 1;
+      await pumpApp(
+        tester,
+        push: _Push(),
+        devices: _Devices(),
+        notifications: notifications,
+        unreadMessages: 3,
+      );
+      await tester.tap(find.text('Anna').first);
+      await tester.pumpAndSettle();
+      expect(
+        find.descendant(of: find.byType(Badge), matching: find.text('4')),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.text('Wiadomości'));
+      await tester.pumpAndSettle();
+      expect(
+        find.descendant(of: find.byType(Badge), matching: find.text('2')),
+        findsOneWidget,
+      );
     });
   });
 }

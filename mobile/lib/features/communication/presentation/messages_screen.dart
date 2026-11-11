@@ -28,12 +28,13 @@ const trainerPickerLocation = '/client/messages/to-trainer';
 const newGroupChatLocation = '/trainer/messages/new-chat';
 
 /// Unread messages and notifications together, for the messages tab badge.
+/// A notification about new messages is not counted again: its messages are.
 int watchUnreadInbox(WidgetRef ref) {
   final auth = ref.watch(authControllerProvider);
   if (auth is! Authenticated) return 0;
   final messages =
       ref.watch(unreadMessagesProvider(auth.session.accountId)).value ?? 0;
-  return watchUnreadNotifications(ref) + messages;
+  return watchUnreadOtherNotifications(ref) + messages;
 }
 
 /// How often the list is refreshed while it is shown.

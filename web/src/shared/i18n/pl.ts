@@ -1247,7 +1247,7 @@ export const pl = {
         NEW_MESSAGE: {
           name: 'Nowa wiadomość',
           description:
-            'Wysyłane od razu po każdej wiadomości w czacie wszystkim pozostałym uczestnikom rozmowy, klientom i trenerom. Wiadomości z czatu grupowego dziecka dostaje rodzic.',
+            'Wysyłane od razu po każdej wiadomości w czacie wszystkim pozostałym uczestnikom rozmowy, klientom i trenerom. Nieprzeczytane wiadomości jednego czatu mają jedno powiadomienie, aktualizowane przy kolejnej wiadomości i oznaczane jako przeczytane po wejściu w rozmowę. Wiadomości z czatu grupowego dziecka dostaje rodzic.',
         },
       },
       placeholders: {
@@ -1312,8 +1312,13 @@ export const pl = {
           od: {
             label: 'Od kogo',
             description:
-              'Autor wiadomości; w czacie grupowym poprzedzony nazwą czatu, np. „Pole dance · Anna Wiśniewska”',
-            example: 'Pole dance · Anna Wiśniewska',
+              'Autorzy nieprzeczytanych wiadomości, od ostatniego; w czacie grupowym poprzedzeni nazwą czatu, np. „Pole dance · Anna Wiśniewska, Ewa Lis”',
+            example: 'Pole dance · Anna Wiśniewska, Ewa Lis',
+          },
+          ile: {
+            label: 'Ile wiadomości',
+            description: 'Liczba nieprzeczytanych wiadomości, np. „3 nowe wiadomości”',
+            example: '3 nowe wiadomości',
           },
           rozmowa: {
             label: 'Rozmowa',
@@ -1322,7 +1327,7 @@ export const pl = {
           },
           treść: {
             label: 'Treść',
-            description: 'Początek wiadomości, do 100 znaków',
+            description: 'Początek ostatniej wiadomości, do 100 znaków',
             example: 'Weźcie wodę i ręcznik.',
           },
         },

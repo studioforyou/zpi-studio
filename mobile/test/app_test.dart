@@ -62,7 +62,9 @@ void main() {
           groupClassesProvider.overrideWith((ref, query) async => const []),
           scheduleServiceTypesProvider.overrideWith((ref) async => const {}),
           studioTrainersProvider.overrideWith((ref) async => const []),
-          unreadCountProvider.overrideWith((ref, scope) async => 0),
+          unreadCountProvider.overrideWith(
+            (ref, scope) async => UnreadNotifications.none,
+          ),
           appConfigProvider.overrideWithValue(
             const AppConfig(
               flavor: AppFlavor.dev,

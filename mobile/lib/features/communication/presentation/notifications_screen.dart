@@ -18,7 +18,20 @@ int watchUnreadNotifications(WidgetRef ref) {
     accountId: session.accountId,
     role: session.activeRole.apiValue,
   );
-  return ref.watch(unreadCountProvider(scope)).value ?? 0;
+  return ref.watch(unreadCountProvider(scope)).value?.count ?? 0;
+}
+
+/// Unread notifications that are not about messages, which the messages tab
+/// badge adds to the unread messages.
+int watchUnreadOtherNotifications(WidgetRef ref) {
+  final auth = ref.watch(authControllerProvider);
+  if (auth is! Authenticated) return 0;
+  final session = auth.session;
+  final scope = (
+    accountId: session.accountId,
+    role: session.activeRole.apiValue,
+  );
+  return ref.watch(unreadCountProvider(scope)).value?.others ?? 0;
 }
 
 /// The notification inbox for the active role, opened with the bell on the
@@ -38,7 +51,7 @@ class NotificationsScreen extends ConsumerWidget {
         : (accountId: session.accountId, role: session.activeRole.apiValue);
     final unread = scope == null
         ? 0
-        : ref.watch(unreadCountProvider(scope)).value ?? 0;
+        : ref.watch(unreadCountProvider(scope)).value?.count ?? 0;
     return Scaffold(
       appBar: AppBar(
         title: Text(l10n.notificationsTitle),
@@ -207,7 +220,6 @@ class _NotificationTile extends ConsumerWidget {
         'CLASS_REMINDER' => Icons.event_outlined,
         'PASS_EXPIRING' ||
         'PASS_LAST_ENTRY_USED' => Icons.confirmation_number_outlined,
-        _ => Icons.notifications_outlined,
         'NEW_MESSAGE' => Icons.chat_bubble_outline,
         _ => Icons.notifications_outlined,
       }, color: theme.colorScheme.primary),

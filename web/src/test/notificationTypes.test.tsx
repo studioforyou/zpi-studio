@@ -206,9 +206,10 @@ test('shows the new message notification without reminder times and previews mes
     timed: false,
     leadTimesMinutes: [],
     title: '{{od}}',
-    body: '{{treść}}',
+    body: '{{ile}} · {{treść}}',
     placeholders: [
-      { name: 'od', description: 'Sender' },
+      { name: 'od', description: 'Senders' },
+      { name: 'ile', description: 'How many' },
       { name: 'rozmowa', description: 'Conversation' },
       { name: 'treść', description: 'Message' },
     ],
@@ -235,6 +236,8 @@ test('shows the new message notification without reminder times and previews mes
     within(dialog).queryByRole('button', { name: 'Dodaj przypomnienie' }),
   ).not.toBeInTheDocument();
   const preview = within(dialog).getByLabelText('Podgląd');
-  expect(within(preview).getByText('Pole dance · Anna Wiśniewska')).toBeInTheDocument();
-  expect(within(preview).getByText('Weźcie wodę i ręcznik.')).toBeInTheDocument();
+  expect(within(preview).getByText('Pole dance · Anna Wiśniewska, Ewa Lis')).toBeInTheDocument();
+  expect(
+    within(preview).getByText('3 nowe wiadomości · Weźcie wodę i ręcznik.'),
+  ).toBeInTheDocument();
 });

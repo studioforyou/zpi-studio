@@ -188,6 +188,8 @@ class NotificationTests {
 		assertThat(phone.data()).containsEntry("type", "CLASS_REMINDER").containsEntry("eventId", event.toString())
 			.containsEntry("reservationId", reservation.toString()).containsEntry("profileId", adult.toString())
 			.containsKey("notificationId");
+		// A push replaces the one shown before for the same notification.
+		assertThat(phone.tag()).isEqualTo(phone.data().get("notificationId"));
 		assertThat(jdbc.sql("SELECT status FROM notification_delivery ORDER BY status").query(String.class).list())
 			.containsExactly("SENT", "TOKEN_INVALID");
 		assertThat(jdbc.sql("SELECT revoked_at IS NOT NULL FROM device_token WHERE token = 'token-old'")
