@@ -75,10 +75,7 @@ export function EventDetailsDrawer({
       await queryClient.invalidateQueries({ queryKey: scheduleKeys.all });
     },
   });
-  const moved =
-    event?.originalStartsAt && event.originalStartsAt !== event.startsAt
-      ? event.originalStartsAt
-      : null;
+  const moved = event?.seriesChange?.usualStartsAt ?? null;
   const seriesId = event?.seriesId ?? null;
   const series = useQuery({
     queryKey: scheduleKeys.series(seriesId ?? ''),
@@ -261,7 +258,7 @@ export function EventDetailsDrawer({
           <Stack>
             <Text size="sm">
               {texts.restore.body(
-                formatDateTime(event.originalStartsAt ?? event.startsAt, lookups.timeZone),
+                formatDateTime(moved ?? event.startsAt, lookups.timeZone),
               )}
             </Text>
             {restore.isError && <Alert color="red">{scheduleErrorMessage(restore.error)}</Alert>}

@@ -89,7 +89,7 @@ const baseEvent: ScheduleEvent = {
   serviceTypeName: 'Pole dance - początkujący',
   seriesId: 'series-1',
   isSeriesException: false,
-  originalStartsAt: null,
+  seriesChange: null,
   trainingGroupId: null,
   // Tuesday 3 November 2026, 18:00–19:00 in Warsaw (CET).
   startsAt: '2026-11-03T17:00:00Z',
@@ -863,7 +863,12 @@ test('brings a moved occurrence back to its series', async () => {
   const moved: ScheduleEvent = {
     ...baseEvent,
     isSeriesException: true,
-    originalStartsAt: '2026-11-03T17:00:00Z',
+    seriesChange: {
+      usualStartsAt: '2026-11-03T17:00:00Z',
+      usualEndsAt: '2026-11-03T18:00:00Z',
+      usualInstructors: null,
+      usualRooms: null,
+    },
     startsAt: '2026-11-03T19:00:00Z',
     endsAt: '2026-11-03T20:00:00Z',
     version: 3,

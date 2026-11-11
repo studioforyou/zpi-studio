@@ -59,13 +59,8 @@ export type ScheduleEvent = {
   seriesId: string | null;
   /** The occurrence differs from its series' rule. */
   isSeriesException: boolean;
-  /**
-   * The start the series' rule gives the occurrence; differs from `startsAt` when this one
-   * occurrence was moved. `null` for a one-off event.
-   */
-  originalStartsAt: string | null;
   /** What differs from the series' rule this once; `null` when nothing visible differs. */
-  seriesChange?: SeriesChange | null;
+  seriesChange: SeriesChange | null;
   trainingGroupId: string | null;
   startsAt: string;
   endsAt: string;

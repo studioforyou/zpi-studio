@@ -137,10 +137,7 @@ export function OccurrenceChangeModal({ event, lookups, onClose }: OccurrenceCha
   ];
   const conflicts = conflictsOf(save.error);
   const isOccurrence = event.seriesId !== null;
-  const moved =
-    event.originalStartsAt !== null && event.originalStartsAt !== event.startsAt
-      ? event.originalStartsAt
-      : null;
+  const moved = event.seriesChange?.usualStartsAt ?? null;
 
   return (
     <Modal
