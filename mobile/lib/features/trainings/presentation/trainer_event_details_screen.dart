@@ -6,12 +6,13 @@ import 'package:mobile/core/auth/auth_state.dart';
 import 'package:mobile/features/schedule/data/schedule_api.dart';
 import 'package:mobile/features/schedule/presentation/widgets/schedule_calendar.dart';
 import 'package:mobile/features/trainings/data/event_participants_api.dart';
+import 'package:mobile/features/trainings/presentation/add_class_participants_screen.dart';
 import 'package:mobile/features/trainings/presentation/widgets/group_class_widgets.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
 
 /// One of the trainer's events with its participants, to prepare for working
-/// with the group, then to record their attendance and that the event was
-/// held.
+/// with the group, add clients to a group class before it starts, then to
+/// record their attendance and that the event was held.
 class TrainerEventDetailsScreen extends ConsumerWidget {
   const TrainerEventDetailsScreen({required this.eventId, super.key});
 
@@ -215,12 +216,24 @@ class _AttendanceSectionState extends ConsumerState<_AttendanceSection> {
         const SizedBox(height: 20),
         const Divider(),
         const SizedBox(height: 16),
-        Text(switch (attendance) {
-          AsyncData(:final value) => l10n.trainerEventParticipants(
-            value.participants.length,
-          ),
-          _ => l10n.classesParticipants,
-        }, style: theme.textTheme.titleMedium),
+        Row(
+          children: [
+            Expanded(
+              child: Text(switch (attendance) {
+                AsyncData(:final value) => l10n.trainerEventParticipants(
+                  value.participants.length,
+                ),
+                _ => l10n.classesParticipants,
+              }, style: theme.textTheme.titleMedium),
+            ),
+            if (_canAddParticipants)
+              IconButton.filledTonal(
+                onPressed: _saving == null ? _addParticipants : null,
+                icon: const Icon(Icons.add),
+                tooltip: l10n.classBookingAdd,
+              ),
+          ],
+        ),
         const SizedBox(height: 8),
         attendance.when(
           skipLoadingOnRefresh: false,
@@ -248,6 +261,21 @@ class _AttendanceSectionState extends ConsumerState<_AttendanceSection> {
           data: (sheet) => _sheet(context, sheet),
         ),
       ],
+    );
+  }
+
+  /// Clients can be added to a scheduled group class until it starts; the
+  /// backend has the final say.
+  bool get _canAddParticipants =>
+      widget.event.kind == EventKind.groupClass &&
+      widget.event.status == EventStatus.scheduled &&
+      DateTime.now().isBefore(widget.event.startsAt);
+
+  void _addParticipants() {
+    Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => AddClassParticipantsScreen(query: widget.query),
+      ),
     );
   }
 
