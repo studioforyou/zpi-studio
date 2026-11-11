@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:mobile/core/auth/auth_controller.dart';
 import 'package:mobile/features/passes/data/makeup_credits_api.dart';
 import 'package:mobile/features/schedule/data/schedule_api.dart';
+import 'package:mobile/features/schedule/presentation/widgets/client_schedule_event_tile.dart';
 import 'package:mobile/features/trainings/data/group_classes_api.dart';
 import 'package:mobile/features/trainings/data/personal_trainings_api.dart';
 import 'package:mobile/features/trainings/data/training_history_api.dart';
@@ -44,28 +45,31 @@ class PersonalTrainingTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return Card.outlined(
-      child: ListTile(
-        isThreeLine: true,
-        leading: const Icon(Icons.person_outline),
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (participant != null) ...[
-              participant!,
-              const SizedBox(height: 4),
-            ],
-            Text(
-              '${DateFormat('HH:mm').format(session.startsAt)}–${DateFormat('HH:mm').format(session.endsAt)} · ${session.name ?? l10n.personalTitle}',
-            ),
-          ],
+    final theme = Theme.of(context);
+    final cancelled = session.status == EventStatus.cancelled;
+    final trainers = session.staff
+        .map((p) => p.displayName)
+        .nonNulls
+        .join(', ');
+    return ClientScheduleCard(
+      color: cancelled ? theme.colorScheme.error : theme.colorScheme.primary,
+      time:
+          '${DateFormat('HH:mm').format(session.startsAt)}–${DateFormat('HH:mm').format(session.endsAt)}',
+      title: session.name ?? l10n.personalTitle,
+      trainer: trainers.isEmpty ? l10n.classesInstructorPending : trainers,
+      room: session.roomNames.isEmpty
+          ? l10n.classesRoomPending
+          : session.roomNames.join(', '),
+      cancelled: cancelled,
+      participant: participant,
+      onTap: onTap,
+      footer: [
+        ScheduleEventMarker(
+          cancelled ? Icons.cancel_outlined : Icons.person_outline,
+          personalStatus(l10n, session),
+          color: cancelled ? theme.colorScheme.error : null,
         ),
-        subtitle: Text(
-          '${session.staff.map((p) => p.displayName).nonNulls.join(', ')}\n${personalStatus(l10n, session)}',
-        ),
-        trailing: const Icon(Icons.chevron_right),
-        onTap: onTap,
-      ),
+      ],
     );
   }
 }

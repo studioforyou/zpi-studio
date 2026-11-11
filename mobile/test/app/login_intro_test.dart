@@ -12,6 +12,7 @@ import 'package:mobile/features/accounts/presentation/login_screen.dart';
 import 'package:mobile/features/accounts/presentation/role_picker_screen.dart';
 import 'package:mobile/features/schedule/data/schedule_service_types.dart';
 import 'package:mobile/features/schedule/data/studio_trainers.dart';
+import 'package:mobile/features/communication/data/conversations_api.dart';
 import 'package:mobile/features/trainings/data/group_classes_api.dart';
 
 /// Starts with the demo user still signed in from an earlier run.
@@ -30,6 +31,9 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          unreadMessagesProvider.overrideWith(
+            (ref, accountId) => Stream.value(0),
+          ),
           authRepositoryProvider.overrideWithValue(repository),
           groupClassesProvider.overrideWith((ref, query) async => const []),
           scheduleServiceTypesProvider.overrideWith((ref) async => const {}),
@@ -108,6 +112,9 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          unreadMessagesProvider.overrideWith(
+            (ref, accountId) => Stream.value(0),
+          ),
           authRepositoryProvider.overrideWithValue(_SignedInAuthRepository()),
           groupClassesProvider.overrideWith((ref, query) async => const []),
           scheduleServiceTypesProvider.overrideWith((ref) async => const {}),

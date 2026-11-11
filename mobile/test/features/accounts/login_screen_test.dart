@@ -6,6 +6,7 @@ import 'package:mobile/app/config/app_config.dart';
 import 'package:mobile/core/auth/auth_failure.dart';
 import 'package:mobile/core/auth/auth_repository.dart';
 import 'package:mobile/core/auth/session.dart';
+import 'package:mobile/features/communication/data/conversations_api.dart';
 
 class _FailingAuthRepository implements AuthRepository {
   const _FailingAuthRepository(this.reason);
@@ -33,6 +34,9 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          unreadMessagesProvider.overrideWith(
+            (ref, accountId) => Stream.value(0),
+          ),
           authRepositoryProvider.overrideWithValue(repository),
           appConfigProvider.overrideWithValue(
             const AppConfig(

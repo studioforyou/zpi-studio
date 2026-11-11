@@ -315,6 +315,10 @@ void main() {
       await pump(tester, _Api(), calendar: true);
       expect(find.textContaining('Zajęcia grupowe'), findsOneWidget);
       expect(find.textContaining('Trening indywidualny'), findsOneWidget);
+      expect(find.text('18:00–19:00'), findsOneWidget);
+      expect(find.text('Marek'), findsOneWidget);
+      expect(find.text('Sala'), findsOneWidget);
+      expect(find.text('Zaplanowany'), findsOneWidget);
       await tester.tap(find.textContaining('Trening indywidualny'));
       await tester.pumpAndSettle();
       expect(find.text('Pakiet PT'), findsOneWidget);

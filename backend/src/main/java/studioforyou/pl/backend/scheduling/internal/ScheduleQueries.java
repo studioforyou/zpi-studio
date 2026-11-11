@@ -112,6 +112,14 @@ class ScheduleQueries {
 		return assemble(rows).stream().findFirst();
 	}
 
+	List<ScheduleEventResponse> findEventsById(Collection<UUID> ids) {
+		if (ids.isEmpty()) {
+			return List.of();
+		}
+		return assemble(this.jdbc.sql(EVENT_COLUMNS + "WHERE e.id IN (:ids)")
+			.param("ids", ids).query(EVENT_ROW).list());
+	}
+
 	/** Personal sessions with participation supplied by booking, filtered before metadata is assembled. */
 	List<ScheduleEventResponse> findOwnPersonalEvents(Collection<UUID> ids, UUID staffId,
 			@Nullable Instant from, @Nullable Instant to) {

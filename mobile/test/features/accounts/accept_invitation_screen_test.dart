@@ -14,6 +14,7 @@ import 'package:mobile/features/accounts/data/invitation_api.dart';
 import 'package:mobile/features/schedule/data/schedule_service_types.dart';
 import 'package:mobile/features/schedule/data/studio_trainers.dart';
 import 'package:mobile/features/communication/data/notifications_api.dart';
+import 'package:mobile/features/communication/data/conversations_api.dart';
 import 'package:mobile/features/trainings/data/group_classes_api.dart';
 
 const _session = Session(
@@ -100,6 +101,9 @@ void main() {
   }) async {
     final container = ProviderContainer(
       overrides: [
+        unreadMessagesProvider.overrideWith(
+          (ref, accountId) => Stream.value(0),
+        ),
         authRepositoryProvider.overrideWithValue(auth ?? _AuthRepository()),
         invitationApiProvider.overrideWithValue(api),
         groupClassesProvider.overrideWith((ref, query) async => const []),
@@ -288,6 +292,9 @@ void main() {
     final api = _FakeInvitationApi();
     final container = ProviderContainer(
       overrides: [
+        unreadMessagesProvider.overrideWith(
+          (ref, accountId) => Stream.value(0),
+        ),
         authRepositoryProvider.overrideWithValue(
           _AuthRepository(restored: restored.future),
         ),

@@ -11,6 +11,7 @@ import 'package:mobile/core/auth/auth_repository.dart';
 import 'package:mobile/core/auth/session.dart';
 import 'package:mobile/core/network/dio_provider.dart';
 import 'package:mobile/features/accounts/data/staff_profile_api.dart';
+import 'package:mobile/features/communication/data/conversations_api.dart';
 import 'package:mobile/features/schedule/data/availability_api.dart';
 import 'package:mobile/features/schedule/data/schedule_api.dart';
 import 'package:mobile/features/schedule/data/schedule_service_types.dart';
@@ -195,6 +196,9 @@ void main() {
           authRepositoryProvider.overrideWithValue(_SignedInRepository()),
           dioProvider.overrideWithValue(dio),
           availabilityTodayProvider.overrideWithValue(_today),
+          unreadMessagesProvider.overrideWith(
+            (ref, accountId) => Stream.value(0),
+          ),
         ],
         child: const App(),
       ),

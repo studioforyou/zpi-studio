@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -9,6 +10,7 @@ import 'package:mobile/core/auth/app_role.dart';
 import 'package:mobile/core/auth/auth_controller.dart';
 import 'package:mobile/core/auth/auth_state.dart';
 import 'package:mobile/core/auth/session.dart';
+import 'package:mobile/features/passes/data/pass_usage_api.dart';
 import 'package:mobile/features/trainings/data/group_classes_api.dart';
 import 'package:mobile/features/trainings/data/training_history_api.dart';
 import 'package:mobile/features/trainings/presentation/training_history_screen.dart';
@@ -79,10 +81,13 @@ const _session = Session(
 class _Auth extends AuthController {
   @override
   AuthState build() => const Authenticated(_session);
+  void replace(Session session) => state = Authenticated(session);
 }
 
 class _Api implements TrainingHistoryApi {
   List<Map<String, dynamic>> items = [];
+  List<Map<String, dynamic>> childItems = [];
+  Future<List<TrainingHistoryEntry>> Function(ClassesQuery)? load;
   bool fails = false;
   final List<ClassesQuery> queries = [];
 
@@ -90,7 +95,11 @@ class _Api implements TrainingHistoryApi {
   Future<List<TrainingHistoryEntry>> fetchHistory(ClassesQuery query) async {
     queries.add(query);
     if (fails) throw const ClassBookingException(statusCode: 503);
-    return [for (final item in items) TrainingHistoryEntry.fromJson(item)];
+    if (load != null) return load!(query);
+    return [
+      for (final item in query.scope.profileId == 'child' ? childItems : items)
+        TrainingHistoryEntry.fromJson(item),
+    ];
   }
 }
 
@@ -162,8 +171,16 @@ void main() {
   });
 
   group('TrainingHistoryScreen', () {
-    Future<void> pump(WidgetTester tester, _Api api) async {
-      tester.view.physicalSize = const Size(800, 2400);
+    final usageQueries = <PassUsageQuery>[];
+    Future<ProviderContainer> pump(
+      WidgetTester tester,
+      _Api api, {
+      bool settle = true,
+      double width = 800,
+      double scale = 1,
+    }) async {
+      usageQueries.clear();
+      tester.view.physicalSize = Size(width, 2400);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
@@ -172,6 +189,17 @@ void main() {
         overrides: [
           authControllerProvider.overrideWith(_Auth.new),
           trainingHistoryApiProvider.overrideWithValue(api),
+          passUsageProvider.overrideWith((ref, query) async {
+            usageQueries.add(query);
+            return const PassUsagePage(
+              items: [],
+              page: 0,
+              totalItems: 0,
+              totalPages: 0,
+              participants: [],
+              products: [],
+            );
+          }),
         ],
       );
       addTearDown(container.dispose);
@@ -179,6 +207,12 @@ void main() {
         UncontrolledProviderScope(
           container: container,
           child: MaterialApp(
+            builder: (context, child) => MediaQuery(
+              data: MediaQuery.of(
+                context,
+              ).copyWith(textScaler: TextScaler.linear(scale)),
+              child: child!,
+            ),
             locale: const Locale('pl'),
             localizationsDelegates: AppLocalizations.localizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
@@ -186,7 +220,8 @@ void main() {
           ),
         ),
       );
-      await tester.pumpAndSettle();
+      if (settle) await tester.pumpAndSettle();
+      return container;
     }
 
     testWidgets('summarizes the month and shows each outcome', (tester) async {
@@ -206,17 +241,19 @@ void main() {
         ];
       await pump(tester, api);
 
-      expect(api.queries.single.scope, (
-        accountId: 'parent',
-        profileId: 'self',
-      ));
-      expect(api.queries.single.window, (
+      expect(api.queries, hasLength(2));
+      expect(api.queries.first.scope, (accountId: 'parent', profileId: 'self'));
+      expect(api.queries.first.window, (
         from: DateTime(2030, 11),
         to: DateTime(2030, 12),
       ));
       expect(find.text('Listopad 2030'), findsOneWidget);
-      expect(find.text('Profil: Anna Klient'), findsOneWidget);
+      expect(find.text('Wszyscy uczestnicy'), findsOneWidget);
       expect(find.text('Frekwencja: 75%'), findsOneWidget);
+      expect(
+        find.text('2'),
+        findsOneWidget,
+      ); // Late cancellation and studio cancellation.
       expect(find.text('Obecność'), findsNWidgets(3));
       expect(find.text('Nieobecność'), findsOneWidget);
       expect(find.text('Odwołano po terminie'), findsOneWidget);
@@ -267,6 +304,104 @@ void main() {
       await tester.tap(find.text('Spróbuj ponownie'));
       await tester.pumpAndSettle();
       expect(find.text('Obecność'), findsOneWidget);
+    });
+
+    testWidgets(
+      'one history includes the child and filters attendance by participant',
+      (tester) async {
+        final api = _Api()
+          ..items = [_entryJson(title: 'Zajęcia rodzica')]
+          ..childItems = [
+            _entryJson(
+              id: 'child-reservation',
+              title: 'Zajęcia dziecka',
+              startsAt: '2030-11-03T17:00:00Z',
+              outcome: 'ABSENT',
+            ),
+          ];
+        await pump(tester, api);
+        expect(find.text('Frekwencja: 50%'), findsOneWidget);
+        expect(find.text('Anna Klient'), findsOneWidget);
+        expect(find.text('Jan Klient'), findsOneWidget);
+        expect(
+          tester.getTopLeft(find.text('Zajęcia dziecka')).dy,
+          lessThan(tester.getTopLeft(find.text('Zajęcia rodzica')).dy),
+        );
+        await tester.tap(find.byType(PopupMenuButton<String>));
+        await tester.pumpAndSettle();
+        await tester.tap(
+          find.descendant(
+            of: find.byType(PopupMenuItem<String>),
+            matching: find.text('Jan Klient'),
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(find.text('Zajęcia rodzica'), findsNothing);
+        expect(find.text('Zajęcia dziecka'), findsOneWidget);
+        expect(find.text('Frekwencja: 0%'), findsOneWidget);
+        expect(api.queries.last.scope.profileId, 'child');
+        await tester.tap(find.text('Wejścia'));
+        await tester.pumpAndSettle();
+        expect(find.text('Wszystkie karnety'), findsOneWidget);
+        expect(find.text('Historia'), findsOneWidget);
+        expect(usageQueries.last.profileId, 'child');
+        expect(find.text('Jan Klient'), findsOneWidget);
+        await tester.tap(find.text('Wyczyść filtry'));
+        await tester.pumpAndSettle();
+        expect(usageQueries.last.profileId, isNull);
+        expect(find.text('Wszyscy uczestnicy'), findsOneWidget);
+        await tester.tap(find.text('Zajęcia'));
+        await tester.pumpAndSettle();
+        expect(find.text('Frekwencja: 50%'), findsOneWidget);
+      },
+    );
+
+    testWidgets('a late attendance response cannot cross accounts', (
+      tester,
+    ) async {
+      final late = Completer<List<TrainingHistoryEntry>>();
+      final api = _Api()
+        ..load = (query) async =>
+            query.scope.accountId == 'parent' ? await late.future : [];
+      final container = await pump(tester, api, settle: false);
+      await tester.pump();
+      await tester.tap(find.byType(PopupMenuButton<String>));
+      await tester.pump(const Duration(milliseconds: 300));
+      (container.read(authControllerProvider.notifier) as _Auth).replace(
+        const Session(
+          accountId: 'other-account',
+          displayName: 'Nowe konto',
+          roles: [AppRole.client],
+          activeRole: AppRole.client,
+          staffProfileId: null,
+          profiles: [
+            Profile(id: 'other', displayName: 'Nowa osoba', isChild: false),
+          ],
+          activeProfileId: 'other',
+        ),
+      );
+      await tester.pumpAndSettle();
+      late.complete([
+        TrainingHistoryEntry.fromJson(_entryJson(title: 'Stare dane')),
+      ]);
+      await tester.pumpAndSettle();
+      expect(find.text('Stare dane'), findsNothing);
+      expect(find.text('Anna Klient'), findsNothing);
+      expect(find.text('Jan Klient'), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('tabs and participant filters fit a narrow enlarged view', (
+      tester,
+    ) async {
+      final api = _Api()..items = [_entryJson()];
+      await pump(tester, api, width: 320, scale: 1.6);
+      expect(find.text('Wszyscy uczestnicy'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await tester.tap(find.text('Wejścia'));
+      await tester.pumpAndSettle();
+      expect(find.text('Wszystkie karnety'), findsOneWidget);
+      expect(tester.takeException(), isNull);
     });
   });
 }

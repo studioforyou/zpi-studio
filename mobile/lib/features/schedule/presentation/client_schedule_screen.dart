@@ -261,15 +261,16 @@ class _ClientCalendarState extends ConsumerState<_ClientCalendar> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final showRelated =
-        ref
-            .watch(
-              profileViewPreferencesProvider((
-                accountId: widget.scope.accountId,
-                profileId: widget.scope.profileId,
-              )),
-            )
-            .value ??
-        false;
+        widget.reservationsOnly &&
+        (ref
+                .watch(
+                  profileViewPreferencesProvider((
+                    accountId: widget.scope.accountId,
+                    profileId: widget.scope.profileId,
+                  )),
+                )
+                .value ??
+            false);
     // Reservations use the participant picker; offer filters stay independent.
     final filtered = !widget.reservationsOnly;
     final serviceTypes = _serviceTypes = filtered
@@ -284,9 +285,7 @@ class _ClientCalendarState extends ConsumerState<_ClientCalendar> {
           ScheduleProfilePicker(
             session: widget.session,
             allSelected: _allProfiles,
-            onAll: widget.reservationsOnly
-                ? () => setState(() => _allProfiles = true)
-                : null,
+            onAll: () => setState(() => _allProfiles = true),
             onProfile: (profile) {
               setState(() => _allProfiles = false);
               _chooseProfile(profile);
