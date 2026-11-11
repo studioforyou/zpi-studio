@@ -63,11 +63,14 @@ class OccurrenceChanges {
 
 	private final ApplicationEventPublisher publisher;
 
+	private final ScheduleChangeNotices notices;
+
 	private final Clock clock = Clock.systemUTC();
 
 	OccurrenceChanges(ScheduleEventRepository events, RecurrenceSeriesRepository seriesRepository,
 			SchedulePlanner planner, ScheduleConflicts conflicts, ScheduleQueries queries, ServiceTypes serviceTypes,
-			EventParticipantCounts participants, StudioSettings studio, ApplicationEventPublisher publisher) {
+			EventParticipantCounts participants, StudioSettings studio, ApplicationEventPublisher publisher,
+			ScheduleChangeNotices notices) {
 		this.events = events;
 		this.seriesRepository = seriesRepository;
 		this.planner = planner;
@@ -77,6 +80,7 @@ class OccurrenceChanges {
 		this.participants = participants;
 		this.studio = studio;
 		this.publisher = publisher;
+		this.notices = notices;
 	}
 
 	/**
@@ -113,6 +117,7 @@ class OccurrenceChanges {
 		this.planner.lockAndRejectConflicts(List.of(occurrence), assignments, zone, List.of(eventId));
 
 		Snapshot before = Snapshot.of(event);
+		ScheduleChangeNotices.Snapshot seen = this.notices.snapshot(eventId);
 		boolean moved = event.reschedule(occurrence.startsAt(), occurrence.endsAt());
 		boolean detailsChanged = event.changeDetails(title(request.title(), event), capacity);
 		boolean assignmentsChanged = event.replaceAssignments(assignments.staff(), assignments.resources());
@@ -121,6 +126,7 @@ class OccurrenceChanges {
 		}
 		this.events.flush();
 		publishChange(before, event);
+		this.notices.record(seen, this.notices.snapshot(eventId));
 		return this.queries.findEvent(eventId).orElseThrow();
 	}
 
@@ -167,12 +173,14 @@ class OccurrenceChanges {
 		this.planner.lockAndRejectConflicts(List.of(occurrence), assignments, zone, List.of(eventId));
 
 		Snapshot before = Snapshot.of(event);
+		ScheduleChangeNotices.Snapshot seen = this.notices.snapshot(eventId);
 		event.reschedule(occurrence.startsAt(), occurrence.endsAt());
 		event.changeDetails(title(series.getTitle(), event), capacity);
 		event.replaceAssignments(assignments.staff(), assignments.resources());
 		event.clearSeriesException();
 		this.events.flush();
 		publishChange(before, event);
+		this.notices.record(seen, this.notices.snapshot(eventId));
 		return this.queries.findEvent(eventId).orElseThrow();
 	}
 

@@ -66,6 +66,17 @@ class WaitlistStore {
 	}
 
 	/** Places held for participants who can still confirm an offer. */
+	/** Customers still waiting for a place in the event, or holding an offer of one. */
+	List<UUID> waitingCustomerIds(UUID eventId) {
+		return this.jdbc.sql("""
+				SELECT customer_id FROM waitlist_entry
+				WHERE event_id = :event AND status IN ('WAITING', 'OFFERED') ORDER BY customer_id
+				""")
+			.param("event", eventId)
+			.query(UUID.class)
+			.list();
+	}
+
 	int heldOffers(UUID eventId, Instant now) {
 		return heldOffers(List.of(eventId), now).getOrDefault(eventId, 0);
 	}

@@ -150,3 +150,18 @@ INSERT INTO staff_rate (id, staff_id, service_type_id, rate_kind, amount, curren
     ('23000000-0000-0000-0000-000000000003', NULL,                                   '10000000-0000-0000-0000-000000000003', 'PER_HOUR',    70.00,  'PLN', CURRENT_DATE - 180, NULL),
     ('23000000-0000-0000-0000-000000000004', '08000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000004', 'PER_SESSION', 100.00, 'PLN', CURRENT_DATE - 365, CURRENT_DATE - 181)
 ON CONFLICT DO NOTHING;
+
+-- Notices of a past stand-in on last Tuesday's pole dance: Ewa was assigned, Anna taken off. The
+-- class has ended, so the app no longer shows them.
+INSERT INTO schedule_change_notice (id, event_id, customer_id, staff_id, kind, event_name, previous_starts_at, previous_ends_at,
+                                    starts_at, ends_at, previous_rooms, rooms, previous_leads, leads, created_at) VALUES
+    ('a1000000-0000-0000-0000-000000000001', '19000000-0000-0000-0000-000000000001', NULL, '08000000-0000-0000-0000-000000000003', 'ASSIGNED', 'Pole dance początkujący',
+     pg_temp.seed_at(-1, 2, '18:00'), pg_temp.seed_at(-1, 2, '19:00'), pg_temp.seed_at(-1, 2, '18:00'), pg_temp.seed_at(-1, 2, '19:00'),
+     ARRAY['Sala pole dance'], ARRAY['Sala pole dance'], ARRAY['Anna Kowalska'], ARRAY['Ewa Wiśniewska'], now() - interval '1 day'),
+    ('a1000000-0000-0000-0000-000000000002', '19000000-0000-0000-0000-000000000001', NULL, '08000000-0000-0000-0000-000000000001', 'UNASSIGNED', 'Pole dance początkujący',
+     pg_temp.seed_at(-1, 2, '18:00'), pg_temp.seed_at(-1, 2, '19:00'), pg_temp.seed_at(-1, 2, '18:00'), pg_temp.seed_at(-1, 2, '19:00'),
+     ARRAY['Sala pole dance'], ARRAY['Sala pole dance'], ARRAY['Anna Kowalska'], ARRAY['Ewa Wiśniewska'], now() - interval '1 day'),
+    ('a1000000-0000-0000-0000-000000000003', '19000000-0000-0000-0000-000000000001', '07000000-0000-0000-0000-000000000001', NULL, 'CHANGED', 'Pole dance początkujący',
+     pg_temp.seed_at(-1, 2, '18:00'), pg_temp.seed_at(-1, 2, '19:00'), pg_temp.seed_at(-1, 2, '18:00'), pg_temp.seed_at(-1, 2, '19:00'),
+     ARRAY['Sala pole dance'], ARRAY['Sala pole dance'], ARRAY['Anna Kowalska'], ARRAY['Ewa Wiśniewska'], now() - interval '1 day')
+ON CONFLICT DO NOTHING;

@@ -913,3 +913,30 @@ test('an event that has started can no longer be moved', async () => {
   ).not.toBeInTheDocument();
   expect(within(drawer).getByRole('button', { name: 'Zmień obsadę i salę' })).toBeInTheDocument();
 });
+
+test('shows the usual lead and room of an occurrence changed this once', async () => {
+  const substituted: ScheduleEvent = {
+    ...baseEvent,
+    isSeriesException: true,
+    seriesChange: {
+      usualStartsAt: null,
+      usualEndsAt: null,
+      usualInstructors: ['Beata Lis'],
+      usualRooms: ['Sala B'],
+    },
+  };
+  stubApi((url, method) =>
+    url.startsWith('/api/v1/schedule-events?') && method === 'GET'
+      ? json({ items: [substituted] })
+      : undefined,
+  );
+  renderWithProviders(<SchedulePage initialDate="2026-11-03" />);
+  await userEvent.click(await screen.findByRole('button', { name: 'Pole dance, 18:00–19:00' }));
+
+  const drawer = await screen.findByRole('dialog');
+  expect(within(drawer).getByText('Prowadzący według cyklu')).toBeInTheDocument();
+  expect(within(drawer).getByText('Beata Lis')).toHaveStyle({ textDecoration: 'line-through' });
+  expect(within(drawer).getByText('Sala według cyklu')).toBeInTheDocument();
+  expect(within(drawer).getByText('Sala B')).toBeInTheDocument();
+  expect(within(drawer).queryByText('Termin według cyklu')).not.toBeInTheDocument();
+});

@@ -2,6 +2,7 @@ package studioforyou.pl.backend.scheduling.internal;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -12,13 +13,18 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
+import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.jspecify.annotations.Nullable;
 import studioforyou.pl.backend.offering.ServiceTypeSummary;
 import studioforyou.pl.backend.offering.ServiceTypes;
+import studioforyou.pl.backend.scheduling.SeriesChange;
 import studioforyou.pl.backend.scheduling.internal.ScheduleDtos.AssignedResourceResponse;
 import studioforyou.pl.backend.scheduling.internal.ScheduleDtos.AssignedStaffResponse;
 import studioforyou.pl.backend.scheduling.internal.ScheduleDtos.ScheduleEventResponse;
@@ -66,9 +72,16 @@ class ScheduleQueries {
 		this.staffProfiles = staffProfiles;
 	}
 
-	/** Events overlapping the filter's window that match all its other criteria, earliest first. */
+	/**
+	 * Events overlapping the filter's window that match all its other criteria, earliest first. With
+	 * {@link TimetableFilter#usualSlots()} also occurrences moved away from a usual slot in the window, and
+	 * occurrences of the filter's staff's series that another trainer runs this once.
+	 */
 	List<ScheduleEventResponse> findEvents(TimetableFilter filter) {
-		StringBuilder sql = new StringBuilder(EVENT_COLUMNS).append("WHERE e.starts_at < :to AND e.ends_at > :from ");
+		StringBuilder sql = new StringBuilder(EVENT_COLUMNS).append(filter.usualSlots()
+				? "WHERE ((e.starts_at < :to AND e.ends_at > :from) OR (e.is_series_exception "
+						+ "AND e.series_original_start >= :from AND e.series_original_start < :to)) "
+				: "WHERE e.starts_at < :to AND e.ends_at > :from ");
 		Map<String, Object> params = new HashMap<>();
 		params.put("from", utc(filter.from()));
 		params.put("to", utc(filter.to()));
@@ -79,8 +92,13 @@ class ScheduleQueries {
 		in(sql, params, "e.training_group_id", "trainingGroupIds", filter.trainingGroupIds());
 		in(sql, params, "e.series_id", "seriesIds", filter.seriesIds());
 		if (!filter.staffIds().isEmpty()) {
-			sql.append(" AND EXISTS (SELECT 1 FROM event_staff es")
+			sql.append(" AND (EXISTS (SELECT 1 FROM event_staff es")
 				.append(" WHERE es.event_id = e.id AND es.staff_id IN (:staffIds))");
+			if (filter.usualSlots()) {
+				sql.append(" OR (e.is_series_exception AND EXISTS (SELECT 1 FROM recurrence_series rs")
+					.append(" WHERE rs.id = e.series_id AND rs.default_staff_id IN (:staffIds)))");
+			}
+			sql.append(')');
 			params.put("staffIds", filter.staffIds());
 		}
 		if (!filter.resourceIds().isEmpty()) {
@@ -227,8 +245,12 @@ class ScheduleQueries {
 			.stream()
 			.collect(Collectors.groupingBy(AssignedResourceRow::eventId));
 
+		Map<UUID, SeriesRule> rules = seriesRules(rows);
 		Map<UUID, String> staffNames = this.staffProfiles
-			.findAllById(staffByEvent.values().stream().flatMap(List::stream).map(StaffRow::staffId).distinct().toList())
+			.findAllById(Stream.concat(staffByEvent.values().stream().flatMap(List::stream).map(StaffRow::staffId),
+					rules.values().stream().map(SeriesRule::staffId).filter(Objects::nonNull))
+				.distinct()
+				.toList())
 			.stream()
 			.collect(Collectors.toMap(StaffMember::id, StaffMember::displayName));
 		Map<UUID, String> serviceTypeNames = this.serviceTypes
@@ -250,9 +272,62 @@ class ScheduleQueries {
 				.sorted(Comparator.comparing(AssignedResourceResponse::kind)
 					.thenComparing(AssignedResourceResponse::name))
 				.toList();
-			result.put(row.id(), row.toResponse(serviceTypeNames.get(row.serviceTypeId()), staff, resources));
+			SeriesChange change = row.seriesException() ? change(row, rules.get(row.seriesId()), staff, resources,
+					staffNames) : null;
+			result.put(row.id(), row.toResponse(serviceTypeNames.get(row.serviceTypeId()), change, staff, resources));
 		}
 		return new ArrayList<>(result.values());
+	}
+
+	/** The rules of the series of the given exceptions: their duration, default lead and room. */
+	private Map<UUID, SeriesRule> seriesRules(List<EventRow> rows) {
+		List<UUID> seriesIds = rows.stream()
+			.filter(EventRow::seriesException)
+			.map(EventRow::seriesId)
+			.filter(Objects::nonNull)
+			.distinct()
+			.toList();
+		if (seriesIds.isEmpty()) {
+			return Map.of();
+		}
+		return this.jdbc.sql("""
+				SELECT s.id, s.duration_minutes, s.default_staff_id, s.default_resource_id, r.name AS resource_name
+				FROM recurrence_series s
+				LEFT JOIN resource r ON r.id = s.default_resource_id
+				WHERE s.id IN (:ids)
+				""")
+			.param("ids", seriesIds)
+			.query((rs, rowNum) -> new SeriesRule(rs.getObject("id", UUID.class), rs.getInt("duration_minutes"),
+					rs.getObject("default_staff_id", UUID.class), rs.getObject("default_resource_id", UUID.class),
+					rs.getString("resource_name")))
+			.list()
+			.stream()
+			.collect(Collectors.toMap(SeriesRule::id, Function.identity()));
+	}
+
+	/**
+	 * What participants see of an exception against its series' rule: the time, the lead and the room.
+	 * The lead and the room the series sets as its default are the usual ones.
+	 */
+	private static @Nullable SeriesChange change(EventRow row, @Nullable SeriesRule rule,
+			List<AssignedStaffResponse> staff, List<AssignedResourceResponse> resources, Map<UUID, String> staffNames) {
+		if (rule == null || row.originalStartsAt() == null) {
+			return null;
+		}
+		Instant usualStart = row.originalStartsAt();
+		Instant usualEnd = usualStart.plus(Duration.ofMinutes(rule.durationMinutes()));
+		boolean moved = !usualStart.equals(row.startsAt()) || !usualEnd.equals(row.endsAt());
+		Set<UUID> leads = staff.stream()
+			.filter((member) -> member.role() == StaffRole.LEAD)
+			.map(AssignedStaffResponse::staffId)
+			.collect(Collectors.toSet());
+		boolean otherLead = rule.staffId() != null && staffNames.get(rule.staffId()) != null
+				&& !leads.equals(Set.of(rule.staffId()));
+		boolean otherRoom = rule.resourceId() != null && rule.resourceName() != null
+				&& resources.stream().noneMatch((resource) -> resource.resourceId().equals(rule.resourceId()));
+		return SeriesChange.of(moved ? usualStart : null, moved ? usualEnd : null,
+				otherLead ? List.of(staffNames.get(rule.staffId())) : null,
+				otherRoom ? List.of(rule.resourceName()) : null);
 	}
 
 	private static Map<String, Object> usageParams(Instant from, Instant to, Collection<UUID> ignoredEventIds) {
@@ -299,7 +374,23 @@ class ScheduleQueries {
 	 */
 	record TimetableFilter(Instant from, Instant to, List<EventKind> kinds, List<EventStatus> statuses,
 			List<EventVisibility> visibilities, List<UUID> serviceTypeIds, List<UUID> staffIds,
-			List<UUID> resourceIds, List<UUID> trainingGroupIds, List<UUID> seriesIds) {
+			List<UUID> resourceIds, List<UUID> trainingGroupIds, List<UUID> seriesIds, boolean usualSlots) {
+
+		TimetableFilter(Instant from, Instant to, List<EventKind> kinds, List<EventStatus> statuses,
+				List<EventVisibility> visibilities, List<UUID> serviceTypeIds, List<UUID> staffIds,
+				List<UUID> resourceIds, List<UUID> trainingGroupIds, List<UUID> seriesIds) {
+			this(from, to, kinds, statuses, visibilities, serviceTypeIds, staffIds, resourceIds, trainingGroupIds,
+					seriesIds, false);
+		}
+
+		/**
+		 * The same filter that also returns the occurrences participants and their trainers expect in the
+		 * window: those moved away from a usual slot in it, and those another trainer runs this once.
+		 */
+		TimetableFilter includingUsualSlots() {
+			return new TimetableFilter(this.from, this.to, this.kinds, this.statuses, this.visibilities,
+					this.serviceTypeIds, this.staffIds, this.resourceIds, this.trainingGroupIds, this.seriesIds, true);
+		}
 
 		TimetableFilter {
 			kinds = orEmpty(kinds);
@@ -332,14 +423,18 @@ class ScheduleQueries {
 			UUID trainingGroupId, Instant startsAt, Instant endsAt, Integer capacity, String cancelReason,
 			String blockReason, String guestName, int version) {
 
-		ScheduleEventResponse toResponse(String serviceTypeName, List<AssignedStaffResponse> staff,
-				List<AssignedResourceResponse> resources) {
+		ScheduleEventResponse toResponse(String serviceTypeName, @Nullable SeriesChange change,
+				List<AssignedStaffResponse> staff, List<AssignedResourceResponse> resources) {
 			return new ScheduleEventResponse(this.id, this.kind, this.status, this.visibility, this.title,
 					this.serviceTypeId, serviceTypeName, this.seriesId, this.seriesException, this.originalStartsAt,
-					this.trainingGroupId, this.startsAt, this.endsAt, this.capacity, staff, resources,
+					change, this.trainingGroupId, this.startsAt, this.endsAt, this.capacity, staff, resources,
 					this.cancelReason, this.blockReason, this.guestName, this.version);
 		}
 
+	}
+
+	private record SeriesRule(UUID id, int durationMinutes, @Nullable UUID staffId, @Nullable UUID resourceId,
+			@Nullable String resourceName) {
 	}
 
 	private record StaffRow(UUID eventId, UUID staffId, StaffRole role) {

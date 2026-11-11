@@ -1,5 +1,6 @@
 package studioforyou.pl.backend.scheduling;
 
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -13,5 +14,11 @@ public interface EventParticipantCounts {
 	 * event's row lock, the same lock a booking takes, so the count cannot grow meanwhile.
 	 */
 	int activeParticipants(UUID eventId);
+
+	/**
+	 * The participants a change of the event concerns: those with an active reservation and those
+	 * still on its waiting list.
+	 */
+	Set<UUID> participantsToTell(UUID eventId);
 
 }

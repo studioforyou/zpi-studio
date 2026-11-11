@@ -3,7 +3,9 @@ package studioforyou.pl.backend.booking.internal;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 import studioforyou.pl.backend.scheduling.EventParticipantCounts;
@@ -45,6 +47,13 @@ class ScheduleChangesForBooking implements EventParticipantCounts {
 	@Override
 	public int activeParticipants(UUID eventId) {
 		return this.reservations.activeCount(eventId) + this.waitlist.heldOffers(eventId, this.clock.instant());
+	}
+
+	@Override
+	public Set<UUID> participantsToTell(UUID eventId) {
+		Set<UUID> participants = new LinkedHashSet<>(this.reservations.activeParticipantIds(eventId));
+		participants.addAll(this.waitlist.waitingCustomerIds(eventId));
+		return participants;
 	}
 
 	/** Runs in the transaction that changed the event, which still holds the event's row lock. */

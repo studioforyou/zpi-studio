@@ -14,7 +14,9 @@ import java.util.UUID;
 import com.jayway.jsonpath.JsonPath;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import studioforyou.pl.backend.scheduling.GroupClassSchedule;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
@@ -27,6 +29,9 @@ import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 class OccurrenceChangeTest extends ScheduleTestSupport {
 
 	private static final String CUSTOMER_PREFIX = "Occurrence-change";
+
+	@Autowired
+	private GroupClassSchedule groupClasses;
 
 	@AfterEach
 	void removeReservations() {
@@ -324,6 +329,152 @@ class OccurrenceChangeTest extends ScheduleTestSupport {
 	}
 
 	/** A weekly pole class on Tuesdays at 18:00 for the given number of weeks, run by Anna in the pole room. */
+	@Test
+	void showsWhatAChangeChangedAgainstTheSeries() throws Exception {
+		createTuesdaySeries(3);
+		List<String> ids = occurrenceIds();
+		LocalDate secondDay = this.monday.plusWeeks(1).plusDays(1);
+
+		put("/api/v1/schedule-events/" + ids.get(1), change(0, at(secondDay.plusDays(1), "19:00"),
+				at(secondDay.plusDays(1), "20:30"), "null", "10", staff(MAREK, "LEAD"), room(GYM, true)))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.seriesChange.usualStartsAt").value(at(secondDay, "18:00").toString()))
+			.andExpect(jsonPath("$.seriesChange.usualEndsAt").value(at(secondDay, "19:00").toString()))
+			.andExpect(jsonPath("$.seriesChange.usualInstructors[0]").value("Anna Kowalska"))
+			.andExpect(jsonPath("$.seriesChange.usualRooms[0]").value("Pole room"));
+		get("/api/v1/schedule-events/" + ids.get(0)).andExpect(jsonPath("$.seriesChange").doesNotExist());
+
+		// Only what participants see counts: a new capacity leaves no visible change.
+		put("/api/v1/schedule-events/" + ids.get(2), change(0, at(secondDay.plusWeeks(1), "18:00"),
+				at(secondDay.plusWeeks(1), "19:00"), "null", "6", staff(ANNA, "LEAD"), room(POLE_ROOM, true)))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.isSeriesException").value(true))
+			.andExpect(jsonPath("$.seriesChange").doesNotExist());
+
+		// Only the room: the time and the lead are as usual.
+		post("/api/v1/schedule-events/" + ids.get(1) + "/restore-series", "{\"version\": 1}")
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.seriesChange").doesNotExist());
+		put("/api/v1/schedule-events/" + ids.get(1), change(2, at(secondDay, "18:00"), at(secondDay, "19:00"),
+				"null", "10", staff(ANNA, "LEAD"), room(GYM, true)))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.seriesChange.usualStartsAt").doesNotExist())
+			.andExpect(jsonPath("$.seriesChange.usualInstructors").doesNotExist())
+			.andExpect(jsonPath("$.seriesChange.usualRooms[0]").value("Pole room"));
+	}
+
+	@Test
+	void participantsAndTrainersSeeAnOccurrenceAtItsUsualTimeAndWhereItWent() throws Exception {
+		createTuesdaySeries(2);
+		List<String> ids = occurrenceIds();
+		LocalDate firstTuesday = this.monday.plusDays(1);
+		LocalDate nextMonday = this.monday.plusWeeks(1);
+		Instant weekStart = at(this.monday, "00:00");
+		Instant weekEnd = at(nextMonday, "00:00");
+		// The first occurrence moves to the next week; Marek runs the second one instead of Anna.
+		put("/api/v1/schedule-events/" + ids.get(0), change(0, at(nextMonday, "18:00"), at(nextMonday, "19:00"),
+				"null", "10", staff(ANNA, "LEAD"), room(POLE_ROOM, true)))
+			.andExpect(status().isOk());
+		put("/api/v1/schedule-events/" + ids.get(1), change(0, at(nextMonday.plusDays(1), "18:00"),
+				at(nextMonday.plusDays(1), "19:00"), "null", "10", staff(MAREK, "LEAD"), room(POLE_ROOM, true)))
+			.andExpect(status().isOk());
+
+		// The customer offer of the first week holds the moved class, so its usual slot can show where it went.
+		assertThat(this.groupClasses.list(weekStart, weekEnd)).singleElement().satisfies((event) -> {
+			assertThat(event.id()).hasToString(ids.get(0));
+			assertThat(event.startsAt()).isEqualTo(at(nextMonday, "18:00"));
+			assertThat(event.seriesChange().usualStartsAt()).isEqualTo(at(firstTuesday, "18:00"));
+		});
+		// The administrator's timetable stays a plain window.
+		get("/api/v1/schedule-events", "from", weekStart.toString(), "to", weekEnd.toString())
+			.andExpect(jsonPath("$.items.length()").value(0));
+
+		// Anna sees her moved class in its usual week and the class Marek runs for her once.
+		this.mockMvc.perform(as(ANNA_TOKEN, MockMvcRequestBuilders.get("/api/v1/me/schedule-events")
+				.param("from", weekStart.toString()).param("to", weekEnd.toString())))
+			.andExpect(jsonPath("$.items[*].id").value(org.hamcrest.Matchers.contains(ids.get(0))));
+		this.mockMvc.perform(as(ANNA_TOKEN, MockMvcRequestBuilders.get("/api/v1/me/schedule-events")
+				.param("from", weekEnd.toString()).param("to", at(nextMonday.plusWeeks(1), "00:00").toString())))
+			.andExpect(jsonPath("$.items[*].id").value(org.hamcrest.Matchers.contains(ids.get(0), ids.get(1))))
+			.andExpect(jsonPath("$.items[1].staff[0].staffId").value(MAREK.toString()))
+			.andExpect(jsonPath("$.items[1].seriesChange.usualInstructors[0]").value("Anna Kowalska"));
+		// Marek sees the class he runs, with whom he stands in for.
+		this.mockMvc.perform(as(MAREK_TOKEN, MockMvcRequestBuilders.get("/api/v1/me/schedule-events")
+				.param("from", weekEnd.toString()).param("to", at(nextMonday.plusWeeks(1), "00:00").toString())))
+			.andExpect(jsonPath("$.items[*].id").value(org.hamcrest.Matchers.contains(ids.get(1))))
+			.andExpect(jsonPath("$.items[0].seriesChange.usualInstructors[0]").value("Anna Kowalska"));
+	}
+
+	@Test
+	void everyChangeTellsEveryoneItConcernsAgain() throws Exception {
+		createTuesdaySeries(1);
+		String id = occurrenceIds().get(0);
+		LocalDate tuesday = this.monday.plusDays(1);
+		UUID reservation = book(id, at(tuesday, "06:00"));
+		UUID customer = this.jdbcTemplate.queryForObject("SELECT customer_id FROM reservation WHERE id = ?",
+				UUID.class, reservation);
+
+		// Marek takes the class over: Anna is taken off, Marek assigned, the participant told.
+		put("/api/v1/schedule-events/" + id + "/assignments", """
+				{"version": 0, "scope": "THIS_EVENT", "staff": [{"staffId": "%s", "role": "LEAD"}],
+				 "resources": [{"resourceId": "%s"}]}
+				""".formatted(MAREK, POLE_ROOM))
+			.andExpect(status().isOk());
+		staffChanges(MAREK_TOKEN).andExpect(jsonPath("$.items.length()").value(1))
+			.andExpect(jsonPath("$.items[0].kind").value("ASSIGNED"))
+			.andExpect(jsonPath("$.items[0].previousLeads[0]").value("Anna Kowalska"))
+			.andExpect(jsonPath("$.items[0].leads[0]").value("Marek Nowak"))
+			.andExpect(jsonPath("$.items[0].seen").value(false));
+		staffChanges(ANNA_TOKEN).andExpect(jsonPath("$.items[0].kind").value("UNASSIGNED"));
+		assertThat(customerNotices(customer)).containsExactly("CHANGED");
+
+		// Marek closes his notice; a later move of the class tells him, and everyone else, again.
+		String notice = JsonPath.read(staffChanges(MAREK_TOKEN).andReturn().getResponse().getContentAsString(),
+				"$.items[0].id");
+		this.mockMvc.perform(as(MAREK_TOKEN,
+				MockMvcRequestBuilders.post("/api/v1/me/schedule-changes/" + notice + "/dismiss")))
+			.andExpect(status().isNoContent());
+		staffChanges(MAREK_TOKEN).andExpect(jsonPath("$.items.length()").value(0));
+
+		put("/api/v1/schedule-events/" + id, change(version(id), at(tuesday, "19:00"), at(tuesday, "20:00"), "null", "10",
+				staff(MAREK, "LEAD"), room(GYM, true)))
+			.andExpect(status().isOk());
+		staffChanges(MAREK_TOKEN).andExpect(jsonPath("$.items.length()").value(1))
+			.andExpect(jsonPath("$.items[0].kind").value("CHANGED"))
+			.andExpect(jsonPath("$.items[0].previousStartsAt").value(at(tuesday, "18:00").toString()))
+			.andExpect(jsonPath("$.items[0].startsAt").value(at(tuesday, "19:00").toString()))
+			.andExpect(jsonPath("$.items[0].previousRooms[0]").value("Pole room"))
+			.andExpect(jsonPath("$.items[0].rooms[0]").value("Gym"));
+		// Anna no longer works at the class, so its move is not hers to know.
+		staffChanges(ANNA_TOKEN).andExpect(jsonPath("$.items.length()").value(1));
+		assertThat(customerNotices(customer)).containsExactly("CHANGED", "CHANGED");
+
+		// Opening the schedule makes them seen; a change of the title only tells nobody.
+		this.mockMvc.perform(as(MAREK_TOKEN, MockMvcRequestBuilders.post("/api/v1/me/schedule-changes/seen")))
+			.andExpect(status().isNoContent());
+		staffChanges(MAREK_TOKEN).andExpect(jsonPath("$.items[0].seen").value(true));
+		put("/api/v1/schedule-events/" + id, change(version(id), at(tuesday, "19:00"), at(tuesday, "20:00"),
+				"\"Pole dance - extra\"", "10", staff(MAREK, "LEAD"), room(GYM, true)))
+			.andExpect(status().isOk());
+		assertThat(customerNotices(customer)).hasSize(2);
+	}
+
+	private ResultActions staffChanges(String token) throws Exception {
+		return this.mockMvc.perform(as(token, MockMvcRequestBuilders.get("/api/v1/me/schedule-changes")))
+			.andExpect(status().isOk());
+	}
+
+	private int version(String eventId) throws Exception {
+		return JsonPath.read(get("/api/v1/schedule-events/" + eventId).andReturn().getResponse().getContentAsString(),
+				"$.version");
+	}
+
+	private List<String> customerNotices(UUID customer) {
+		return this.jdbcTemplate.queryForList(
+				"SELECT kind FROM schedule_change_notice WHERE customer_id = ? ORDER BY created_at, id", String.class,
+				customer);
+	}
+
 	private String createTuesdaySeries(int weeks) throws Exception {
 		ResultActions created = post("/api/v1/recurrence-series", """
 				{"kind": "CLASS", "serviceTypeId": "%s", "weekdays": [2], "localStartTime": "18:00",

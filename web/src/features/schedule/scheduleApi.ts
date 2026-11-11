@@ -39,6 +39,14 @@ export type AssignedResource = {
   blocksWholeRoom: boolean;
 };
 
+/** The usual values of a series occurrence that differ this once; `null` = unchanged. */
+export type SeriesChange = {
+  usualStartsAt: string | null;
+  usualEndsAt: string | null;
+  usualInstructors: string[] | null;
+  usualRooms: string[] | null;
+};
+
 export type ScheduleEvent = {
   id: string;
   kind: EventKind;
@@ -56,6 +64,8 @@ export type ScheduleEvent = {
    * occurrence was moved. `null` for a one-off event.
    */
   originalStartsAt: string | null;
+  /** What differs from the series' rule this once; `null` when nothing visible differs. */
+  seriesChange?: SeriesChange | null;
   trainingGroupId: string | null;
   startsAt: string;
   endsAt: string;

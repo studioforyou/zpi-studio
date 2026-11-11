@@ -920,6 +920,8 @@ export const pl = {
       editEvent: 'Edytuj wydarzenie',
       restoreSeries: 'Przywróć ustawienia cyklu',
       originalTime: 'Termin według cyklu',
+      usualStaff: 'Prowadzący według cyklu',
+      usualResources: 'Sala według cyklu',
       notEditable: 'Obsadę można zmieniać tylko w zaplanowanych wydarzeniach.',
       started: 'Wydarzenie już się rozpoczęło, więc nie można go zmieniać.',
       close: 'Zamknij',

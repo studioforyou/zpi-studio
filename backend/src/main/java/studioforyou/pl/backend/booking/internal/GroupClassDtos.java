@@ -8,6 +8,7 @@ import java.util.UUID;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
+import studioforyou.pl.backend.scheduling.SeriesChange;
 
 /** Customer projections leave out planner details and expose participant names only through a guarded roster. */
 final class GroupClassDtos {
@@ -21,7 +22,9 @@ final class GroupClassDtos {
 			Instant startsAt, Instant endsAt, String status, Integer capacity, int activeReservations,
 			@Schema(description = "null means that the event has no capacity limit.") Integer availablePlaces,
 			List<InstructorResponse> staff, List<RoomResponse> resources, ReservationResponse ownReservation,
-			BookingAvailability booking, WaitlistAvailability waitlist, int version) {
+			BookingAvailability booking, WaitlistAvailability waitlist, int version,
+			@Schema(description = "How a one-off change makes this class differ from its series: time, lead "
+					+ "trainers or rooms; null when it is as usual.") SeriesChange seriesChange) {
 	}
 
 	@Schema(name = "GroupClassParticipant")

@@ -15,6 +15,7 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
+import studioforyou.pl.backend.scheduling.SeriesChange;
 
 /**
  * Request and response bodies of the schedule endpoints: events, recurring series and the
@@ -196,6 +197,8 @@ final class ScheduleDtos {
 			@Schema(description = "The occurrence differs from its series' rule.") boolean isSeriesException,
 			@Schema(description = "The start the series' rule gives the occurrence; it differs from startsAt when "
 					+ "this one occurrence was moved. null for a one-off event.") Instant originalStartsAt,
+			@Schema(description = "What a one-off change of this occurrence changed against its series: time, lead "
+					+ "trainers or rooms; null when none of them differs.") SeriesChange seriesChange,
 			UUID trainingGroupId,
 			Instant startsAt,
 			Instant endsAt,

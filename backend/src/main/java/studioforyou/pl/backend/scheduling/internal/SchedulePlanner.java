@@ -84,12 +84,14 @@ class SchedulePlanner {
 
 	private final StudioSettings studio;
 
+	private final ScheduleChangeNotices notices;
+
 	private final Clock clock = Clock.systemUTC();
 
 	SchedulePlanner(ScheduleEventRepository events, RecurrenceSeriesRepository seriesRepository,
 			ResourceRepository resources, ServiceTypeResourceRepository roomRules, ScheduleQueries queries,
 			ScheduleConflicts conflicts, ScheduleLocks locks, ServiceTypes serviceTypes, StaffProfiles staffProfiles,
-			StudioSettings studio) {
+			StudioSettings studio, ScheduleChangeNotices notices) {
 		this.events = events;
 		this.seriesRepository = seriesRepository;
 		this.resources = resources;
@@ -99,6 +101,7 @@ class SchedulePlanner {
 		this.locks = locks;
 		this.serviceTypes = serviceTypes;
 		this.staffProfiles = staffProfiles;
+		this.notices = notices;
 		this.studio = studio;
 	}
 
@@ -201,6 +204,10 @@ class SchedulePlanner {
 			.toList();
 		lockAndRejectConflicts(occurrences, assignments, zone, targets.stream().map(ScheduleEvent::getId).toList());
 
+		Map<UUID, ScheduleChangeNotices.Snapshot> before = new LinkedHashMap<>();
+		for (ScheduleEvent target : targets) {
+			before.put(target.getId(), this.notices.snapshot(target.getId()));
+		}
 		for (ScheduleEvent target : targets) {
 			boolean changed = target.replaceAssignments(assignments.staff(), assignments.resources());
 			if (changed && !following) {
@@ -212,6 +219,7 @@ class SchedulePlanner {
 				.ifPresent((series) -> series.setDefaults(assignments.leadStaffId(), assignments.mainResourceId()));
 		}
 		this.events.flush();
+		before.forEach((id, snapshot) -> this.notices.record(snapshot, this.notices.snapshot(id)));
 		return this.queries.findEvent(eventId).orElseThrow();
 	}
 

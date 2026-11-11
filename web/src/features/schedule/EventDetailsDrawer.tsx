@@ -144,6 +144,13 @@ export function EventDetailsDrawer({
               )}
             </Detail>
           )}
+          {event.seriesChange?.usualInstructors && (
+            <Detail label={texts.details.usualStaff}>
+              <Text c="grape.7" td="line-through">
+                {event.seriesChange.usualInstructors.join(', ')}
+              </Text>
+            </Detail>
+          )}
           <Detail label={texts.details.resources}>
             {event.resources.length === 0 ? (
               <Text c={event.kind === 'BLOCK' ? 'dimmed' : 'red.7'}>{texts.details.none}</Text>
@@ -155,6 +162,13 @@ export function EventDetailsDrawer({
               ))
             )}
           </Detail>
+          {event.seriesChange?.usualRooms && (
+            <Detail label={texts.details.usualResources}>
+              <Text c="grape.7" td="line-through">
+                {event.seriesChange.usualRooms.join(', ')}
+              </Text>
+            </Detail>
+          )}
           {event.seriesId && series.data && (
             <Detail label={texts.details.series}>
               <Text>
