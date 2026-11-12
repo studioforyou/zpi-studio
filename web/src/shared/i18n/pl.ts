@@ -1244,6 +1244,11 @@ export const pl = {
           description:
             'Wysyłane od razu, gdy zapis na zajęcia zabierze ostatnie wejście z karnetu. Raz na karnet i pomijane, gdy uczestnik ma już kolejny karnet. Powiadomienia dziecka dostaje rodzic.',
         },
+        NEW_MESSAGE: {
+          name: 'Nowa wiadomość',
+          description:
+            'Wysyłane od razu po każdej wiadomości w czacie wszystkim pozostałym uczestnikom rozmowy, klientom i trenerom. Nieprzeczytane wiadomości jednego czatu mają jedno powiadomienie, aktualizowane przy kolejnej wiadomości i oznaczane jako przeczytane po wejściu w rozmowę. Wiadomości z czatu grupowego dziecka dostaje rodzic.',
+        },
       },
       placeholders: {
         CLASS_REMINDER: {
@@ -1301,6 +1306,29 @@ export const pl = {
             label: 'Ważny do',
             description: 'Ostatni dzień ważności karnetu, np. „12.11.2026”',
             example: '12.11.2026',
+          },
+        },
+        NEW_MESSAGE: {
+          od: {
+            label: 'Od kogo',
+            description:
+              'Autorzy nieprzeczytanych wiadomości, od ostatniego; w czacie grupowym poprzedzeni nazwą czatu, np. „Pole dance · Anna Wiśniewska, Ewa Lis”',
+            example: 'Pole dance · Anna Wiśniewska, Ewa Lis',
+          },
+          ile: {
+            label: 'Ile wiadomości',
+            description: 'Liczba nieprzeczytanych wiadomości, np. „3 nowe wiadomości”',
+            example: '3 nowe wiadomości',
+          },
+          rozmowa: {
+            label: 'Rozmowa',
+            description: 'Nazwa czatu grupowego albo autor wiadomości w rozmowie prywatnej',
+            example: 'Pole dance',
+          },
+          treść: {
+            label: 'Treść',
+            description: 'Początek ostatniej wiadomości, do 100 znaków',
+            example: 'Weźcie wodę i ręcznik.',
           },
         },
       },

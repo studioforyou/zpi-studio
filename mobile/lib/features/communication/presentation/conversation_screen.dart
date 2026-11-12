@@ -9,6 +9,8 @@ import 'package:mobile/core/auth/auth_controller.dart';
 import 'package:mobile/core/auth/auth_state.dart';
 import 'package:mobile/core/network/api_exception.dart';
 import 'package:mobile/features/communication/data/conversations_api.dart';
+import 'package:mobile/features/communication/data/notifications_api.dart';
+import 'package:mobile/features/communication/data/open_conversation.dart';
 import 'package:mobile/features/communication/presentation/chat_format.dart';
 import 'package:mobile/features/communication/presentation/widgets/chat_avatar.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
@@ -37,12 +39,17 @@ class ConversationScreen extends ConsumerStatefulWidget {
 class _ConversationScreenState extends ConsumerState<ConversationScreen> {
   final _input = TextEditingController();
   Timer? _timer;
+  late final OpenConversation _open;
+  StreamSubscription<String>? _arrived;
   Conversation? _conversation;
   List<ChatMessage> _messages = const [];
   bool _hasOlder = false;
   bool _loadingOlder = false;
   bool _sending = false;
   bool _polling = false;
+
+  /// A poll was asked for while one was running, e.g. by a push.
+  bool _pollAgain = false;
   Object? _error;
   String? _tappedId;
 
@@ -56,11 +63,20 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     super.initState();
     _load();
     _timer = Timer.periodic(messagesPollInterval, (_) => _poll());
+    // A push about a new message here shows it at once.
+    _open = ref.read(openConversationProvider)..id = widget.conversationId;
+    _arrived = _open.arrived
+        .where((id) => id == widget.conversationId)
+        .listen((_) => _poll());
   }
 
   @override
   void dispose() {
     _timer?.cancel();
+    _arrived?.cancel();
+    if (_open.id == widget.conversationId) {
+      _open.id = null;
+    }
     _input.dispose();
     super.dispose();
   }
@@ -90,7 +106,11 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
   /// Fetches messages newer than the last one, the ones deleted since the last
   /// poll and the conversation's current settings and membership.
   Future<void> _poll() async {
-    if (_polling || _conversation == null || !mounted) {
+    if (_conversation == null || !mounted) {
+      return;
+    }
+    if (_polling) {
+      _pollAgain = true;
       return;
     }
     _polling = true;
@@ -129,6 +149,10 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
       // The next poll tries again.
     } finally {
       _polling = false;
+      if (_pollAgain) {
+        _pollAgain = false;
+        unawaited(_poll());
+      }
     }
   }
 
@@ -160,14 +184,22 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
 
   void _markRead() {
     _api.markRead(widget.conversationId).then((_) {
-      final session = switch (ref.read(authControllerProvider)) {
-        Authenticated(:final session) => session,
-        _ => null,
-      };
-      if (session != null && mounted) {
-        ref.invalidate(unreadMessagesProvider(session.accountId));
-      }
+      if (mounted) _refreshUnread();
     }, onError: (_) {});
+  }
+
+  /// The conversation is read, and with it the notifications about it: the
+  /// badges and the bell show it.
+  void _refreshUnread() {
+    final session = switch (ref.read(authControllerProvider)) {
+      Authenticated(:final session) => session,
+      _ => null,
+    };
+    if (session == null) return;
+    ref
+      ..invalidate(unreadMessagesProvider(session.accountId))
+      ..invalidate(unreadCountProvider)
+      ..invalidate(inboxProvider);
   }
 
   Future<void> _send() async {
@@ -187,6 +219,8 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
           _messages = [..._messages, message];
         }
       });
+      // Writing reads the conversation.
+      _refreshUnread();
     } catch (e) {
       _showError(e, sending: true);
       unawaited(_poll());

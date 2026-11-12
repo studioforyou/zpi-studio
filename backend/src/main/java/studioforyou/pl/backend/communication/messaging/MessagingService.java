@@ -8,6 +8,7 @@ import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -21,6 +22,7 @@ import java.util.stream.Collectors;
 
 import org.jspecify.annotations.Nullable;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -43,12 +45,16 @@ import studioforyou.pl.backend.communication.messaging.MessagingDtos.MessagePrev
 import studioforyou.pl.backend.communication.messaging.MessagingDtos.MessageResponse;
 import studioforyou.pl.backend.communication.messaging.MessagingDtos.Person;
 import studioforyou.pl.backend.communication.messaging.MessagingDtos.TrainerResponse;
+import studioforyou.pl.backend.communication.notification.NotificationRole;
+import studioforyou.pl.backend.communication.notification.NotificationType;
+import studioforyou.pl.backend.communication.notification.Notifications;
 import studioforyou.pl.backend.configuration.StudioSettings;
 import studioforyou.pl.backend.customer.CustomerKind;
 import studioforyou.pl.backend.customer.CustomerProfiles;
 import studioforyou.pl.backend.customer.CustomerProfiles.ProfileDetails;
 import studioforyou.pl.backend.customer.StaffAssignments;
 import studioforyou.pl.backend.customer.TrainerAccounts;
+import studioforyou.pl.backend.identity.AccountRoles;
 import studioforyou.pl.backend.scheduling.ScheduledEvents;
 import studioforyou.pl.backend.scheduling.ScheduledEvents.EventSummary;
 import studioforyou.pl.backend.shared.api.ApiException;
@@ -102,10 +108,17 @@ class MessagingService {
 
 	private final StudioSettings settings;
 
+	private final Notifications notifications;
+
+	private final AccountRoles accountRoles;
+
+	private final ApplicationEventPublisher publisher;
+
 	MessagingService(ConversationStore store, ConversationAudience audience, ScheduledEvents events,
 			TrainingGroups groups, Participations participations, CustomerProfiles customers,
 			StaffAssignments assignments, StaffProfiles staff, TrainerAccounts trainerAccounts,
-			StudioSettings settings) {
+			StudioSettings settings, AccountRoles accountRoles, ApplicationEventPublisher publisher,
+			Notifications notifications) {
 		this.store = store;
 		this.audience = audience;
 		this.events = events;
@@ -116,6 +129,9 @@ class MessagingService {
 		this.staff = staff;
 		this.trainerAccounts = trainerAccounts;
 		this.settings = settings;
+		this.accountRoles = accountRoles;
+		this.notifications = notifications;
+		this.publisher = publisher;
 	}
 
 	List<ConversationSummaryResponse> list(UUID accountId) {
@@ -197,8 +213,82 @@ class MessagingService {
 			throw ApiException.invalidField("body", FieldErrorCode.REQUIRED, "The message is empty.");
 		}
 		Message message = store.insertMessage(conversationId, accountId, text);
-		store.markRead(conversationId, accountId);
+		read(conversationId, accountId);
+		publisher.publishEvent(new MessageSent(conversationId, message.id(), accountId));
 		return message(message, access, accountId, names(List.of(accountId)));
+	}
+
+	/**
+	 * Who gets a notification about a sent message, and what it shows: for each recipient, the
+	 * messages of the conversation it has not read yet. The recipients are the other people who can
+	 * read the conversation now: the counterpart of a 1:1 conversation, or the leaders and members of
+	 * a group or class chat (for a child, its guardians). Each gets it for the role it has in the
+	 * conversation. Someone who has already read everything (e.g. the message was deleted) is left
+	 * out; empty when the conversation is gone.
+	 */
+	@Transactional(readOnly = true)
+	Optional<NewMessage> newMessage(MessageSent sent) {
+		Optional<Conversation> found = store.find(sent.conversationId());
+		if (found.isEmpty()) {
+			return Optional.empty();
+		}
+		Conversation chat = found.get();
+		Map<UUID, NotificationRole> recipients = new HashMap<>();
+		String chatTitle = null;
+		if (chat.kind() == ConversationKind.DIRECT) {
+			UUID other = store.findCounterparts(sent.senderId(), List.of(chat.id())).get(chat.id());
+			if (other != null) {
+				Map<UUID, Set<String>> roles = accountRoles.rolesOf(List.of(other, sent.senderId()));
+				recipients.put(other, directRole(roles.getOrDefault(other, Set.of()),
+						roles.getOrDefault(sent.senderId(), Set.of()).contains(NotificationRole.TRAINER.name())));
+			}
+		}
+		else {
+			audience.members(chat).forEach((account) -> recipients.put(account, NotificationRole.CLIENT));
+			audience.leaders(chat).forEach((account) -> recipients.put(account, NotificationRole.TRAINER));
+			String groupName = (chat.kind() == ConversationKind.GROUP)
+					? groups.names(List.of(chat.trainingGroupId())).get(chat.trainingGroupId()) : null;
+			chatTitle = title(chat, null, groupName, audience.event(chat).orElse(null));
+		}
+		recipients.remove(sent.senderId());
+		Map<UUID, List<Message>> unread = new HashMap<>();
+		Set<UUID> senders = new HashSet<>();
+		recipients.keySet().forEach((account) -> {
+			List<Message> messages = store.findUnread(chat.id(), account);
+			if (!messages.isEmpty()) {
+				unread.put(account, messages);
+				messages.forEach((message) -> senders.add(message.senderId()));
+			}
+		});
+		Map<UUID, String> names = names(senders);
+		Map<UUID, UnreadMessages> result = new HashMap<>();
+		unread.forEach((account, messages) -> {
+			// Who wrote them, the latest writer first.
+			LinkedHashSet<String> writers = new LinkedHashSet<>();
+			for (int i = messages.size() - 1; i >= 0; i--) {
+				writers.add(name(messages.get(i).senderId(), names));
+			}
+			Message latest = messages.get(messages.size() - 1);
+			result.put(account, new UnreadMessages(recipients.get(account), messages.get(0).id(), latest.id(),
+					latest.createdAt().toInstant(), messages.size(), List.copyOf(writers),
+					Objects.requireNonNullElse(latest.body(), "")));
+		});
+		return Optional.of(new NewMessage(chat.id(), chat.kind() == ConversationKind.DIRECT ? null : chatTitle,
+				result));
+	}
+
+	/**
+	 * The role a 1:1 conversation concerns for the recipient. Such a conversation is between a client
+	 * and a trainer, so an account with both roles gets it as a client when a trainer wrote, and as
+	 * a trainer when a client wrote.
+	 */
+	static NotificationRole directRole(Set<String> recipientRoles, boolean senderIsTrainer) {
+		boolean trainer = recipientRoles.contains(NotificationRole.TRAINER.name());
+		boolean client = recipientRoles.contains(NotificationRole.CLIENT.name());
+		if (trainer && client) {
+			return senderIsTrainer ? NotificationRole.CLIENT : NotificationRole.TRAINER;
+		}
+		return trainer ? NotificationRole.TRAINER : NotificationRole.CLIENT;
 	}
 
 	void deleteMessage(UUID conversationId, UUID messageId, UUID accountId) {
@@ -215,7 +305,14 @@ class MessagingService {
 
 	void markRead(UUID conversationId, UUID accountId) {
 		open(conversationId, accountId);
+		read(conversationId, accountId);
+	}
+
+	/** The account has read the conversation, so also the notifications about its messages. */
+	private void read(UUID conversationId, UUID accountId) {
 		store.markRead(conversationId, accountId);
+		notifications.markRead(accountId, NotificationType.NEW_MESSAGE, MessageNotifications.CONVERSATION_ID,
+				conversationId.toString());
 	}
 
 	ConversationResponse update(UUID conversationId, UUID accountId, boolean clientsCanReply) {
@@ -558,6 +655,37 @@ class MessagingService {
 
 	private static ApiException messageNotFound() {
 		return new ApiException(ErrorCode.NOT_FOUND, "Message not found.");
+	}
+
+	/**
+	 * A sent message to notify about.
+	 *
+	 * @param chatTitle the name of a group or class chat; {@code null} for a 1:1 conversation
+	 * @param senderName who wrote it
+	 * @param body the message text
+	 * @param recipients the accounts to notify and the role it concerns for each
+	 */
+	/**
+	 * What a notification about new messages shows to each recipient (by account).
+	 *
+	 * @param chatTitle the name of a group or class chat, {@code null} for a 1:1 conversation
+	 */
+	record NewMessage(UUID conversationId, @Nullable String chatTitle, Map<UUID, UnreadMessages> recipients) {
+	}
+
+	/**
+	 * The messages a recipient has not read yet in a conversation.
+	 *
+	 * @param role the role the conversation concerns for the recipient
+	 * @param firstId the oldest unread message; the same until the recipient reads the conversation
+	 * @param latestId the newest unread message
+	 * @param latestAt when the newest one was written
+	 * @param count how many there are
+	 * @param senders who wrote them, the latest writer first
+	 * @param latestBody the text of the newest one
+	 */
+	record UnreadMessages(NotificationRole role, UUID firstId, UUID latestId, Instant latestAt, int count,
+			List<String> senders, String latestBody) {
 	}
 
 	/** A conversation that was opened, and whether it was created by this request. */

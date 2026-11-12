@@ -107,13 +107,13 @@ class NotificationsApi {
     }
   }
 
-  Future<int> unreadCount(String role) async {
+  Future<UnreadNotifications> unreadCount(String role) async {
     try {
       final response = await _dio.get<Map<String, dynamic>>(
         '/api/v1/me/notifications/unread-count',
         queryParameters: {'role': role},
       );
-      return response.data!['count'] as int;
+      return UnreadNotifications.fromJson(response.data!);
     } on DioException catch (error) {
       throw ApiException.fromDio(error);
     }
@@ -139,6 +139,29 @@ class NotificationsApi {
   }
 }
 
+/// How many of the role's notifications are unread.
+class UnreadNotifications {
+  const UnreadNotifications({required this.count, this.newMessages = 0});
+
+  factory UnreadNotifications.fromJson(Map<String, dynamic> json) =>
+      UnreadNotifications(
+        count: json['count'] as int,
+        newMessages: json['newMessageCount'] as int? ?? 0,
+      );
+
+  static const none = UnreadNotifications(count: 0);
+
+  /// All unread notifications, for the bell.
+  final int count;
+
+  /// Of them, the ones about new messages, which the unread messages already
+  /// count.
+  final int newMessages;
+
+  /// The ones about something else than messages.
+  int get others => count - newMessages;
+}
+
 final notificationsApiProvider = Provider<NotificationsApi>(
   (ref) => NotificationsApi(ref.watch(dioProvider)),
 );
@@ -150,6 +173,8 @@ final inboxProvider = FutureProvider.autoDispose
           .fetch(query.scope.role, page: query.page),
     );
 
-final unreadCountProvider = FutureProvider.autoDispose.family<int, InboxScope>(
-  (ref, scope) => ref.watch(notificationsApiProvider).unreadCount(scope.role),
-);
+final unreadCountProvider = FutureProvider.autoDispose
+    .family<UnreadNotifications, InboxScope>(
+      (ref, scope) =>
+          ref.watch(notificationsApiProvider).unreadCount(scope.role),
+    );

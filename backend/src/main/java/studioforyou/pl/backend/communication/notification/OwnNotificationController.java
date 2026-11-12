@@ -58,7 +58,10 @@ class OwnNotificationController {
 	public UnreadCountResponse unreadCount(
 			@Parameter(description = ROLE_DESCRIPTION) @RequestParam(required = false) NotificationRole role,
 			Authentication authentication) {
-		return new UnreadCountResponse(store.unreadCount(actor(authentication), role, Instant.now()));
+		UUID account = actor(authentication);
+		Instant now = Instant.now();
+		return new UnreadCountResponse(store.unreadCount(account, role, now),
+				store.unreadCount(account, role, now, NotificationType.NEW_MESSAGE));
 	}
 
 	@PostMapping("/{notificationId}/read")
@@ -89,8 +92,12 @@ class OwnNotificationController {
 		throw new ApiException(ErrorCode.UNAUTHENTICATED, "Missing, expired or invalid access token.");
 	}
 
-	/** @param count due unread notifications */
-	public record UnreadCountResponse(long count) {
+	/**
+	 * @param count due unread notifications
+	 * @param newMessageCount how many of them are about new messages, which the app already counts
+	 * as unread messages
+	 */
+	public record UnreadCountResponse(long count, long newMessageCount) {
 	}
 
 	/** @param markedRead notifications that were unread until now */

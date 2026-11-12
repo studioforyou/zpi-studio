@@ -198,3 +198,46 @@ test('counts a pass reminder back from 9:00 on the last day and previews pass fi
   const preview = within(dialog).getByLabelText('Podgląd');
   expect(within(preview).getByText('Karnet 8 wejść jest ważny do 12.11.2026.')).toBeInTheDocument();
 });
+
+test('shows the new message notification without reminder times and previews message fields', async () => {
+  const newMessage = {
+    code: 'NEW_MESSAGE',
+    enabled: true,
+    timed: false,
+    leadTimesMinutes: [],
+    title: '{{od}}',
+    body: '{{ile}} · {{treść}}',
+    placeholders: [
+      { name: 'od', description: 'Senders' },
+      { name: 'ile', description: 'How many' },
+      { name: 'rozmowa', description: 'Conversation' },
+      { name: 'treść', description: 'Message' },
+    ],
+    updatedAt: null,
+  };
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string, init: RequestInit) => {
+      if (url === '/api/v1/notification-types' && init.method === 'GET') {
+        return json({ items: [newMessage] });
+      }
+      throw new Error(`Unexpected request: ${init.method} ${url}`);
+    }),
+  );
+  renderWithProviders(<CommunicationPage />);
+  expect(await screen.findByText('Nowa wiadomość')).toBeInTheDocument();
+  expect(
+    screen.getByText(/Wiadomości z czatu grupowego dziecka dostaje rodzic\./),
+  ).toBeInTheDocument();
+  expect(screen.queryByText(/przed$/)).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: 'Edytuj' }));
+  const dialog = await screen.findByRole('dialog');
+  expect(
+    within(dialog).queryByRole('button', { name: 'Dodaj przypomnienie' }),
+  ).not.toBeInTheDocument();
+  const preview = within(dialog).getByLabelText('Podgląd');
+  expect(within(preview).getByText('Pole dance · Anna Wiśniewska, Ewa Lis')).toBeInTheDocument();
+  expect(
+    within(preview).getByText('3 nowe wiadomości · Weźcie wodę i ręcznik.'),
+  ).toBeInTheDocument();
+});

@@ -1,5 +1,6 @@
 package studioforyou.pl.backend;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasItem;
@@ -17,7 +18,9 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 import java.util.UUID;
+import java.util.function.BooleanSupplier;
 
 import com.jayway.jsonpath.JsonPath;
 import org.junit.jupiter.api.AfterEach;
@@ -129,6 +132,7 @@ class ConversationTests {
 	@AfterEach
 	void tearDown() {
 		String accounts = "SELECT id FROM account WHERE email LIKE '%" + EMAIL_DOMAIN + "'";
+		NotificationCleanup.deleteNotifications(jdbc, accounts);
 		String conversations = "SELECT id FROM conversation WHERE created_by IN (" + accounts + ")";
 		jdbc.sql("DELETE FROM message WHERE conversation_id IN (" + conversations + ")").update();
 		jdbc.sql("DELETE FROM conversation_participant WHERE conversation_id IN (" + conversations + ")").update();
@@ -146,7 +150,7 @@ class ConversationTests {
 				+ "('Zielińska', 'Nowak', 'Kaczmarek') AND (account_id IS NULL OR account_id IN (" + accounts + "))";
 		jdbc.sql("DELETE FROM guardianship WHERE child_id IN (" + profiles + ")").update();
 		jdbc.sql("DELETE FROM customer_profile WHERE id IN (:ids)")
-			.param("ids", java.util.List.of(client, child, outsider))
+			.param("ids", List.of(client, child, outsider))
 			.update();
 		jdbc.sql("DELETE FROM customer_profile WHERE account_id IN (" + accounts + ")").update();
 		jdbc.sql("DELETE FROM staff_profile WHERE account_id IN (" + accounts + ")").update();
@@ -453,9 +457,115 @@ class ConversationTests {
 		perform(CLIENT, get(CONVERSATIONS + "/group-chat-targets"), null).andExpect(status().isForbidden());
 	}
 
+	@Test
+	void unreadMessagesOfAConversationShareOneNotificationUntilTheyAreRead() throws Exception {
+		assignTrainee(client);
+		String id = idOf(perform(TRAINER, post(CONVERSATIONS + "/trainee"), "{\"customerId\":\"" + client + "\"}"));
+
+		String first = idOf(send(TRAINER, id, "Pamiętaj o rozgrzewce bioder."));
+		await(() -> notifications(clientAccount).size() == 1);
+		assertThat(notifications(clientAccount)).containsExactly("CLIENT|Anna Wiśniewska|1 nowa wiadomość · "
+				+ "Pamiętaj o rozgrzewce bioder.|" + id + "|" + first + "|CLIENT|unread");
+
+		// The next message updates the same notification: how many, and the latest one.
+		String second = idOf(send(TRAINER, id, "Do jutra " + "a".repeat(120)));
+		await(() -> notifications(clientAccount).get(0).contains(second));
+		assertThat(notifications(clientAccount)).containsExactly("CLIENT|Anna Wiśniewska|2 nowe wiadomości · Do jutra "
+				+ "a".repeat(90) + "…|" + id + "|" + second + "|CLIENT|unread");
+		perform(CLIENT, get("/api/v1/me/notifications/unread-count?role=CLIENT"), null)
+			.andExpect(jsonPath("$.count").value(1))
+			.andExpect(jsonPath("$.newMessageCount").value(1));
+
+		// Reading the conversation reads its notification; the next message starts a new one.
+		perform(CLIENT, post(CONVERSATIONS + "/" + id + "/read"), null).andExpect(status().isNoContent());
+		assertThat(notifications(clientAccount)).singleElement().asString().endsWith("|read");
+		perform(CLIENT, get("/api/v1/me/notifications/unread-count?role=CLIENT"), null)
+			.andExpect(jsonPath("$.count").value(0))
+			.andExpect(jsonPath("$.newMessageCount").value(0));
+		String third = idOf(send(TRAINER, id, "Sala 2"));
+		await(() -> notifications(clientAccount).size() == 2);
+		assertThat(notifications(clientAccount).get(1)).isEqualTo(
+				"CLIENT|Anna Wiśniewska|1 nowa wiadomość · Sala 2|" + id + "|" + third + "|CLIENT|unread");
+
+		// Replying reads the conversation too; the trainer gets the reply as a trainer.
+		send(CLIENT, id, "Dzięki!").andExpect(status().isCreated());
+		assertThat(notifications(clientAccount)).allSatisfy((row) -> assertThat(row).endsWith("|read"));
+		await(() -> notifications(trainerAccount).size() == 1);
+		assertThat(notifications(trainerAccount)).singleElement()
+			.asString()
+			.startsWith("TRAINER|Marta Zielińska|1 nowa wiadomość · Dzięki!|" + id + "|");
+	}
+
+	@Test
+	void aClassChatNotificationNamesTheChatAndWhoWroteTheUnreadMessages() throws Exception {
+		UUID event = insertEvent(null, Instant.now().plus(2, ChronoUnit.DAYS));
+		assignStaff(event, trainer);
+		reserve(event, client);
+		reserve(event, child);
+		String id = idOf(perform(TRAINER, post(CONVERSATIONS + "/group-chats"), eventChatJson(event, true)));
+
+		send(CLIENT, id, "Będę 10 min później").andExpect(status().isCreated());
+		await(() -> notifications(trainerAccount).size() == 1 && notifications(parentAccount).size() == 1);
+		assertThat(notifications(parentAccount)).singleElement()
+			.asString()
+			.startsWith("CLIENT|" + TITLE + " · Marta Zielińska|1 nowa wiadomość · Będę 10 min później|");
+		assertThat(notifications(clientAccount)).isEmpty();
+
+		send(PARENT, id, "Zosia też się spóźni").andExpect(status().isCreated());
+		await(() -> notifications(trainerAccount).get(0).contains("2 nowe"));
+		assertThat(notifications(trainerAccount)).singleElement()
+			.asString()
+			.startsWith("TRAINER|" + TITLE + " · Kamil Nowak, Marta Zielińska|2 nowe wiadomości · Zosia też się spóźni|"
+					+ id + "|");
+		// The parent's own reply read the chat: its notification is read.
+		assertThat(notifications(parentAccount)).singleElement().asString().endsWith("|read");
+	}
+
+	@Test
+	void noMessageNotificationsWhileTheTypeIsSwitchedOff() throws Exception {
+		assignTrainee(client);
+		String id = idOf(perform(TRAINER, post(CONVERSATIONS + "/trainee"), "{\"customerId\":\"" + client + "\"}"));
+		jdbc.sql("UPDATE notification_type SET is_enabled = FALSE WHERE code = 'NEW_MESSAGE'").update();
+		try {
+			send(TRAINER, id, "Jutro o 18?").andExpect(status().isCreated());
+			NotificationCleanup.deleteNotifications(jdbc, "SELECT CAST('" + trainerAccount + "' AS UUID)");
+			assertThat(notifications(clientAccount)).isEmpty();
+		}
+		finally {
+			jdbc.sql("UPDATE notification_type SET is_enabled = TRUE WHERE code = 'NEW_MESSAGE'").update();
+		}
+	}
+
 	private ResultActions send(String token, String conversationId, String body) throws Exception {
 		return perform(token, post(CONVERSATIONS + "/" + conversationId + "/messages"),
 				"{\"body\":\"" + body + "\"}");
+	}
+
+	/**
+	 * The account's message notifications, oldest first, as
+	 * role|title|body|conversation|latest message|role in the data|read or unread.
+	 */
+	private List<String> notifications(UUID account) {
+		return jdbc.sql("""
+				SELECT n.recipient_role || '|' || n.title || '|' || n.body || '|' || (n.payload ->> 'conversationId')
+				    || '|' || (n.payload ->> 'messageId') || '|' || (n.payload ->> 'role')
+				    || '|' || CASE WHEN n.read_at IS NULL THEN 'unread' ELSE 'read' END
+				FROM notification n
+				JOIN notification_type t ON t.id = n.notification_type_id
+				WHERE t.code = 'NEW_MESSAGE' AND n.recipient_id = :account
+				ORDER BY n.scheduled_for
+				""")
+			.param("account", account)
+			.query(String.class)
+			.list();
+	}
+
+	/** Notifications are created in the background right after the commit. */
+	private static void await(BooleanSupplier condition) throws InterruptedException {
+		long deadline = System.currentTimeMillis() + 5000;
+		while (!condition.getAsBoolean() && System.currentTimeMillis() < deadline) {
+			Thread.sleep(50);
+		}
 	}
 
 	private static String eventChatJson(UUID event, boolean clientsCanReply) {
