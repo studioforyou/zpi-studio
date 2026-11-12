@@ -1,6 +1,7 @@
 import { Anchor, Stack, Title } from '@mantine/core';
 import { createBrowserRouter, Link, Navigate, type RouteObject } from 'react-router';
 import { AccountDetailsPage } from '@/features/accounts/AccountDetailsPage';
+import { AccountHistoryPage } from '@/features/accounts/AccountHistoryPage';
 import { AccountsPage } from '@/features/accounts/AccountsPage';
 import { RolesPage } from '@/features/accounts/RolesPage';
 import { LoginPage } from '@/features/auth/LoginPage';
@@ -44,6 +45,7 @@ export const appRoutes: RouteObject[] = [
           { path: paths.accounts, element: <AccountsPage /> },
           { path: `${paths.accounts}/:accountId`, element: <AccountDetailsPage /> },
           { path: paths.roles, element: <RolesPage /> },
+          { path: paths.accountHistory, element: <AccountHistoryPage /> },
           { path: paths.passes, element: <PassesPage /> },
           { path: paths.trainings, element: <TrainingsPage /> },
           { path: paths.communication, element: <CommunicationPage /> },
