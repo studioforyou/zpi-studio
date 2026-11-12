@@ -191,6 +191,14 @@ class WaitlistStore {
 			.query(MAPPER).single();
 	}
 
+	/** Locks the event's open entries (waiting or holding an offer) in id order, after the caller has locked the event. */
+	List<WaitlistEntry> lockOpenInEvent(UUID eventId) {
+		return this.jdbc.sql("""
+				SELECT * FROM waitlist_entry WHERE event_id = :event AND status IN ('WAITING', 'OFFERED')
+				ORDER BY id FOR UPDATE
+				""").param("event", eventId).query(MAPPER).list();
+	}
+
 	WaitlistEntry cancel(UUID entryId, Instant now) {
 		return this.jdbc.sql("""
 				UPDATE waitlist_entry SET status = 'CANCELLED', resolved_at = :now WHERE id = :id RETURNING *

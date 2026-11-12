@@ -49,7 +49,43 @@ public enum NotificationType {
 			new Placeholder(Placeholder.SENDER, "Who wrote the unread messages, the latest writer first; in a group or class chat after the chat's name, e.g. \"Pilates · Anna Nowak, Ewa Lis\""),
 			new Placeholder(Placeholder.COUNT, "How many unread messages, e.g. \"3 nowe wiadomości\""),
 			new Placeholder(Placeholder.CONVERSATION, "Name of the conversation: the other person's name, or the group or class chat's name"),
-			new Placeholder(Placeholder.TEXT, "The beginning of the latest message, at most 100 characters")));
+			new Placeholder(Placeholder.TEXT, "The beginning of the latest message, at most 100 characters"))),
+
+	/**
+	 * The time, the rooms or the staff of a class or training changed. Sent right after the change
+	 * to the participants (to a child's guardians) and to the staff before and after the change.
+	 */
+	CLASS_CHANGED((short) 5, false, List.of(
+			new Placeholder(Placeholder.CLASS, "Name of the class or training"),
+			new Placeholder(Placeholder.DAY, "Day of the class after the change: \"dziś\", \"jutro\" or the weekday and date, e.g. \"wtorek 12.11\""),
+			new Placeholder(Placeholder.TIME, "Start time after the change, e.g. \"18:00\""),
+			new Placeholder(Placeholder.ROOM, "Room names after the change, or \"studio\" when no room is assigned"),
+			new Placeholder(Placeholder.LEADS, "Lead trainers after the change, e.g. \"Anna Nowak\""),
+			new Placeholder(Placeholder.CHANGES, "What changed, e.g. \"godzina 18:00–19:00 → 19:00–20:00, sala Sala 1 → Sala 2\"; for a trainer added to or removed from the class, that"))),
+
+	/**
+	 * A class or training was cancelled. Sent right after the cancellation to its participants (to a
+	 * child's guardians) and to its staff; a class cancelled for too few participants is told to
+	 * its staff by {@link #CLASS_AUTO_CANCELLED} instead.
+	 */
+	CLASS_CANCELLED((short) 6, false, List.of(
+			new Placeholder(Placeholder.CLASS, "Name of the class or training"),
+			new Placeholder(Placeholder.DAY, "Day of the class: \"dziś\", \"jutro\" or the weekday and date, e.g. \"wtorek 12.11\""),
+			new Placeholder(Placeholder.TIME, "Start time, e.g. \"18:00\""),
+			new Placeholder(Placeholder.ROOM, "Room names, or \"studio\" when no room is assigned"),
+			new Placeholder(Placeholder.REASON, "Why it was cancelled, e.g. \"zbyt mało zapisanych osób\""))),
+
+	/**
+	 * A group class was cancelled automatically because fewer participants booked it than the
+	 * minimum. Sent right after the cancellation to the staff of the class.
+	 */
+	CLASS_AUTO_CANCELLED((short) 7, false, List.of(
+			new Placeholder(Placeholder.CLASS, "Name of the class"),
+			new Placeholder(Placeholder.DAY, "Day of the class: \"dziś\", \"jutro\" or the weekday and date, e.g. \"wtorek 12.11\""),
+			new Placeholder(Placeholder.TIME, "Start time, e.g. \"18:00\""),
+			new Placeholder(Placeholder.ROOM, "Room names, or \"studio\" when no room is assigned"),
+			new Placeholder(Placeholder.BOOKED, "How many participants booked the class, e.g. \"2\""),
+			new Placeholder(Placeholder.MINIMUM, "How many participants the class needed, e.g. \"4\"")));
 
 	private final short id;
 
@@ -125,6 +161,21 @@ public enum NotificationType {
 
 		/** How many unread messages. */
 		public static final String COUNT = "ile";
+
+		/** Lead trainers of the class. */
+		public static final String LEADS = "prowadzący";
+
+		/** What changed in the class. */
+		public static final String CHANGES = "zmiany";
+
+		/** Why the class was cancelled. */
+		public static final String REASON = "powód";
+
+		/** How many participants booked the class. */
+		public static final String BOOKED = "zapisanych";
+
+		/** How many participants the class needed. */
+		public static final String MINIMUM = "minimum";
 
 	}
 

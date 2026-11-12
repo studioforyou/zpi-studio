@@ -241,3 +241,60 @@ test('shows the new message notification without reminder times and previews mes
     within(preview).getByText('3 nowe wiadomości · Weźcie wodę i ręcznik.'),
   ).toBeInTheDocument();
 });
+
+test('shows the class change and cancellation notifications with their fields', async () => {
+  const autoCancelled = {
+    code: 'CLASS_AUTO_CANCELLED',
+    enabled: true,
+    timed: false,
+    leadTimesMinutes: [],
+    title: 'Zajęcia odwołane automatycznie',
+    body: 'Odwołano: {{zajęcia}}, {{dzień}} {{godzina}}. Zapisanych osób: {{zapisanych}}, wymagane minimum: {{minimum}}.',
+    placeholders: [
+      { name: 'zajęcia', description: 'Class' },
+      { name: 'dzień', description: 'Day' },
+      { name: 'godzina', description: 'Time' },
+      { name: 'sala', description: 'Rooms' },
+      { name: 'zapisanych', description: 'Booked' },
+      { name: 'minimum', description: 'Minimum' },
+    ],
+    updatedAt: null,
+  };
+  const changed = {
+    code: 'CLASS_CHANGED',
+    enabled: true,
+    timed: false,
+    leadTimesMinutes: [],
+    title: 'Zmiana zajęć',
+    body: '{{zajęcia}}, {{dzień}} {{godzina}}: {{zmiany}}.',
+    placeholders: [
+      { name: 'zajęcia', description: 'Class' },
+      { name: 'zmiany', description: 'Changes' },
+    ],
+    updatedAt: null,
+  };
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string, init: RequestInit) => {
+      if (url === '/api/v1/notification-types' && init.method === 'GET') {
+        return json({ items: [changed, autoCancelled] });
+      }
+      throw new Error(`Unexpected request: ${init.method} ${url}`);
+    }),
+  );
+  renderWithProviders(<CommunicationPage />);
+  expect(await screen.findByText('Zmiana zajęć')).toBeInTheDocument();
+  expect(screen.getByText('Automatyczne odwołanie zajęć')).toBeInTheDocument();
+  expect(screen.getByText(/mniej osób niż wymagane minimum\./)).toBeInTheDocument();
+  await userEvent.click(screen.getAllByRole('button', { name: 'Edytuj' })[1]);
+  const dialog = await screen.findByRole('dialog');
+  expect(
+    within(dialog).getByRole('button', { name: 'Wstaw: Wymagane minimum' }),
+  ).toBeInTheDocument();
+  const preview = within(dialog).getByLabelText('Podgląd');
+  expect(
+    within(preview).getByText(
+      'Odwołano: Pole dance, jutro 18:00. Zapisanych osób: 2, wymagane minimum: 4.',
+    ),
+  ).toBeInTheDocument();
+});

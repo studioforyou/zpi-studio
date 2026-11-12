@@ -15,6 +15,7 @@ import com.jayway.jsonpath.JsonPath;
 import jakarta.servlet.Filter;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import studioforyou.pl.backend.NotificationCleanup;
 import studioforyou.pl.backend.TestcontainersConfiguration;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,6 +24,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -83,6 +85,9 @@ abstract class ScheduleTestSupport {
 	@Autowired
 	JdbcTemplate jdbcTemplate;
 
+	@Autowired
+	JdbcClient jdbcClient;
+
 	@MockitoBean
 	private JwtDecoder jwtDecoder;
 
@@ -134,6 +139,9 @@ abstract class ScheduleTestSupport {
 
 	@AfterEach
 	void cleanUp() {
+		String testAccounts = "SELECT id FROM account WHERE email LIKE '%" + TEST_EMAIL_DOMAIN + "'";
+		// A saved change or cancellation of an event notifies its staff in the background.
+		NotificationCleanup.deleteNotifications(this.jdbcClient, testAccounts);
 		this.jdbcTemplate.update("DELETE FROM event_staff");
 		this.jdbcTemplate.update("DELETE FROM event_resource");
 		this.jdbcTemplate.update("DELETE FROM schedule_event");
@@ -145,7 +153,6 @@ abstract class ScheduleTestSupport {
 		this.jdbcTemplate.update("DELETE FROM service_type_resource");
 		this.jdbcTemplate.update("DELETE FROM resource");
 		this.jdbcTemplate.update("DELETE FROM service_type WHERE id IN (?, ?, ?)", POLE, PERSONAL, ARCHIVED_SERVICE);
-		String testAccounts = "SELECT id FROM account WHERE email LIKE '%" + TEST_EMAIL_DOMAIN + "'";
 		this.jdbcTemplate.update("DELETE FROM staff_profile WHERE account_id IN (" + testAccounts + ")");
 		this.jdbcTemplate.update("DELETE FROM account_role WHERE account_id IN (" + testAccounts + ")");
 		this.jdbcTemplate.update("DELETE FROM identity_link WHERE account_id IN (" + testAccounts + ")");

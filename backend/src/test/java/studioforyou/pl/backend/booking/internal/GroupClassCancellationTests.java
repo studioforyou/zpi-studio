@@ -89,6 +89,9 @@ class GroupClassCancellationTests {
 			.isEqualTo("CANCELLED");
 		assertThat(GroupClassBookingService.outcome(past("ACTIVE", null, "PRESENT"), event("CANCELLED")))
 			.isEqualTo("CLASS_CANCELLED");
+		// A reservation cancelled together with its class shows as the class's cancellation.
+		assertThat(GroupClassBookingService.outcome(past("CANCELLED", "STUDIO", "UNMARKED"), event("CANCELLED")))
+			.isEqualTo("CLASS_CANCELLED");
 		assertThat(GroupClassBookingService.outcome(past("ACTIVE", null, "PRESENT"), event())).isEqualTo("PRESENT");
 		assertThat(GroupClassBookingService.outcome(past("ACTIVE", null, "ABSENT"), event())).isEqualTo("ABSENT");
 		assertThat(GroupClassBookingService.outcome(past("ACTIVE", null, "UNMARKED"), event())).isEqualTo("UNMARKED");
