@@ -1,4 +1,4 @@
--- V14 is reserved by the new-message notification PR already under review.
+-- V15 is reserved by the trainee-card PR (#265) already under review.
 INSERT INTO notification_type (id, code, description, is_enabled, default_channels) VALUES
     (5, 'WAITLIST_PLACE_OFFERED', 'A waiting-list place is available and requires confirmation before its deadline.', TRUE, 'PUSH'),
     (6, 'WAITLIST_PLACE_GRANTED', 'A participant was automatically booked from the waiting list.', TRUE, 'PUSH');
