@@ -190,7 +190,7 @@ public class NotificationStore {
 				FROM notification n
 				WHERE n.scheduled_for <= :now AND n.created_at >= :since AND n.created_at < :createdBefore
 				  AND NOT EXISTS (SELECT 1 FROM notification_delivery d
-				                  WHERE d.notification_id = n.id AND d.status IN ('SENT', 'NO_DEVICE'))
+				                  WHERE d.notification_id = n.id AND d.status IN ('SENT', 'NO_DEVICE', 'SKIPPED'))
 				  AND (SELECT count(*) FROM notification_delivery d
 				       WHERE d.notification_id = n.id AND d.status = 'FAILED') < :maxFailures
 				ORDER BY n.created_at
@@ -315,7 +315,10 @@ public class NotificationStore {
 		TOKEN_INVALID,
 
 		/** The recipient has no registered device; the notification stays in the in-app inbox only. */
-		NO_DEVICE
+		NO_DEVICE,
+
+		/** The allocation expired, was cancelled, or is no longer accessible to the recipient. */
+		SKIPPED
 
 	}
 

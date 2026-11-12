@@ -30,6 +30,8 @@ import 'package:mobile/features/schedule/presentation/trainer_schedule_screen.da
 import 'package:mobile/features/trainings/presentation/new_cooperation_screen.dart';
 import 'package:mobile/features/trainings/presentation/new_client_account_screen.dart';
 import 'package:mobile/features/trainings/presentation/reservations_screen.dart';
+import 'package:mobile/features/trainings/presentation/group_class_details_screen.dart';
+import 'package:mobile/features/trainings/presentation/widgets/group_class_widgets.dart';
 import 'package:mobile/features/trainings/presentation/trainee_overview_screen.dart';
 import 'package:mobile/features/trainings/presentation/training_history_screen.dart';
 import 'package:mobile/features/trainings/presentation/trainings_screen.dart';
@@ -47,6 +49,10 @@ const invitePath = '/invite';
 const clientSchedulePath = '/client/schedule';
 const clientPassesPath = '/client/passes';
 const clientReservationsPath = '/client/reservations';
+const clientClassDetailsSubPath = 'classes/:eventId';
+
+String clientClassDetailsLocation(String eventId) =>
+    '$clientReservationsPath/classes/${Uri.encodeComponent(eventId)}';
 const clientMessagesPath = '/client/messages';
 const notificationsSubPath = 'notifications';
 const clientNotificationsPath = '$clientMessagesPath/$notificationsSubPath';
@@ -147,6 +153,18 @@ StatefulShellRoute _clientShell() => _roleShell([
     Icons.event_available,
     (l10n) => l10n.navMySchedule,
     routes: [
+      GoRoute(
+        path: clientClassDetailsSubPath,
+        builder: (_, state) => Consumer(
+          builder: (_, ref, _) {
+            final scope = bookingScope(ref.watch(authControllerProvider));
+            if (scope == null) return const SizedBox.shrink();
+            return GroupClassDetailsScreen(
+              query: (scope: scope, eventId: state.pathParameters['eventId']!),
+            );
+          },
+        ),
+      ),
       GoRoute(
         path: clientTrainingHistorySubPath,
         builder: (_, _) => const TrainingHistoryScreen(),

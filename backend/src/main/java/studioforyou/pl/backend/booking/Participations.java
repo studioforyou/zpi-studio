@@ -190,4 +190,24 @@ public class Participations {
 			.set();
 	}
 
+	/** Rechecks an allocation before delayed notification processing or a push retry. */
+	public boolean isCurrentWaitlistAllocation(WaitlistPlaceAllocated allocation, Instant now) {
+		if (allocation.offerExpiresAt() != null) {
+			return jdbc.sql("""
+					SELECT EXISTS (SELECT 1 FROM waitlist_entry
+					 WHERE id = :id AND customer_id = :customer AND event_id = :event
+					   AND status = 'OFFERED' AND offer_expires_at = :expires AND offer_expires_at > :now)
+					""").param("id", allocation.entryId()).param("customer", allocation.customerId())
+				.param("event", allocation.eventId()).param("expires", allocation.offerExpiresAt().atOffset(java.time.ZoneOffset.UTC))
+				.param("now", now.atOffset(java.time.ZoneOffset.UTC)).query(Boolean.class).single();
+		}
+		return jdbc.sql("""
+				SELECT EXISTS (SELECT 1 FROM waitlist_entry w JOIN reservation r ON r.id = w.reservation_id
+				 WHERE w.id = :id AND w.customer_id = :customer AND w.event_id = :event
+				   AND w.status = 'PROMOTED' AND w.reservation_id = :reservation AND r.status = 'ACTIVE')
+				""").param("id", allocation.entryId()).param("customer", allocation.customerId())
+			.param("event", allocation.eventId()).param("reservation", allocation.reservationId())
+			.query(Boolean.class).single();
+	}
+
 }
