@@ -1,4 +1,4 @@
--- V12
+-- V15
 --
 -- Schedule change notices (scheduling)
 -- Every saved change of an event's time, rooms or staff leaves one notice for each person it

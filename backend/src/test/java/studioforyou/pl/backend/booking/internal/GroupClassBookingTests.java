@@ -42,6 +42,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.util.AopTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
 
+import studioforyou.pl.backend.PassNotificationCleanup;
 import studioforyou.pl.backend.TestcontainersConfiguration;
 import studioforyou.pl.backend.booking.internal.GroupClassDtos.CancelRequest;
 import studioforyou.pl.backend.membership.BookingEntitlements;
@@ -118,6 +119,7 @@ class GroupClassBookingTests {
 	@AfterEach
 	void cleanUp() {
 		// Scope every cleanup to this fixture. Other integration fixtures retain their data.
+		PassNotificationCleanup.deleteNotifications(jdbc, List.of(actor, otherActor));
 		jdbc.sql("DELETE FROM pass_ledger WHERE pass_id IN (SELECT id FROM customer_pass WHERE variant_id = :variant)")
 			.param("variant", variant).update();
 		jdbc.sql("DELETE FROM reservation WHERE event_id IN (SELECT id FROM schedule_event WHERE service_type_id = :service)")

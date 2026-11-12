@@ -348,7 +348,8 @@ class TrainerAvailabilityTests {
 			.andExpect(status().isNoContent());
 		assertThat(countRows(trainerStaffId)).isEqualTo(3);
 
-		perform(TRAINER, delete(PATH + "/" + past).param("date", monday.minusDays(14).toString()), null)
+		// Two weeks earlier is strictly in the past even when today is Monday.
+		perform(TRAINER, delete(PATH + "/" + past).param("date", monday.minusWeeks(2).toString()), null)
 			.andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.errors[0].field").value("date"));
 	}

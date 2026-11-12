@@ -43,6 +43,7 @@ class TrainingHistoryEntry {
     required this.roomNames,
     required this.outcome,
     required this.entryReturned,
+    this.cancellationEffect,
   });
 
   factory TrainingHistoryEntry.fromJson(Map<String, dynamic> json) =>
@@ -64,6 +65,7 @@ class TrainingHistoryEntry {
         ],
         outcome: TrainingOutcome.fromCode(json['outcome'] as String),
         entryReturned: json['entryReturned'] as bool?,
+        cancellationEffect: json['cancellationEffect'] as String?,
       );
 
   final String reservationId;
@@ -79,6 +81,7 @@ class TrainingHistoryEntry {
 
   /// Whether a cancellation returned the pass entry; null without one.
   final bool? entryReturned;
+  final String? cancellationEffect;
 
   String? get name => title ?? serviceTypeName;
 }

@@ -15,6 +15,7 @@ import 'package:mobile/features/schedule/presentation/widgets/series_change_widg
 import 'package:mobile/features/schedule/presentation/widgets/series_changes_banner.dart';
 import 'package:mobile/features/trainings/data/event_participants_api.dart';
 import 'package:mobile/features/trainings/data/group_classes_api.dart';
+import 'package:mobile/features/trainings/data/personal_trainings_api.dart';
 import 'package:mobile/features/trainings/data/trainee_overview_api.dart';
 import 'package:mobile/features/trainings/presentation/group_class_details_screen.dart';
 import 'package:mobile/features/trainings/presentation/trainer_event_details_screen.dart';
@@ -336,6 +337,9 @@ void main() {
             studioTrainersApiProvider.overrideWithValue(_TrainersApi()),
             scheduleChangesApiProvider.overrideWithValue(
               changes ?? _ChangesApi(),
+            ),
+            personalTrainingsProvider.overrideWith(
+              (ref, query) async => const [],
             ),
           ],
           child: _app(

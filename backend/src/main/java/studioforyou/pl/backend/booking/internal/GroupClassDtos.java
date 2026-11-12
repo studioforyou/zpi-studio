@@ -87,7 +87,7 @@ final class GroupClassDtos {
 	record ReservationResponse(UUID id, UUID eventId, UUID customerId, String status, UUID customerPassId,
 			Instant freeCancelUntil, Instant cancelledAt, String cancelKind,
 			@Schema(description = "Actual entry-return result after cancellation; null for an active reservation.")
-			Boolean entryReturned, CancellationAvailability cancellation, int version) {
+			Boolean entryReturned, CancellationAvailability cancellation, int version, UUID makeupCreditId) {
 	}
 
 	@Schema(name = "GroupClassCancellationAvailability")
@@ -104,7 +104,7 @@ final class GroupClassDtos {
 			@Schema(description = "PRESENT, ABSENT, UNMARKED (attendance not recorded yet), CANCELLED (in time), LATE_CANCELLED, or CLASS_CANCELLED (by the studio).")
 			String outcome,
 			@Schema(description = "Whether the customer's cancellation returned the pass entry; null without one.")
-			Boolean entryReturned) {
+			Boolean entryReturned, String cancellationEffect) {
 	}
 
 	@Schema(name = "BookGroupClassRequest")

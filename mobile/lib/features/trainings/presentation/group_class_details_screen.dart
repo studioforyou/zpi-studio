@@ -99,7 +99,9 @@ class _GroupClassDetailsScreenState
     final reservation = event.ownReservation;
     // The studio may book a place without a pass entry; cancelling it costs nothing.
     final withoutPass =
-        reservation != null && reservation.customerPassId == null;
+        reservation != null &&
+        reservation.customerPassId == null &&
+        reservation.makeupCreditId == null;
     final isReserved = event.isReserved;
     final waiting = event.isWaitlisted ? event.waitlist.ownEntry : null;
     final canReserve =
@@ -124,6 +126,10 @@ class _GroupClassDetailsScreenState
       const SizedBox(height: 16),
       if (isReserved && reservation != null) ...[
         ClassInfoLine(Icons.check_circle_outline, l10n.classesReserved),
+        if (reservation.makeupCreditId != null) ...[
+          const SizedBox(height: 12),
+          ClassInfoLine(Icons.replay, l10n.makeupReservation),
+        ],
         if (withoutPass) ...[
           const SizedBox(height: 12),
           Text(l10n.classesReservedWithoutPass),
@@ -149,7 +155,9 @@ class _GroupClassDetailsScreenState
           const SizedBox(height: 12),
           Text(
             reservation.cancellation.allowed
-                ? l10n.classesCancelForfeitsEntry
+                ? reservation.makeupCreditId != null
+                      ? l10n.makeupCancelForfeits
+                      : l10n.classesCancelForfeitsEntry
                 : classReason(l10n, reservation.cancellation.reason),
           ),
         ],
@@ -387,7 +395,11 @@ class _GroupClassDetailsScreenState
       ask: () => _confirm(
         event,
         title: l10n.classesCancelTitle,
-        consequence: reservation.customerPassId == null
+        consequence: reservation.makeupCreditId != null
+            ? reservation.cancellation.entryReturned == true
+                  ? l10n.makeupCancelReturns
+                  : l10n.makeupCancelForfeits
+            : reservation.customerPassId == null
             ? l10n.classesCancelWithoutPass
             : reservation.cancellation.entryReturned == true
             ? l10n.classesCancelReturnsEntry

@@ -9,10 +9,12 @@ class ClientScheduleEventTile extends StatelessWidget {
   const ClientScheduleEventTile({
     required this.event,
     required this.onTap,
+    this.participant,
     super.key,
   });
   final GroupClass event;
   final VoidCallback onTap;
+  final Widget? participant;
 
   @override
   Widget build(BuildContext context) {
@@ -27,6 +29,81 @@ class ClientScheduleEventTile extends StatelessWidget {
         .map((person) => person.displayName!)
         .join(', ');
     final change = cancelled ? null : event.seriesChange;
+    return ClientScheduleCard(
+      color: color,
+      header: change == null
+          ? null
+          : ChangeChip(change: change, startsAt: event.startsAt),
+      time: classTime(event),
+      usualTime: usualTimeOf(change, event.startsAt),
+      usualTrainer: change?.usualInstructors?.join(', '),
+      usualRoom: change?.usualRooms?.join(', '),
+      title: event.name ?? l10n.classesTitle,
+      trainer: teachers.isEmpty ? l10n.classesInstructorPending : teachers,
+      room: event.roomNames.isEmpty
+          ? l10n.classesRoomPending
+          : event.roomNames.join(', '),
+      cancelled: cancelled,
+      participant: participant,
+      onTap: onTap,
+      footer: [
+        if (event.isReserved)
+          ScheduleEventMarker(Icons.check_circle_outline, l10n.classesReserved)
+        else if (classWaitingEntry(event) case final entry?)
+          ScheduleEventMarker(
+            Icons.hourglass_top_outlined,
+            classWaitlistMarker(l10n, entry),
+          ),
+        if (cancelled)
+          Text(l10n.eventStatusCancelled, style: TextStyle(color: color))
+        else
+          ClassOccupancy(event),
+      ],
+    );
+  }
+}
+
+/// A shared layout for the client's group classes and personal trainings.
+class ClientScheduleCard extends StatelessWidget {
+  const ClientScheduleCard({
+    required this.color,
+    required this.time,
+    required this.title,
+    required this.trainer,
+    required this.room,
+    required this.onTap,
+    required this.footer,
+    this.participant,
+    this.cancelled = false,
+    this.header,
+    this.usualTime,
+    this.usualTrainer,
+    this.usualRoom,
+    super.key,
+  });
+
+  final Color color;
+  final String time;
+  final String title;
+  final String trainer;
+  final String room;
+  final VoidCallback onTap;
+  final List<Widget> footer;
+  final Widget? participant;
+  final bool cancelled;
+
+  /// Shown above the time, e.g. the label of a one-off change.
+  final Widget? header;
+
+  /// The usual values of a one-off change, shown crossed out next to the
+  /// new ones.
+  final String? usualTime;
+  final String? usualTrainer;
+  final String? usualRoom;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Card(
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -43,22 +120,25 @@ class ClientScheduleEventTile extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     spacing: 6,
                     children: [
-                      if (change != null)
-                        ChangeChip(change: change, startsAt: event.startsAt),
+                      ?header,
                       Row(
                         children: [
                           Expanded(
                             child: ChangedValue(
-                              classTime(event),
-                              usual: usualTimeOf(change, event.startsAt),
+                              time,
+                              usual: usualTime,
                               style: theme.textTheme.labelLarge,
                             ),
                           ),
+                          if (participant != null) ...[
+                            Flexible(child: participant!),
+                            const SizedBox(width: 8),
+                          ],
                           const Icon(Icons.chevron_right, size: 20),
                         ],
                       ),
                       Text(
-                        event.name ?? l10n.classesTitle,
+                        title,
                         style: theme.textTheme.titleMedium?.copyWith(
                           decoration: cancelled
                               ? TextDecoration.lineThrough
@@ -67,36 +147,16 @@ class ClientScheduleEventTile extends StatelessWidget {
                         ),
                       ),
                       ChangedValue(
-                        teachers.isEmpty
-                            ? l10n.classesInstructorPending
-                            : teachers,
-                        usual: change?.usualInstructors?.join(', '),
+                        trainer,
+                        usual: usualTrainer,
                         style: theme.textTheme.bodySmall,
                       ),
                       ChangedValue(
-                        event.roomNames.isEmpty
-                            ? l10n.classesRoomPending
-                            : event.roomNames.join(', '),
-                        usual: change?.usualRooms?.join(', '),
+                        room,
+                        usual: usualRoom,
                         style: theme.textTheme.bodySmall,
                       ),
-                      if (event.isReserved)
-                        _Marker(
-                          Icons.check_circle_outline,
-                          l10n.classesReserved,
-                        )
-                      else if (classWaitingEntry(event) case final entry?)
-                        _Marker(
-                          Icons.hourglass_top_outlined,
-                          classWaitlistMarker(l10n, entry),
-                        ),
-                      if (cancelled)
-                        Text(
-                          l10n.eventStatusCancelled,
-                          style: TextStyle(color: theme.colorScheme.error),
-                        )
-                      else
-                        ClassOccupancy(event),
+                      ...footer,
                     ],
                   ),
                 ),
@@ -110,8 +170,9 @@ class ClientScheduleEventTile extends StatelessWidget {
 }
 
 /// The participant's own state on the class: a reservation or a waiting place.
-class _Marker extends StatelessWidget {
-  const _Marker(this.icon, this.text);
+class ScheduleEventMarker extends StatelessWidget {
+  const ScheduleEventMarker(this.icon, this.text, {super.key, this.color});
+  final Color? color;
   final IconData icon;
   final String text;
 
@@ -120,7 +181,7 @@ class _Marker extends StatelessWidget {
     final theme = Theme.of(context);
     return Row(
       children: [
-        Icon(icon, size: 16, color: theme.colorScheme.primary),
+        Icon(icon, size: 16, color: color ?? theme.colorScheme.primary),
         const SizedBox(width: 6),
         Flexible(child: Text(text, style: theme.textTheme.labelMedium)),
       ],

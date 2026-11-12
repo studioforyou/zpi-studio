@@ -47,6 +47,7 @@ import org.springframework.test.util.AopTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import studioforyou.pl.backend.PassNotificationCleanup;
 import studioforyou.pl.backend.TestcontainersConfiguration;
 import studioforyou.pl.backend.booking.internal.GroupClassDtos.CancelRequest;
 import studioforyou.pl.backend.booking.internal.GroupClassDtos.GroupClassResponse;
@@ -166,6 +167,7 @@ class GroupClassWaitlistTests {
 		jdbc.sql("DELETE FROM pass_product WHERE id = :product").param("product", product).update();
 		jdbc.sql("DELETE FROM service_type WHERE id = :service").param("service", service).update();
 		List<UUID> actors = List.of(actor, otherActor, thirdActor);
+		PassNotificationCleanup.deleteNotifications(jdbc, actors);
 		jdbc.sql("DELETE FROM guardianship WHERE guardian_id = :profile").param("profile", profile).update();
 		jdbc.sql("DELETE FROM customer_profile WHERE account_id IN (:actors) OR first_name = 'waitlist-test-child'")
 			.param("actors", actors).update();

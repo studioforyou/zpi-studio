@@ -158,7 +158,9 @@ void main() {
           scheduleChangesProvider.overrideWith(
             (ref, owner) => Stream.value([]),
           ),
-          unreadCountProvider.overrideWith((ref, scope) async => 0),
+          unreadCountProvider.overrideWith(
+            (ref, scope) async => UnreadNotifications.none,
+          ),
         ],
         child: const App(),
       ),

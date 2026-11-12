@@ -233,6 +233,27 @@ class ConversationStore {
 			.update();
 	}
 
+	/**
+	 * The messages of the conversation the account has not read yet, oldest first: written by
+	 * others, not deleted, after the account last read the conversation and before it left.
+	 */
+	List<Message> findUnread(UUID conversationId, UUID accountId) {
+		return jdbc.sql("""
+				SELECT m.id, m.conversation_id, m.sender_id, m.body, m.created_at, m.deleted_at
+				FROM message m
+				LEFT JOIN conversation_participant p
+				  ON p.conversation_id = m.conversation_id AND p.account_id = :accountId
+				WHERE m.conversation_id = :conversationId AND m.deleted_at IS NULL AND m.sender_id <> :accountId
+				  AND (p.last_read_at IS NULL OR m.created_at > p.last_read_at)
+				  AND (p.left_at IS NULL OR m.created_at <= p.left_at)
+				ORDER BY m.created_at, m.id
+				""")
+			.param("conversationId", conversationId)
+			.param("accountId", accountId)
+			.query(Message.class)
+			.list();
+	}
+
 	void hide(UUID conversationId, UUID accountId) {
 		jdbc.sql("""
 				UPDATE conversation_participant

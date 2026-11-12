@@ -77,7 +77,7 @@ public class NotificationDispatcher {
 		boolean sent = false;
 		for (String token : tokens) {
 			PushResult result = pushSender.send(new PushMessage(token, notification.title(),
-					notification.body() == null ? "" : notification.body(), data));
+					notification.body() == null ? "" : notification.body(), data, notification.id().toString()));
 			switch (result.outcome()) {
 				case SENT -> {
 					store.recordDelivery(notification.id(), DeliveryStatus.SENT, result.messageId(), null);

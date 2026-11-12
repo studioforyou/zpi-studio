@@ -50,8 +50,37 @@ public class Notifications {
 		return created.size();
 	}
 
+	/**
+	 * Like {@link #notifyNow}, but a notification that already exists under the same deduplication
+	 * key is brought up to date instead of skipped: it gets the new title, text and data, moves to
+	 * {@code scheduledFor}, becomes unread and is sent again. Nothing happens when the request holds
+	 * the same data or is older than the notification (e.g. a re-delivered event), so a group of
+	 * changes, e.g. the unread messages of a conversation, keeps one notification.
+	 *
+	 * @return how many notifications were created or updated
+	 */
+	public int notifyNowOrUpdate(List<NotificationRequest> requests) {
+		List<UUID> changed = create(requests, true);
+		dispatcher.dispatch(changed);
+		return changed.size();
+	}
+
+	/**
+	 * Marks the account's unread notifications of a type read when their data has the value, e.g.
+	 * the new message notifications of a conversation once the account has read it.
+	 *
+	 * @return how many were unread until now
+	 */
+	public int markRead(UUID accountId, NotificationType type, String dataKey, String dataValue) {
+		return store.markReadByData(accountId, type, dataKey, dataValue);
+	}
+
 	/** Stores the notifications without sending them; returns the IDs of the new ones. */
 	List<UUID> create(List<NotificationRequest> requests) {
+		return create(requests, false);
+	}
+
+	private List<UUID> create(List<NotificationRequest> requests, boolean update) {
 		if (requests.isEmpty()) {
 			return List.of();
 		}
@@ -72,7 +101,7 @@ public class Notifications {
 				.count() > 1;
 			String title = title(typeSettings.subject(), request, severalRoles);
 			String body = NotificationTemplates.render(typeSettings.body(), request.values()).strip();
-			store.insert(request, title, body).ifPresent(created::add);
+			(update ? store.upsert(request, title, body) : store.insert(request, title, body)).ifPresent(created::add);
 		}
 		return created;
 	}

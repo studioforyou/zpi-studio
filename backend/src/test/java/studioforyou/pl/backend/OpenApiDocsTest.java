@@ -57,6 +57,19 @@ class OpenApiDocsTest {
 	}
 
 	@Test
+	void documentsTheFiltersOfEventReportsAsQueryParameters() throws Exception {
+		String json = apiDocs();
+
+		for (String path : List.of("/api/v1/reports/class-attendance", "/api/v1/reports/booking-outcomes")) {
+			List<String> names = JsonPath.read(json, "$.paths['" + path + "'].get.parameters[*].name");
+			assertThat(names).containsExactlyInAnyOrder("from", "to", "kind", "serviceTypeId", "staffId",
+					"trainingGroupId", "resourceId");
+			List<String> places = JsonPath.read(json, "$.paths['" + path + "'].get.parameters[*].in");
+			assertThat(places).containsOnly("query");
+		}
+	}
+
+	@Test
 	void documentsOwnWaitlistEndpoints() throws Exception {
 		String json = apiDocs();
 
@@ -159,6 +172,14 @@ class OpenApiDocsTest {
 		assertThat((String) JsonPath.read(json,
 				"$.paths['/api/v1/schedule-events/{eventId}/booking-options'].get.operationId"))
 			.isEqualTo("getStaffBookingOptions");
+		String own = "$.paths['/api/v1/me/schedule-events/{eventId}";
+		assertThat((Map<String, Object>) JsonPath.read(json, own + "/reservations']")).containsOnlyKeys("post");
+		assertThat((String) JsonPath.read(json, own + "/reservations'].post.operationId"))
+			.isEqualTo("bookOwnEventReservation");
+		assertThat((Map<String, Object>) JsonPath.read(json, own + "/reservations'].post.responses"))
+			.containsKeys("200", "201", "400", "401", "403", "404", "409", "422");
+		assertThat((String) JsonPath.read(json, own + "/booking-options'].get.operationId"))
+			.isEqualTo("getOwnEventBookingOptions");
 		assertThat((Map<String, Object>) JsonPath.read(json, "$.components.schemas.StaffBookRequest.properties"))
 			.containsOnlyKeys("customerId", "customerPassId", "acceptedIssues", "reason");
 		assertThat((Map<String, Object>) JsonPath.read(json,

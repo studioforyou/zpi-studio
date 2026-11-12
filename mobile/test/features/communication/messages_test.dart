@@ -10,6 +10,7 @@ import 'package:mobile/core/auth/session.dart';
 import 'package:mobile/core/network/api_exception.dart';
 import 'package:mobile/features/communication/data/conversations_api.dart';
 import 'package:mobile/features/communication/data/notifications_api.dart';
+import 'package:mobile/features/communication/data/open_conversation.dart';
 import 'package:mobile/features/communication/presentation/chat_format.dart';
 import 'package:mobile/features/communication/presentation/chat_pickers.dart';
 import 'package:mobile/features/communication/presentation/conversation_screen.dart';
@@ -275,6 +276,7 @@ ConversationSummary _summary(
 
 void main() {
   late _FakeConversationsApi api;
+  var notificationCountLoads = 0;
 
   setUp(() => api = _FakeConversationsApi());
 
@@ -318,7 +320,10 @@ void main() {
         overrides: [
           authControllerProvider.overrideWith(() => _SignedIn(session)),
           conversationsApiProvider.overrideWithValue(api),
-          unreadCountProvider.overrideWith((ref, scope) async => 0),
+          unreadCountProvider.overrideWith((ref, scope) async {
+            notificationCountLoads++;
+            return UnreadNotifications.none;
+          }),
         ],
         child: MaterialApp.router(
           routerConfig: router,
@@ -656,6 +661,63 @@ void main() {
       expect(api.deletedSinceSeen.first, 'cursor-0');
       expect(find.text('Pomyłka'), findsNothing);
       expect(find.text('Dzień dobry'), findsOneWidget);
+    });
+
+    testWidgets(
+      'a push about the open conversation shows its message at once',
+      (tester) async {
+        api.conversations['d'] = _direct('d', 'Marta Zielińska');
+        api.messages['d'] = [
+          _message('1', 'Dzień dobry', sender: 'x', name: 'Marta Zielińska'),
+        ];
+        await pump(
+          tester,
+          session: _trainer,
+          initialLocation: '/trainer/messages/chat/d',
+        );
+        final open = ProviderScope.containerOf(
+          tester.element(find.byType(ConversationScreen)),
+        ).read(openConversationProvider);
+        expect(open.id, 'd');
+
+        api.messages['d']!.add(
+          _message(
+            '2',
+            'Będę 10 min później',
+            sender: 'x',
+            name: 'Marta Zielińska',
+          ),
+        );
+        open.messageArrived('other');
+        await tester.pumpAndSettle();
+        expect(find.text('Będę 10 min później'), findsNothing);
+        open.messageArrived('d');
+        await tester.pumpAndSettle();
+        expect(find.text('Będę 10 min później'), findsOneWidget);
+
+        await tester.pumpWidget(const SizedBox.shrink());
+        expect(open.id, isNull);
+      },
+    );
+
+    testWidgets('reading a conversation refreshes the bell', (tester) async {
+      api.summaries = [
+        _summary('d', 'Ewa Lis', ConversationKind.direct, unread: 1),
+      ];
+      api.conversations['d'] = _direct('d', 'Ewa Lis');
+      api.messages['d'] = [
+        _message('1', 'Dzień dobry', sender: 'x', name: 'Ewa Lis'),
+      ];
+      await pump(tester, session: _client, initialLocation: '/client/messages');
+      final listed = notificationCountLoads;
+
+      // Opening it reads the conversation and the notifications about it: back
+      // on the list, the bell is up to date.
+      await tester.tap(find.text('Ewa Lis'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byType(BackButton));
+      await tester.pumpAndSettle();
+      expect(notificationCountLoads, greaterThan(listed));
     });
 
     testWidgets('sends a message', (tester) async {
