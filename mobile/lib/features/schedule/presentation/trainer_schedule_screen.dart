@@ -1,13 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import 'package:mobile/app/router/app_router.dart';
 import 'package:mobile/core/auth/auth_controller.dart';
 import 'package:mobile/features/schedule/data/schedule_api.dart';
+import 'package:mobile/features/schedule/data/series_changes.dart';
 import 'package:mobile/features/schedule/data/schedule_service_types.dart';
 import 'package:mobile/features/schedule/presentation/service_type_filter_labels.dart';
 import 'package:mobile/features/schedule/presentation/trainer_schedule_filter.dart';
 import 'package:mobile/features/schedule/presentation/widgets/schedule_calendar.dart';
+import 'package:mobile/features/schedule/presentation/widgets/series_change_widgets.dart';
+import 'package:mobile/features/schedule/presentation/widgets/series_changes_banner.dart';
 import 'package:mobile/features/schedule/presentation/widgets/trainer_schedule_filters.dart';
 import 'package:mobile/features/trainings/presentation/trainer_event_details_screen.dart';
 import 'package:mobile/features/trainings/data/trainee_overview_api.dart';
@@ -60,6 +64,7 @@ class _TrainerScheduleScreenState extends ConsumerState<TrainerScheduleScreen>
         window: query.window,
       )),
     );
+    ref.invalidate(scheduleChangesProvider(TrainerChanges(query.scope)));
     ref.invalidate(ownPersonalTrainingsProvider(query));
     try {
       final request = ref.refresh(trainerScheduleEventsProvider(query).future);
@@ -84,55 +89,110 @@ class _TrainerScheduleScreenState extends ConsumerState<TrainerScheduleScreen>
       ),
       body: scope == null
           ? const SizedBox()
-          : ScheduleCalendar(
-              key: ValueKey(scope),
-              eventsFor: (window) {
-                final query = (scope: scope, window: window);
-                _visibleQuery = query;
-                return trainerScheduleEventsProvider(query);
-              },
-              onRefresh: (window) => _refresh((scope: scope, window: window)),
-              where: (event) =>
-                  _filter.matches(event, scope.staffId, serviceTypes),
-              filtersBuilder: (context, events) {
-                final options = serviceTypeFilterOptions(
-                  serviceTypes,
-                  selectedLevels: _filter.levels,
-                  selectedAgeGroups: _filter.ageGroups,
-                );
-                return TrainerScheduleFilterBar(
-                  filter: _filter,
-                  rooms: {
-                    for (final event in events) ...event.roomNames,
-                  }.toList(),
-                  levels: options.levels,
-                  ageGroups: options.ageGroups,
-                  onChanged: (filter) => setState(() => _filter = filter),
-                );
-              },
-              eventBuilder: (context, event) {
-                if (event is TraineeTraining) {
-                  final snapshot = ref
-                      .watch(ownPersonalTrainingsProvider(_visibleQuery!))
-                      .asData
-                      ?.value;
-                  if (snapshot == null) return const SizedBox();
-                  return PersonalTrainingScheduleTile(
-                    training: event,
-                    checkedAt: snapshot.checkedAt,
-                  );
-                }
-                return ScheduleEventTile(event, onTap: () => _openEvent(event));
-              },
+          : Column(
+              children: [
+                ScheduleChangesBanner(
+                  owner: TrainerChanges(scope),
+                  onOpen: _openEventById,
+                ),
+                Expanded(child: _calendar(scope, serviceTypes)),
+              ],
             ),
     );
   }
 
-  void _openEvent(ScheduleEvent event) {
+  Widget _calendar(
+    TrainerOverviewScope scope,
+    Map<String, ScheduleServiceType> serviceTypes,
+  ) => ScheduleCalendar(
+    key: ValueKey(scope),
+    eventsFor: (window) {
+      final query = (scope: scope, window: window);
+      _visibleQuery = query;
+      return trainerScheduleEventsProvider(query);
+    },
+    onRefresh: (window) => _refresh((scope: scope, window: window)),
+    where: (event) => _filter.matches(event, scope.staffId, serviceTypes),
+    filtersBuilder: (context, events) {
+      final options = serviceTypeFilterOptions(
+        serviceTypes,
+        selectedLevels: _filter.levels,
+        selectedAgeGroups: _filter.ageGroups,
+      );
+      return TrainerScheduleFilterBar(
+        filter: _filter,
+        rooms: {for (final event in events) ...event.roomNames}.toList(),
+        levels: options.levels,
+        ageGroups: options.ageGroups,
+        onChanged: (filter) => setState(() => _filter = filter),
+      );
+    },
+    eventBuilder: (context, event) {
+      if (event is TraineeTraining) {
+        final snapshot = ref
+            .watch(ownPersonalTrainingsProvider(_visibleQuery!))
+            .asData
+            ?.value;
+        if (snapshot == null) return const SizedBox();
+        return PersonalTrainingScheduleTile(
+          training: event,
+          checkedAt: snapshot.checkedAt,
+        );
+      }
+      if (_handedOver(event, scope.staffId)) {
+        return _HandedOverTile(event);
+      }
+      return ScheduleEventTile(event, onTap: () => _openEvent(event));
+    },
+    movedBuilder: (context, event) => MovedAwayTile(
+      name:
+          event.name ??
+          eventKindLabel(AppLocalizations.of(context), event.kind),
+      startsAt: event.startsAt,
+      usualStartsAt: event.seriesChange!.usualStartsAt!,
+      onTap: _handedOver(event, scope.staffId) ? null : () => _openEvent(event),
+    ),
+  );
+
+  void _openEvent(ScheduleEvent event) => _openEventById(event.id);
+
+  void _openEventById(String eventId) {
     Navigator.of(context).push<void>(
       MaterialPageRoute(
-        builder: (_) => TrainerEventDetailsScreen(eventId: event.id),
+        builder: (_) => TrainerEventDetailsScreen(eventId: eventId),
       ),
+    );
+  }
+}
+
+/// Whether someone else runs the trainer's event this once: the schedule
+/// shows it where the trainer expects it, but not as theirs.
+bool _handedOver(ScheduleEvent event, String? staffId) =>
+    staffId != null &&
+    event.seriesChange?.usualInstructors != null &&
+    event.staff.every((person) => person.staffId != staffId);
+
+/// The placeholder of the trainer's usual class that another trainer runs
+/// this once.
+class _HandedOverTile extends StatelessWidget {
+  const _HandedOverTile(this.event);
+
+  final ScheduleEvent event;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final time = DateFormat('HH:mm');
+    final leads = [
+      for (final person in event.staff)
+        if (person.isLead && person.displayName != null) person.displayName!,
+    ];
+    return UsualSlotTile(
+      icon: Icons.swap_horiz,
+      title:
+          '${event.name ?? eventKindLabel(l10n, event.kind)}, '
+          '${time.format(event.startsAt)}–${time.format(event.endsAt)}',
+      subtitle: l10n.changeHandedOver(leads.join(', ')),
     );
   }
 }

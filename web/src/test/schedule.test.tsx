@@ -89,6 +89,7 @@ const baseEvent: ScheduleEvent = {
   serviceTypeName: 'Pole dance - początkujący',
   seriesId: 'series-1',
   isSeriesException: false,
+  seriesChange: null,
   trainingGroupId: null,
   // Tuesday 3 November 2026, 18:00–19:00 in Warsaw (CET).
   startsAt: '2026-11-03T17:00:00Z',
@@ -713,4 +714,234 @@ test('plans a recurring block of a room', async () => {
     expect(requestBody(fetchMock, 'POST', '/api/v1/recurrence-series')).toEqual(expected),
   );
   expect(requestBody(fetchMock, 'POST', '/api/v1/recurrence-series/preview')).toEqual(expected);
+});
+
+test('changes only one occurrence of a series after checking its new time', async () => {
+  const fetchMock = stubApi(
+    (url, method) =>
+      url === '/api/v1/schedule-events/pole-class/change-preview' && method === 'POST'
+        ? json({
+            occurrences: [
+              {
+                date: '2026-11-03',
+                startsAt: '2026-11-03T18:00:00Z',
+                endsAt: '2026-11-03T19:30:00Z',
+                excluded: false,
+                issues: [],
+              },
+            ],
+            warnings: [],
+            conflictCount: 0,
+          })
+        : undefined,
+    (url, method) =>
+      url === '/api/v1/schedule-events/pole-class' && method === 'PUT'
+        ? json({ ...baseEvent, isSeriesException: true })
+        : undefined,
+  );
+  renderWithProviders(<SchedulePage initialDate="2026-11-03" />);
+  await userEvent.click(await screen.findByRole('button', { name: 'Pole dance, 18:00–19:00' }));
+  const drawer = await screen.findByRole('dialog');
+  await userEvent.click(within(drawer).getByRole('button', { name: 'Zmień to wystąpienie' }));
+
+  const dialog = await screen.findByRole('dialog', { name: /Zmiana wystąpienia/ });
+  expect(
+    within(dialog).getByText(
+      'Zmieniasz tylko wystąpienie z 03.11.2026. Cykl i jego pozostałe terminy zostaną bez zmian.',
+    ),
+  ).toBeInTheDocument();
+  fireEvent.change(within(dialog).getByLabelText(/Początek/), { target: { value: '19:00' } });
+  const duration = within(dialog).getByRole('textbox', { name: /Czas trwania/ });
+  await userEvent.clear(duration);
+  await userEvent.type(duration, '90');
+  const capacity = within(dialog).getByRole('textbox', { name: /Limit miejsc/ });
+  await userEvent.clear(capacity);
+  await userEvent.type(capacity, '8');
+  expect(within(dialog).getByText('Koniec o 20:30')).toBeInTheDocument();
+
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Sprawdź termin' }));
+  expect(
+    await within(dialog).findByText('Termin jest wolny: sale i prowadzący są dostępni.'),
+  ).toBeInTheDocument();
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Zapisz zmiany' }));
+
+  const expected = {
+    version: 0,
+    startsAt: '2026-11-03T18:00:00.000Z',
+    endsAt: '2026-11-03T19:30:00.000Z',
+    title: 'Pole dance',
+    capacity: 8,
+    staff: [{ staffId: 'anna', role: 'LEAD' }],
+    resources: [{ resourceId: 'pole-room', blocksWholeRoom: true }],
+  };
+  expect(
+    requestBody(fetchMock, 'POST', '/api/v1/schedule-events/pole-class/change-preview'),
+  ).toEqual(expected);
+  await vi.waitFor(() =>
+    expect(requestBody(fetchMock, 'PUT', '/api/v1/schedule-events/pole-class')).toEqual(expected),
+  );
+  await vi.waitFor(() =>
+    expect(screen.queryByRole('dialog', { name: /Zmiana wystąpienia/ })).not.toBeInTheDocument(),
+  );
+});
+
+test('explains why a change of one occurrence was rejected', async () => {
+  stubApi(
+    (url, method) =>
+      url === '/api/v1/schedule-events/pole-class/change-preview' && method === 'POST'
+        ? json({
+            occurrences: [
+              {
+                date: '2026-11-03',
+                startsAt: '2026-11-03T17:00:00Z',
+                endsAt: '2026-11-03T18:00:00Z',
+                excluded: false,
+                issues: [
+                  {
+                    type: 'STAFF_ON_LEAVE',
+                    blocking: true,
+                    staffId: 'anna',
+                    resourceId: null,
+                    eventId: null,
+                    eventTitle: null,
+                    startsAt: '2026-11-03T16:00:00Z',
+                    endsAt: '2026-11-03T20:00:00Z',
+                  },
+                ],
+              },
+            ],
+            warnings: [
+              {
+                type: 'STAFF_NOT_QUALIFIED',
+                blocking: false,
+                staffId: 'marek',
+                resourceId: null,
+                eventId: null,
+                eventTitle: null,
+                startsAt: null,
+                endsAt: null,
+              },
+            ],
+            conflictCount: 1,
+          })
+        : undefined,
+    (url, method) =>
+      url === '/api/v1/schedule-events/pole-class' && method === 'PUT'
+        ? json(
+            {
+              status: 400,
+              code: 'VALIDATION_FAILED',
+              errors: [{ field: 'capacity', code: 'OUT_OF_RANGE', message: 'too low' }],
+            },
+            400,
+          )
+        : undefined,
+  );
+  renderWithProviders(<SchedulePage initialDate="2026-11-03" />);
+  await userEvent.click(await screen.findByRole('button', { name: 'Pole dance, 18:00–19:00' }));
+  await userEvent.click(
+    within(await screen.findByRole('dialog')).getByRole('button', {
+      name: 'Zmień to wystąpienie',
+    }),
+  );
+  const dialog = await screen.findByRole('dialog', { name: /Zmiana wystąpienia/ });
+
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Sprawdź termin' }));
+  expect(
+    await within(dialog).findByText('W tym terminie są konflikty, których nie da się zapisać:'),
+  ).toBeInTheDocument();
+  expect(within(dialog).getByText(/Anna Kowalska ma zatwierdzony urlop/)).toBeInTheDocument();
+  expect(
+    within(dialog).getByText(/Marek Nowak nie ma kwalifikacji do tej usługi/),
+  ).toBeInTheDocument();
+
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Zapisz zmiany' }));
+  expect(await within(dialog).findByText(/Limit miejsc jest za mały/)).toBeInTheDocument();
+});
+
+test('brings a moved occurrence back to its series', async () => {
+  const moved: ScheduleEvent = {
+    ...baseEvent,
+    isSeriesException: true,
+    seriesChange: {
+      usualStartsAt: '2026-11-03T17:00:00Z',
+      usualEndsAt: '2026-11-03T18:00:00Z',
+      usualInstructors: null,
+      usualRooms: null,
+    },
+    startsAt: '2026-11-03T19:00:00Z',
+    endsAt: '2026-11-03T20:00:00Z',
+    version: 3,
+  };
+  const fetchMock = stubApi(
+    (url, method) =>
+      url.startsWith('/api/v1/schedule-events?') && method === 'GET'
+        ? json({ items: [moved] })
+        : undefined,
+    (url, method) =>
+      url === '/api/v1/schedule-events/pole-class/restore-series' && method === 'POST'
+        ? json(baseEvent)
+        : undefined,
+  );
+  renderWithProviders(<SchedulePage initialDate="2026-11-03" />);
+  await userEvent.click(await screen.findByRole('button', { name: 'Pole dance, 20:00–21:00' }));
+
+  const drawer = await screen.findByRole('dialog');
+  expect(within(drawer).getByText('Zmienione w cyklu')).toBeInTheDocument();
+  expect(within(drawer).getByText('Termin według cyklu')).toBeInTheDocument();
+  expect(within(drawer).getByText('03.11.2026 18:00')).toBeInTheDocument();
+  await userEvent.click(within(drawer).getByRole('button', { name: 'Przywróć ustawienia cyklu' }));
+
+  const confirm = await screen.findByRole('dialog', { name: 'Przywrócić ustawienia cyklu?' });
+  expect(within(confirm).getByText(/wróci do terminu 03.11.2026 18:00/)).toBeInTheDocument();
+  await userEvent.click(within(confirm).getByRole('button', { name: 'Przywróć' }));
+
+  await vi.waitFor(() =>
+    expect(
+      requestBody(fetchMock, 'POST', '/api/v1/schedule-events/pole-class/restore-series'),
+    ).toEqual({ version: 3 }),
+  );
+});
+
+test('an event that has started can no longer be moved', async () => {
+  vi.setSystemTime(new Date('2026-11-03T17:30:00Z'));
+  stubApi();
+  renderWithProviders(<SchedulePage initialDate="2026-11-03" />);
+  await userEvent.click(await screen.findByRole('button', { name: 'Pole dance, 18:00–19:00' }));
+
+  const drawer = await screen.findByRole('dialog');
+  expect(
+    within(drawer).getByText('Wydarzenie już się rozpoczęło, więc nie można go zmieniać.'),
+  ).toBeInTheDocument();
+  expect(
+    within(drawer).queryByRole('button', { name: 'Zmień to wystąpienie' }),
+  ).not.toBeInTheDocument();
+  expect(within(drawer).getByRole('button', { name: 'Zmień obsadę i salę' })).toBeInTheDocument();
+});
+
+test('shows the usual lead and room of an occurrence changed this once', async () => {
+  const substituted: ScheduleEvent = {
+    ...baseEvent,
+    isSeriesException: true,
+    seriesChange: {
+      usualStartsAt: null,
+      usualEndsAt: null,
+      usualInstructors: ['Beata Lis'],
+      usualRooms: ['Sala B'],
+    },
+  };
+  stubApi((url, method) =>
+    url.startsWith('/api/v1/schedule-events?') && method === 'GET'
+      ? json({ items: [substituted] })
+      : undefined,
+  );
+  renderWithProviders(<SchedulePage initialDate="2026-11-03" />);
+  await userEvent.click(await screen.findByRole('button', { name: 'Pole dance, 18:00–19:00' }));
+
+  const drawer = await screen.findByRole('dialog');
+  expect(within(drawer).getByText('Prowadzący według cyklu')).toBeInTheDocument();
+  expect(within(drawer).getByText('Beata Lis')).toHaveStyle({ textDecoration: 'line-through' });
+  expect(within(drawer).getByText('Sala według cyklu')).toBeInTheDocument();
+  expect(within(drawer).getByText('Sala B')).toBeInTheDocument();
+  expect(within(drawer).queryByText('Termin według cyklu')).not.toBeInTheDocument();
 });

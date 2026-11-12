@@ -84,12 +84,14 @@ class SchedulePlanner {
 
 	private final StudioSettings studio;
 
+	private final ScheduleChangeNotices notices;
+
 	private final Clock clock = Clock.systemUTC();
 
 	SchedulePlanner(ScheduleEventRepository events, RecurrenceSeriesRepository seriesRepository,
 			ResourceRepository resources, ServiceTypeResourceRepository roomRules, ScheduleQueries queries,
 			ScheduleConflicts conflicts, ScheduleLocks locks, ServiceTypes serviceTypes, StaffProfiles staffProfiles,
-			StudioSettings studio) {
+			StudioSettings studio, ScheduleChangeNotices notices) {
 		this.events = events;
 		this.seriesRepository = seriesRepository;
 		this.resources = resources;
@@ -99,6 +101,7 @@ class SchedulePlanner {
 		this.locks = locks;
 		this.serviceTypes = serviceTypes;
 		this.staffProfiles = staffProfiles;
+		this.notices = notices;
 		this.studio = studio;
 	}
 
@@ -201,6 +204,8 @@ class SchedulePlanner {
 			.toList();
 		lockAndRejectConflicts(occurrences, assignments, zone, targets.stream().map(ScheduleEvent::getId).toList());
 
+		Map<UUID, ScheduleChangeNotices.Snapshot> before = this.notices
+			.snapshots(targets.stream().map(ScheduleEvent::getId).toList());
 		for (ScheduleEvent target : targets) {
 			boolean changed = target.replaceAssignments(assignments.staff(), assignments.resources());
 			if (changed && !following) {
@@ -212,6 +217,7 @@ class SchedulePlanner {
 				.ifPresent((series) -> series.setDefaults(assignments.leadStaffId(), assignments.mainResourceId()));
 		}
 		this.events.flush();
+		this.notices.record(before);
 		return this.queries.findEvent(eventId).orElseThrow();
 	}
 
@@ -234,7 +240,7 @@ class SchedulePlanner {
 	 * Takes the locks of the assigned staff and resources, then rejects the plan if any of its
 	 * occurrences has a blocking problem. The response lists those occurrences with their problems.
 	 */
-	private void lockAndRejectConflicts(List<Occurrence> occurrences, Assignments assignments, ZoneId zone,
+	void lockAndRejectConflicts(List<Occurrence> occurrences, Assignments assignments, ZoneId zone,
 			Collection<UUID> ignoredEventIds) {
 		this.locks.lock(assignments.staffIds(), assignments.resourceIds());
 		List<List<ScheduleIssue>> issues = this.conflicts.find(occurrences, assignments, zone, ignoredEventIds);
@@ -326,7 +332,7 @@ class SchedulePlanner {
 	}
 
 	/** The rooms of a block, all taken whole. A block has no staff and needs at least one room. */
-	private static List<ResourceAssignmentRequest> blockRooms(@Nullable List<StaffAssignmentRequest> staff,
+	static List<ResourceAssignmentRequest> blockRooms(@Nullable List<StaffAssignmentRequest> staff,
 			@Nullable List<ResourceAssignmentRequest> resources) {
 		if (staff != null && !staff.isEmpty()) {
 			throw ApiException.invalidField("staff", FieldErrorCode.INVALID_VALUE, "A block has no staff.");
@@ -346,7 +352,7 @@ class SchedulePlanner {
 	 *
 	 * @param current the event whose assignments are replaced, or {@code null} for a new event
 	 */
-	private Assignments assignments(@Nullable UUID serviceTypeId, @Nullable Integer capacity,
+	Assignments assignments(@Nullable UUID serviceTypeId, @Nullable Integer capacity,
 			@Nullable List<StaffAssignmentRequest> staffRequests,
 			@Nullable List<ResourceAssignmentRequest> resourceRequests, @Nullable ScheduleEvent current) {
 		List<EventStaffAssignment> staff = (staffRequests != null)
@@ -477,6 +483,14 @@ class SchedulePlanner {
 			}
 		}
 		return result;
+	}
+
+	/**
+	 * Checks the time of one event like for a new one-off event: it must end after it starts, last
+	 * at most {@link #MAX_EVENT_DURATION} and start in the future.
+	 */
+	Occurrence checkedOccurrence(Instant startsAt, Instant endsAt, ZoneId zone) {
+		return occurrence(startsAt, endsAt, zone);
 	}
 
 	private static int intervalWeeks(CreateSeriesRequest request) {

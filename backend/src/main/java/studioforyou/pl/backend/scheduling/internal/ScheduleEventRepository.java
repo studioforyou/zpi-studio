@@ -29,6 +29,16 @@ interface ScheduleEventRepository extends Repository<ScheduleEvent, UUID> {
 	List<ScheduleEvent> findSeriesOccurrencesForUpdate(@Param("seriesId") UUID seriesId,
 			@Param("from") Instant from, @Param("status") EventStatus status);
 
+	/** Occurrences of the series, other than the given one, that still follow the series' rule. */
+	@Query("""
+			select e from ScheduleEvent e
+			where e.seriesId = :seriesId and e.seriesException = false and e.id <> :excludedId
+			""")
+	List<ScheduleEvent> findSeriesRuleOccurrences(@Param("seriesId") UUID seriesId,
+			@Param("excludedId") UUID excludedId);
+
+	Optional<ScheduleEvent> findById(UUID id);
+
 	ScheduleEvent save(ScheduleEvent event);
 
 	void flush();

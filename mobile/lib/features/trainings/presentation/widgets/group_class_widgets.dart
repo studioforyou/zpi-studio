@@ -5,6 +5,7 @@ import 'package:mobile/core/auth/app_role.dart';
 import 'package:mobile/core/auth/auth_controller.dart';
 import 'package:mobile/core/auth/auth_state.dart';
 import 'package:mobile/core/auth/session.dart';
+import 'package:mobile/features/schedule/presentation/widgets/series_change_widgets.dart';
 import 'package:mobile/features/trainings/data/group_classes_api.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
 
@@ -167,10 +168,20 @@ String classWaitlistMarker(AppLocalizations l10n, ClassWaitlistEntry entry) =>
       };
 
 class ClassInfoLine extends StatelessWidget {
-  const ClassInfoLine(this.icon, this.text, {super.key});
+  const ClassInfoLine(
+    this.icon,
+    this.text, {
+    this.value,
+    this.usual,
+    super.key,
+  });
 
   final IconData icon;
   final String text;
+
+  /// Shown after [text] as a [ChangedValue], with [usual] crossed out.
+  final String? value;
+  final String? usual;
 
   @override
   Widget build(BuildContext context) => Row(
@@ -182,7 +193,11 @@ class ClassInfoLine extends StatelessWidget {
         color: Theme.of(context).colorScheme.onSurfaceVariant,
       ),
       const SizedBox(width: 8),
-      Expanded(child: Text(text)),
+      Expanded(
+        child: value == null
+            ? Text(text)
+            : ChangedValue(value!, usual: usual, prefix: text),
+      ),
     ],
   );
 }

@@ -9,6 +9,7 @@ import 'package:mobile/core/auth/auth_controller.dart';
 import 'package:mobile/core/auth/auth_state.dart';
 import 'package:mobile/core/auth/session.dart';
 import 'package:mobile/features/schedule/data/schedule_service_types.dart';
+import 'package:mobile/features/schedule/data/series_changes.dart';
 import 'package:mobile/features/schedule/data/studio_trainers.dart';
 import 'package:mobile/features/schedule/presentation/client_schedule_screen.dart';
 import 'package:mobile/features/schedule/presentation/widgets/schedule_calendar.dart';
@@ -247,6 +248,8 @@ void main() {
           _ServiceTypesApi(serviceTypes),
         ),
         studioTrainersApiProvider.overrideWithValue(_TrainersApi(trainers)),
+        // The changes banner reads ahead on its own; series_change_test covers it.
+        scheduleChangesProvider.overrideWith((ref, owner) => Stream.value([])),
       ],
     );
     addTearDown(container.dispose);

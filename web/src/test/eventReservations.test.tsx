@@ -20,6 +20,7 @@ const event: ScheduleEvent = {
   serviceTypeName: 'Pole dance - początkujący',
   seriesId: null,
   isSeriesException: false,
+  seriesChange: null,
   trainingGroupId: null,
   startsAt: '2030-11-03T17:00:00Z',
   endsAt: '2030-11-03T18:00:00Z',

@@ -316,7 +316,7 @@ class GroupClassBookingService {
 				new BookingAvailability(booking == null, booking, passes.stream().map(pass -> new EligiblePassResponse(
 						pass.id(), pass.productName(), pass.entriesRemaining(), pass.validUntil())).toList()),
 				new WaitlistAvailability(joining == null, joining, waitingCount, WaitlistPromotion.confirmMinutes(terms),
-						ownEntry), event.version());
+						ownEntry), event.version(), event.seriesChange());
 	}
 
 	private static HistoryEntryResponse historyEntry(Occurrence event, PastReservation reservation) {

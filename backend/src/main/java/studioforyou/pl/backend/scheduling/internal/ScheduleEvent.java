@@ -3,6 +3,7 @@ package studioforyou.pl.backend.scheduling.internal;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 
@@ -198,6 +199,53 @@ class ScheduleEvent {
 
 	Set<EventResourceAssignment> getResources() {
 		return Set.copyOf(this.resources);
+	}
+
+	/**
+	 * Moves the event to another time. An occurrence of a series keeps its original start as its
+	 * identity.
+	 *
+	 * @return whether the time changed
+	 */
+	boolean reschedule(Instant newStart, Instant newEnd) {
+		if (this.startsAt.equals(newStart) && this.endsAt.equals(newEnd)) {
+			return false;
+		}
+		this.startsAt = newStart;
+		this.endsAt = newEnd;
+		this.updatedAt = Instant.now();
+		return true;
+	}
+
+	/**
+	 * Changes the title and the maximum number of participants.
+	 *
+	 * @param newCapacity the new limit, or {@code null} for no limit
+	 * @return whether anything changed
+	 */
+	boolean changeDetails(String newTitle, Short newCapacity) {
+		if (Objects.equals(this.title, newTitle) && Objects.equals(this.capacity, newCapacity)) {
+			return false;
+		}
+		this.title = newTitle;
+		this.capacity = newCapacity;
+		this.updatedAt = Instant.now();
+		return true;
+	}
+
+	/** Marks an occurrence that follows its series' rule again. */
+	void clearSeriesException() {
+		this.seriesException = false;
+		this.updatedAt = Instant.now();
+	}
+
+	/** The start the series' rule gives the occurrence, or {@code null} for a one-off event. */
+	Instant getSeriesOriginalStart() {
+		return this.seriesOriginalStart;
+	}
+
+	boolean isSeriesException() {
+		return this.seriesException;
 	}
 
 }

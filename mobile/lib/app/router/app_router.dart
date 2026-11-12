@@ -23,6 +23,7 @@ import 'package:mobile/features/communication/presentation/notifications_screen.
 import 'package:mobile/features/documents/presentation/document_screen.dart';
 import 'package:mobile/features/documents/presentation/documents_screen.dart';
 import 'package:mobile/features/passes/presentation/passes_screen.dart';
+import 'package:mobile/features/schedule/data/series_changes.dart';
 import 'package:mobile/features/schedule/presentation/add_class_screen.dart';
 import 'package:mobile/features/schedule/presentation/availability_screen.dart';
 import 'package:mobile/features/schedule/presentation/schedule_screen.dart';
@@ -152,6 +153,7 @@ StatefulShellRoute _clientShell() => _roleShell([
         builder: (_, _) => const TrainingHistoryScreen(),
       ),
     ],
+    badge: watchOpenScheduleChanges,
   ),
   _tab(
     clientMessagesPath,
@@ -209,6 +211,7 @@ StatefulShellRoute _trainerShell() => _roleShell([
         builder: (_, _) => const AddClassScreen(),
       ),
     ],
+    badge: watchOpenScheduleChanges,
   ),
   _tab(
     trainerTrainingsPath,

@@ -236,6 +236,7 @@ class GroupClass {
     this.waitlist = ClassWaitlist.unavailable,
     this.calendarColor,
     this.serviceTypeId,
+    this.seriesChange,
   });
 
   factory GroupClass.fromJson(Map<String, dynamic> json) => GroupClass(
@@ -267,6 +268,7 @@ class GroupClass {
     waitlist: json['waitlist'] == null
         ? ClassWaitlist.unavailable
         : ClassWaitlist.fromJson(json['waitlist'] as Map<String, dynamic>),
+    seriesChange: SeriesChange.fromJson(json['seriesChange']),
   );
 
   final String id;
@@ -274,6 +276,9 @@ class GroupClass {
   final String? serviceTypeName;
   final String? serviceTypeId;
   final String? calendarColor;
+
+  /// How a one-off change makes this class differ from its series, or `null`.
+  final SeriesChange? seriesChange;
   final DateTime startsAt;
   final DateTime endsAt;
   final String status;

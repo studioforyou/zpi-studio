@@ -21,6 +21,7 @@ class ClientScheduleEvent extends ScheduleEvent {
         capacity: groupClass.capacity,
         staff: groupClass.staff,
         roomNames: groupClass.roomNames,
+        seriesChange: groupClass.seriesChange,
       );
 
   final GroupClass groupClass;
@@ -75,6 +76,7 @@ class ProfileScheduleEvent extends ScheduleEvent {
          capacity: event.capacity,
          staff: event.staff,
          roomNames: event.roomNames,
+         seriesChange: event.seriesChange,
        );
   final ScheduleEvent event;
   final Profile profile;

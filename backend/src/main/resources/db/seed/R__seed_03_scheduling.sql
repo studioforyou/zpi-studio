@@ -10,7 +10,7 @@
 --   03 Pole beginners  Thu w+1 18:00  capacity 2      09 Stretching workshop            Sat w+2 12:00
 --   04 Pole beginners  Tue w+2 18:00  CANCELLED       10 Consultation with a guest      Fri w+1 16:00
 --   05 Calisthenics    Mon w+1 19:00                  11 Room block (maintenance)       Fri w+1 08:00
---   06 Pole kids       Sat w+1 10:00                  12 Pole beginners                 Thu w+2 18:00
+--   06 Pole kids       Sat w+1 10:00                  12 Pole beginners                 Thu w+2 18:30  (moved this once from 18:00)
 
 -- Studio-local time in a week relative to the current one, for an ISO weekday (1 = Monday).
 CREATE OR REPLACE FUNCTION pg_temp.seed_at(week_offset INT, iso_weekday INT, local_time TIME)
@@ -78,8 +78,8 @@ INSERT INTO schedule_event (id, kind, service_type_id, series_id, series_origina
     ('19000000-0000-0000-0000-000000000011', 'BLOCK', NULL, NULL, NULL, FALSE, NULL, 'Serwis klimatyzacji',
      pg_temp.seed_at(1, 5, '08:00'), pg_temp.seed_at(1, 5, '12:00'), NULL, 'PRIVATE', 'SCHEDULED',
      NULL, NULL, NULL, NULL, 'MAINTENANCE', NULL, NULL, NULL, '03000000-0000-0000-0000-000000000001'),
-    ('19000000-0000-0000-0000-000000000012', 'CLASS', '10000000-0000-0000-0000-000000000001', '18000000-0000-0000-0000-000000000002', pg_temp.seed_at(2, 4, '18:00'), FALSE, '16000000-0000-0000-0000-000000000001', 'Pole dance początkujący',
-     pg_temp.seed_at(2, 4, '18:00'), pg_temp.seed_at(2, 4, '19:00'), 10, 'PUBLIC', 'SCHEDULED',
+    ('19000000-0000-0000-0000-000000000012', 'CLASS', '10000000-0000-0000-0000-000000000001', '18000000-0000-0000-0000-000000000002', pg_temp.seed_at(2, 4, '18:00'), TRUE,  '16000000-0000-0000-0000-000000000001', 'Pole dance początkujący',
+     pg_temp.seed_at(2, 4, '18:30'), pg_temp.seed_at(2, 4, '19:30'), 10, 'PUBLIC', 'SCHEDULED',
      NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '03000000-0000-0000-0000-000000000001')
 ON CONFLICT DO NOTHING;
 
@@ -149,4 +149,16 @@ INSERT INTO staff_rate (id, staff_id, service_type_id, rate_kind, amount, curren
     ('23000000-0000-0000-0000-000000000002', '08000000-0000-0000-0000-000000000001', NULL,                                   'PER_HOUR',    80.00,  'PLN', CURRENT_DATE - 180, NULL),
     ('23000000-0000-0000-0000-000000000003', NULL,                                   '10000000-0000-0000-0000-000000000003', 'PER_HOUR',    70.00,  'PLN', CURRENT_DATE - 180, NULL),
     ('23000000-0000-0000-0000-000000000004', '08000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000004', 'PER_SESSION', 100.00, 'PLN', CURRENT_DATE - 365, CURRENT_DATE - 181)
+ON CONFLICT DO NOTHING;
+
+-- Notices of the one-off move of event 12 from 18:00 to 18:30: one for its lead Anna and one for
+-- the participant with a reservation. The class is upcoming, so the app shows both until closed.
+INSERT INTO schedule_change_notice (id, event_id, customer_id, staff_id, kind, event_name, previous_starts_at, previous_ends_at,
+                                    starts_at, ends_at, previous_rooms, rooms, previous_leads, leads, created_at) VALUES
+    ('a1000000-0000-0000-0000-000000000001', '19000000-0000-0000-0000-000000000012', NULL, '08000000-0000-0000-0000-000000000001', 'CHANGED', 'Pole dance początkujący',
+     pg_temp.seed_at(2, 4, '18:00'), pg_temp.seed_at(2, 4, '19:00'), pg_temp.seed_at(2, 4, '18:30'), pg_temp.seed_at(2, 4, '19:30'),
+     ARRAY['Sala pole dance'], ARRAY['Sala pole dance'], ARRAY['Anna Kowalska'], ARRAY['Anna Kowalska'], now() - interval '1 day'),
+    ('a1000000-0000-0000-0000-000000000002', '19000000-0000-0000-0000-000000000012', '07000000-0000-0000-0000-000000000001', NULL, 'CHANGED', 'Pole dance początkujący',
+     pg_temp.seed_at(2, 4, '18:00'), pg_temp.seed_at(2, 4, '19:00'), pg_temp.seed_at(2, 4, '18:30'), pg_temp.seed_at(2, 4, '19:30'),
+     ARRAY['Sala pole dance'], ARRAY['Sala pole dance'], ARRAY['Anna Kowalska'], ARRAY['Anna Kowalska'], now() - interval '1 day')
 ON CONFLICT DO NOTHING;

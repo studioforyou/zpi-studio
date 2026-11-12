@@ -35,6 +35,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -44,6 +45,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.util.AopTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import studioforyou.pl.backend.PassNotificationCleanup;
 import studioforyou.pl.backend.TestcontainersConfiguration;
@@ -52,6 +54,7 @@ import studioforyou.pl.backend.booking.internal.GroupClassDtos.GroupClassRespons
 import studioforyou.pl.backend.booking.internal.GroupClassDtos.ReservationResponse;
 import studioforyou.pl.backend.booking.internal.GroupClassDtos.WaitlistEntryResponse;
 import studioforyou.pl.backend.membership.BookingEntitlements;
+import studioforyou.pl.backend.scheduling.ScheduleEventChanged;
 import studioforyou.pl.backend.shared.api.ApiException;
 import studioforyou.pl.backend.shared.api.ErrorCode;
 
@@ -91,6 +94,15 @@ class GroupClassWaitlistTests {
 
 	@Autowired
 	private JdbcClient jdbc;
+
+	@Autowired
+	private TransactionTemplate transactions;
+
+	@Autowired
+	private ApplicationEventPublisher publisher;
+
+	@Autowired
+	private ScheduleChangesForBooking scheduleChanges;
 
 	private UUID actor;
 	private UUID profile;
@@ -623,6 +635,36 @@ class GroupClassWaitlistTests {
 
 		assertThat(bookings.get(actor, profile, event).waitlist().ownEntry().offerExpiresAt())
 			.isEqualTo(startsAt.minus(Duration.ofMinutes(30)));
+	}
+
+	@Test
+	void aRaisedCapacityGivesTheNewPlacesToTheWaitingList() {
+		bookings.book(otherActor, otherProfile, event, otherPass);
+		WaitlistEntryResponse waiting = waitlists.join(actor, profile, event, pass).entry();
+
+		transactions.executeWithoutResult((status) -> {
+			jdbc.sql("UPDATE schedule_event SET capacity = 2 WHERE id = :event").param("event", event).update();
+			publisher.publishEvent(new ScheduleEventChanged(event, startsAt, startsAt.plus(Duration.ofHours(1)), 1,
+					startsAt, startsAt.plus(Duration.ofHours(1)), 2));
+		});
+
+		assertThat(jdbc.sql("SELECT status FROM waitlist_entry WHERE id = :id").param("id", waiting.id())
+			.query(String.class).single()).isEqualTo("PROMOTED");
+		assertThat(activeReservations(event)).isEqualTo(2);
+		assertThat(balance(pass)).isEqualTo(7);
+	}
+
+	@Test
+	void placesHeldForOffersCountAsTakenWhenTheScheduleChangesTheCapacity() {
+		confirmationMinutes(30);
+		ReservationResponse booked = bookings.book(otherActor, otherProfile, event, otherPass).reservation();
+		waitlists.join(actor, profile, event, pass);
+		assertThat(scheduleChanges.activeParticipants(event)).isEqualTo(1);
+
+		bookings.cancel(otherActor, otherProfile, booked.id(), new CancelRequest(0, true));
+
+		assertThat(activeReservations(event)).isZero();
+		assertThat(scheduleChanges.activeParticipants(event)).isEqualTo(1);
 	}
 
 	private void confirmationMinutes(int minutes) {

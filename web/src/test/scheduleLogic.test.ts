@@ -89,6 +89,7 @@ function event(overrides: Partial<ScheduleEvent>): ScheduleEvent {
     serviceTypeName: 'Pole dance',
     seriesId: null,
     isSeriesException: false,
+    seriesChange: null,
     trainingGroupId: null,
     startsAt: '2026-11-03T17:00:00Z',
     endsAt: '2026-11-03T18:00:00Z',

@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mobile/features/schedule/data/series_changes.dart';
 import 'package:mobile/app/app.dart';
 import 'package:mobile/app/config/app_config.dart';
 import 'package:mobile/app/router/app_router.dart';
@@ -214,6 +215,9 @@ void main() {
           conversationsApiProvider.overrideWithValue(_Conversations()),
           unreadMessagesProvider.overrideWith(
             (ref, accountId) => Stream.value(unreadMessages),
+          ),
+          scheduleChangesProvider.overrideWith(
+            (ref, owner) => Stream.value([]),
           ),
           conversationsProvider.overrideWith(
             (ref, accountId) async => const [],
