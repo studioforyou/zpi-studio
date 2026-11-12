@@ -153,7 +153,9 @@ void main() {
           ),
           authRepositoryProvider.overrideWithValue(_SignedInRepository()),
           dioProvider.overrideWithValue(dio),
-          unreadCountProvider.overrideWith((ref, scope) async => 0),
+          unreadCountProvider.overrideWith(
+            (ref, scope) async => UnreadNotifications.none,
+          ),
         ],
         child: const App(),
       ),

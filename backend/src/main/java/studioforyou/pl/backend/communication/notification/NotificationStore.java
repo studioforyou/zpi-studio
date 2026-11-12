@@ -150,6 +150,39 @@ public class NotificationStore {
 			.optional();
 	}
 
+	/**
+	 * Stores the notification, or brings the one with the same deduplication key up to date when the
+	 * request has other data and is not older: new content and role, due at {@code scheduledFor},
+	 * unread again and created now (so it is retried as a new one).
+	 *
+	 * @return the notification's ID when it was created or updated, empty otherwise
+	 */
+	public Optional<UUID> upsert(NotificationRequest request, String title, String body) {
+		return jdbc.sql("""
+				INSERT INTO notification (recipient_id, notification_type_id, recipient_role, subject_customer_id,
+				  title, body, payload, dedup_key, scheduled_for)
+				VALUES (:recipient, :type, :role, :subject, :title, :body, CAST(:payload AS JSONB), :dedupKey, :scheduledFor)
+				ON CONFLICT (dedup_key) DO UPDATE
+				SET recipient_role = EXCLUDED.recipient_role, subject_customer_id = EXCLUDED.subject_customer_id,
+				    title = EXCLUDED.title, body = EXCLUDED.body, payload = EXCLUDED.payload,
+				    scheduled_for = EXCLUDED.scheduled_for, created_at = now(), read_at = NULL
+				WHERE notification.payload IS DISTINCT FROM EXCLUDED.payload
+				  AND notification.scheduled_for <= EXCLUDED.scheduled_for
+				RETURNING id
+				""")
+			.param("recipient", request.recipientId())
+			.param("type", request.type().id())
+			.param("role", request.role().name())
+			.param("subject", request.subjectCustomerId(), java.sql.Types.OTHER)
+			.param("title", title)
+			.param("body", body)
+			.param("payload", json.writeValueAsString(request.data()))
+			.param("dedupKey", request.dedupKey())
+			.param("scheduledFor", utc(request.scheduledFor()))
+			.query(UUID.class)
+			.optional();
+	}
+
 	/** The notifications to send, by ID. */
 	public List<Outgoing> findOutgoing(Collection<UUID> ids) {
 		if (ids.isEmpty()) {
@@ -190,9 +223,11 @@ public class NotificationStore {
 				FROM notification n
 				WHERE n.scheduled_for <= :now AND n.created_at >= :since AND n.created_at < :createdBefore
 				  AND NOT EXISTS (SELECT 1 FROM notification_delivery d
-				                  WHERE d.notification_id = n.id AND d.status IN ('SENT', 'NO_DEVICE', 'SKIPPED'))
+				                  WHERE d.notification_id = n.id AND d.attempted_at >= n.created_at
+				                    AND d.status IN ('SENT', 'NO_DEVICE', 'SKIPPED'))
 				  AND (SELECT count(*) FROM notification_delivery d
-				       WHERE d.notification_id = n.id AND d.status = 'FAILED') < :maxFailures
+				       WHERE d.notification_id = n.id AND d.attempted_at >= n.created_at
+				         AND d.status = 'FAILED') < :maxFailures
 				ORDER BY n.created_at
 				LIMIT 500
 				""")
@@ -230,12 +265,34 @@ public class NotificationStore {
 	}
 
 	public long unreadCount(UUID accountId, NotificationRole role, Instant now) {
-		return jdbc.sql("SELECT count(*) FROM notification n WHERE " + INBOX_WHERE + " AND n.read_at IS NULL")
+		return unreadCount(accountId, role, now, null);
+	}
+
+	/** Due unread notifications, only of the given type when it is not {@code null}. */
+	public long unreadCount(UUID accountId, NotificationRole role, Instant now, NotificationType type) {
+		return jdbc.sql("SELECT count(*) FROM notification n WHERE " + INBOX_WHERE + """
+				 AND n.read_at IS NULL
+				  AND (CAST(:type AS SMALLINT) IS NULL OR n.notification_type_id = :type)""")
 			.param("accountId", accountId)
 			.param("role", role == null ? null : role.name())
 			.param("now", utc(now))
+			.param("type", type == null ? null : type.id(), java.sql.Types.SMALLINT)
 			.query(Long.class)
 			.single();
+	}
+
+	/** Marks the account's unread notifications of the type whose data has the value read; returns how many. */
+	public int markReadByData(UUID accountId, NotificationType type, String dataKey, String dataValue) {
+		return jdbc.sql("""
+				UPDATE notification SET read_at = now()
+				WHERE recipient_id = :accountId AND notification_type_id = :type AND read_at IS NULL
+				  AND payload ->> :key = :value
+				""")
+			.param("accountId", accountId)
+			.param("type", type.id())
+			.param("key", dataKey)
+			.param("value", dataValue)
+			.update();
 	}
 
 	/** Marks the account's notification read (keeping the first read time). */

@@ -40,6 +40,17 @@ public enum NotificationType {
 			new Placeholder(Placeholder.PASS, "Name of the pass"),
 			new Placeholder(Placeholder.VALID_UNTIL, "Last day of the pass, e.g. \"12.11.2026\""))),
 
+	/**
+	 * New messages in a conversation the recipient takes part in, sent right after each one is
+	 * written to every other participant. One notification per conversation covers the messages the
+	 * recipient has not read yet; each new message updates it.
+	 */
+	NEW_MESSAGE((short) 4, false, List.of(
+			new Placeholder(Placeholder.SENDER, "Who wrote the unread messages, the latest writer first; in a group or class chat after the chat's name, e.g. \"Pilates · Anna Nowak, Ewa Lis\""),
+			new Placeholder(Placeholder.COUNT, "How many unread messages, e.g. \"3 nowe wiadomości\""),
+			new Placeholder(Placeholder.CONVERSATION, "Name of the conversation: the other person's name, or the group or class chat's name"),
+			new Placeholder(Placeholder.TEXT, "The beginning of the latest message, at most 100 characters"))),
+
 	/** A place held for the waiting participant until the confirmation deadline. */
 	WAITLIST_PLACE_OFFERED((short) 5, false, List.of(
 			new Placeholder(Placeholder.CLASS, "Name of the class"),
@@ -117,6 +128,18 @@ public enum NotificationType {
 		public static final String VALID_UNTIL = "ważny do";
 		/** The waiting-list offer's confirmation deadline in the studio time zone. */
 		public static final String CONFIRM_UNTIL = "potwierdź do";
+
+		/** Who wrote the unread messages. */
+		public static final String SENDER = "od";
+
+		/** Name of the conversation. */
+		public static final String CONVERSATION = "rozmowa";
+
+		/** The beginning of the latest message. */
+		public static final String TEXT = "treść";
+
+		/** How many unread messages. */
+		public static final String COUNT = "ile";
 
 	}
 
