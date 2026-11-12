@@ -58,6 +58,20 @@ Monika's original manually granted available credit incorrectly pointed at her O
 
 This is a scoped repair of the original fixture, rather than a change to granting rules. Existing credit dates, status and usage are preserved. Used credits and credits already linked elsewhere are left alone. The new pass is not a purchase, and Monika's existing Open pass, its balance and reservations are untouched. Re-running the seed neither renews credit validity nor adds duplicates. No schema or Firebase account changes are involved.
 
+## Trainee cards (seed 15)
+
+`R__seed_15_trainee_cards.sql` fills in the trainee cards (#99) of the other personal trainees, next to Tomasz's and Katarzyna's cards from seed 05, and adds health notes for every state the trainer's **Karta** tab can show. In this test studio every trainer gets `CUSTOMER_HEALTH_READ` through the TRAINER role (seed 01). A trainer sees a trainee's health notes only with the trainee's consent on the trainer's own assignment (`staff_assignment.can_view_health`, seeds 02 and 10).
+
+| Trainer | Trainee | Consent | The card shows |
+| --- | --- | --- | --- |
+| Marek | Tomasz | yes | Goals and experience; two current notes (knee injury, latex allergy added by Marek) and one archived by Marek (shoulder) |
+| Ewa | Katarzyna | yes | Goals and experience; exercise-induced asthma and an ankle injury Ewa archived |
+| Marek | Monika | no | Goals and experience; her own note stays hidden |
+| Anna | Piotr, Adam | no | Goals and experience; Adam's own note stays hidden |
+| Anna | Julia | no | An empty card, to try filling one in |
+
+To see the state without the permission, revoke `CUSTOMER_HEALTH_READ` from Marek in the web panel (as Beata) and open Tomasz's card. Re-running the seed only adds missing rows. The one existing row it changes is seed 05's archived shoulder note, which gets Marek as the one who archived it while that is still unrecorded. How trainees give or withdraw the consent is a separate story.
+
 ## Statistics history (seed 12)
 
 `R__seed_12_statistics_history.sql` fills the five weeks before the week the seed first ran, so the panel's "Statystyki" (#164, #166) has something to show. It adds past occurrences of the existing recurring series (pole dance Tuesday and Thursday 18:00, calisthenics Monday 19:00, kids pole dance Saturday 10:00), a full one-off stretching workshop with two participants who waited for a place, and Tomasz's personal sessions with Marek on Fridays at 16:00.
