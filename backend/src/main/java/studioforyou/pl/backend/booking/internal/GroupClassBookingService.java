@@ -327,9 +327,13 @@ class GroupClassBookingService {
 				outcome(reservation, event), reservation.entryReturned(), reservation.cancellationEffect());
 	}
 
-	/** The customer's own cancellation outranks the studio's, which outranks attendance. */
+	/**
+	 * The customer's own cancellation outranks the studio's, which outranks attendance. A reservation
+	 * cancelled together with its class ({@code STUDIO}) shows as the class's cancellation.
+	 */
 	static String outcome(PastReservation reservation, Occurrence event) {
-		if ("CANCELLED".equals(reservation.status())) {
+		boolean withTheClass = DefaultClassAutoCancellation.Settlement.STUDIO.equals(reservation.cancelKind());
+		if ("CANCELLED".equals(reservation.status()) && !withTheClass) {
 			return "LATE".equals(reservation.cancelKind()) ? "LATE_CANCELLED" : "CANCELLED";
 		}
 		if ("CANCELLED".equals(event.status())) {

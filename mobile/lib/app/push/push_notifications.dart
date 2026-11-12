@@ -70,8 +70,18 @@ class PushNotifications {
   /// its `profileId`. Other types open the notifications screen.
   static const _clientPaths = {
     'CLASS_REMINDER': clientReservationsPath,
+    'CLASS_CHANGED': clientSchedulePath,
+    'CLASS_CANCELLED': clientReservationsPath,
     'PASS_EXPIRING': clientPassesPath,
     'PASS_LAST_ENTRY_USED': clientPassesPath,
+  };
+
+  /// Notification types about a class a trainer runs; with the role
+  /// `TRAINER` they open the trainer's schedule.
+  static const _trainerScheduleTypes = {
+    'CLASS_CHANGED',
+    'CLASS_CANCELLED',
+    'CLASS_AUTO_CANCELLED',
   };
 
   /// Opens what a notification is about (its `data`) and marks it read. A
@@ -90,6 +100,20 @@ class PushNotifications {
     final conversationId = data['conversationId'];
     if (data['type'] == newMessageType && conversationId != null) {
       _openConversation(session, conversationId, data['role']);
+      return;
+    }
+    if (_trainerScheduleTypes.contains(data['type']) &&
+        data['role'] == AppRole.trainer.apiValue &&
+        session.roles.contains(AppRole.trainer)) {
+      if (session.activeRole != AppRole.trainer) {
+        final choice = session.choices
+            .where((choice) => choice.role == AppRole.trainer)
+            .firstOrNull;
+        if (choice != null) {
+          _ref.read(authControllerProvider.notifier).choose(choice);
+        }
+      }
+      router.go(trainerSchedulePath);
       return;
     }
     final clientPath = _clientPaths[data['type']];

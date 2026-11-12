@@ -1290,6 +1290,21 @@ export const pl = {
           description:
             'Wysyłane od razu po każdej wiadomości w czacie wszystkim pozostałym uczestnikom rozmowy, klientom i trenerom. Nieprzeczytane wiadomości jednego czatu mają jedno powiadomienie, aktualizowane przy kolejnej wiadomości i oznaczane jako przeczytane po wejściu w rozmowę. Wiadomości z czatu grupowego dziecka dostaje rodzic.',
         },
+        CLASS_CHANGED: {
+          name: 'Zmiana zajęć',
+          description:
+            'Wysyłane od razu po zmianie godziny, sali lub prowadzącego zajęć albo treningu: zapisanym uczestnikom, osobom z listy rezerwowej oraz trenerom przed zmianą i po niej. Powiadomienia dziecka dostaje rodzic.',
+        },
+        CLASS_CANCELLED: {
+          name: 'Odwołanie zajęć',
+          description:
+            'Wysyłane od razu po odwołaniu zajęć albo treningu: zapisanym uczestnikom, osobom z listy rezerwowej i trenerom. Gdy zajęcia odwołano automatycznie z powodu zbyt małej liczby uczestników, trenerzy dostają osobne powiadomienie. Powiadomienia dziecka dostaje rodzic.',
+        },
+        CLASS_AUTO_CANCELLED: {
+          name: 'Automatyczne odwołanie zajęć',
+          description:
+            'Wysyłane trenerom od razu, gdy zajęcia grupowe zostaną odwołane automatycznie, bo zapisało się mniej osób niż wymagane minimum.',
+        },
       },
       placeholders: {
         CLASS_REMINDER: {
@@ -1370,6 +1385,99 @@ export const pl = {
             label: 'Treść',
             description: 'Początek ostatniej wiadomości, do 100 znaków',
             example: 'Weźcie wodę i ręcznik.',
+          },
+        },
+        CLASS_CHANGED: {
+          zajęcia: {
+            label: 'Nazwa zajęć',
+            description: 'Nazwa zajęć lub treningu',
+            example: 'Pole dance',
+          },
+          dzień: {
+            label: 'Dzień',
+            description: 'Dzień zajęć po zmianie: „dziś”, „jutro” albo dzień tygodnia z datą',
+            example: 'jutro',
+          },
+          godzina: {
+            label: 'Godzina',
+            description: 'Godzina rozpoczęcia po zmianie, np. „19:00”',
+            example: '19:00',
+          },
+          sala: {
+            label: 'Sala',
+            description: 'Sala po zmianie albo „studio”, gdy sala nie jest przypisana',
+            example: 'Sala 2',
+          },
+          prowadzący: {
+            label: 'Prowadzący',
+            description: 'Prowadzący po zmianie, np. „Anna Nowak”',
+            example: 'Anna Nowak',
+          },
+          zmiany: {
+            label: 'Co się zmieniło',
+            description:
+              'Co się zmieniło, z wartościami przed i po, np. „godzina 18:00–19:00 → 19:00–20:00”; dla trenera dodanego lub usuniętego z zajęć informacja o tym',
+            example: 'godzina 18:00–19:00 → 19:00–20:00, sala Sala 1 → Sala 2',
+          },
+        },
+        CLASS_CANCELLED: {
+          zajęcia: {
+            label: 'Nazwa zajęć',
+            description: 'Nazwa zajęć lub treningu',
+            example: 'Pole dance',
+          },
+          dzień: {
+            label: 'Dzień',
+            description: '„dziś”, „jutro” albo dzień tygodnia z datą, np. „wtorek 12.11”',
+            example: 'jutro',
+          },
+          godzina: {
+            label: 'Godzina',
+            description: 'Godzina rozpoczęcia, np. „18:00”',
+            example: '18:00',
+          },
+          sala: {
+            label: 'Sala',
+            description: 'Nazwa sali albo „studio”, gdy sala nie jest przypisana',
+            example: 'Sala 1',
+          },
+          powód: {
+            label: 'Powód',
+            description:
+              'Dlaczego odwołano zajęcia, np. „zbyt mało zapisanych osób” albo „rezygnacja klienta (Anna Nowak)”',
+            example: 'zbyt mało zapisanych osób',
+          },
+        },
+        CLASS_AUTO_CANCELLED: {
+          zajęcia: {
+            label: 'Nazwa zajęć',
+            description: 'Nazwa zajęć lub treningu',
+            example: 'Pole dance',
+          },
+          dzień: {
+            label: 'Dzień',
+            description: '„dziś”, „jutro” albo dzień tygodnia z datą, np. „wtorek 12.11”',
+            example: 'jutro',
+          },
+          godzina: {
+            label: 'Godzina',
+            description: 'Godzina rozpoczęcia, np. „18:00”',
+            example: '18:00',
+          },
+          sala: {
+            label: 'Sala',
+            description: 'Nazwa sali albo „studio”, gdy sala nie jest przypisana',
+            example: 'Sala 1',
+          },
+          zapisanych: {
+            label: 'Liczba zapisanych',
+            description: 'Ile osób było zapisanych w chwili sprawdzenia, np. „2”',
+            example: '2',
+          },
+          minimum: {
+            label: 'Wymagane minimum',
+            description: 'Ilu uczestników wymagały zajęcia, np. „4”',
+            example: '4',
           },
         },
       },

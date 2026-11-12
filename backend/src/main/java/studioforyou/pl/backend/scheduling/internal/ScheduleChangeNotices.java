@@ -22,10 +22,12 @@ import java.util.stream.Collectors;
 import io.swagger.v3.oas.annotations.media.Schema;
 import org.jspecify.annotations.Nullable;
 import studioforyou.pl.backend.scheduling.EventParticipantCounts;
+import studioforyou.pl.backend.scheduling.ScheduleChangesRecorded;
 import studioforyou.pl.backend.scheduling.internal.ScheduleDtos.AssignedResourceResponse;
 import studioforyou.pl.backend.scheduling.internal.ScheduleDtos.AssignedStaffResponse;
 import studioforyou.pl.backend.scheduling.internal.ScheduleDtos.ScheduleEventResponse;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Component;
@@ -37,7 +39,8 @@ import org.springframework.stereotype.Component;
  * gets ASSIGNED, one who leaves it UNASSIGNED, the rest CHANGED, each with the values before and
  * after. A later change is a new notice, even of the same event. A change of several occurrences
  * at once tells each person once, about the earliest occurrence that concerns them. Changes of the
- * title or the capacity only, and changes of blocks, tell nobody.
+ * title or the capacity only, and changes of blocks, tell nobody. The notices of a change are also
+ * published as {@link ScheduleChangesRecorded}, so that the people get a push notification too.
  */
 @Component
 class ScheduleChangeNotices {
@@ -48,10 +51,14 @@ class ScheduleChangeNotices {
 
 	private final EventParticipantCounts participants;
 
-	ScheduleChangeNotices(JdbcClient jdbc, ScheduleQueries queries, EventParticipantCounts participants) {
+	private final ApplicationEventPublisher publisher;
+
+	ScheduleChangeNotices(JdbcClient jdbc, ScheduleQueries queries, EventParticipantCounts participants,
+			ApplicationEventPublisher publisher) {
 		this.jdbc = jdbc;
 		this.queries = queries;
 		this.participants = participants;
+		this.publisher = publisher;
 	}
 
 	/** What the people of an event see of it: its time, rooms, leads and staff. */
@@ -92,7 +99,8 @@ class ScheduleChangeNotices {
 
 	/**
 	 * Leaves the notices of a change of the given events, in the change's transaction, once the
-	 * change is flushed. {@code before} holds the events as {@link #snapshots} read them before.
+	 * change is flushed, and publishes them as {@link ScheduleChangesRecorded}. {@code before}
+	 * holds the events as {@link #snapshots} read them before.
 	 */
 	void record(Map<UUID, Snapshot> before) {
 		Map<UUID, Snapshot> after = snapshots(before.keySet());
@@ -110,11 +118,12 @@ class ScheduleChangeNotices {
 			.participantsToTell(changed.stream().map(Snapshot::eventId).toList());
 		Set<UUID> toldCustomers = new HashSet<>();
 		Set<UUID> toldStaff = new HashSet<>();
+		List<ScheduleChangesRecorded.Notice> recorded = new ArrayList<>();
 		for (Snapshot previous : changed) {
 			Snapshot current = after.get(previous.eventId());
 			for (UUID customer : customersByEvent.getOrDefault(previous.eventId(), Set.of())) {
 				if (toldCustomers.add(customer)) {
-					insert(previous, current, customer, null, NoticeKind.CHANGED);
+					recorded.add(insert(previous, current, customer, null, NoticeKind.CHANGED));
 				}
 			}
 			Set<UUID> staff = new LinkedHashSet<>(previous.staffIds());
@@ -123,20 +132,24 @@ class ScheduleChangeNotices {
 				if (toldStaff.add(member)) {
 					NoticeKind kind = !previous.staffIds().contains(member) ? NoticeKind.ASSIGNED
 							: !current.staffIds().contains(member) ? NoticeKind.UNASSIGNED : NoticeKind.CHANGED;
-					insert(previous, current, null, member, kind);
+					recorded.add(insert(previous, current, null, member, kind));
 				}
 			}
 		}
+		if (!recorded.isEmpty()) {
+			this.publisher.publishEvent(new ScheduleChangesRecorded(recorded));
+		}
 	}
 
-	private void insert(Snapshot before, Snapshot after, @Nullable UUID customerId, @Nullable UUID staffId,
-			NoticeKind kind) {
-		this.jdbc.sql("""
+	private ScheduleChangesRecorded.Notice insert(Snapshot before, Snapshot after, @Nullable UUID customerId,
+			@Nullable UUID staffId, NoticeKind kind) {
+		UUID id = this.jdbc.sql("""
 				INSERT INTO schedule_change_notice (event_id, customer_id, staff_id, kind, event_name,
 				    previous_starts_at, previous_ends_at, starts_at, ends_at, previous_rooms, rooms,
 				    previous_leads, leads)
 				VALUES (:event, :customer, :staff, :kind, :name, :previousStart, :previousEnd, :start, :end,
 				    :previousRooms, :rooms, :previousLeads, :leads)
+				RETURNING id
 				""")
 			.param("event", after.eventId())
 			.param("customer", customerId)
@@ -151,7 +164,11 @@ class ScheduleChangeNotices {
 			.param("rooms", after.rooms().toArray(String[]::new))
 			.param("previousLeads", before.leads().toArray(String[]::new))
 			.param("leads", after.leads().toArray(String[]::new))
-			.update();
+			.query(UUID.class)
+			.single();
+		return new ScheduleChangesRecorded.Notice(id, after.eventId(), ScheduleChangesRecorded.Kind.valueOf(kind.name()),
+				customerId, staffId, after.name(), before.startsAt(), before.endsAt(), after.startsAt(), after.endsAt(),
+				before.rooms(), after.rooms(), before.leads(), after.leads());
 	}
 
 	/** Whose notices: a participant or a staff member. */

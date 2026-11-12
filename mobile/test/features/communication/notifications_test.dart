@@ -452,6 +452,38 @@ void main() {
       expect(location(container), trainerMessagesPath);
     });
 
+    testWidgets('a tapped class cancellation opens the schedule of the role it '
+        'concerns', (tester) async {
+      final push = _Push();
+      final notifications = _Notifications();
+      final container = await pumpApp(
+        tester,
+        push: push,
+        devices: _Devices(),
+        notifications: notifications,
+      );
+      await tester.tap(find.text('Anna').first);
+      await tester.pumpAndSettle();
+
+      push.opened.add(
+        const PushMessage(
+          data: {
+            'type': 'CLASS_AUTO_CANCELLED',
+            'notificationId': 'n5',
+            'eventId': 'e1',
+            'role': 'TRAINER',
+          },
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final session =
+          (container.read(authControllerProvider) as Authenticated).session;
+      expect(session.activeRole, AppRole.trainer);
+      expect(location(container), trainerSchedulePath);
+      expect(notifications.read, ['n5']);
+    });
+
     testWidgets('a message in the conversation on screen refreshes it without '
         'a banner', (tester) async {
       final push = _Push();
