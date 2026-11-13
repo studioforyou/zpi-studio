@@ -96,6 +96,7 @@ class TraineeTraining extends ScheduleEvent {
          capacity: event.capacity,
          staff: event.staff,
          roomNames: event.roomNames,
+         seriesChange: event.seriesChange,
        );
 
   factory TraineeTraining.fromJson(Map<String, dynamic> json) =>

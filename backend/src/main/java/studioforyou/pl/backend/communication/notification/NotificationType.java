@@ -62,7 +62,24 @@ public enum NotificationType {
 	WAITLIST_PLACE_GRANTED((short) 6, false, List.of(
 			new Placeholder(Placeholder.CLASS, "Name of the class"),
 			new Placeholder(Placeholder.DAY, "Date of the class in the studio time zone"),
-			new Placeholder(Placeholder.TIME, "Start time of the class")));
+			new Placeholder(Placeholder.TIME, "Start time of the class"))),
+
+	/** The studio approved a trainer's time-off request, or recorded time off for the trainer. */
+	TIME_OFF_APPROVED((short) 7, false, List.of(
+			new Placeholder(Placeholder.TIME_OFF_KIND, "Kind of absence: \"Urlop\", \"Zwolnienie lekarskie\" or \"Inna niedostępność\""),
+			new Placeholder(Placeholder.TIME_OFF_PERIOD, "When, in the studio time zone, e.g. \"19.11–20.11\" or \"17.11, 17:00–19:00\""),
+			new Placeholder(Placeholder.NOTE, "\"Notatka studia: …\" with the administrator's note, or nothing"))),
+
+	/** The studio rejected a trainer's time-off request. */
+	TIME_OFF_REJECTED((short) 8, false, List.of(
+			new Placeholder(Placeholder.TIME_OFF_KIND, "Kind of absence: \"Urlop\", \"Zwolnienie lekarskie\" or \"Inna niedostępność\""),
+			new Placeholder(Placeholder.TIME_OFF_PERIOD, "When, in the studio time zone, e.g. \"19.11–20.11\" or \"17.11, 17:00–19:00\""),
+			new Placeholder(Placeholder.NOTE, "\"Notatka studia: …\" with the administrator's note, or nothing"))),
+
+	/** The studio cancelled a trainer's requested or approved time off. */
+	TIME_OFF_CANCELLED((short) 9, false, List.of(
+			new Placeholder(Placeholder.TIME_OFF_KIND, "Kind of absence: \"Urlop\", \"Zwolnienie lekarskie\" or \"Inna niedostępność\""),
+			new Placeholder(Placeholder.TIME_OFF_PERIOD, "When, in the studio time zone, e.g. \"19.11–20.11\" or \"17.11, 17:00–19:00\"")));
 
 	private final short id;
 
@@ -140,6 +157,15 @@ public enum NotificationType {
 
 		/** How many unread messages. */
 		public static final String COUNT = "ile";
+
+		/** Kind of absence of a trainer. */
+		public static final String TIME_OFF_KIND = "rodzaj";
+
+		/** When the absence is. */
+		public static final String TIME_OFF_PERIOD = "okres";
+
+		/** The administrator's note on a decision. */
+		public static final String NOTE = "notatka";
 
 	}
 

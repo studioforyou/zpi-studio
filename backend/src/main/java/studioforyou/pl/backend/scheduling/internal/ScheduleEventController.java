@@ -16,8 +16,10 @@ import jakarta.validation.Valid;
 import org.jspecify.annotations.Nullable;
 import studioforyou.pl.backend.identity.CurrentAccount;
 import studioforyou.pl.backend.scheduling.internal.ScheduleDtos.ChangeAssignmentsRequest;
+import studioforyou.pl.backend.scheduling.internal.ScheduleDtos.ChangeEventRequest;
 import studioforyou.pl.backend.scheduling.internal.ScheduleDtos.CreateEventRequest;
 import studioforyou.pl.backend.scheduling.internal.ScheduleDtos.PlanPreviewResponse;
+import studioforyou.pl.backend.scheduling.internal.ScheduleDtos.RestoreSeriesRequest;
 import studioforyou.pl.backend.scheduling.internal.ScheduleDtos.ScheduleEventResponse;
 import studioforyou.pl.backend.scheduling.internal.ScheduleQueries.TimetableFilter;
 import studioforyou.pl.backend.shared.api.ApiException;
@@ -55,9 +57,12 @@ class ScheduleEventController {
 
 	private final SchedulePlanner planner;
 
-	ScheduleEventController(ScheduleQueries queries, SchedulePlanner planner) {
+	private final OccurrenceChanges occurrenceChanges;
+
+	ScheduleEventController(ScheduleQueries queries, SchedulePlanner planner, OccurrenceChanges occurrenceChanges) {
 		this.queries = queries;
 		this.planner = planner;
+		this.occurrenceChanges = occurrenceChanges;
 	}
 
 	@GetMapping
@@ -155,6 +160,59 @@ class ScheduleEventController {
 	ScheduleEventResponse changeScheduleEventAssignments(@PathVariable UUID eventId,
 			@Valid @RequestBody ChangeAssignmentsRequest request) {
 		return this.planner.changeAssignments(eventId, request);
+	}
+
+	@PutMapping("/{eventId}")
+	@Operation(summary = "Change one event", operationId = "changeScheduleEvent",
+			description = "Replaces the time, title, capacity, staff and rooms of this event only. For an occurrence "
+					+ "of a series the series and its other occurrences do not change; the occurrence becomes an "
+					+ "exception to the series. A room or a staff member taken at the new time rejects the change; "
+					+ "the response then lists the conflicts in `conflicts`.")
+	@ApiResponse(responseCode = "200", description = "The updated event.")
+	@ApiResponse(responseCode = "400", description = "VALIDATION_FAILED, also when the new time is not in the "
+			+ "future, the capacity exceeds the rooms' limit or is below the booked places.", content = @Content(
+					mediaType = "application/problem+json", schema = @Schema(implementation = ApiProblem.class)))
+	@ApiResponse(responseCode = "404", description = "The event does not exist.", content = @Content(
+			mediaType = "application/problem+json", schema = @Schema(implementation = ApiProblem.class)))
+	@ApiResponse(responseCode = "409", description = "VERSION_CONFLICT, RESOURCE_CAPACITY_EXCEEDED or "
+			+ "STAFF_SCHEDULE_CONFLICT.", content = @Content(mediaType = "application/problem+json",
+					schema = @Schema(implementation = ApiProblem.class)))
+	@ApiResponse(responseCode = "422", description = "EVENT_NOT_EDITABLE when the event is not scheduled or has "
+			+ "already started, STAFF_UNAVAILABLE, RESOURCE_UNAVAILABLE or SERVICE_NOT_ALLOWED_IN_ROOM.",
+			content = @Content(mediaType = "application/problem+json",
+					schema = @Schema(implementation = ApiProblem.class)))
+	ScheduleEventResponse changeScheduleEvent(@PathVariable UUID eventId,
+			@Valid @RequestBody ChangeEventRequest request) {
+		return this.occurrenceChanges.change(eventId, request);
+	}
+
+	@PostMapping("/{eventId}/change-preview")
+	@Operation(summary = "Check a change of one event before saving it", operationId = "previewScheduleEventChange",
+			description = "Validates the request like changing the event and lists the conflicts and warnings at the "
+					+ "new time, without saving anything. The event does not conflict with itself.")
+	@ApiResponse(responseCode = "200", description = "The changed occurrence and its problems.")
+	PlanPreviewResponse previewScheduleEventChange(@PathVariable UUID eventId,
+			@Valid @RequestBody ChangeEventRequest request) {
+		return this.occurrenceChanges.preview(eventId, request);
+	}
+
+	@PostMapping("/{eventId}/restore-series")
+	@Operation(summary = "Bring a changed occurrence back to its series", operationId = "restoreScheduleEventSeries",
+			description = "Gives the occurrence the time of its series' rule, the series' title and capacity, and "
+					+ "the staff and rooms of the closest occurrence that follows the rule. It stops being an "
+					+ "exception. An occurrence that is not an exception is returned unchanged.")
+	@ApiResponse(responseCode = "200", description = "The restored event.")
+	@ApiResponse(responseCode = "404", description = "The event does not exist.", content = @Content(
+			mediaType = "application/problem+json", schema = @Schema(implementation = ApiProblem.class)))
+	@ApiResponse(responseCode = "409", description = "VERSION_CONFLICT, RESOURCE_CAPACITY_EXCEEDED or "
+			+ "STAFF_SCHEDULE_CONFLICT.", content = @Content(mediaType = "application/problem+json",
+					schema = @Schema(implementation = ApiProblem.class)))
+	@ApiResponse(responseCode = "422", description = "EVENT_NOT_EDITABLE for a one-off event, an event that is "
+			+ "not scheduled or one whose series time has passed.", content = @Content(
+					mediaType = "application/problem+json", schema = @Schema(implementation = ApiProblem.class)))
+	ScheduleEventResponse restoreScheduleEventSeries(@PathVariable UUID eventId,
+			@Valid @RequestBody RestoreSeriesRequest request) {
+		return this.occurrenceChanges.restoreSeries(eventId, request);
 	}
 
 }

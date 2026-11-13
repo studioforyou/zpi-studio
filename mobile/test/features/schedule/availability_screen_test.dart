@@ -5,6 +5,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mobile/features/schedule/data/series_changes.dart';
 import 'package:mobile/app/app.dart';
 import 'package:mobile/core/auth/app_role.dart';
 import 'package:mobile/core/auth/auth_repository.dart';
@@ -15,7 +16,10 @@ import 'package:mobile/features/communication/data/conversations_api.dart';
 import 'package:mobile/features/schedule/data/availability_api.dart';
 import 'package:mobile/features/schedule/data/schedule_api.dart';
 import 'package:mobile/features/schedule/data/schedule_service_types.dart';
+import 'package:mobile/features/schedule/data/time_off_api.dart';
 import 'package:mobile/features/schedule/presentation/availability_screen.dart';
+import 'package:mobile/features/schedule/presentation/time_off_list_screen.dart';
+import 'package:mobile/features/schedule/presentation/time_off_widgets.dart';
 
 const _session = Session(
   accountId: 'account-1',
@@ -46,6 +50,57 @@ class _SignedInRepository implements AuthRepository {
 
 /// A Wednesday: Monday and Tuesday of the week are already past.
 final _today = DateTime(2030, 11, 6);
+final _now = DateTime(2030, 11, 6, 10);
+
+/// Local times without an offset keep the tests independent of the time zone.
+Map<String, dynamic> _timeOff(
+  String id,
+  String status,
+  String startsAt,
+  String endsAt, {
+  String kind = 'VACATION',
+  String? reason,
+  String? decisionNote,
+}) => {
+  'id': id,
+  'staffId': 'account-1',
+  'kind': kind,
+  'status': status,
+  'startsAt': startsAt,
+  'endsAt': endsAt,
+  'reason': reason,
+  'requestedAt': '2030-11-01T09:00:00',
+  'decidedAt': status == 'REQUESTED' ? null : '2030-11-02T12:00:00',
+  'decisionNote': decisionNote,
+  'decidedByName': status == 'REQUESTED' ? null : 'Beata Lis',
+};
+
+/// Whole Thursday and Friday off, a waiting request next Wednesday evening and
+/// a rejected week later on.
+List<Map<String, dynamic>> _someTimeOff() => [
+  _timeOff(
+    'off-approved',
+    'APPROVED',
+    '2030-11-07T00:00:00',
+    '2030-11-09T00:00:00',
+    reason: 'Wyjazd rodzinny',
+  ),
+  _timeOff(
+    'off-requested',
+    'REQUESTED',
+    '2030-11-13T17:00:00',
+    '2030-11-13T19:00:00',
+    kind: 'UNAVAILABLE',
+    reason: 'Szkolenie',
+  ),
+  _timeOff(
+    'off-rejected',
+    'REJECTED',
+    '2030-11-25T00:00:00',
+    '2030-11-30T00:00:00',
+    decisionNote: 'Brak zastępstwa',
+  ),
+];
 
 Map<String, dynamic> _weekly(
   String id,
@@ -94,6 +149,8 @@ class _AvailabilityAdapter implements HttpClientAdapter {
   int changeStatus = 200;
   int listCount = 0;
   final requests = <_Request>[];
+  final timeOffRequests = <_Request>[];
+  List<Map<String, dynamic>> timeOff = [];
   List<Map<String, dynamic>> slots = [
     _weekly('slot-mon', 1, '08:00', '10:00'),
     _weekly('slot-thu', 4, '17:00', '21:00'),
@@ -131,6 +188,9 @@ class _AvailabilityAdapter implements HttpClientAdapter {
         'lastName': 'Nowak',
         'phone': null,
       }, 200);
+    }
+    if (options.path.startsWith(ownTimeOffPath)) {
+      return _timeOffResponse(options);
     }
     if (options.method == 'GET') {
       listCount++;
@@ -174,6 +234,37 @@ class _AvailabilityAdapter implements HttpClientAdapter {
     }
   }
 
+  ResponseBody _timeOffResponse(RequestOptions options) {
+    if (options.method == 'GET') {
+      return _json({'items': timeOff}, 200);
+    }
+    timeOffRequests.add((
+      method: options.method,
+      path: options.path,
+      query: options.queryParameters,
+      data: options.data,
+    ));
+    final data = options.data as Map<String, dynamic>?;
+    if (options.path == ownTimeOffPath) {
+      final created = _timeOff(
+        'off-new',
+        'REQUESTED',
+        data!['startsAt'] as String,
+        data['endsAt'] as String,
+        kind: data['kind'] as String,
+      );
+      timeOff = [...timeOff, created];
+      return _json(created, 201);
+    }
+    final id = options.path.split('/')[5];
+    final index = timeOff.indexWhere((entry) => entry['id'] == id);
+    final changed = options.path.endsWith('/cancel')
+        ? {...timeOff[index], 'status': 'CANCELLED'}
+        : {...timeOff[index], ...data!};
+    timeOff = [...timeOff]..[index] = changed;
+    return _json(changed, 200);
+  }
+
   @override
   void close({bool force = false}) {}
 }
@@ -195,7 +286,12 @@ void main() {
         overrides: [
           authRepositoryProvider.overrideWithValue(_SignedInRepository()),
           dioProvider.overrideWithValue(dio),
+          // The schedule tab's number asks for changes; series_change_test covers it.
+          scheduleChangesProvider.overrideWith(
+            (ref, owner) => Stream.value([]),
+          ),
           availabilityTodayProvider.overrideWithValue(_today),
+          availabilityNowProvider.overrideWithValue(_now),
           unreadMessagesProvider.overrideWith(
             (ref, accountId) => Stream.value(0),
           ),
@@ -229,6 +325,14 @@ void main() {
     await tester.tap(finder);
     await tester.pumpAndSettle();
   }
+
+  Future<void> openNewHours(WidgetTester tester) async {
+    await tapAndSettle(tester, find.byTooltip('Dodaj'));
+    await tapAndSettle(tester, find.text('Godziny dostępności'));
+  }
+
+  Finder timeOffBlock(String id, String date) =>
+      find.byKey(Key('time-off-$id-$date'));
 
   testWidgets('shows a week of hours and follows their period', (tester) async {
     await openAvailability(tester);
@@ -278,7 +382,7 @@ void main() {
 
   testWidgets('adds weekly hours on the chosen days', (tester) async {
     await openAvailability(tester);
-    await tapAndSettle(tester, find.byTooltip('Dodaj godziny'));
+    await openNewHours(tester);
 
     expect(find.text('Nowe godziny'), findsOneWidget);
     expect(find.text('Bez daty końcowej'), findsOneWidget);
@@ -306,7 +410,7 @@ void main() {
 
   testWidgets('adds hours on days of the shown week only', (tester) async {
     await openAvailability(tester);
-    await tapAndSettle(tester, find.byTooltip('Dodaj godziny'));
+    await openNewHours(tester);
     await tapAndSettle(tester, find.text('Ten tydzień'));
 
     expect(find.text('Nowe godziny: 4.11 – 10.11'), findsOneWidget);
@@ -329,7 +433,7 @@ void main() {
   ) async {
     adapter.changeStatus = 409;
     await openAvailability(tester);
-    await tapAndSettle(tester, find.byTooltip('Dodaj godziny'));
+    await openNewHours(tester);
     await tapAndSettle(tester, inSheet(find.text('Cz')));
     await tapAndSettle(tester, find.text('Zapisz'));
 
@@ -435,7 +539,7 @@ void main() {
     addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
     await openAvailability(tester);
     expect(tester.takeException(), isNull);
-    expect(find.byTooltip('Dodaj godziny').hitTestable(), findsOneWidget);
+    expect(find.byTooltip('Dodaj').hitTestable(), findsOneWidget);
 
     final thursday = bar('slot-thu', '2030-11-07');
     await tester.ensureVisible(thursday);
@@ -446,6 +550,124 @@ void main() {
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
     expect(find.text('Zapisz').hitTestable(), findsOneWidget);
+  });
+
+  testWidgets('shows time off over the hours and cancels it', (tester) async {
+    adapter.timeOff = _someTimeOff();
+    await openAvailability(tester);
+
+    // The legend explains only the time off of the shown week.
+    expect(find.text('Urlop'), findsOneWidget);
+    expect(find.text('Czeka na decyzję'), findsNothing);
+    expect(timeOffBlock('off-approved', '2030-11-07'), findsOneWidget);
+    expect(timeOffBlock('off-approved', '2030-11-08'), findsOneWidget);
+    expect(timeOffBlock('off-approved', '2030-11-09'), findsNothing);
+
+    await tapAndSettle(tester, timeOffBlock('off-approved', '2030-11-07'));
+    final details = find.byType(TimeOffDetailsSheet);
+    expect(details, findsOneWidget);
+    expect(
+      find.descendant(of: details, matching: find.text('Zatwierdzony')),
+      findsOneWidget,
+    );
+    expect(find.text('Wyjazd rodzinny'), findsOneWidget);
+    expect(find.text('Edytuj'), findsNothing);
+
+    await tapAndSettle(tester, find.text('Anuluj urlop'));
+    expect(find.text('Anulować urlop?'), findsOneWidget);
+    await tapAndSettle(tester, find.text('Anuluj urlop').last);
+
+    expect(adapter.timeOffRequests.single.method, 'POST');
+    expect(
+      adapter.timeOffRequests.single.path,
+      '$ownTimeOffPath/off-approved/cancel',
+    );
+    expect(find.text('Urlop został anulowany.'), findsOneWidget);
+    expect(timeOffBlock('off-approved', '2030-11-07'), findsNothing);
+    expect(bar('slot-thu', '2030-11-07'), findsOneWidget);
+  });
+
+  testWidgets('requests time off from the add button', (tester) async {
+    await openAvailability(tester);
+    await tapAndSettle(tester, find.byTooltip('Dodaj'));
+    await tapAndSettle(tester, find.text('Urlop lub niedostępność'));
+
+    expect(find.byType(TimeOffEditorSheet), findsOneWidget);
+    expect(find.text('W tym czasie nie masz zajęć.'), findsOneWidget);
+    await tapAndSettle(tester, find.text('Zwolnienie lekarskie'));
+    await tapAndSettle(tester, find.text('Wyślij wniosek'));
+
+    expect(adapter.timeOffRequests.single.method, 'POST');
+    expect(adapter.timeOffRequests.single.data, {
+      'kind': 'SICK_LEAVE',
+      'startsAt': DateTime(2030, 11, 6).toUtc().toIso8601String(),
+      'endsAt': DateTime(2030, 11, 7).toUtc().toIso8601String(),
+      'reason': null,
+    });
+    expect(find.byType(TimeOffEditorSheet), findsNothing);
+    expect(find.text('Wniosek został wysłany do studia.'), findsOneWidget);
+    expect(adapter.requests, isEmpty);
+  });
+
+  testWidgets('changes a request that waits for a decision', (tester) async {
+    adapter.timeOff = _someTimeOff();
+    await openAvailability(tester);
+    await tapAndSettle(tester, find.byTooltip('Następny tydzień'));
+    await tapAndSettle(tester, timeOffBlock('off-requested', '2030-11-13'));
+
+    expect(find.text('Szkolenie'), findsOneWidget);
+    await tapAndSettle(tester, find.text('Edytuj'));
+    expect(find.text('Zapisz zmiany'), findsOneWidget);
+    await tapAndSettle(
+      tester,
+      find.descendant(
+        of: find.byType(TimeOffEditorSheet),
+        matching: find.text('Urlop'),
+      ),
+    );
+    await tapAndSettle(tester, find.text('Zapisz zmiany'));
+
+    expect(adapter.timeOffRequests.single.method, 'PATCH');
+    expect(
+      adapter.timeOffRequests.single.path,
+      '$ownTimeOffPath/off-requested',
+    );
+    expect(adapter.timeOffRequests.single.data, {
+      'kind': 'VACATION',
+      'startsAt': DateTime(2030, 11, 13, 17).toUtc().toIso8601String(),
+      'endsAt': DateTime(2030, 11, 13, 19).toUtc().toIso8601String(),
+      'reason': 'Szkolenie',
+    });
+    expect(find.text('Wniosek został zmieniony.'), findsOneWidget);
+  });
+
+  testWidgets('lists own time off and opens the week of a request', (
+    tester,
+  ) async {
+    adapter.timeOff = _someTimeOff();
+    await openAvailability(tester);
+    await tapAndSettle(tester, find.byTooltip('Moje urlopy'));
+
+    expect(find.byType(TimeOffListScreen), findsOneWidget);
+    expect(find.text('Czeka na decyzję'), findsOneWidget);
+    expect(find.text('Nadchodzące'), findsOneWidget);
+    expect(find.text('Minione i odrzucone'), findsOneWidget);
+    expect(find.text('Notatka studia: Brak zastępstwa'), findsOneWidget);
+
+    // A rejected request has no week to show.
+    await tapAndSettle(
+      tester,
+      find.byKey(const Key('time-off-card-off-rejected')),
+    );
+    expect(find.byType(TimeOffListScreen), findsOneWidget);
+
+    await tapAndSettle(
+      tester,
+      find.byKey(const Key('time-off-card-off-requested')),
+    );
+    expect(find.byType(TimeOffListScreen), findsNothing);
+    expect(find.text('11.11 – 17.11'), findsOneWidget);
+    expect(timeOffBlock('off-requested', '2030-11-13'), findsOneWidget);
   });
 
   test('parses slots and tells the days they apply on', () {

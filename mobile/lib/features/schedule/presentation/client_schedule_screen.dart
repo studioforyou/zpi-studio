@@ -7,6 +7,7 @@ import 'package:mobile/features/accounts/data/profile_view_preferences.dart';
 import 'package:mobile/features/schedule/data/client_schedule_api.dart';
 import 'package:mobile/features/schedule/data/schedule_api.dart';
 import 'package:mobile/features/schedule/data/schedule_service_types.dart';
+import 'package:mobile/features/schedule/data/series_changes.dart';
 import 'package:mobile/features/schedule/data/studio_trainers.dart';
 import 'package:mobile/features/schedule/presentation/client_schedule_filter.dart';
 import 'package:mobile/features/schedule/presentation/widgets/client_schedule_event_tile.dart';
@@ -14,6 +15,8 @@ import 'package:mobile/features/schedule/presentation/widgets/client_schedule_fi
 import 'package:mobile/features/schedule/presentation/widgets/group_class_timeline.dart';
 import 'package:mobile/features/schedule/presentation/widgets/schedule_calendar.dart';
 import 'package:mobile/features/schedule/presentation/widgets/schedule_profile_picker.dart';
+import 'package:mobile/features/schedule/presentation/widgets/series_change_widgets.dart';
+import 'package:mobile/features/schedule/presentation/widgets/series_changes_banner.dart';
 import 'package:mobile/features/trainings/data/group_classes_api.dart';
 import 'package:mobile/features/trainings/data/personal_trainings_api.dart';
 import 'package:mobile/features/trainings/presentation/personal_training_screen.dart';
@@ -107,12 +110,14 @@ class _ClientCalendarState extends ConsumerState<_ClientCalendar> {
         .choose(SessionChoice(role: AppRole.client, profile: profile));
   }
 
-  void _openClass(GroupClass event) {
+  void _openClass(GroupClass event) => _openClassById(event.id);
+
+  void _openClassById(String eventId) {
     if (!isCurrentBookingScope(ref, widget.scope)) return;
     Navigator.of(context).push<void>(
       MaterialPageRoute(
         builder: (_) => GroupClassDetailsScreen(
-          query: (scope: widget.scope, eventId: event.id),
+          query: (scope: widget.scope, eventId: eventId),
         ),
       ),
     );
@@ -129,6 +134,29 @@ class _ClientCalendarState extends ConsumerState<_ClientCalendar> {
         ),
     ],
   );
+
+  /// The day's events and the placeholders of classes moved away from it, in
+  /// the order of their time on the day.
+  List<ScheduleEvent> _byTime(
+    List<ScheduleEvent> events,
+    List<ScheduleEvent> movedAway,
+  ) {
+    DateTime at(ScheduleEvent event) => movedAway.contains(event)
+        ? event.seriesChange!.usualStartsAt!
+        : event.startsAt;
+    return [...events, ...movedAway]..sort((a, b) => at(a).compareTo(at(b)));
+  }
+
+  /// The placeholder at the usual time of a class moved this once.
+  Widget _movedTile(BuildContext context, ScheduleEvent event) {
+    final groupClass = (_unwrap(event) as ClientScheduleEvent).groupClass;
+    return MovedAwayTile(
+      name: groupClass.name ?? AppLocalizations.of(context).classesTitle,
+      startsAt: groupClass.startsAt,
+      usualStartsAt: groupClass.seriesChange!.usualStartsAt!,
+      onTap: () => _openClass(groupClass),
+    );
+  }
 
   Widget _eventTile(BuildContext context, ScheduleEvent event) {
     final owned = event is ProfileScheduleEvent ? event : null;
@@ -201,6 +229,9 @@ class _ClientCalendarState extends ConsumerState<_ClientCalendar> {
           reservationsOnly: widget.reservationsOnly,
         )),
       );
+    }
+    if (widget.reservationsOnly) {
+      ref.invalidate(scheduleChangesProvider(ParticipantChanges(widget.scope)));
     }
     final request = ref.refresh(_eventsFor(window).future);
     await request;
@@ -291,6 +322,11 @@ class _ClientCalendarState extends ConsumerState<_ClientCalendar> {
               _chooseProfile(profile);
             },
           ),
+        if (widget.reservationsOnly)
+          ScheduleChangesBanner(
+            owner: ParticipantChanges(widget.scope),
+            onOpen: _openClassById,
+          ),
         Expanded(
           child: ScheduleCalendar(
             today: widget.today,
@@ -306,7 +342,9 @@ class _ClientCalendarState extends ConsumerState<_ClientCalendar> {
             },
             filtersBuilder: filtered ? _filters : null,
             eventBuilder: _eventTile,
-            dayBuilder: (context, events, day) => events.isEmpty
+            movedBuilder: _movedTile,
+            dayBuilder: (context, events, day, movedAway) =>
+                events.isEmpty && movedAway.isEmpty
                 ? ListView(
                     physics: const AlwaysScrollableScrollPhysics(),
                     children: [
@@ -324,12 +362,16 @@ class _ClientCalendarState extends ConsumerState<_ClientCalendar> {
                     physics: const AlwaysScrollableScrollPhysics(),
                     padding: const EdgeInsets.all(12),
                     children: [
-                      for (final event in events) _eventTile(context, event),
+                      for (final event in _byTime(events, movedAway))
+                        movedAway.contains(event)
+                            ? _movedTile(context, event)
+                            : _eventTile(context, event),
                       _legend(context, events),
                     ],
                   )
                 : GroupClassTimeline(
                     events: _classes(events),
+                    movedAway: _classes(movedAway),
                     day: day,
                     onSelect: _openClass,
                     footer: _legend(context, events),

@@ -65,6 +65,23 @@ class WaitlistStore {
 				""").param("event", eventId).param("customer", customerId).query(MAPPER).optional();
 	}
 
+	/** Per event, the customers still waiting for a place in it or holding an offer of one. */
+	Map<UUID, List<UUID>> waitingCustomerIdsByEvent(Collection<UUID> eventIds) {
+		if (eventIds.isEmpty()) {
+			return Map.of();
+		}
+		return this.jdbc.sql("""
+				SELECT event_id, customer_id FROM waitlist_entry
+				WHERE event_id IN (:events) AND status IN ('WAITING', 'OFFERED') ORDER BY event_id, customer_id
+				""")
+			.param("events", eventIds)
+			.query((rs, row) -> Map.entry(rs.getObject("event_id", UUID.class), rs.getObject("customer_id", UUID.class)))
+			.list()
+			.stream()
+			.collect(Collectors.groupingBy(Map.Entry::getKey,
+					Collectors.mapping(Map.Entry::getValue, Collectors.toList())));
+	}
+
 	/** Places held for participants who can still confirm an offer. */
 	int heldOffers(UUID eventId, Instant now) {
 		return heldOffers(List.of(eventId), now).getOrDefault(eventId, 0);

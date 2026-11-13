@@ -97,7 +97,7 @@ class DefaultGroupClassSchedule implements GroupClassSchedule {
 
 	private List<Occurrence> classes(Instant from, Instant to, List<EventVisibility> visibilities) {
 		return occurrences(queries.findEvents(new TimetableFilter(from, to, List.of(EventKind.CLASS), null,
-				visibilities, null, null, null, null, null))
+				visibilities, null, null, null, null, null).includingUsualSlots())
 			.stream().filter(e -> e.serviceTypeId() != null).toList());
 	}
 
@@ -119,7 +119,8 @@ class DefaultGroupClassSchedule implements GroupClassSchedule {
 		return new Occurrence(event.id(), event.title(), event.serviceTypeId(), event.serviceTypeName(),
 				calendarColor, event.trainingGroupId(), event.startsAt(), event.endsAt(), event.status().name(), event.capacity(),
 				event.staff().stream().map(s -> new Instructor(s.staffId(), s.displayName(), s.role().name())).toList(),
-				event.resources().stream().map(r -> new Room(r.resourceId(), r.name())).toList(), event.version());
+				event.resources().stream().map(r -> new Room(r.resourceId(), r.name())).toList(), event.version(),
+				event.seriesChange());
 	}
 
 }

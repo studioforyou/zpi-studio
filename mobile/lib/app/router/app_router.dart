@@ -23,8 +23,10 @@ import 'package:mobile/features/communication/presentation/notifications_screen.
 import 'package:mobile/features/documents/presentation/document_screen.dart';
 import 'package:mobile/features/documents/presentation/documents_screen.dart';
 import 'package:mobile/features/passes/presentation/passes_screen.dart';
+import 'package:mobile/features/schedule/data/series_changes.dart';
 import 'package:mobile/features/schedule/presentation/add_class_screen.dart';
 import 'package:mobile/features/schedule/presentation/availability_screen.dart';
+import 'package:mobile/features/schedule/presentation/time_off_list_screen.dart';
 import 'package:mobile/features/schedule/presentation/schedule_screen.dart';
 import 'package:mobile/features/schedule/presentation/trainer_schedule_screen.dart';
 import 'package:mobile/features/trainings/presentation/new_cooperation_screen.dart';
@@ -72,6 +74,9 @@ const trainerTraineePickerSubPath = 'to-trainee';
 const trainerNewGroupChatSubPath = 'new-chat';
 const trainerProfilePath = '/trainer/profile';
 const trainerAvailabilitySubPath = 'availability';
+const trainerTimeOffSubPath = 'time-off';
+const trainerAvailabilityPath =
+    '$trainerProfilePath/$trainerAvailabilitySubPath';
 const trainerProfileEditSubPath = 'edit';
 const trainerNewCooperationSubPath = 'new-cooperation';
 const trainerNewClientAccountSubPath = 'new-client';
@@ -170,6 +175,7 @@ StatefulShellRoute _clientShell() => _roleShell([
         builder: (_, _) => const TrainingHistoryScreen(),
       ),
     ],
+    badge: watchOpenScheduleChanges,
   ),
   _tab(
     clientMessagesPath,
@@ -227,6 +233,7 @@ StatefulShellRoute _trainerShell() => _roleShell([
         builder: (_, _) => const AddClassScreen(),
       ),
     ],
+    badge: watchOpenScheduleChanges,
   ),
   _tab(
     trainerTrainingsPath,
@@ -288,6 +295,13 @@ StatefulShellRoute _trainerShell() => _roleShell([
       GoRoute(
         path: trainerAvailabilitySubPath,
         builder: (_, _) => const AvailabilityScreen(),
+        routes: [
+          // Pops the day to show in the calendar, if one was tapped.
+          GoRoute(
+            path: trainerTimeOffSubPath,
+            builder: (_, _) => const TimeOffListScreen(),
+          ),
+        ],
       ),
     ],
   ),

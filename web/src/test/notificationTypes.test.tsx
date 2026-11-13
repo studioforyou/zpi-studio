@@ -278,9 +278,11 @@ test('configures both waiting-list messages and edits the deadline template with
     }),
   );
   renderWithProviders(<CommunicationPage />);
-  expect(await screen.findByText('Miejsce z listy — do potwierdzenia')).toBeInTheDocument();
-  expect(screen.getByText('Zapis z listy rezerwowej')).toBeInTheDocument();
-  await userEvent.click(screen.getByRole('switch', { name: 'Wysyłane: Zapis z listy rezerwowej' }));
+  expect(await screen.findByText('Miejsce z listy rezerwowej do potwierdzenia')).toBeInTheDocument();
+  expect(screen.getByText('Automatyczny zapis z listy rezerwowej')).toBeInTheDocument();
+  expect(screen.queryByText('WAITLIST_PLACE_OFFERED')).not.toBeInTheDocument();
+  expect(screen.queryByText('WAITLIST_PLACE_GRANTED')).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole('switch', { name: 'Wysyłane: Automatyczny zapis z listy rezerwowej' }));
   expect(patches).toEqual([{ enabled: false }]);
   await userEvent.click(screen.getAllByRole('button', { name: 'Edytuj' })[0]);
   const dialog = await screen.findByRole('dialog');

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mobile/features/schedule/presentation/widgets/series_change_widgets.dart';
 import 'package:mobile/features/trainings/data/group_classes_api.dart';
 import 'package:mobile/features/trainings/presentation/widgets/group_class_widgets.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
@@ -27,9 +28,16 @@ class ClientScheduleEventTile extends StatelessWidget {
         .where((person) => person.isLead && person.displayName != null)
         .map((person) => person.displayName!)
         .join(', ');
+    final change = cancelled ? null : event.seriesChange;
     return ClientScheduleCard(
       color: color,
+      header: change == null
+          ? null
+          : ChangeChip(change: change, startsAt: event.startsAt),
       time: classTime(event),
+      usualTime: usualTimeOf(change, event.startsAt),
+      usualTrainer: change?.usualInstructors?.join(', '),
+      usualRoom: change?.usualRooms?.join(', '),
       title: event.name ?? l10n.classesTitle,
       trainer: teachers.isEmpty ? l10n.classesInstructorPending : teachers,
       room: event.roomNames.isEmpty
@@ -67,6 +75,10 @@ class ClientScheduleCard extends StatelessWidget {
     required this.footer,
     this.participant,
     this.cancelled = false,
+    this.header,
+    this.usualTime,
+    this.usualTrainer,
+    this.usualRoom,
     super.key,
   });
 
@@ -79,6 +91,15 @@ class ClientScheduleCard extends StatelessWidget {
   final List<Widget> footer;
   final Widget? participant;
   final bool cancelled;
+
+  /// Shown above the time, e.g. the label of a one-off change.
+  final Widget? header;
+
+  /// The usual values of a one-off change, shown crossed out next to the
+  /// new ones.
+  final String? usualTime;
+  final String? usualTrainer;
+  final String? usualRoom;
 
   @override
   Widget build(BuildContext context) {
@@ -99,11 +120,13 @@ class ClientScheduleCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     spacing: 6,
                     children: [
+                      ?header,
                       Row(
                         children: [
                           Expanded(
-                            child: Text(
+                            child: ChangedValue(
                               time,
+                              usual: usualTime,
                               style: theme.textTheme.labelLarge,
                             ),
                           ),
@@ -123,8 +146,16 @@ class ClientScheduleCard extends StatelessWidget {
                           color: cancelled ? theme.colorScheme.error : null,
                         ),
                       ),
-                      Text(trainer, style: theme.textTheme.bodySmall),
-                      Text(room, style: theme.textTheme.bodySmall),
+                      ChangedValue(
+                        trainer,
+                        usual: usualTrainer,
+                        style: theme.textTheme.bodySmall,
+                      ),
+                      ChangedValue(
+                        room,
+                        usual: usualRoom,
+                        style: theme.textTheme.bodySmall,
+                      ),
                       ...footer,
                     ],
                   ),

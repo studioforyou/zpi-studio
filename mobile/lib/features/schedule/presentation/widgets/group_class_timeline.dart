@@ -2,6 +2,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:mobile/features/schedule/data/schedule_api.dart';
+import 'package:mobile/features/schedule/presentation/widgets/series_change_widgets.dart';
 import 'package:mobile/features/trainings/data/group_classes_api.dart';
 import 'package:mobile/features/trainings/presentation/widgets/group_class_widgets.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
@@ -92,10 +94,15 @@ class GroupClassTimeline extends StatelessWidget {
     required this.events,
     required this.day,
     required this.onSelect,
+    this.movedAway = const [],
     this.footer,
     super.key,
   });
   final List<GroupClass> events;
+
+  /// Classes moved this once away from a usual time on [day]; the timeline
+  /// keeps a placeholder at that time.
+  final List<GroupClass> movedAway;
   final DateTime day;
   final ValueChanged<GroupClass> onSelect;
   final Widget? footer;
@@ -110,17 +117,40 @@ class GroupClassTimeline extends StatelessWidget {
     );
     final pixelsPerMinute = _pixelsPerMinute * fontScale;
     final placements = placeGroupClasses(events, day: day);
-    if (placements.isEmpty) return const SizedBox.shrink();
-    final firstMinute =
-        (placements.map((p) => p.startMinute).reduce(math.min) / 60).floor() *
-        60;
-    final lastMinute =
-        (placements.map((p) => p.endMinute).reduce(math.max) / 60).ceil() * 60;
+    final usualSlots = [
+      for (final event in movedAway)
+        if (event.seriesChange case SeriesChange(
+          :final usualStartsAt?,
+          :final usualEndsAt?,
+        ))
+          (
+            event: event,
+            start: (usualStartsAt.hour * 60 + usualStartsAt.minute).toDouble(),
+            end: DateUtils.isSameDay(usualStartsAt, usualEndsAt)
+                ? (usualEndsAt.hour * 60 + usualEndsAt.minute).toDouble()
+                : 1440.0,
+          ),
+    ];
+    if (placements.isEmpty && usualSlots.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    final starts = [
+      ...placements.map((p) => p.startMinute),
+      ...usualSlots.map((slot) => slot.start),
+    ];
+    final ends = [
+      ...placements.map((p) => p.endMinute),
+      ...usualSlots.map((slot) => slot.end),
+    ];
+    final firstMinute = (starts.reduce(math.min) / 60).floor() * 60;
+    final lastMinute = (ends.reduce(math.max) / 60).ceil() * 60;
     final height = math.max(
       240.0,
       (lastMinute - firstMinute) * pixelsPerMinute + 28,
     );
-    final maxLanes = placements.map((p) => p.laneCount).reduce(math.max);
+    final maxLanes = placements.isEmpty
+        ? 1
+        : placements.map((p) => p.laneCount).reduce(math.max);
     final now = DateTime.now();
     final currentMinute = now.hour * 60 + now.minute;
     return SingleChildScrollView(
@@ -210,6 +240,24 @@ class GroupClassTimeline extends StatelessWidget {
                                         .withValues(alpha: 0.5),
                                   ),
                                 ),
+                              for (final slot in usualSlots)
+                                Positioned(
+                                  left: 0,
+                                  width: canvasWidth - 5,
+                                  top:
+                                      (slot.start - firstMinute) *
+                                          pixelsPerMinute +
+                                      8,
+                                  height: math.max(
+                                    1.0,
+                                    (slot.end - slot.start) * pixelsPerMinute -
+                                        3,
+                                  ),
+                                  child: _UsualSlotCard(
+                                    event: slot.event,
+                                    onTap: () => onSelect(slot.event),
+                                  ),
+                                ),
                               for (final placement in placements)
                                 Positioned(
                                   left:
@@ -286,6 +334,7 @@ class _TimelineCard extends StatelessWidget {
         .map((p) => p.displayName)
         .nonNulls
         .join(', ');
+    final change = event.status == 'CANCELLED' ? null : event.seriesChange;
     final count = event.capacity == null
         ? l10n.classesUnlimited
         : '${event.activeReservations}/${event.capacity}';
@@ -340,6 +389,16 @@ class _TimelineCard extends StatelessWidget {
                                   ?.copyWith(fontWeight: FontWeight.w700),
                         ),
                       ),
+                      if (event.seriesChange != null &&
+                          event.status != 'CANCELLED')
+                        const Padding(
+                          padding: EdgeInsets.only(right: 2),
+                          child: Icon(
+                            Icons.edit_calendar_outlined,
+                            size: 14,
+                            color: ChangeColors.accent,
+                          ),
+                        ),
                       if (event.isReserved)
                         const Icon(Icons.check_circle, size: 14)
                       else if (waiting != null) ...[
@@ -379,27 +438,26 @@ class _TimelineCard extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         title,
-                        Text(
+                        _OneLine(
                           '${DateFormat('HH:mm').format(event.startsAt)}–${DateFormat('HH:mm').format(event.endsAt)}',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                          usual: change == null
+                              ? null
+                              : usualTimeOf(change, event.startsAt),
                           style: theme.textTheme.labelSmall,
                         ),
                         if (large && teacher.isNotEmpty)
                           Padding(
                             padding: const EdgeInsets.only(top: 3),
-                            child: Text(
+                            child: _OneLine(
                               teacher,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                              usual: change?.usualInstructors?.join(', '),
                               style: theme.textTheme.bodySmall,
                             ),
                           ),
                         if (large && event.roomNames.isNotEmpty)
-                          Text(
+                          _OneLine(
                             event.roomNames.join(', '),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                            usual: change?.usualRooms?.join(', '),
                             style: theme.textTheme.bodySmall,
                           ),
                         const Spacer(),
@@ -434,6 +492,86 @@ class _TimelineCard extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// The dashed placeholder at the usual time of a class moved away this once.
+class _UsualSlotCard extends StatelessWidget {
+  const _UsualSlotCard({required this.event, required this.onTap});
+  final GroupClass event;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final usual = event.seriesChange!.usualStartsAt!;
+    final text =
+        '${l10n.changeMovedUsual(event.name ?? l10n.classesTitle, DateFormat('HH:mm').format(usual))}'
+        ' · ${movedToText(l10n, event.startsAt, usual)}';
+    return Semantics(
+      button: true,
+      label: text,
+      child: Material(
+        color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.6),
+        borderRadius: BorderRadius.circular(10),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(10),
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: Theme.of(context).colorScheme.outlineVariant,
+                width: 1.5,
+              ),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            alignment: Alignment.topLeft,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              spacing: 6,
+              children: [
+                Icon(
+                  Icons.east,
+                  size: 14,
+                  color: Theme.of(context).colorScheme.outline,
+                ),
+                Expanded(
+                  child: Text(
+                    text,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: ChangeColors.accent,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A line of a class card: one row, the usual value crossed out after the new.
+class _OneLine extends StatelessWidget {
+  const _OneLine(this.value, {this.usual, this.style});
+
+  final String value;
+  final String? usual;
+  final TextStyle? style;
+
+  @override
+  Widget build(BuildContext context) {
+    final base = style ?? DefaultTextStyle.of(context).style;
+    return DefaultTextStyle.merge(
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      child: ChangedValue(value, usual: usual, style: base),
     );
   }
 }

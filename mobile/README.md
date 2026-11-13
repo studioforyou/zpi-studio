@@ -140,6 +140,32 @@ optional note for the history. **Zapisz na zajęcia** sends
 loads the conditions again and shows why. A booking refreshes the class's
 participants.
 
+## Trainee card
+
+The trainee's details (`/trainer/trainings/trainees/:customerId`) have a
+**Karta** tab (#99) between *Historia* and *Profil*: `TraineeCardView` in
+`lib/features/trainings/presentation/widgets/`. It shows the goals and sport
+experience, with who changed them last and when, and the trainee's health
+restrictions. The pencil opens `TraineeCardEditScreen`. The card is shared by
+all of the trainee's current trainers, so a save sends the card's `version`;
+when someone saved a change in the meantime (`409 VERSION_CONFLICT`), the
+screen loads the newer card: untouched fields take the newer text, a changed
+field keeps the trainer's text and shows the saved one under it
+(*Zapisane teraz: …*), and the next save is based on the newer version.
+
+Health restrictions are shown only when the backend returns
+`healthAccess: GRANTED` (the trainer's `CUSTOMER_HEALTH_READ` permission and
+the trainee's consent); otherwise the section says the data was not shared
+with the trainer, or that the trainer lacks the permission. With access the
+trainer adds a restriction (**Dodaj**: kind and description in a bottom sheet)
+and archives one that no longer applies, after a confirmation. Restrictions are
+never edited; archived ones stay under *Archiwalne (n)* with who archived them.
+The card reloads on pull-to-refresh, after every change, with the screen's
+refresh button and when the app returns to the foreground. It reads
+`lib/features/trainings/data/trainee_card_api.dart`:
+`GET`/`PATCH /api/v1/me/trainees/{customerId}/card`, `POST .../health-notes`
+and `POST .../health-notes/{noteId}/archive`.
+
 ## Push notifications and inbox
 
 Push notifications use Firebase Cloud Messaging (`firebase_messaging`).

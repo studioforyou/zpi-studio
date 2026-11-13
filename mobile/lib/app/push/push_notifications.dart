@@ -74,6 +74,12 @@ class PushNotifications {
     'PASS_LAST_ENTRY_USED': clientPassesPath,
   };
 
+  static const _trainerPaths = {
+    'TIME_OFF_APPROVED': trainerAvailabilityPath,
+    'TIME_OFF_REJECTED': trainerAvailabilityPath,
+    'TIME_OFF_CANCELLED': trainerAvailabilityPath,
+  };
+
   /// Opens what a notification is about (its `data`) and marks it read. A
   /// notification tapped before the session is ready opens once it is.
   void open(Map<String, String> data) {
@@ -134,6 +140,11 @@ class PushNotifications {
         _ref.read(authControllerProvider.notifier).choose(choice);
       }
       router.go(clientPath);
+      return;
+    }
+    final trainerPath = _trainerPaths[data['type']];
+    if (trainerPath != null && session.activeRole == AppRole.trainer) {
+      router.go(trainerPath);
       return;
     }
     router.go(

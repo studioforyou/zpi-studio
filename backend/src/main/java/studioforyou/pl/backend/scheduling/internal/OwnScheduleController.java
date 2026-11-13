@@ -80,7 +80,7 @@ class OwnScheduleController {
 		ScheduleEventController.requireValidWindow(from, to);
 		UUID staffId = staffId(authentication);
 		return new ListResponse<>(this.queries.findEvents(new TimetableFilter(from, to, TRAINER_KINDS, null, null,
-				null, List.of(staffId), null, null, null)));
+				null, List.of(staffId), null, null, null).includingUsualSlots()));
 	}
 
 	@GetMapping("/{eventId}")

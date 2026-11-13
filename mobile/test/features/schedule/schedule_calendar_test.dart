@@ -95,7 +95,7 @@ void main() {
           today: _today,
           where: (event) => event.id != 'Ukryte',
           showLegend: false,
-          dayBuilder: (_, items, selected) {
+          dayBuilder: (_, items, selected, _) {
             dayEvents = items;
             day = selected;
             return ListView(

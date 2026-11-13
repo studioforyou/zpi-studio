@@ -4,6 +4,7 @@ export const paths = {
   resetPassword: '/reset-password',
   schedule: '/schedule',
   rooms: '/rooms',
+  timeOff: '/time-off',
   accounts: '/accounts',
   accountDetails: (accountId: string, profileId?: string | null) =>
     profileId ? `/accounts/${accountId}?profile=${profileId}` : `/accounts/${accountId}`,

@@ -16,6 +16,7 @@ import { pl } from '@/shared/i18n/pl';
 import { AgendaView } from './AgendaView';
 import { AssignmentsModal } from './AssignmentsModal';
 import { EventDetailsDrawer } from './EventDetailsDrawer';
+import { OccurrenceChangeModal } from './OccurrenceChangeModal';
 import { EventFormModal } from './EventFormModal';
 import { MonthView } from './MonthView';
 import { listScheduleEvents, scheduleKeys, type ScheduleEvent } from './scheduleApi';
@@ -49,6 +50,7 @@ export function SchedulePage({ initialDate }: SchedulePageProps) {
   const [colorBy, setColorBy] = useState<ColorBy>('service');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [editing, setEditing] = useState<ScheduleEvent | null>(null);
+  const [changing, setChanging] = useState<ScheduleEvent | null>(null);
   const [newEvent, setNewEvent] = useState<NewEvent | null>(null);
 
   const range = viewRange(view, anchor);
@@ -185,11 +187,20 @@ export function SchedulePage({ initialDate }: SchedulePageProps) {
       )}
       {content}
       <EventDetailsDrawer
-        event={editing ? null : selected}
+        event={editing || changing ? null : selected}
         lookups={lookups}
         onClose={() => setSelectedId(null)}
         onEditAssignments={setEditing}
+        onEditOccurrence={setChanging}
       />
+      {changing && (
+        <OccurrenceChangeModal
+          key={changing.id}
+          event={changing}
+          lookups={lookups}
+          onClose={() => setChanging(null)}
+        />
+      )}
       {editing && (
         <AssignmentsModal
           key={editing.id}

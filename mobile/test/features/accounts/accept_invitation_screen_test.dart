@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mobile/features/schedule/data/series_changes.dart';
 import 'package:mobile/app/app.dart';
 import 'package:mobile/app/config/app_config.dart';
 import 'package:mobile/app/router/app_router.dart';
@@ -104,6 +105,7 @@ void main() {
         unreadMessagesProvider.overrideWith(
           (ref, accountId) => Stream.value(0),
         ),
+        scheduleChangesProvider.overrideWith((ref, owner) => Stream.value([])),
         authRepositoryProvider.overrideWithValue(auth ?? _AuthRepository()),
         invitationApiProvider.overrideWithValue(api),
         groupClassesProvider.overrideWith((ref, query) async => const []),
@@ -297,6 +299,7 @@ void main() {
         unreadMessagesProvider.overrideWith(
           (ref, accountId) => Stream.value(0),
         ),
+        scheduleChangesProvider.overrideWith((ref, owner) => Stream.value([])),
         authRepositoryProvider.overrideWithValue(
           _AuthRepository(restored: restored.future),
         ),
