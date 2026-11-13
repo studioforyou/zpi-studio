@@ -7,6 +7,7 @@ import type {
   ClassAttendanceCounts,
   ClassAttendanceReport,
 } from '@/features/statistics/attendanceReportsApi';
+import type { PassSalesReport, SaleCounts } from '@/features/statistics/passSalesApi';
 import { StatisticsPage } from '@/features/statistics/StatisticsPage';
 import { renderWithProviders } from './renderWithProviders';
 
@@ -182,8 +183,137 @@ function outcomes(kinds: string[]): BookingOutcomesReport {
   };
 }
 
-/** Answers every request of the page; customer reports count `active` and `fresh` for any period. */
-function stubApi(active = 12, fresh = 3) {
+function saleCounts(values: Partial<SaleCounts>): SaleCounts {
+  return { passes: 0, revenueMinor: 0, free: 0, online: 0, studio: 0, ...values };
+}
+
+const noSales = saleCounts({});
+
+function passSales(from: string, to: string): PassSalesReport {
+  return {
+    from,
+    to,
+    currency: 'PLN',
+    totals: saleCounts({ passes: 10, revenueMinor: 341000, free: 1, online: 7, studio: 3 }),
+    previous: {
+      from: '2026-08-27',
+      to: '2026-09-25',
+      totals: saleCounts({ passes: 8, revenueMinor: 352000 }),
+    },
+    kinds: [
+      { kind: 'ENTRY_PASS', counts: saleCounts({ passes: 6, revenueMinor: 132000 }) },
+      { kind: 'SINGLE_ENTRY', counts: saleCounts({ passes: 2, revenueMinor: 11000 }) },
+      { kind: 'PT_PACKAGE', counts: saleCounts({ passes: 1, revenueMinor: 75000 }) },
+      { kind: 'TIME_PASS', counts: saleCounts({ passes: 1, revenueMinor: 0, free: 1 }) },
+      { kind: 'VOUCHER', counts: noSales },
+    ],
+    products: [
+      {
+        productId: 'pole',
+        name: 'Karnet Pole Dance',
+        kind: 'ENTRY_PASS',
+        counts: saleCounts({ passes: 6, revenueMinor: 132000, online: 5, studio: 1 }),
+        variants: [
+          {
+            variantId: 'pole-4',
+            entriesCount: 4,
+            validityDays: 30,
+            priceMinor: 18000,
+            counts: saleCounts({ passes: 4, revenueMinor: 72000, online: 3, studio: 1 }),
+          },
+          {
+            variantId: 'pole-8',
+            entriesCount: 8,
+            validityDays: 30,
+            priceMinor: 30000,
+            counts: saleCounts({ passes: 2, revenueMinor: 60000, online: 2 }),
+          },
+        ],
+      },
+      {
+        productId: 'single',
+        name: 'Wejście jednorazowe',
+        kind: 'SINGLE_ENTRY',
+        counts: saleCounts({ passes: 2, revenueMinor: 11000, online: 2 }),
+        variants: [
+          {
+            variantId: 'single-1',
+            entriesCount: 1,
+            validityDays: 30,
+            priceMinor: 5500,
+            counts: saleCounts({ passes: 2, revenueMinor: 11000, online: 2 }),
+          },
+        ],
+      },
+      {
+        productId: 'pt',
+        name: 'Pakiet PT',
+        kind: 'PT_PACKAGE',
+        counts: saleCounts({ passes: 1, revenueMinor: 75000, studio: 1 }),
+        variants: [
+          {
+            variantId: 'pt-5',
+            entriesCount: 5,
+            validityDays: 60,
+            priceMinor: 75000,
+            counts: saleCounts({ passes: 1, revenueMinor: 75000, studio: 1 }),
+          },
+        ],
+      },
+      {
+        productId: 'open',
+        name: 'Karnet Open',
+        kind: 'TIME_PASS',
+        counts: saleCounts({ passes: 1, free: 1, studio: 1 }),
+        variants: [
+          {
+            variantId: 'open-30',
+            entriesCount: null,
+            validityDays: 30,
+            priceMinor: 29900,
+            counts: saleCounts({ passes: 1, free: 1, studio: 1 }),
+          },
+        ],
+      },
+    ],
+    days: [
+      {
+        date: '2026-10-05',
+        kind: 'ENTRY_PASS',
+        counts: saleCounts({ passes: 6, revenueMinor: 132000 }),
+      },
+      {
+        date: '2026-10-12',
+        kind: 'SINGLE_ENTRY',
+        counts: saleCounts({ passes: 2, revenueMinor: 11000 }),
+      },
+      {
+        date: '2026-10-20',
+        kind: 'PT_PACKAGE',
+        counts: saleCounts({ passes: 1, revenueMinor: 75000 }),
+      },
+      { date: '2026-10-20', kind: 'TIME_PASS', counts: saleCounts({ passes: 1, free: 1 }) },
+    ],
+  };
+}
+
+/** A period without any pass sold. */
+function noPassSales(from: string, to: string): PassSalesReport {
+  const report = passSales(from, to);
+  return {
+    ...report,
+    totals: noSales,
+    kinds: report.kinds.map(({ kind }) => ({ kind, counts: noSales })),
+    products: [],
+    days: [],
+  };
+}
+
+/**
+ * Answers every request of the page; customer reports count `active` and `fresh` for any period,
+ * the sales report is `sales` for any period.
+ */
+function stubApi(active = 12, fresh = 3, sales = passSales) {
   const fetchMock = vi.fn(async (url: string) => {
     if (url === '/api/v1/studio') {
       return json({ name: 'Studio', timeZone: 'Europe/Warsaw', currency: 'PLN' });
@@ -199,6 +329,9 @@ function stubApi(active = 12, fresh = 3) {
         },
         previous: { from: '2026-08-27', to: '2026-09-25', activeCustomers: 8, newCustomers: 3 },
       });
+    }
+    if (url.startsWith('/api/v1/reports/pass-sales?')) {
+      return json(sales(query.get('from')!, query.get('to')!));
     }
     if (url.startsWith('/api/v1/reports/class-attendance?')) {
       return json(attendance);
@@ -518,4 +651,102 @@ test('does not ask for a custom period that ends before it starts', async () => 
     await screen.findByText('Data końcowa nie może być wcześniejsza niż początkowa.'),
   ).toBeInTheDocument();
   expect(reportRequests(fetchMock, 'customer-activity')).toHaveLength(1);
+});
+
+test('shows the sales of the whole studio at a glance', async () => {
+  const fetchMock = stubApi();
+  renderStatisticsPage();
+
+  // The tile shows as soon as the sales report has loaded.
+  await screen.findByText('▼ −110 zł (−3%)');
+  const revenue = screen.getByRole('group', { name: 'Przychód ze sprzedaży' });
+  expect(within(revenue).getByText('3410 zł')).toBeInTheDocument();
+  expect(within(revenue).getByText('▼ −110 zł (−3%)')).toBeInTheDocument();
+  const passes = screen.getByRole('group', { name: 'Sprzedane karnety' });
+  expect(within(passes).getByText('▲ +2 (+25%)')).toBeInTheDocument();
+  const top = screen.getByRole('region', { name: 'Najchętniej kupowane' });
+  expect(
+    within(top)
+      .getAllByRole('listitem')
+      .map((item) => item.getAttribute('aria-label')?.replace(/\u00a0/g, ' ')),
+  ).toEqual([
+    'Karnet Pole Dance: 6 szt.',
+    'Wejście jednorazowe: 2 szt.',
+    'Pakiet PT: 1 szt.',
+    'Karnet Open: 1 szt.',
+  ]);
+  expect(reportRequests(fetchMock, 'pass-sales')).toEqual([
+    '/api/v1/reports/pass-sales?from=2026-09-26&to=2026-10-25',
+  ]);
+
+  await userEvent.click(within(top).getByRole('button', { name: 'Szczegóły →' }));
+  expect(screen.getByRole('tab', { name: 'Sprzedaż' })).toHaveAttribute('aria-selected', 'true');
+});
+
+test('ranks the kinds and products of passes by number or by revenue', async () => {
+  stubApi();
+  renderStatisticsPage('tab=sales');
+
+  const ranking = await screen.findByRole('region', { name: 'Sprzedaż według rodzaju karnetu' });
+  const order = () =>
+    within(ranking)
+      .getAllByRole('listitem')
+      .map((item) => item.getAttribute('aria-label')?.replace(/\u00a0/g, ' '));
+  // Every kind is listed, also those not sold.
+  expect(order()).toEqual([
+    'Karnet na wejścia: 6 szt.',
+    'Wejście jednorazowe: 2 szt.',
+    'Pakiet treningów personalnych: 1 szt.',
+    'Karnet czasowy: 1 szt.',
+    'Voucher: 0 szt.',
+  ]);
+  expect(screen.getByRole('group', { name: 'Średnia wartość karnetu' })).toHaveTextContent(
+    '341 zł',
+  );
+  expect(screen.getByRole('group', { name: 'Najczęściej kupowany' })).toHaveTextContent(
+    '6 szt. · 60% sprzedanych · 1320 zł',
+  );
+
+  await userEvent.click(within(ranking).getByText('Produkt'));
+  await userEvent.click(within(ranking).getByText('Przychód'));
+
+  const products = screen.getByRole('region', { name: 'Sprzedaż według produktu' });
+  expect(
+    within(products)
+      .getAllByRole('listitem')
+      .map((item) => item.getAttribute('aria-label')?.replace(/\u00a0/g, ' ')),
+  ).toEqual([
+    'Karnet Pole Dance: 1320 zł',
+    'Pakiet PT: 750 zł',
+    'Wejście jednorazowe: 110 zł',
+    'Karnet Open: 0 zł',
+  ]);
+});
+
+test('opens a product to its price variants', async () => {
+  stubApi();
+  renderStatisticsPage('tab=sales');
+
+  const table = await screen.findByRole('table', { name: 'Produkty' });
+  expect(within(table).getByText('(1 bez opłaty)')).toBeInTheDocument();
+  expect(within(table).queryByText('4 wejścia · 30 dni · 180 zł')).not.toBeInTheDocument();
+
+  await userEvent.click(
+    within(table).getByRole('button', { name: 'Pokaż warianty: Karnet Pole Dance' }),
+  );
+  await userEvent.click(within(table).getByRole('button', { name: 'Pokaż warianty: Karnet Open' }));
+
+  expect(within(table).getByText('4 wejścia · 30 dni · 180 zł')).toBeInTheDocument();
+  expect(within(table).getByText('8 wejść · 30 dni · 300 zł')).toBeInTheDocument();
+  expect(within(table).getByText('bez limitu · 30 dni · 299 zł')).toBeInTheDocument();
+  const total = within(table).getByText('Razem').closest('tr')!;
+  expect(total).toHaveTextContent('Razem10733410 zł100%');
+});
+
+test('says when nothing was sold and that the event filters do not narrow the sales', async () => {
+  stubApi(12, 3, noPassSales);
+  renderStatisticsPage('tab=sales&service=pole');
+
+  expect(await screen.findByText('Brak sprzedaży w tym okresie')).toBeInTheDocument();
+  expect(screen.getByText(/Sprzedaż obejmuje całe studio/)).toBeInTheDocument();
 });

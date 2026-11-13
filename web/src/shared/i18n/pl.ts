@@ -1485,6 +1485,7 @@ export const pl = {
       attendance: 'Frekwencja i obłożenie',
       outcomes: 'Nieobecności i anulowania',
       customers: 'Klienci',
+      sales: 'Sprzedaż',
     },
     filters: {
       label: 'Filtry',
@@ -1508,6 +1509,8 @@ export const pl = {
       inactive: (name: string) => `${name} (nieaktywne)`,
       clear: 'Wyczyść filtry',
       lookupError: 'Nie udało się wczytać list do filtrów; raporty działają bez nich.',
+      salesNotFiltered:
+        'Sprzedaż obejmuje całe studio: filtry typu, rodzaju zajęć, instruktora, grupy i sali jej nie dotyczą.',
       customersNotFiltered:
         'Raport klientów obejmuje całe studio: filtry typu, rodzaju zajęć, instruktora, grupy i sali go nie dotyczą.',
       groupKindsOnly:
@@ -1548,6 +1551,71 @@ export const pl = {
     /** Shared by the attendance and cancellation reports. */
     heldOnly:
       'Liczą się zajęcia, które już się rozpoczęły i nie zostały odwołane przez studio. Uczestnik bez zaznaczonej obecności liczy się jako obecny, tak jak przy zamknięciu zajęć przez trenera.',
+    sales: {
+      loadError: 'Nie udało się wczytać sprzedaży.',
+      rules:
+        'Liczą się karnety kupione i opłacone przez klientów oraz przypisane przez studio w wybranym okresie (według daty zakupu). Nieopłacone i anulowane zamówienia się nie liczą. Przychód to cena faktycznie zapłacona.',
+      empty: 'Brak sprzedaży w tym okresie',
+      emptyHint:
+        'Wybierz dłuższy okres albo sprawdź, czy klienci mogą kupować karnety w aplikacji.',
+      revenue: 'Przychód ze sprzedaży',
+      passes: 'Sprzedane karnety',
+      average: 'Średnia wartość karnetu',
+      topProduct: 'Najczęściej kupowany',
+      topProducts: 'Najchętniej kupowane',
+      previous: (value: string) => `poprzednio ${value}`,
+      noChange: 'bez zmian',
+      free: (count: number) =>
+        `w tym ${countOf(count, 'przypisany', 'przypisane', 'przypisanych')} bez opłaty`,
+      topDetail: (passes: number, share: string, revenue: string) =>
+        `${passes.toLocaleString('pl-PL')} szt. · ${share} sprzedanych · ${revenue}`,
+      rankingTitle: {
+        kind: 'Sprzedaż według rodzaju karnetu',
+        product: 'Sprzedaż według produktu',
+      },
+      rankingSubtitle: {
+        passes: 'Liczba sprzedanych karnetów, od największej',
+        revenue: 'Przychód, od największego',
+      },
+      groupByLabel: 'Grupuj według',
+      groupBy: { kind: 'Rodzaj karnetu', product: 'Produkt' },
+      measureLabel: 'Pokaż',
+      measure: { passes: 'Liczba', revenue: 'Przychód' },
+      pieces: (count: number) => `${count.toLocaleString('pl-PL')} szt.`,
+      trendTitle: 'Sprzedaż w czasie',
+      trendSubtitle: {
+        day: 'Dzień po dniu, według rodzaju karnetu',
+        week: 'Tydzień po tygodniu, według rodzaju karnetu',
+        month: 'Miesiąc po miesiącu, według rodzaju karnetu',
+      },
+      tableTitle: 'Produkty',
+      tableSubtitle: 'Rozwiń produkt, żeby zobaczyć warianty (liczba wejść, ważność, cena)',
+      columns: {
+        product: 'Produkt',
+        kind: 'Rodzaj',
+        passes: 'Sprzedane',
+        online: 'przez aplikację',
+        studio: 'w studiu',
+        revenue: 'Przychód',
+        share: 'Udział w przychodzie',
+      },
+      freeInRow: (count: number) => `(${count.toLocaleString('pl-PL')} bez opłaty)`,
+      total: 'Razem',
+      expand: (name: string) => `Pokaż warianty: ${name}`,
+      collapse: (name: string) => `Ukryj warianty: ${name}`,
+      variant: (entries: string, days: number, price: string) =>
+        `${entries} · ${countOf(days, 'dzień', 'dni', 'dni')} · ${price}`,
+      unlimited: 'bez limitu',
+      sessions: (count: number) => countOf(count, 'sesja', 'sesje', 'sesji'),
+      entries: (count: number) => passEntryCount(count),
+      kinds: {
+        ENTRY_PASS: 'Karnet na wejścia',
+        SINGLE_ENTRY: 'Wejście jednorazowe',
+        PT_PACKAGE: 'Pakiet treningów personalnych',
+        TIME_PASS: 'Karnet czasowy',
+        VOUCHER: 'Voucher',
+      },
+    },
     customers: {
       active: 'Aktywni klienci',
       new: 'Nowi klienci',

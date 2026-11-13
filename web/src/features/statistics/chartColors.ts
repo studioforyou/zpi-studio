@@ -18,6 +18,18 @@ export const chartColors = {
   noLimit: '#f0efec',
 };
 
+/**
+ * Colour of each kind of pass on the sales charts, from the same validated categorical set; the
+ * voucher, rarely sold, gets the neutral context colour.
+ */
+export const passKindColors = {
+  ENTRY_PASS: chartColors.occupancy,
+  SINGLE_ENTRY: chartColors.absent,
+  TIME_PASS: chartColors.attendance,
+  PT_PACKAGE: chartColors.cancelledLate,
+  VOUCHER: chartColors.attended,
+} as const;
+
 /** Occupancy scale, light to dark, for below 20%, 20-40%, 40-60%, 60-80% and 80% or more. */
 export const occupancyScale = ['#86b6ef', '#5598e7', '#2a78d6', '#1c5cab', '#104281'];
 

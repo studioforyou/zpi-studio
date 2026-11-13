@@ -11,12 +11,14 @@ import {
 import { ChartCard } from './ChartCard';
 import { ActiveCustomersTile, NewCustomersTile } from './CustomerActivityPanel';
 import { OutcomesTrendChart } from './OutcomeWidgets';
+import { PassesSoldTile, RevenueTile, SalesRanking } from './SalesWidgets';
 import { periodLength } from './reportPeriod';
 import { StatTile } from './StatTile';
 import { bucketFor, formatPercent, ratio } from './statisticsMath';
 import type { StatisticsTab } from './statisticsTabs';
 import { useBookingOutcomes, useClassAttendance } from './useAttendanceReports';
 import { useCustomerActivity } from './useCustomerActivity';
+import { usePassSales } from './usePassSales';
 import type { StatisticsFilters } from './useStatisticsFilters';
 
 const texts = pl.statistics.overview;
@@ -32,9 +34,11 @@ export function OverviewPanel({ filters, open }: OverviewPanelProps) {
   const attendance = useClassAttendance(filters);
   const outcomes = useBookingOutcomes(filters);
   const customers = useCustomerActivity(filters);
+  const sales = usePassSales(filters);
   const attendanceData = attendance.applicable ? attendance.report.data : undefined;
   const outcomesData = outcomes.report.data;
   const customersData = customers.report.data;
+  const salesData = sales.report.data;
   const wholeStudio = filters.eventsFiltered ? texts.wholeStudio : undefined;
   const details = (tab: StatisticsTab) => (
     <Button variant="subtle" size="compact-sm" onClick={() => open(tab)}>
@@ -102,6 +106,25 @@ export function OverviewPanel({ filters, open }: OverviewPanelProps) {
         >
           {customersData && <NewCustomersTile report={customersData} note={wholeStudio} />}
         </Tile>
+      </SimpleGrid>
+      <SimpleGrid cols={{ base: 1, xs: 2, lg: 3 }}>
+        <Tile failed={failed(sales)} stale={sales.stale} label={pl.statistics.sales.revenue}>
+          {salesData && <RevenueTile report={salesData} note={wholeStudio} />}
+        </Tile>
+        <Tile failed={failed(sales)} stale={sales.stale} label={pl.statistics.sales.passes}>
+          {salesData && <PassesSoldTile report={salesData} note={wholeStudio} />}
+        </Tile>
+        {salesData && salesData.totals.passes > 0 && (
+          <Dimmed stale={sales.stale}>
+            <ChartCard
+              title={pl.statistics.sales.topProducts}
+              subtitle={wholeStudio}
+              actions={details('sales')}
+            >
+              <SalesRanking report={salesData} grouping="product" measure="passes" limit={5} />
+            </ChartCard>
+          </Dimmed>
+        )}
       </SimpleGrid>
       <SimpleGrid cols={{ base: 1, md: 2 }}>
         {attendanceData && attendanceData.totals.events > 0 && (
