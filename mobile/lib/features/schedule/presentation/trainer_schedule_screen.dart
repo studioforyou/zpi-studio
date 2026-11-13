@@ -83,9 +83,9 @@ class _TrainerScheduleScreenState extends ConsumerState<TrainerScheduleScreen>
     return Scaffold(
       appBar: AppBar(title: Text(AppLocalizations.of(context).navSchedule)),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => context.push(trainerAddClassPath),
+        onPressed: _addEvent,
         icon: const Icon(Icons.add),
-        label: Text(AppLocalizations.of(context).addClassButton),
+        label: Text(AppLocalizations.of(context).scheduleAdd),
       ),
       body: scope == null
           ? const SizedBox()
@@ -99,6 +99,34 @@ class _TrainerScheduleScreenState extends ConsumerState<TrainerScheduleScreen>
               ],
             ),
     );
+  }
+
+  Future<void> _addEvent() async {
+    final l10n = AppLocalizations.of(context);
+    final path = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.groups_outlined),
+              title: Text(l10n.eventKindClass),
+              onTap: () => Navigator.pop(context, trainerAddClassPath),
+            ),
+            ListTile(
+              leading: const Icon(Icons.forum_outlined),
+              title: Text(l10n.eventKindConsultation),
+              onTap: () => Navigator.pop(context, trainerAddConsultationPath),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (!mounted || path == null) return;
+    final event = await context.push<ScheduleEvent>(path);
+    if (mounted && event != null) _openEvent(event);
   }
 
   Widget _calendar(

@@ -34,6 +34,7 @@ import studioforyou.pl.backend.scheduling.internal.ScheduleDtos.CreateSeriesRequ
 import studioforyou.pl.backend.scheduling.internal.ScheduleDtos.EventDetailsRequest;
 import studioforyou.pl.backend.scheduling.internal.ScheduleDtos.IssueType;
 import studioforyou.pl.backend.scheduling.internal.ScheduleDtos.OccurrencePreview;
+import studioforyou.pl.backend.scheduling.internal.ScheduleDtos.OwnConsultationRequest;
 import studioforyou.pl.backend.scheduling.internal.ScheduleDtos.PlanPreviewResponse;
 import studioforyou.pl.backend.scheduling.internal.ScheduleDtos.ResourceAssignmentRequest;
 import studioforyou.pl.backend.scheduling.internal.ScheduleDtos.ScheduleEventResponse;
@@ -122,6 +123,36 @@ class SchedulePlanner {
 		this.events.save(event);
 		this.events.flush();
 		return this.queries.findEvent(event.getId()).orElseThrow();
+	}
+
+	@Transactional(readOnly = true)
+	PlanPreviewResponse previewConsultation(OwnConsultationRequest request, UUID staffId) {
+		ZoneId zone = this.studio.zone();
+		return preview(consultationDetails(request, staffId),
+				List.of(occurrence(request.startsAt(), request.endsAt(), zone)), zone);
+	}
+
+	ScheduleEventResponse createConsultation(OwnConsultationRequest request, UUID staffId, UUID actorAccountId) {
+		ZoneId zone = this.studio.zone();
+		Details details = consultationDetails(request, staffId);
+		Occurrence occurrence = occurrence(request.startsAt(), request.endsAt(), zone);
+		lockAndRejectConflicts(List.of(occurrence), details.assignments(), zone, Set.of());
+		ScheduleEvent event = newEvent(details, null, occurrence, actorAccountId);
+		String guestName = request.guestName();
+		event.setGuestName((guestName == null || guestName.isBlank()) ? null : guestName.strip());
+		this.events.save(event);
+		this.events.flush();
+		return this.queries.findEvent(event.getId()).orElseThrow();
+	}
+
+	private Details consultationDetails(OwnConsultationRequest request, UUID staffId) {
+		Assignments assignments = assignments(null, null,
+				List.of(new StaffAssignmentRequest(staffId, StaffRole.LEAD)),
+				List.of(new ResourceAssignmentRequest(request.resourceId(), true)), null);
+		if (rooms(assignments).size() != 1) {
+			throw ApiException.invalidField("resourceId", FieldErrorCode.INVALID_VALUE, "A consultation requires a room.");
+		}
+		return new Details(EventKind.CONSULTATION, null, "Konsultacja", null, EventVisibility.PRIVATE, assignments);
 	}
 
 	@Transactional(readOnly = true)

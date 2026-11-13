@@ -328,7 +328,8 @@ class ClassPlanningApi {
       );
       return [
         for (final item in response.data!['items'] as List)
-          PlanningRoom.fromJson(item as Map<String, dynamic>),
+          if ((item as Map<String, dynamic>)['kind'] == 'ROOM')
+            PlanningRoom.fromJson(item),
       ];
     } on DioException catch (e) {
       throw ApiException.fromDio(e);
@@ -345,7 +346,7 @@ class ClassPlanningApi {
       );
       return PlanPreview.fromJson(response.data!);
     } on DioException catch (e) {
-      throw _rejection(e);
+      throw planRejection(e);
     }
   }
 
@@ -354,7 +355,7 @@ class ClassPlanningApi {
     try {
       await _dio.post<Map<String, dynamic>>(_path(plan), data: plan.toJson());
     } on DioException catch (e) {
-      throw _rejection(e);
+      throw planRejection(e);
     }
   }
 
@@ -362,22 +363,23 @@ class ClassPlanningApi {
     OneOffClassPlan() => ownClassesPath,
     RecurringClassPlan() => ownSeriesPath,
   };
+}
 
-  static ApiException _rejection(DioException e) {
-    final body = e.response?.data;
-    if (body is! Map<String, dynamic>) {
-      return ApiException.fromDio(e);
-    }
-    final errors = body['errors'];
-    return PlanRejectedException(
-      statusCode: e.response?.statusCode,
-      message: body['detail'] as String? ?? 'Plan rejected',
-      code: body['code'] as String?,
-      field: errors is List && errors.isNotEmpty
-          ? (errors.first as Map<String, dynamic>)['field'] as String?
-          : null,
-    );
+/// Keeps the server's planning error code and invalid field for form messages.
+ApiException planRejection(DioException e) {
+  final body = e.response?.data;
+  if (body is! Map<String, dynamic>) {
+    return ApiException.fromDio(e);
   }
+  final errors = body['errors'];
+  return PlanRejectedException(
+    statusCode: e.response?.statusCode,
+    message: body['detail'] as String? ?? 'Plan rejected',
+    code: body['code'] as String?,
+    field: errors is List && errors.isNotEmpty
+        ? (errors.first as Map<String, dynamic>)['field'] as String?
+        : null,
+  );
 }
 
 final classPlanningApiProvider = Provider<ClassPlanningApi>(

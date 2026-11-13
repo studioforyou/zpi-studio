@@ -1343,5 +1343,12 @@
   "changeNoticeStaff": "Zmiana obsady",
   "changeNoticeLeads": "Prowadzący: {before} → {after}",
   "@changeNoticeLeads": {"placeholders": {"before": {"type": "String"}, "after": {"type": "String"}}},
-  "changeNoticeNoLead": "brak"
+  "changeNoticeNoLead": "brak",
+  "scheduleAdd": "Dodaj",
+  "consultationAdd": "Dodaj konsultację",
+  "consultationGuest": "Gość (opcjonalnie)",
+  "consultationSave": "Zarezerwuj termin",
+  "consultationIncomplete": "Wybierz salę i termin.",
+  "consultationPast": "Wybierz termin w przyszłości.",
+  "consultationSaveError": "Nie udało się zapisać konsultacji. Spróbuj ponownie."
 }

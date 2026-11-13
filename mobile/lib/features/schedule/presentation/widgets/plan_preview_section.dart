@@ -48,7 +48,7 @@ class PlanPreviewSection extends StatelessWidget {
             dimension: 20,
             child: CircularProgressIndicator(strokeWidth: 2),
           ),
-          Text(l10n.addClassPreviewLoading),
+          Expanded(child: Text(l10n.addClassPreviewLoading)),
         ],
       );
     } else if (error != null) {
