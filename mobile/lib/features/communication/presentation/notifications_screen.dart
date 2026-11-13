@@ -221,6 +221,9 @@ class _NotificationTile extends ConsumerWidget {
         'PASS_EXPIRING' ||
         'PASS_LAST_ENTRY_USED' => Icons.confirmation_number_outlined,
         'NEW_MESSAGE' => Icons.chat_bubble_outline,
+        'TIME_OFF_APPROVED' ||
+        'TIME_OFF_REJECTED' ||
+        'TIME_OFF_CANCELLED' => Icons.event_busy_outlined,
         _ => Icons.notifications_outlined,
       }, color: theme.colorScheme.primary),
       title: Text(
