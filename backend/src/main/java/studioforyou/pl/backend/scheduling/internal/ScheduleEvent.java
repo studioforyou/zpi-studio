@@ -60,6 +60,9 @@ class ScheduleEvent {
 
 	private String title;
 
+	@Column(name = "guest_name")
+	private String guestName;
+
 	@Column(name = "starts_at")
 	private Instant startsAt;
 
@@ -155,6 +158,10 @@ class ScheduleEvent {
 
 	UUID getId() {
 		return this.id;
+	}
+
+	void setGuestName(String guestName) {
+		this.guestName = guestName;
 	}
 
 	EventKind getKind() {

@@ -127,6 +127,11 @@ final class ScheduleDtos {
 
 	}
 
+	@Schema(name = "CreateOwnConsultationRequest", description = "A private consultation that reserves the signed-in trainer and one whole room, without a customer account.")
+	record OwnConsultationRequest(@Size(max = MAX_TITLE_LENGTH) String guestName,
+			@NotNull Instant startsAt, @NotNull Instant endsAt, @NotNull UUID resourceId) {
+	}
+
 	@Schema(name = "CreateOwnRecurrenceSeriesRequest", description = "A recurring public group class run by the "
 			+ "signed-in trainer, in the studio's local time. One series is created for each weekday.")
 	record OwnSeriesRequest(

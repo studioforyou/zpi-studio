@@ -25,6 +25,7 @@ import 'package:mobile/features/documents/presentation/documents_screen.dart';
 import 'package:mobile/features/passes/presentation/passes_screen.dart';
 import 'package:mobile/features/schedule/data/series_changes.dart';
 import 'package:mobile/features/schedule/presentation/add_class_screen.dart';
+import 'package:mobile/features/schedule/presentation/add_consultation_screen.dart';
 import 'package:mobile/features/schedule/presentation/availability_screen.dart';
 import 'package:mobile/features/schedule/presentation/schedule_screen.dart';
 import 'package:mobile/features/schedule/presentation/trainer_schedule_screen.dart';
@@ -72,6 +73,7 @@ const trainerNewCooperationSubPath = 'new-cooperation';
 const trainerNewClientAccountSubPath = 'new-client';
 const trainerAddClassSubPath = 'new-class';
 const trainerAddClassPath = '$trainerSchedulePath/$trainerAddClassSubPath';
+const trainerAddConsultationPath = '$trainerSchedulePath/new-consultation';
 
 /// The tabs of each role's shell.
 const _roleTabs = {
@@ -209,6 +211,10 @@ StatefulShellRoute _trainerShell() => _roleShell([
       GoRoute(
         path: trainerAddClassSubPath,
         builder: (_, _) => const AddClassScreen(),
+      ),
+      GoRoute(
+        path: 'new-consultation',
+        builder: (_, _) => const AddConsultationScreen(),
       ),
     ],
     badge: watchOpenScheduleChanges,
