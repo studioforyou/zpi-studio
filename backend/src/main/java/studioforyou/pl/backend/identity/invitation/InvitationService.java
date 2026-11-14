@@ -18,6 +18,7 @@ import studioforyou.pl.backend.customer.OwnTrainees;
 import studioforyou.pl.backend.identity.AccountLookup;
 import studioforyou.pl.backend.identity.AccountInvited;
 import studioforyou.pl.backend.identity.AccountStatus;
+import studioforyou.pl.backend.identity.access.AccessManagement;
 import studioforyou.pl.backend.identity.firebase.FirebaseUsers;
 import studioforyou.pl.backend.shared.api.ApiException;
 import studioforyou.pl.backend.shared.api.ErrorCode;
@@ -42,18 +43,21 @@ class InvitationService {
 
 	private final OwnTrainees ownTrainees;
 
+	private final AccessManagement accessManagement;
+
 	private final ApplicationEventPublisher events;
 
 	private final InvitationProperties properties;
 
 	InvitationService(JdbcClient jdbc, FirebaseUsers firebaseUsers, CustomerProfiles customerProfiles,
-			StaffProfiles staffProfiles, OwnTrainees ownTrainees, ApplicationEventPublisher events,
-			InvitationProperties properties) {
+			StaffProfiles staffProfiles, OwnTrainees ownTrainees, AccessManagement accessManagement,
+			ApplicationEventPublisher events, InvitationProperties properties) {
 		this.jdbc = jdbc;
 		this.firebaseUsers = firebaseUsers;
 		this.customerProfiles = customerProfiles;
 		this.staffProfiles = staffProfiles;
 		this.ownTrainees = ownTrainees;
+		this.accessManagement = accessManagement;
 		this.events = events;
 		this.properties = properties;
 	}
@@ -101,9 +105,9 @@ class InvitationService {
 	}
 
 	/**
-	 * Creates the account, role, profile and invitation, without sending anything yet. The e-mail
-	 * goes last, so that a later failure in the same transaction does not leave a sent link to an
-	 * account that was never saved.
+	 * Creates the account, role (recorded in the audit log), profile and invitation, without sending
+	 * anything yet. The e-mail goes last, so that a later failure in the same transaction does not
+	 * leave a sent link to an account that was never saved.
 	 */
 	private Created create(String email, String firstName, String lastName, InvitedRole role, UUID invitedBy) {
 		String normalizedEmail = email.trim();
@@ -132,14 +136,7 @@ class InvitationService {
 			// Someone else invited the same e-mail at the same moment.
 			throw accountAlreadyExists();
 		}
-		jdbc.sql("""
-				INSERT INTO account_role (account_id, role_id, granted_by)
-				SELECT :accountId, id, :invitedBy FROM role WHERE code = :role
-				""")
-			.param("accountId", accountId)
-			.param("invitedBy", invitedBy)
-			.param("role", role.name())
-			.update();
+		accessManagement.grantRole(invitedBy, accountId, role.name());
 		jdbc.sql("""
 				INSERT INTO account_status_change (account_id, from_status, to_status, changed_by)
 				VALUES (:accountId, NULL, 'INVITED', :invitedBy)
