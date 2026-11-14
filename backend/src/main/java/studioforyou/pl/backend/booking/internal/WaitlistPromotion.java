@@ -11,8 +11,10 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Component;
+import org.springframework.context.ApplicationEventPublisher;
 
 import studioforyou.pl.backend.booking.internal.ParticipationRules.Terms;
+import studioforyou.pl.backend.booking.WaitlistPlaceAllocated;
 import studioforyou.pl.backend.booking.internal.WaitlistStore.WaitlistEntry;
 import studioforyou.pl.backend.customer.CustomerProfiles;
 import studioforyou.pl.backend.customer.CustomerProfiles.ProfileDetails;
@@ -43,13 +45,16 @@ class WaitlistPromotion {
 
 	private final ParticipationRules rules;
 
+	private final ApplicationEventPublisher events;
+
 	WaitlistPromotion(WaitlistStore waitlist, ReservationStore reservations, CustomerProfiles customers,
-			BookingEntitlements entitlements, ParticipationRules rules) {
+			BookingEntitlements entitlements, ParticipationRules rules, ApplicationEventPublisher events) {
 		this.waitlist = waitlist;
 		this.reservations = reservations;
 		this.customers = customers;
 		this.entitlements = entitlements;
 		this.rules = rules;
+		this.events = events;
 	}
 
 	/**
@@ -73,8 +78,12 @@ class WaitlistPromotion {
 			// The place waits for the participant's confirmation, at most until booking closes.
 			Instant closes = event.startsAt().minus(Duration.ofMinutes(terms.rules().bookingClosesMinutesBefore()));
 			Instant offerEnds = now.plus(Duration.ofMinutes(confirmMinutes));
-			promotions.forEach(promotion -> this.waitlist.offer(promotion.entry().id(),
-					offerEnds.isBefore(closes) ? offerEnds : closes));
+			for (Promotion promotion : promotions) {
+				WaitlistEntry offered = this.waitlist.offer(promotion.entry().id(),
+						offerEnds.isBefore(closes) ? offerEnds : closes);
+				this.events.publishEvent(new WaitlistPlaceAllocated(offered.id(), offered.customerId(),
+						event.id(), null, offered.offerExpiresAt()));
+			}
 			promotions = List.of();
 		}
 		for (Promotion promotion : promotions) {
@@ -87,6 +96,8 @@ class WaitlistPromotion {
 		for (Promotion promotion : promotions) {
 			this.reservations.attachPass(promotion.reservationId(), promotion.passId());
 			this.waitlist.resolve(promotion.entry().id(), WaitlistStore.PROMOTED, promotion.reservationId(), now);
+			this.events.publishEvent(new WaitlistPlaceAllocated(promotion.entry().id(), promotion.entry().customerId(),
+					event.id(), promotion.reservationId(), null));
 		}
 	}
 

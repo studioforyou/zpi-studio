@@ -293,6 +293,30 @@ class NotificationTests {
 			.andExpect(jsonPath("$.count").value(1));
 	}
 
+	@Test
+	void theInboxKeepsDifferentNotificationTypesRegardlessOfPushDelivery() throws Exception {
+		Instant now = Instant.now();
+		UUID reminder = addNotification(adultAccount, now.minus(3, ChronoUnit.MINUTES));
+		UUID pass = addNotification(adultAccount, now.minus(2, ChronoUnit.MINUTES));
+		UUID waitlist = addNotification(adultAccount, now.minus(1, ChronoUnit.MINUTES));
+		jdbc.sql("UPDATE notification SET notification_type_id = 2 WHERE id = :id").param("id", pass).update();
+		jdbc.sql("UPDATE notification SET notification_type_id = 5 WHERE id = :id").param("id", waitlist).update();
+		jdbc.sql("INSERT INTO notification_delivery (notification_id, channel, status) VALUES (:id, 'PUSH', 'SENT')").param("id", reminder).update();
+		jdbc.sql("INSERT INTO notification_delivery (notification_id, channel, status) VALUES (:id, 'PUSH', 'NO_DEVICE')").param("id", pass).update();
+		jdbc.sql("INSERT INTO notification_delivery (notification_id, channel, status) VALUES (:id, 'PUSH', 'FAILED')").param("id", waitlist).update();
+		mvc.perform(withToken(get("/api/v1/me/notifications?role=CLIENT"), "adult"))
+			.andExpect(status().isOk()).andExpect(jsonPath("$.totalItems").value(3))
+			.andExpect(jsonPath("$.items[0].type").value("WAITLIST_PLACE_OFFERED"))
+			.andExpect(jsonPath("$.items[1].type").value("PASS_EXPIRING"))
+			.andExpect(jsonPath("$.items[2].type").value("CLASS_REMINDER"));
+		mvc.perform(withToken(post("/api/v1/me/notifications/" + pass + "/read"), "adult"))
+			.andExpect(status().isOk());
+		mvc.perform(withToken(get("/api/v1/me/notifications?role=CLIENT"), "adult"))
+			.andExpect(jsonPath("$.totalItems").value(3)).andExpect(jsonPath("$.items[1].readAt").isString());
+		mvc.perform(withToken(get("/api/v1/me/notifications/unread-count?role=CLIENT"), "adult"))
+			.andExpect(jsonPath("$.count").value(2));
+	}
+
 	// --- administrator settings ---
 
 	@Test

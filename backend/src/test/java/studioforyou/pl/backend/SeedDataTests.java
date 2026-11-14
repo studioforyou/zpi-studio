@@ -411,6 +411,38 @@ class SeedDataTests {
 		assertThat(rowCounts()).isEqualTo(counts);
 	}
 
+	@Test
+	@Transactional
+	void waitlistNotificationExamplesHaveBothModesAndKeepTesterChangesOnRerun() throws Exception {
+		String token = seedToken(6);
+		String parent = "/api/v1/me/profiles/07000000-0000-0000-0000-000000000003/group-classes/19000000-0000-0000-0000-00000001400";
+		String offered = seedGet(token, parent + "1", false);
+		assertThat(JsonPath.<String>read(offered, "$.waitlist.ownEntry.status")).isEqualTo("WAITING");
+		assertThat(JsonPath.<Integer>read(offered, "$.waitlist.confirmationMinutes")).isEqualTo(30);
+		assertThat(JsonPath.<Integer>read(seedGet(token, parent + "2", false), "$.waitlist.confirmationMinutes")).isZero();
+		String child = seedGet(token, "/api/v1/me/profiles/07000000-0000-0000-0000-000000000004/group-classes/19000000-0000-0000-0000-000000014003", false);
+		assertThat(JsonPath.<String>read(child, "$.waitlist.ownEntry.customerId"))
+			.isEqualTo("07000000-0000-0000-0000-000000000004");
+		assertThat(jdbc.sql("""
+				SELECT p.entries_remaining::INT AS remaining, sum(l.entries_delta)::INT AS balance
+				FROM customer_pass p JOIN pass_ledger l ON l.pass_id = p.id
+				WHERE p.id BETWEEN '28000000-0000-0000-0000-000000014001' AND '28000000-0000-0000-0000-000000014004'
+				GROUP BY p.id
+				""").query().listOfRows()).hasSize(4)
+			.allSatisfy(row -> assertThat(row.get("remaining")).isEqualTo(row.get("balance")));
+		Map<String, Long> counts = rowCounts();
+		jdbc.sql("UPDATE waitlist_entry SET status = 'CANCELLED', resolved_at = now() WHERE id = '31000000-0000-0000-0000-000000014004'").update();
+		jdbc.sql("UPDATE notification SET read_at = now() WHERE id = '44000000-0000-0000-0000-000000014004'").update();
+		var waiting = jdbc.sql("SELECT * FROM waitlist_entry WHERE id = '31000000-0000-0000-0000-000000014004'").query().singleRow();
+		var notification = jdbc.sql("SELECT * FROM notification WHERE id = '44000000-0000-0000-0000-000000014004'").query().singleRow();
+		var script = new ResourceDatabasePopulator(new ClassPathResource("db/seed/R__seed_17_waitlist_notifications.sql"));
+		script.execute(dataSource);
+		script.execute(dataSource);
+		assertThat(rowCounts()).isEqualTo(counts);
+		assertThat(jdbc.sql("SELECT * FROM waitlist_entry WHERE id = '31000000-0000-0000-0000-000000014004'").query().singleRow()).isEqualTo(waiting);
+		assertThat(jdbc.sql("SELECT * FROM notification WHERE id = '44000000-0000-0000-0000-000000014004'").query().singleRow()).isEqualTo(notification);
+	}
+
 	private Map<String, Long> rowCounts() {
 		List<String> tables = jdbc.sql("""
 				SELECT table_name

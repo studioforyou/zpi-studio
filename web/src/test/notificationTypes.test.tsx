@@ -241,3 +241,71 @@ test('shows the new message notification without reminder times and previews mes
     within(preview).getByText('3 nowe wiadomości · Weźcie wodę i ręcznik.'),
   ).toBeInTheDocument();
 });
+
+test('configures both waiting-list messages and edits the deadline template without reminder times', async () => {
+  const offer = {
+    ...reminder,
+    code: 'WAITLIST_PLACE_OFFERED',
+    timed: false,
+    leadTimesMinutes: [],
+    title: 'Zwolniło się miejsce',
+    body: '{{zajęcia}}. Potwierdź miejsce do {{potwierdź do}}.',
+    placeholders: [
+      { name: 'zajęcia', description: 'Class' },
+      { name: 'dzień', description: 'Day' },
+      { name: 'godzina', description: 'Time' },
+      { name: 'potwierdź do', description: 'Deadline' },
+    ],
+  };
+  const types = [
+    offer,
+    { ...offer, code: 'WAITLIST_PLACE_GRANTED', title: 'Masz miejsce na zajęciach' },
+  ];
+  const patches: Record<string, unknown>[] = [];
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string, init: RequestInit) => {
+      if (url === '/api/v1/notification-types') return json({ items: types });
+      const code = url.split('/').at(-1);
+      const index = types.findIndex((type) => type.code === code);
+      if (index !== -1 && init.method === 'PATCH') {
+        const patch = JSON.parse(init.body as string);
+        patches.push(patch);
+        types[index] = { ...types[index], ...patch };
+        return json(types[index]);
+      }
+      throw new Error(`Unexpected request: ${init.method} ${url}`);
+    }),
+  );
+  renderWithProviders(<CommunicationPage />);
+  expect(
+    await screen.findByText('Miejsce z listy rezerwowej do potwierdzenia'),
+  ).toBeInTheDocument();
+  expect(screen.getByText('Automatyczny zapis z listy rezerwowej')).toBeInTheDocument();
+  expect(screen.queryByText('WAITLIST_PLACE_OFFERED')).not.toBeInTheDocument();
+  expect(screen.queryByText('WAITLIST_PLACE_GRANTED')).not.toBeInTheDocument();
+  await userEvent.click(
+    screen.getByRole('switch', { name: 'Wysyłane: Automatyczny zapis z listy rezerwowej' }),
+  );
+  expect(patches).toEqual([{ enabled: false }]);
+  await userEvent.click(screen.getAllByRole('button', { name: 'Edytuj' })[0]);
+  const dialog = await screen.findByRole('dialog');
+  expect(
+    within(dialog).queryByRole('button', { name: 'Dodaj przypomnienie' }),
+  ).not.toBeInTheDocument();
+  expect(
+    within(dialog).getByRole('button', { name: 'Wstaw: Termin potwierdzenia' }),
+  ).toBeInTheDocument();
+  const body = within(dialog).getByRole('textbox', { name: /^Treść/ });
+  await userEvent.clear(body);
+  await userEvent.click(body);
+  await userEvent.paste('Potwierdź do {{potwierdź do}}');
+  expect(
+    within(within(dialog).getByLabelText('Podgląd')).getByText('Potwierdź do 13.11, 15:30'),
+  ).toBeInTheDocument();
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Zapisz' }));
+  expect(patches[1]).toEqual({
+    title: 'Zwolniło się miejsce',
+    body: 'Potwierdź do {{potwierdź do}}',
+  });
+});
