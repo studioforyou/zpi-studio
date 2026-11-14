@@ -29,6 +29,7 @@ import 'package:mobile/features/schedule/presentation/availability_screen.dart';
 import 'package:mobile/features/schedule/presentation/time_off_list_screen.dart';
 import 'package:mobile/features/schedule/presentation/schedule_screen.dart';
 import 'package:mobile/features/schedule/presentation/trainer_schedule_screen.dart';
+import 'package:mobile/features/schedule/presentation/substitution_offers_screen.dart';
 import 'package:mobile/features/trainings/presentation/new_cooperation_screen.dart';
 import 'package:mobile/features/trainings/presentation/new_client_account_screen.dart';
 import 'package:mobile/features/trainings/presentation/reservations_screen.dart';
@@ -61,6 +62,7 @@ const clientTrainingHistoryPath =
     '$clientReservationsPath/$clientTrainingHistorySubPath';
 
 const trainerSchedulePath = '/trainer/schedule';
+const trainerSubstitutionsPath = '$trainerSchedulePath/substitutions';
 const trainerTrainingsPath = '/trainer/trainings';
 const trainerMessagesPath = '/trainer/messages';
 const trainerNotificationsPath = '$trainerMessagesPath/$notificationsSubPath';
@@ -210,6 +212,12 @@ StatefulShellRoute _trainerShell() => _roleShell([
     Icons.calendar_month,
     (l10n) => l10n.navSchedule,
     routes: [
+      GoRoute(
+        path: 'substitutions',
+        builder: (_, state) => SubstitutionOffersScreen(
+          initialRequestId: state.uri.queryParameters['request'],
+        ),
+      ),
       GoRoute(
         path: trainerAddClassSubPath,
         builder: (_, _) => const AddClassScreen(),

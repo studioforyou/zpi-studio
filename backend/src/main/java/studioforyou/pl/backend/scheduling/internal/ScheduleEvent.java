@@ -233,6 +233,12 @@ class ScheduleEvent {
 		return true;
 	}
 
+	/** Cancels this occurrence only; booking settles its reservations in the same transaction. */
+	void cancel() {
+		this.status = EventStatus.CANCELLED;
+		this.updatedAt = Instant.now();
+	}
+
 	/** Marks an occurrence that follows its series' rule again. */
 	void clearSeriesException() {
 		this.seriesException = false;

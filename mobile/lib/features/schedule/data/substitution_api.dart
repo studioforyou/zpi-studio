@@ -113,6 +113,51 @@ class SubstitutionApi {
     }
   }
 
+  Future<List<SubstitutionOffer>> fetchOffers(OfferQuery query) async {
+    try {
+      final response = await _dio.get<Map<String, dynamic>>(
+        '/api/v1/me/substitution-offers',
+        queryParameters: {
+          'from': query.from.toUtc().toIso8601String(),
+          'to': query.to.toUtc().toIso8601String(),
+          'mine': query.mine,
+        },
+      );
+      return [
+        for (final item in response.data!['items'] as List)
+          SubstitutionOffer.fromJson(item as Map<String, dynamic>),
+      ];
+    } on DioException catch (e) {
+      throw _error(e);
+    }
+  }
+
+  Future<SubstitutionOffer> fetchOffer(String id) async {
+    try {
+      final response = await _dio.get<Map<String, dynamic>>(
+        '/api/v1/me/substitution-offers/$id',
+      );
+      return SubstitutionOffer.fromJson(response.data!);
+    } on DioException catch (e) {
+      throw _error(e);
+    }
+  }
+
+  Future<SubstitutionOffer> actOnOffer(
+    SubstitutionOffer offer, {
+    required bool withdraw,
+  }) async {
+    try {
+      final response = await _dio.post<Map<String, dynamic>>(
+        '/api/v1/me/substitution-offers/${offer.id}/${withdraw ? 'withdraw' : 'claim'}',
+        data: {'version': offer.version},
+      );
+      return SubstitutionOffer.fromJson(response.data!);
+    } on DioException catch (e) {
+      throw _error(e);
+    }
+  }
+
   static ApiException _error(DioException e) {
     final body = e.response?.data;
     return SubstitutionException(
@@ -152,3 +197,73 @@ void _requireScope(Ref ref, TrainerOverviewScope scope) {
 
 String substitutionEventId(ScheduleEvent event) =>
     event is TraineeTraining ? event.eventId : event.id;
+
+class SubstitutionOffer {
+  const SubstitutionOffer({
+    required this.id,
+    required this.eventId,
+    required this.version,
+    required this.status,
+    required this.kind,
+    required this.title,
+    required this.rooms,
+    required this.startsAt,
+    required this.endsAt,
+    required this.originalTrainer,
+    required this.approvalRequired,
+    required this.canClaim,
+    required this.canWithdraw,
+    this.substituteTrainer,
+    this.unavailableReason,
+    this.decisionNote,
+    this.warnings = const [],
+  });
+
+  factory SubstitutionOffer.fromJson(Map<String, dynamic> json) =>
+      SubstitutionOffer(
+        id: json['id'] as String,
+        eventId: json['eventId'] as String,
+        version: json['version'] as int,
+        status: json['status'] as String,
+        kind: json['kind'] as String,
+        title: json['title'] as String,
+        rooms: json['rooms'] as String,
+        originalTrainer: json['originalTrainer'] as String,
+        startsAt: DateTime.parse(json['startsAt'] as String).toLocal(),
+        endsAt: DateTime.parse(json['endsAt'] as String).toLocal(),
+        approvalRequired: json['approvalRequired'] as bool,
+        canClaim: json['canClaim'] as bool,
+        canWithdraw: json['canWithdraw'] as bool,
+        substituteTrainer: json['substituteTrainer'] as String?,
+        unavailableReason: json['unavailableReason'] as String?,
+        decisionNote: json['decisionNote'] as String?,
+        warnings: (json['warnings'] as List? ?? const []).cast<String>(),
+      );
+
+  final String id, eventId, status, kind, title, rooms, originalTrainer;
+  final int version;
+  final DateTime startsAt, endsAt;
+  final bool approvalRequired, canClaim, canWithdraw;
+  final String? substituteTrainer, unavailableReason, decisionNote;
+  final List<String> warnings;
+}
+
+typedef OfferQuery = ({
+  TrainerOverviewScope scope,
+  bool mine,
+  DateTime from,
+  DateTime to,
+});
+typedef OfferDetailsQuery = ({TrainerOverviewScope scope, String id});
+
+final substitutionOffersProvider = FutureProvider.autoDispose
+    .family<List<SubstitutionOffer>, OfferQuery>((ref, query) {
+      _requireScope(ref, query.scope);
+      return ref.watch(substitutionApiProvider).fetchOffers(query);
+    });
+
+final substitutionOfferProvider = FutureProvider.autoDispose
+    .family<SubstitutionOffer, OfferDetailsQuery>((ref, query) {
+      _requireScope(ref, query.scope);
+      return ref.watch(substitutionApiProvider).fetchOffer(query.id);
+    });

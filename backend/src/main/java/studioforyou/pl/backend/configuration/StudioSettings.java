@@ -43,4 +43,8 @@ public class StudioSettings {
 		return studios.findFirstBy().map(Studio::getPersonalTrainingDisputeHours).orElse(24);
 	}
 
+	public boolean substitutionNeedsApproval() {
+		return studios.findFirstBy().map(Studio::isSubstitutionNeedsApproval).orElse(true);
+	}
+
 }

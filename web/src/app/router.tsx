@@ -12,6 +12,7 @@ import { PassesPage } from '@/features/passes/PassesPage';
 import { RoomsPage } from '@/features/schedule/RoomsPage';
 import { SchedulePage } from '@/features/schedule/SchedulePage';
 import { TimeOffPage } from '@/features/staff/TimeOffPage';
+import { SubstitutionsPage } from '@/features/staff/SubstitutionsPage';
 import { SystemStatusPage } from '@/features/system/SystemStatusPage';
 import { TrainingsPage } from '@/features/trainings/TrainingsPage';
 import { pl } from '@/shared/i18n/pl';
@@ -43,6 +44,7 @@ export const appRoutes: RouteObject[] = [
           { path: paths.schedule, element: <SchedulePage /> },
           { path: paths.rooms, element: <RoomsPage /> },
           { path: paths.timeOff, element: <TimeOffPage /> },
+          { path: paths.substitutions, element: <SubstitutionsPage /> },
           { path: paths.accounts, element: <AccountsPage /> },
           { path: `${paths.accounts}/:accountId`, element: <AccountDetailsPage /> },
           { path: paths.roles, element: <RolesPage /> },

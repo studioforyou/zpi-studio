@@ -93,6 +93,24 @@ class PushNotifications {
 
     final session = auth.session;
     final router = _ref.read(appRouterProvider);
+    if (data['type'] == 'SUBSTITUTION_AVAILABLE' &&
+        session.roles.contains(AppRole.trainer)) {
+      if (session.activeRole != AppRole.trainer) {
+        final choice = session.choices
+            .where((c) => c.role == AppRole.trainer)
+            .firstOrNull;
+        if (choice != null) {
+          _ref.read(authControllerProvider.notifier).choose(choice);
+        }
+      }
+      final id = data['requestId'];
+      router.go(
+        id == null
+            ? trainerSubstitutionsPath
+            : '$trainerSubstitutionsPath?request=${Uri.encodeQueryComponent(id)}',
+      );
+      return;
+    }
     final conversationId = data['conversationId'];
     if (data['type'] == newMessageType && conversationId != null) {
       _openConversation(session, conversationId, data['role']);

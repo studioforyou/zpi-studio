@@ -13,6 +13,7 @@ export const navigation: NavigationItem[] = [
   { path: paths.passes, labelKey: 'passes' },
   { path: paths.trainings, labelKey: 'trainings' },
   { path: paths.timeOff, labelKey: 'timeOff' },
+  { path: paths.substitutions, labelKey: 'substitutions' },
   { path: paths.communication, labelKey: 'communication' },
   { path: paths.statistics, labelKey: 'statistics' },
   { path: paths.system, labelKey: 'system' },

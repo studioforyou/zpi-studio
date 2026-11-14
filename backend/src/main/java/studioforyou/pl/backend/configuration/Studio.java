@@ -30,6 +30,8 @@ public class Studio {
 	@Column(name = "pt_dispute_window_hours")
 	private short personalTrainingDisputeHours;
 
+	private boolean substitutionNeedsApproval;
+
 	protected Studio() {
 	}
 
@@ -51,6 +53,10 @@ public class Studio {
 
 	public int getPersonalTrainingDisputeHours() {
 		return this.personalTrainingDisputeHours;
+	}
+
+	public boolean isSubstitutionNeedsApproval() {
+		return this.substitutionNeedsApproval;
 	}
 
 }

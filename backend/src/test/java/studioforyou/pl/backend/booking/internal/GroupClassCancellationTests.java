@@ -83,6 +83,8 @@ class GroupClassCancellationTests {
 
 	@Test
 	void ownCancellationOutranksTheStudiosWhichOutranksAttendance() {
+		assertThat(GroupClassBookingService.outcome(past("CANCELLED", "STUDIO", "UNMARKED"), event("CANCELLED")))
+			.isEqualTo("CLASS_CANCELLED");
 		assertThat(GroupClassBookingService.outcome(past("CANCELLED", "LATE", "UNMARKED"), event("CANCELLED")))
 			.isEqualTo("LATE_CANCELLED");
 		assertThat(GroupClassBookingService.outcome(past("CANCELLED", "IN_TIME", "UNMARKED"), event()))

@@ -15,6 +15,13 @@ import java.util.Optional;
  */
 public enum NotificationType {
 
+	/** A current substitution the qualified, available trainer may take. */
+	SUBSTITUTION_AVAILABLE((short) 13, false, List.of(
+			new Placeholder(Placeholder.CLASS, "Name of the class or service; no participant data"),
+			new Placeholder(Placeholder.DAY, "Day of the event in the studio time zone"),
+			new Placeholder(Placeholder.TIME, "Start and end time"),
+			new Placeholder(Placeholder.ROOM, "Names of the event's rooms"))),
+
 	/** Reminder about a class or training the participant has an active reservation for. */
 	CLASS_REMINDER((short) 1, true, List.of(
 			new Placeholder(Placeholder.CLASS, "Name of the class or training"),

@@ -329,7 +329,7 @@ class GroupClassBookingService {
 
 	/** The customer's own cancellation outranks the studio's, which outranks attendance. */
 	static String outcome(PastReservation reservation, Occurrence event) {
-		if ("CANCELLED".equals(reservation.status())) {
+		if ("CANCELLED".equals(reservation.status()) && !"STUDIO".equals(reservation.cancelKind())) {
 			return "LATE".equals(reservation.cancelKind()) ? "LATE_CANCELLED" : "CANCELLED";
 		}
 		if ("CANCELLED".equals(event.status())) {

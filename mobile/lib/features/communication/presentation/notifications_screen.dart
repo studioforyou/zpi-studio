@@ -221,6 +221,7 @@ class _NotificationTile extends ConsumerWidget {
         'PASS_EXPIRING' ||
         'PASS_LAST_ENTRY_USED' => Icons.confirmation_number_outlined,
         'NEW_MESSAGE' => Icons.chat_bubble_outline,
+        'SUBSTITUTION_AVAILABLE' => Icons.swap_horiz,
         'TIME_OFF_APPROVED' ||
         'TIME_OFF_REJECTED' ||
         'TIME_OFF_CANCELLED' => Icons.event_busy_outlined,
@@ -234,7 +235,20 @@ class _NotificationTile extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         spacing: 2,
         children: [
-          Text(notification.body),
+          if (notification.type == 'SUBSTITUTION_AVAILABLE' &&
+              notification.data['title'] != null) ...[
+            Text(
+              notification.data['title']!,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+            if (DateTime.tryParse(notification.data['startsAt'] ?? '')
+                case final start?)
+              Text(
+                '${DateFormat('EEE, d.MM · HH:mm', 'pl').format(start.toLocal())} · ${notification.data['rooms'] ?? ''}',
+              ),
+          ] else
+            Text(notification.body),
           Text(
             _when(AppLocalizations.of(context), notification.createdAt),
             style: theme.textTheme.bodySmall?.copyWith(
@@ -243,7 +257,36 @@ class _NotificationTile extends ConsumerWidget {
           ),
         ],
       ),
-      trailing: unread
+      trailing: notification.type == 'SUBSTITUTION_AVAILABLE'
+          ? Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (unread)
+                  Icon(Icons.circle, size: 8, color: theme.colorScheme.primary),
+                IconButton(
+                  tooltip: AppLocalizations.of(
+                    context,
+                  ).substitutionNotificationText,
+                  icon: const Icon(Icons.info_outline),
+                  onPressed: () => showDialog<void>(
+                    context: context,
+                    builder: (context) => AlertDialog(
+                      title: Text(notification.title),
+                      content: Text(notification.body),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context),
+                          child: Text(
+                            AppLocalizations.of(context).substitutionClose,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            )
+          : unread
           ? Icon(Icons.circle, size: 10, color: theme.colorScheme.primary)
           : null,
       onTap: () => ref.read(pushNotificationsProvider).open({
