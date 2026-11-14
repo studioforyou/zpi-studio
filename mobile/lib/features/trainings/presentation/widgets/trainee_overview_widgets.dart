@@ -110,7 +110,7 @@ class PersonalTrainingScheduleTile extends StatelessWidget {
                   style: theme.textTheme.bodySmall,
                 ),
                 TraineeTrainingState(training, checkedAt: checkedAt),
-                  ?footer,
+                ?footer,
               ],
             ),
           ),

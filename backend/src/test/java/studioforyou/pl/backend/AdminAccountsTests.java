@@ -74,6 +74,8 @@ class AdminAccountsTests {
 	@AfterEach
 	void tearDown() {
 		String accounts = "(SELECT id FROM account WHERE email ILIKE '%@example.com')";
+		jdbc.sql("DELETE FROM audit_log WHERE entity_id IN " + accounts + " OR actor_account_id IN " + accounts)
+			.update();
 		jdbc.sql("DELETE FROM staff_profile WHERE account_id IN " + accounts).update();
 		jdbc.sql("DELETE FROM account_status_change WHERE account_id IN " + accounts).update();
 		jdbc.sql("DELETE FROM account_role WHERE account_id IN " + accounts).update();
@@ -119,6 +121,12 @@ class AdminAccountsTests {
 				SELECT to_status FROM account_status_change
 				WHERE account_id = (SELECT id FROM account WHERE email = 'Nowa.Admin@example.com')
 				""").query(String.class).single()).isEqualTo("ACTIVE");
+		assertThat(jdbc.sql("""
+				SELECT actor_account_id, action, changes::text AS changes FROM audit_log
+				WHERE entity_id = (SELECT id FROM account WHERE email = 'Nowa.Admin@example.com')
+				""").query().singleRow()).containsEntry("actor_account_id", admin)
+			.containsEntry("action", "ROLE_GRANTED")
+			.containsEntry("changes", "{\"roles\": {\"new\": [\"ADMIN\"], \"old\": []}}");
 	}
 
 	@Test
