@@ -5,6 +5,8 @@ import 'package:intl/intl.dart';
 import 'package:mobile/app/router/app_router.dart';
 import 'package:mobile/core/auth/auth_controller.dart';
 import 'package:mobile/features/schedule/data/schedule_api.dart';
+import 'package:mobile/features/schedule/data/substitution_api.dart';
+import 'package:mobile/features/schedule/presentation/widgets/substitution_widgets.dart';
 import 'package:mobile/features/schedule/data/series_changes.dart';
 import 'package:mobile/features/schedule/data/schedule_service_types.dart';
 import 'package:mobile/features/schedule/presentation/service_type_filter_labels.dart';
@@ -66,6 +68,7 @@ class _TrainerScheduleScreenState extends ConsumerState<TrainerScheduleScreen>
     );
     ref.invalidate(scheduleChangesProvider(TrainerChanges(query.scope)));
     ref.invalidate(ownPersonalTrainingsProvider(query));
+    ref.invalidate(ownSubstitutionsProvider(query));
     try {
       final request = ref.refresh(trainerScheduleEventsProvider(query).future);
       await request;
@@ -128,6 +131,13 @@ class _TrainerScheduleScreenState extends ConsumerState<TrainerScheduleScreen>
       );
     },
     eventBuilder: (context, event) {
+      final requests = ref
+          .watch(ownSubstitutionsProvider(_visibleQuery!))
+          .value;
+      final request = requests
+          ?.where((r) => r.eventId == substitutionEventId(event))
+          .firstOrNull;
+      final badge = request == null ? null : SubstitutionStatusChip(request);
       if (event is TraineeTraining) {
         final snapshot = ref
             .watch(ownPersonalTrainingsProvider(_visibleQuery!))
@@ -137,12 +147,17 @@ class _TrainerScheduleScreenState extends ConsumerState<TrainerScheduleScreen>
         return PersonalTrainingScheduleTile(
           training: event,
           checkedAt: snapshot.checkedAt,
+          footer: badge,
         );
       }
       if (_handedOver(event, scope.staffId)) {
         return _HandedOverTile(event);
       }
-      return ScheduleEventTile(event, onTap: () => _openEvent(event));
+      return ScheduleEventTile(
+        event,
+        onTap: () => _openEvent(event),
+        footer: badge,
+      );
     },
     movedBuilder: (context, event) => MovedAwayTile(
       name:

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:mobile/features/schedule/data/schedule_api.dart';
+import 'package:mobile/features/schedule/presentation/widgets/substitution_widgets.dart';
 import 'package:mobile/features/schedule/presentation/widgets/schedule_calendar.dart';
 import 'package:mobile/features/trainings/data/trainee_overview_api.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
@@ -35,10 +36,12 @@ class PersonalTrainingScheduleTile extends StatelessWidget {
     super.key,
     required this.training,
     required this.checkedAt,
+    this.footer,
   });
 
   final TraineeTraining training;
   final DateTime checkedAt;
+  final Widget? footer;
 
   @override
   Widget build(BuildContext context) {
@@ -107,6 +110,7 @@ class PersonalTrainingScheduleTile extends StatelessWidget {
                   style: theme.textTheme.bodySmall,
                 ),
                 TraineeTrainingState(training, checkedAt: checkedAt),
+                  ?footer,
               ],
             ),
           ),
@@ -764,6 +768,7 @@ void showTraineeTraining(
                   style: Theme.of(context).textTheme.bodyMedium,
                 ),
               ),
+            OwnSubstitutionSection(event: training),
             if (training.passName != null)
               Text(
                 training.passName!,
