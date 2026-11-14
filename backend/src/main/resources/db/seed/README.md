@@ -80,3 +80,7 @@ To see the state without the permission, revoke `CUSTOMER_HEALTH_READ` from Mare
 - Thursday three weeks ago was cancelled by the studio, so the reports leave it out. Thursday a week ago was never completed by the trainer: its attendance stays unmarked.
 - An occurrence seed 03 already holds (the same series and start) is left alone, with the bookings that would point at it.
 - No accounts, customer profiles or passes are created: places are booked without a pass, so no pass balance or ledger changes and no entry is forfeited. Re-running the seed adds nothing and keeps a tester's changes.
+
+## Account history (seed 16)
+
+`R__seed_16_account_history.sql` adds the changes behind the seeded roles and overrides, so the administrator's account history (**Konta → Historia zmian**, signed in as Beata) has every kind of entry: Beata created as an administrator by Anna, Karolina invited, activated and given the trainer role, Ewa's attendance correction taken away, Tomasz's trainer role granted and revoked the next day, and Marek's temporary permission to manage the whole schedule. Final roles and overrides stay as seed 01 sets them. The older seed 06 entries (Marek's trainer role, Katarzyna's approval, Adam's suspension) are shown too, the status ones from `account_status_change`.
