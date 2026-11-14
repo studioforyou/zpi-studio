@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:mobile/core/auth/auth_controller.dart';
 import 'package:mobile/core/auth/auth_state.dart';
 import 'package:mobile/features/schedule/data/schedule_api.dart';
+import 'package:mobile/features/schedule/presentation/widgets/substitution_widgets.dart';
 import 'package:mobile/features/schedule/presentation/widgets/schedule_calendar.dart';
 import 'package:mobile/features/schedule/presentation/widgets/series_change_widgets.dart';
 import 'package:mobile/features/trainings/data/event_participants_api.dart';
@@ -89,6 +90,7 @@ class _Details extends ConsumerWidget {
                       const SizedBox(height: 12),
                     ],
                   _EventSummary(event),
+                  OwnSubstitutionSection(event: event),
                   _AttendanceSection(event: event, query: query),
                 ];
               },

@@ -411,6 +411,23 @@ class SeedDataTests {
 		assertThat(rowCounts()).isEqualTo(counts);
 	}
 
+	@Test
+	@Transactional
+	void substitutionExamplesAreScopedAndPreserveWithdrawalsOnRerun() throws Exception {
+		String marek = seedGet(seedToken(2), "/api/v1/me/substitution-requests", true);
+		List<String> requests = JsonPath.read(marek, "$.items[*].id");
+		assertThat(requests).contains("22000000-0000-0000-0000-000000127002", "22000000-0000-0000-0000-000000127003")
+			.doesNotContain("22000000-0000-0000-0000-000000127004");
+		Map<String, Long> counts = rowCounts();
+		jdbc.sql("UPDATE substitution_request SET status='CANCELLED' WHERE id='22000000-0000-0000-0000-000000127002'").update();
+		var script = new ResourceDatabasePopulator(new ClassPathResource("db/seed/R__seed_18_substitutions.sql"));
+		script.execute(dataSource);
+		script.execute(dataSource);
+		assertThat(jdbc.sql("SELECT status FROM substitution_request WHERE id='22000000-0000-0000-0000-000000127002'")
+			.query(String.class).single()).isEqualTo("CANCELLED");
+		assertThat(rowCounts()).isEqualTo(counts);
+	}
+
 	private Map<String, Long> rowCounts() {
 		List<String> tables = jdbc.sql("""
 				SELECT table_name

@@ -134,6 +134,7 @@ abstract class ScheduleTestSupport {
 
 	@AfterEach
 	void cleanUp() {
+		this.jdbcTemplate.update("DELETE FROM substitution_request");
 		this.jdbcTemplate.update("DELETE FROM event_staff");
 		this.jdbcTemplate.update("DELETE FROM event_resource");
 		this.jdbcTemplate.update("DELETE FROM schedule_event");

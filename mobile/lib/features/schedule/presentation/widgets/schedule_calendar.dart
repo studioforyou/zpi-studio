@@ -619,12 +619,14 @@ class _MonthDay extends StatelessWidget {
 /// One event: its time, name, kind and rooms, marked with the colour of its
 /// kind, or red when it is cancelled.
 class ScheduleEventTile extends StatelessWidget {
-  const ScheduleEventTile(this.event, {this.onTap, super.key});
+  const ScheduleEventTile(this.event, {this.onTap, this.footer, super.key});
 
   final ScheduleEvent event;
 
   /// Opens the event's details; the tile is not tappable when `null`.
   final VoidCallback? onTap;
+
+  final Widget? footer;
 
   @override
   Widget build(BuildContext context) {
@@ -704,6 +706,7 @@ class ScheduleEventTile extends StatelessWidget {
                         usual: usualRooms?.join(', '),
                         style: textTheme.bodySmall,
                       ),
+                      ?footer,
                       if (change?.usualInstructors case final usual?)
                         ChangedValue(
                           [
