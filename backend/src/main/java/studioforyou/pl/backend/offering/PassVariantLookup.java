@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import studioforyou.pl.backend.offering.internal.PassProduct;
+import studioforyou.pl.backend.offering.internal.PassProductVariant;
 import studioforyou.pl.backend.offering.internal.PassProductVariantRepository;
 
 /**
@@ -26,13 +27,25 @@ public class PassVariantLookup {
 	}
 
 	public Optional<PassVariantTerms> findTerms(UUID variantId) {
-		return variants.findWithProductById(variantId).map((variant) -> {
-			PassProduct product = variant.getProduct();
-			return new PassVariantTerms(variant.getId(), product.getId(), product.getName(), product.getKind(),
-					product.getAudience(), variant.getEntriesCount(), variant.getValidityDays(), variant.getPrice(),
-					variant.getCurrency(), product.isActive(), variant.isActive(), product.isSuspensionAllowed(),
-					product.getMaxSuspensionDays());
-		});
+		return variants.findWithProductById(variantId).map(PassVariantLookup::terms);
+	}
+
+	private static PassVariantTerms terms(PassProductVariant variant) {
+		PassProduct product = variant.getProduct();
+		return new PassVariantTerms(variant.getId(), product.getId(), product.getName(), product.getKind(),
+				product.getAudience(), variant.getEntriesCount(), variant.getValidityDays(), variant.getPrice(),
+				variant.getCurrency(), product.isActive(), variant.isActive(), product.isSuspensionAllowed(),
+				product.getMaxSuspensionDays());
+	}
+
+	/** Terms of the variants, archived and replaced ones too, by variant ID. */
+	public Map<UUID, PassVariantTerms> findAllTerms(Collection<UUID> variantIds) {
+		if (variantIds.isEmpty()) {
+			return Map.of();
+		}
+		return variants.findWithProductsByIdIn(variantIds)
+			.stream()
+			.collect(Collectors.toMap(PassProductVariant::getId, PassVariantLookup::terms));
 	}
 
 	/** Product labels for historical variants too; no sale/active restriction. */

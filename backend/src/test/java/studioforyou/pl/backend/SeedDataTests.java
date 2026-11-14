@@ -299,6 +299,26 @@ class SeedDataTests {
 		assertThat(JsonPath.<Integer>read(personal, "$.totals.absent")).isPositive();
 	}
 
+	@Test
+	void salesHistoryShowsPassesBoughtInTheAppAndAssignedAtTheDesk() throws Exception {
+		// Beata, the studio's administrator; the history covers half a year before the first run.
+		String token = seedToken(10);
+		LocalDate today = LocalDate.now(ZoneId.of("Europe/Warsaw"));
+		String sales = report(token, "/api/v1/reports/pass-sales", today.minusDays(90), today, null);
+		assertThat(JsonPath.<Integer>read(sales, "$.totals.passes")).isGreaterThanOrEqualTo(100);
+		assertThat(JsonPath.<Integer>read(sales, "$.totals.online")).isPositive();
+		assertThat(JsonPath.<Integer>read(sales, "$.totals.studio")).isPositive();
+		assertThat(JsonPath.<Integer>read(sales, "$.totals.free")).isPositive();
+		assertThat(JsonPath.<Integer>read(sales, "$.previous.totals.passes")).isPositive();
+		List<Integer> perKind = JsonPath.read(sales, "$.kinds[?(@.kind != 'VOUCHER')].counts.passes");
+		assertThat(perKind).hasSize(4).allSatisfy((passes) -> assertThat(passes).isPositive());
+		// Pole Dance 4 entries was sold at its old price before the price change 120 days ago.
+		String older = report(token, "/api/v1/reports/pass-sales", today.minusDays(180), today.minusDays(121), null);
+		List<Integer> polePrices = JsonPath.read(older,
+				"$.products[?(@.name == 'Karnet Pole Dance')].variants[*].priceMinor");
+		assertThat(polePrices).contains(16000);
+	}
+
 	private String report(String token, String path, LocalDate from, LocalDate to, @Nullable String kind)
 			throws Exception {
 		var request = get(path).header("Authorization", "Bearer " + token)
