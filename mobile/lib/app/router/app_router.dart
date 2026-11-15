@@ -27,11 +27,14 @@ import 'package:mobile/features/schedule/data/series_changes.dart';
 import 'package:mobile/features/schedule/presentation/add_class_screen.dart';
 import 'package:mobile/features/schedule/presentation/add_consultation_screen.dart';
 import 'package:mobile/features/schedule/presentation/availability_screen.dart';
+import 'package:mobile/features/schedule/presentation/time_off_list_screen.dart';
 import 'package:mobile/features/schedule/presentation/schedule_screen.dart';
 import 'package:mobile/features/schedule/presentation/trainer_schedule_screen.dart';
 import 'package:mobile/features/trainings/presentation/new_cooperation_screen.dart';
 import 'package:mobile/features/trainings/presentation/new_client_account_screen.dart';
 import 'package:mobile/features/trainings/presentation/reservations_screen.dart';
+import 'package:mobile/features/trainings/presentation/group_class_details_screen.dart';
+import 'package:mobile/features/trainings/presentation/widgets/group_class_widgets.dart';
 import 'package:mobile/features/trainings/presentation/trainee_overview_screen.dart';
 import 'package:mobile/features/trainings/presentation/training_history_screen.dart';
 import 'package:mobile/features/trainings/presentation/trainings_screen.dart';
@@ -49,6 +52,10 @@ const invitePath = '/invite';
 const clientSchedulePath = '/client/schedule';
 const clientPassesPath = '/client/passes';
 const clientReservationsPath = '/client/reservations';
+const clientClassDetailsSubPath = 'classes/:eventId';
+
+String clientClassDetailsLocation(String eventId) =>
+    '$clientReservationsPath/classes/${Uri.encodeComponent(eventId)}';
 const clientMessagesPath = '/client/messages';
 const notificationsSubPath = 'notifications';
 const clientNotificationsPath = '$clientMessagesPath/$notificationsSubPath';
@@ -68,6 +75,9 @@ const trainerTraineePickerSubPath = 'to-trainee';
 const trainerNewGroupChatSubPath = 'new-chat';
 const trainerProfilePath = '/trainer/profile';
 const trainerAvailabilitySubPath = 'availability';
+const trainerTimeOffSubPath = 'time-off';
+const trainerAvailabilityPath =
+    '$trainerProfilePath/$trainerAvailabilitySubPath';
 const trainerProfileEditSubPath = 'edit';
 const trainerNewCooperationSubPath = 'new-cooperation';
 const trainerNewClientAccountSubPath = 'new-client';
@@ -150,6 +160,18 @@ StatefulShellRoute _clientShell() => _roleShell([
     Icons.event_available,
     (l10n) => l10n.navMySchedule,
     routes: [
+      GoRoute(
+        path: clientClassDetailsSubPath,
+        builder: (_, state) => Consumer(
+          builder: (_, ref, _) {
+            final scope = bookingScope(ref.watch(authControllerProvider));
+            if (scope == null) return const SizedBox.shrink();
+            return GroupClassDetailsScreen(
+              query: (scope: scope, eventId: state.pathParameters['eventId']!),
+            );
+          },
+        ),
+      ),
       GoRoute(
         path: clientTrainingHistorySubPath,
         builder: (_, _) => const TrainingHistoryScreen(),
@@ -279,6 +301,13 @@ StatefulShellRoute _trainerShell() => _roleShell([
       GoRoute(
         path: trainerAvailabilitySubPath,
         builder: (_, _) => const AvailabilityScreen(),
+        routes: [
+          // Pops the day to show in the calendar, if one was tapped.
+          GoRoute(
+            path: trainerTimeOffSubPath,
+            builder: (_, _) => const TimeOffListScreen(),
+          ),
+        ],
       ),
     ],
   ),

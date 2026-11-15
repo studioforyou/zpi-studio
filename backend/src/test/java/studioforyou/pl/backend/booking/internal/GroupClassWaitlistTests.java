@@ -151,6 +151,7 @@ class GroupClassWaitlistTests {
 
 	@AfterEach
 	void cleanUp() {
+		studioforyou.pl.backend.WaitlistNotificationCleanup.removeForService(jdbc, service);
 		// Scope every cleanup to this fixture. Other integration fixtures retain their data.
 		jdbc.sql("DELETE FROM pass_ledger WHERE pass_id IN (SELECT id FROM customer_pass WHERE variant_id = :variant)")
 			.param("variant", variant).update();

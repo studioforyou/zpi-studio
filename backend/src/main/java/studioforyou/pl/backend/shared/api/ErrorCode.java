@@ -141,7 +141,15 @@ public enum ErrorCode {
 	CONVERSATION_ALREADY_EXISTS(HttpStatus.CONFLICT),
 	CONVERSATION_READ_ONLY(HttpStatus.UNPROCESSABLE_CONTENT),
 	CONVERSATION_STILL_ACTIVE(HttpStatus.UNPROCESSABLE_CONTENT),
-	RECIPIENT_WITHOUT_ACCOUNT(HttpStatus.UNPROCESSABLE_CONTENT);
+	RECIPIENT_WITHOUT_ACCOUNT(HttpStatus.UNPROCESSABLE_CONTENT),
+
+	// staff: leave and unavailability
+	/** The staff member already has requested or approved time off in that period. */
+	TIME_OFF_OVERLAP(HttpStatus.CONFLICT),
+	/** The request was already approved, rejected or cancelled. */
+	TIME_OFF_ALREADY_DECIDED(HttpStatus.CONFLICT),
+	/** The time off is rejected, cancelled or already over. */
+	TIME_OFF_NOT_CANCELLABLE(HttpStatus.UNPROCESSABLE_CONTENT);
 
 	private final HttpStatus status;
 
