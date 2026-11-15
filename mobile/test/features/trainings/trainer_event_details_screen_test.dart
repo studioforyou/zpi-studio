@@ -127,9 +127,12 @@ final _startsAt = DateTime(2026, 11, 3, 18);
 ScheduleEvent _event({
   EventStatus status = EventStatus.scheduled,
   int? capacity = 10,
+  EventKind kind = EventKind.groupClass,
+  String? guestName,
 }) => ScheduleEvent(
   id: 'event-1',
-  kind: EventKind.groupClass,
+  kind: kind,
+  guestName: guestName,
   status: status,
   title: 'Pole dance dla dzieci',
   serviceTypeName: 'Pole dance',
@@ -202,6 +205,21 @@ void main() {
     expect(find.text('Prowadzący: Anna Kowalska'), findsOneWidget);
     expect(find.text('Asystent: Marek Nowak'), findsOneWidget);
     expect(find.text('Sala: Sala pole dance'), findsOneWidget);
+  });
+
+  testWidgets('consultation shows the guest without requesting attendance', (
+    tester,
+  ) async {
+    scheduleApi.event = _event(
+      kind: EventKind.consultation,
+      guestName: 'Jan Gość',
+    );
+    await pumpScreen(tester);
+    expect(find.textContaining('Jan Gość'), findsOneWidget);
+    expect(participantsApi.calls, 0);
+    await tester.drag(find.byType(ListView), const Offset(0, 500));
+    await tester.pumpAndSettle();
+    expect(participantsApi.calls, 0);
   });
 
   testWidgets('lists participants with their age on the day of the class', (

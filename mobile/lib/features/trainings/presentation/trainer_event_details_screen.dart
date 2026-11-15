@@ -89,7 +89,8 @@ class _Details extends ConsumerWidget {
                       const SizedBox(height: 12),
                     ],
                   _EventSummary(event),
-                  _AttendanceSection(event: event, query: query),
+                  if (event.kind != EventKind.consultation)
+                    _AttendanceSection(event: event, query: query),
                 ];
               },
             ),
@@ -99,10 +100,11 @@ class _Details extends ConsumerWidget {
 
   Future<void> _refresh(WidgetRef ref) async {
     try {
-      await Future.wait([
-        ref.refresh(ownScheduleEventProvider(query).future),
-        ref.refresh(eventAttendanceProvider(query).future),
-      ]);
+      final event = await ref.refresh(ownScheduleEventProvider(query).future);
+      if (ref.context.mounted && event.kind != EventKind.consultation) {
+        final attendance = ref.refresh(eventAttendanceProvider(query).future);
+        await attendance;
+      }
     } catch (_) {
       // The observed providers display load failures and offer a retry.
     }

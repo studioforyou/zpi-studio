@@ -117,6 +117,7 @@ class ScheduleEvent {
     required this.roomNames,
     this.serviceTypeId,
     this.seriesChange,
+    this.guestName,
   });
 
   factory ScheduleEvent.fromJson(Map<String, dynamic> json) {
@@ -127,6 +128,7 @@ class ScheduleEvent {
       title: json['title'] as String?,
       serviceTypeName: json['serviceTypeName'] as String?,
       serviceTypeId: json['serviceTypeId'] as String?,
+      guestName: json['guestName'] as String?,
       startsAt: DateTime.parse(json['startsAt'] as String).toLocal(),
       endsAt: DateTime.parse(json['endsAt'] as String).toLocal(),
       capacity: json['capacity'] as int?,
@@ -150,6 +152,7 @@ class ScheduleEvent {
 
   /// The event's service, or `null` for an event without one, e.g. a block.
   final String? serviceTypeId;
+  final String? guestName;
 
   /// Start in the device's local time.
   final DateTime startsAt;
@@ -167,7 +170,13 @@ class ScheduleEvent {
   final SeriesChange? seriesChange;
 
   /// The event's own title, else the name of its service type.
-  String? get name => title ?? serviceTypeName;
+  String? get name {
+    final title = this.title ?? serviceTypeName;
+    final guest = guestName?.trim();
+    return kind == EventKind.consultation && guest != null && guest.isNotEmpty
+        ? '${title ?? 'Konsultacja'} · $guest'
+        : title;
+  }
 }
 
 /// A time window of the schedule, `[from, to)` in local time.
