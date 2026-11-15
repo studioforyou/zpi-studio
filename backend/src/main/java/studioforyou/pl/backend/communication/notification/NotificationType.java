@@ -51,6 +51,19 @@ public enum NotificationType {
 			new Placeholder(Placeholder.CONVERSATION, "Name of the conversation: the other person's name, or the group or class chat's name"),
 			new Placeholder(Placeholder.TEXT, "The beginning of the latest message, at most 100 characters"))),
 
+	/** A place held for the waiting participant until the confirmation deadline. */
+	WAITLIST_PLACE_OFFERED((short) 5, false, List.of(
+			new Placeholder(Placeholder.CLASS, "Name of the class"),
+			new Placeholder(Placeholder.DAY, "Date of the class in the studio time zone"),
+			new Placeholder(Placeholder.TIME, "Start time of the class"),
+			new Placeholder(Placeholder.CONFIRM_UNTIL, "Date and time until which the place can be confirmed"))),
+
+	/** A waiting participant has been automatically booked into a freed place. */
+	WAITLIST_PLACE_GRANTED((short) 6, false, List.of(
+			new Placeholder(Placeholder.CLASS, "Name of the class"),
+			new Placeholder(Placeholder.DAY, "Date of the class in the studio time zone"),
+			new Placeholder(Placeholder.TIME, "Start time of the class"))),
+
 	/** The studio approved a trainer's time-off request, or recorded time off for the trainer. */
 	TIME_OFF_APPROVED((short) 7, false, List.of(
 			new Placeholder(Placeholder.TIME_OFF_KIND, "Kind of absence: \"Urlop\", \"Zwolnienie lekarskie\" or \"Inna niedostępność\""),
@@ -130,6 +143,8 @@ public enum NotificationType {
 
 		/** Last day of the pass. */
 		public static final String VALID_UNTIL = "ważny do";
+		/** The waiting-list offer's confirmation deadline in the studio time zone. */
+		public static final String CONFIRM_UNTIL = "potwierdź do";
 
 		/** Who wrote the unread messages. */
 		public static final String SENDER = "od";

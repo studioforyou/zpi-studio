@@ -11,6 +11,20 @@ function countOf(count: number, one: string, few: string, many: string): string 
   return `${count.toLocaleString('pl-PL')} ${unit}`;
 }
 
+const waitlistClassFields = {
+  zajęcia: {
+    label: 'Nazwa zajęć',
+    description: 'Nazwa zajęć z listą rezerwową',
+    example: 'Pole dance',
+  },
+  dzień: {
+    label: 'Dzień zajęć',
+    description: 'Dzień tygodnia i data zajęć',
+    example: 'piątek 13.11',
+  },
+  godzina: { label: 'Godzina', description: 'Godzina rozpoczęcia zajęć', example: '18:00' },
+};
+
 /** "1 zajęcia", "3 zajęcia", "5 zajęć". */
 function eventCount(n: number): string {
   const few = n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14);
@@ -1335,6 +1349,16 @@ export const pl = {
       before: (time: string) => `${time} przed`,
       edit: 'Edytuj',
       types: {
+        WAITLIST_PLACE_OFFERED: {
+          name: 'Miejsce z listy rezerwowej do potwierdzenia',
+          description:
+            'Wysyłane, gdy zwolni się miejsce wymagające potwierdzenia. Zawiera termin na decyzję; powiadomienie dziecka dostaje rodzic.',
+        },
+        WAITLIST_PLACE_GRANTED: {
+          name: 'Automatyczny zapis z listy rezerwowej',
+          description:
+            'Wysyłane po automatycznym zapisie na zwolnione miejsce. Nie wymaga dodatkowego potwierdzenia.',
+        },
         CLASS_REMINDER: {
           name: 'Przypomnienie o zajęciach',
           description:
@@ -1374,6 +1398,15 @@ export const pl = {
         },
       },
       placeholders: {
+        WAITLIST_PLACE_OFFERED: {
+          ...waitlistClassFields,
+          'potwierdź do': {
+            label: 'Termin potwierdzenia',
+            description: 'Data i godzina końca oferty w czasie studia',
+            example: '13.11, 15:30',
+          },
+        },
+        WAITLIST_PLACE_GRANTED: waitlistClassFields,
         CLASS_REMINDER: {
           zajęcia: {
             label: 'Nazwa zajęć',
