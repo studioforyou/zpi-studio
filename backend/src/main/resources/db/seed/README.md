@@ -58,6 +58,20 @@ Monika's original manually granted available credit incorrectly pointed at her O
 
 This is a scoped repair of the original fixture, rather than a change to granting rules. Existing credit dates, status and usage are preserved. Used credits and credits already linked elsewhere are left alone. The new pass is not a purchase, and Monika's existing Open pass, its balance and reservations are untouched. Re-running the seed neither renews credit validity nor adds duplicates. No schema or Firebase account changes are involved.
 
+## Trainee cards (seed 15)
+
+`R__seed_15_trainee_cards.sql` fills in the trainee cards (#99) of the other personal trainees, next to Tomasz's and Katarzyna's cards from seed 05, and adds health notes for every state the trainer's **Karta** tab can show. In this test studio every trainer gets `CUSTOMER_HEALTH_READ` through the TRAINER role (seed 01). A trainer sees a trainee's health notes only with the trainee's consent on the trainer's own assignment (`staff_assignment.can_view_health`, seeds 02 and 10).
+
+| Trainer | Trainee | Consent | The card shows |
+| --- | --- | --- | --- |
+| Marek | Tomasz | yes | Goals and experience; two current notes (knee injury, latex allergy added by Marek) and one archived by Marek (shoulder) |
+| Ewa | Katarzyna | yes | Goals and experience; exercise-induced asthma and an ankle injury Ewa archived |
+| Marek | Monika | no | Goals and experience; her own note stays hidden |
+| Anna | Piotr, Adam | no | Goals and experience; Adam's own note stays hidden |
+| Anna | Julia | no | An empty card, to try filling one in |
+
+To see the state without the permission, revoke `CUSTOMER_HEALTH_READ` from Marek in the web panel (as Beata) and open Tomasz's card. Re-running the seed only adds missing rows. The one existing row it changes is seed 05's archived shoulder note, which gets Marek as the one who archived it while that is still unrecorded. How trainees give or withdraw the consent is a separate story.
+
 ## Statistics history (seed 12)
 
 `R__seed_12_statistics_history.sql` fills the five weeks before the week the seed first ran, so the panel's "Statystyki" (#164, #166) has something to show. It adds past occurrences of the existing recurring series (pole dance Tuesday and Thursday 18:00, calisthenics Monday 19:00, kids pole dance Saturday 10:00), a full one-off stretching workshop with two participants who waited for a place, and Tomasz's personal sessions with Marek on Fridays at 16:00.
@@ -66,3 +80,7 @@ This is a scoped repair of the original fixture, rather than a change to grantin
 - Thursday three weeks ago was cancelled by the studio, so the reports leave it out. Thursday a week ago was never completed by the trainer: its attendance stays unmarked.
 - An occurrence seed 03 already holds (the same series and start) is left alone, with the bookings that would point at it.
 - No accounts, customer profiles or passes are created: places are booked without a pass, so no pass balance or ledger changes and no entry is forfeited. Re-running the seed adds nothing and keeps a tester's changes.
+
+## Account history (seed 16)
+
+`R__seed_16_account_history.sql` adds the changes behind the seeded roles and overrides, so the administrator's account history (**Konta → Historia zmian**, signed in as Beata) has every kind of entry: Beata created as an administrator by Anna, Karolina invited, activated and given the trainer role, Ewa's attendance correction taken away, Tomasz's trainer role granted and revoked the next day, and Marek's temporary permission to manage the whole schedule. Final roles and overrides stay as seed 01 sets them. The older seed 06 entries (Marek's trainer role, Katarzyna's approval, Adam's suspension) are shown too, the status ones from `account_status_change`.

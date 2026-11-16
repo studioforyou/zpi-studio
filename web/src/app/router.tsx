@@ -1,6 +1,7 @@
 import { Anchor, Stack, Title } from '@mantine/core';
 import { createBrowserRouter, Link, Navigate, type RouteObject } from 'react-router';
 import { AccountDetailsPage } from '@/features/accounts/AccountDetailsPage';
+import { AccountHistoryPage } from '@/features/accounts/AccountHistoryPage';
 import { AccountsPage } from '@/features/accounts/AccountsPage';
 import { RolesPage } from '@/features/accounts/RolesPage';
 import { LoginPage } from '@/features/auth/LoginPage';
@@ -11,6 +12,7 @@ import { CommunicationPage } from '@/features/communication/CommunicationPage';
 import { PassesPage } from '@/features/passes/PassesPage';
 import { RoomsPage } from '@/features/schedule/RoomsPage';
 import { SchedulePage } from '@/features/schedule/SchedulePage';
+import { TimeOffPage } from '@/features/staff/TimeOffPage';
 import { SystemStatusPage } from '@/features/system/SystemStatusPage';
 import { TrainingsPage } from '@/features/trainings/TrainingsPage';
 import { pl } from '@/shared/i18n/pl';
@@ -41,9 +43,11 @@ export const appRoutes: RouteObject[] = [
           { index: true, element: <Navigate to={paths.schedule} replace /> },
           { path: paths.schedule, element: <SchedulePage /> },
           { path: paths.rooms, element: <RoomsPage /> },
+          { path: paths.timeOff, element: <TimeOffPage /> },
           { path: paths.accounts, element: <AccountsPage /> },
           { path: `${paths.accounts}/:accountId`, element: <AccountDetailsPage /> },
           { path: paths.roles, element: <RolesPage /> },
+          { path: paths.accountHistory, element: <AccountHistoryPage /> },
           { path: paths.passes, element: <PassesPage /> },
           { path: paths.trainings, element: <TrainingsPage /> },
           { path: paths.communication, element: <CommunicationPage /> },

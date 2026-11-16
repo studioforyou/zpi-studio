@@ -1,9 +1,11 @@
 import { useState } from 'react';
-import { AppShell, Button, Group, Menu, NavLink, Text } from '@mantine/core';
+import { AppShell, Badge, Button, Group, Menu, NavLink, Text } from '@mantine/core';
+import { useQuery } from '@tanstack/react-query';
 import { NavLink as RouterNavLink, Outlet, useMatch, useNavigate } from 'react-router';
 import { paths } from '@/app/paths';
 import { useAuth } from '@/features/auth/AuthProvider';
 import { ChangePasswordModal } from '@/features/auth/ChangePasswordModal';
+import { countPendingTimeOff, timeOffKeys } from '@/features/staff/timeOffApi';
 import { pl } from '@/shared/i18n/pl';
 import { navigation, type NavigationItem } from './navigation';
 
@@ -66,6 +68,25 @@ function NavigationLink({ item }: { item: NavigationItem }) {
       to={item.path}
       label={pl.nav[item.labelKey]}
       active={match !== null}
+      rightSection={item.path === paths.timeOff ? <PendingTimeOffBadge /> : undefined}
     />
+  );
+}
+
+/** How many time-off requests wait for a decision, next to the menu item. */
+function PendingTimeOffBadge() {
+  const pending = useQuery({
+    queryKey: timeOffKeys.pendingCount(),
+    queryFn: countPendingTimeOff,
+    refetchInterval: 60_000,
+  });
+  const count = pending.data ?? 0;
+  if (count === 0) {
+    return null;
+  }
+  return (
+    <Badge size="sm" color="red" circle aria-label={pl.timeOff.pendingBadge(count)}>
+      {count}
+    </Badge>
   );
 }

@@ -3,7 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mobile/core/auth/auth_controller.dart';
 import 'package:mobile/features/schedule/data/schedule_api.dart';
 import 'package:mobile/features/schedule/presentation/widgets/schedule_calendar.dart';
+import 'package:mobile/features/trainings/data/trainee_card_api.dart';
 import 'package:mobile/features/trainings/data/trainee_overview_api.dart';
+import 'package:mobile/features/trainings/presentation/widgets/trainee_card_view.dart';
 import 'package:mobile/features/trainings/presentation/widgets/trainee_overview_widgets.dart';
 import 'package:mobile/features/trainings/presentation/widgets/trainee_profile_view.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
@@ -57,6 +59,8 @@ class _OverviewScreenState extends ConsumerState<_OverviewScreen>
     }
     ref.invalidate(traineeOverviewsProvider(widget.query.scope));
     ref.invalidate(traineeOverviewProvider(widget.query));
+    // Another trainer of the trainee may have changed the shared card.
+    ref.invalidate(traineeCardProvider(widget.query));
     final calendar = _calendarQuery;
     if (calendar != null) ref.invalidate(traineeCalendarProvider(calendar));
     try {
@@ -82,7 +86,7 @@ class _OverviewScreenState extends ConsumerState<_OverviewScreen>
     final l10n = AppLocalizations.of(context);
     final result = ref.watch(traineeOverviewProvider(widget.query));
     return DefaultTabController(
-      length: 3,
+      length: 4,
       child: Scaffold(
         appBar: AppBar(
           title: Text(
@@ -101,6 +105,7 @@ class _OverviewScreenState extends ConsumerState<_OverviewScreen>
             tabs: [
               Tab(text: l10n.traineeOverviewPackages),
               Tab(text: l10n.traineeOverviewHistory),
+              Tab(text: l10n.traineeCardTab),
               Tab(text: l10n.traineeProfileTab),
             ],
           ),
@@ -234,6 +239,7 @@ class _OverviewScreenState extends ConsumerState<_OverviewScreen>
                   ),
                 ),
               ),
+              TraineeCardView(query: widget.query),
               TraineeProfileView(query: widget.query),
             ],
           ),

@@ -10,6 +10,8 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import studioforyou.pl.backend.identity.AccountLookup;
+import studioforyou.pl.backend.identity.AuthenticatedAccount;
+import studioforyou.pl.backend.identity.access.AccessManagement;
 import studioforyou.pl.backend.identity.firebase.FirebaseUsers;
 import studioforyou.pl.backend.shared.api.ApiException;
 import studioforyou.pl.backend.shared.api.ErrorCode;
@@ -29,16 +31,20 @@ class AdminAccountService {
 
 	private final StaffProfiles staffProfiles;
 
-	AdminAccountService(JdbcClient jdbc, FirebaseUsers firebaseUsers, StaffProfiles staffProfiles) {
+	private final AccessManagement accessManagement;
+
+	AdminAccountService(JdbcClient jdbc, FirebaseUsers firebaseUsers, StaffProfiles staffProfiles,
+			AccessManagement accessManagement) {
 		this.jdbc = jdbc;
 		this.firebaseUsers = firebaseUsers;
 		this.staffProfiles = staffProfiles;
+		this.accessManagement = accessManagement;
 	}
 
 	/**
-	 * Creates an {@code ACTIVE} account with the {@code ADMIN} role and a staff profile, and a Firebase
-	 * user with a generated password linked to it. If the transaction rolls back, the Firebase user is
-	 * deleted again.
+	 * Creates an {@code ACTIVE} account with the {@code ADMIN} role (recorded in the audit log) and a
+	 * staff profile, and a Firebase user with a generated password linked to it. If the transaction
+	 * rolls back, the Firebase user is deleted again.
 	 *
 	 * @param createdBy the account of the administrator creating the account
 	 * @throws ApiException {@code ACCOUNT_ALREADY_EXISTS} if an account or a Firebase user with this
@@ -71,13 +77,7 @@ class AdminAccountService {
 			// Someone else created an account with the same e-mail at the same moment.
 			throw accountAlreadyExists();
 		}
-		jdbc.sql("""
-				INSERT INTO account_role (account_id, role_id, granted_by)
-				SELECT :accountId, id, :createdBy FROM role WHERE code = 'ADMIN'
-				""")
-			.param("accountId", accountId)
-			.param("createdBy", createdBy)
-			.update();
+		accessManagement.grantRole(createdBy, accountId, AuthenticatedAccount.ADMIN_ROLE);
 		jdbc.sql("""
 				INSERT INTO account_status_change (account_id, from_status, to_status, changed_by, reason)
 				VALUES (:accountId, NULL, 'ACTIVE', :createdBy, 'Created by an administrator')

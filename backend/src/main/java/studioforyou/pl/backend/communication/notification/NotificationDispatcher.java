@@ -16,6 +16,10 @@ import studioforyou.pl.backend.communication.notification.NotificationStore.Outg
 import studioforyou.pl.backend.communication.push.PushMessage;
 import studioforyou.pl.backend.communication.push.PushResult;
 import studioforyou.pl.backend.communication.push.PushSender;
+import studioforyou.pl.backend.booking.Participations;
+import studioforyou.pl.backend.booking.WaitlistPlaceAllocated;
+import studioforyou.pl.backend.customer.CustomerProfiles;
+import studioforyou.pl.backend.scheduling.GroupClassSchedule;
 
 /**
  * Sends stored notifications to all active devices of their recipients and records every attempt
@@ -40,10 +44,18 @@ public class NotificationDispatcher {
 
 	private final PushSender pushSender;
 
-	NotificationDispatcher(NotificationStore store, DeviceTokens devices, PushSender pushSender) {
+	private final Participations participations;
+	private final CustomerProfiles customers;
+	private final GroupClassSchedule schedule;
+
+	NotificationDispatcher(NotificationStore store, DeviceTokens devices, PushSender pushSender,
+			Participations participations, CustomerProfiles customers, GroupClassSchedule schedule) {
 		this.store = store;
 		this.devices = devices;
 		this.pushSender = pushSender;
+		this.participations = participations;
+		this.customers = customers;
+		this.schedule = schedule;
 	}
 
 	/** Sends the given notifications now; returns how many reached at least one device. */
@@ -66,6 +78,10 @@ public class NotificationDispatcher {
 	}
 
 	private boolean send(Outgoing notification) {
+		if (!currentWaitlistAllocation(notification)) {
+			store.recordDelivery(notification.id(), DeliveryStatus.SKIPPED, null, "The waiting-list allocation is no longer current.");
+			return false;
+		}
 		List<String> tokens = devices.activeTokens(notification.recipientId());
 		if (tokens.isEmpty()) {
 			store.recordDelivery(notification.id(), DeliveryStatus.NO_DEVICE, null, null);
@@ -91,6 +107,29 @@ public class NotificationDispatcher {
 			}
 		}
 		return sent;
+	}
+
+	/** A delayed retry must not invite someone to an expired offer or another person's profile. */
+	private boolean currentWaitlistAllocation(Outgoing notification) {
+		if (!notification.typeCode().equals("WAITLIST_PLACE_OFFERED")
+				&& !notification.typeCode().equals("WAITLIST_PLACE_GRANTED")) return true;
+		WaitlistPlaceAllocated allocation;
+		try {
+			Map<String, String> data = notification.data();
+			allocation = new WaitlistPlaceAllocated(UUID.fromString(data.get("waitlistEntryId")),
+					UUID.fromString(data.get("profileId")), UUID.fromString(data.get("eventId")),
+					data.containsKey("reservationId") ? UUID.fromString(data.get("reservationId")) : null,
+					data.containsKey("offerExpiresAt") ? Instant.parse(data.get("offerExpiresAt")) : null);
+		}
+		catch (IllegalArgumentException | java.time.DateTimeException | NullPointerException ex) {
+			return false;
+		}
+		Instant now = Instant.now();
+		return participations.isCurrentWaitlistAllocation(allocation, now)
+				&& customers.notificationRecipients(List.of(allocation.customerId())).stream()
+					.anyMatch(recipient -> recipient.accountId().equals(notification.recipientId()))
+				&& schedule.findAllById(List.of(allocation.eventId())).stream()
+					.anyMatch(event -> !"CANCELLED".equals(event.status()) && event.startsAt().isAfter(now));
 	}
 
 }

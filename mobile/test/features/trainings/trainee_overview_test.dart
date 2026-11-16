@@ -14,6 +14,7 @@ import 'package:mobile/core/auth/session.dart';
 import 'package:mobile/core/network/api_exception.dart';
 import 'package:mobile/features/schedule/data/schedule_api.dart';
 import 'package:mobile/features/schedule/presentation/widgets/schedule_calendar.dart';
+import 'package:mobile/features/trainings/data/trainee_card_api.dart';
 import 'package:mobile/features/trainings/data/trainee_overview_api.dart';
 import 'package:mobile/features/trainings/data/trainee_profile_api.dart';
 import 'package:mobile/features/trainings/data/trainees_api.dart';
@@ -219,6 +220,44 @@ class _ProfileApi implements TraineeProfileApi {
   );
 }
 
+class _CardApi implements TraineeCardApi {
+  int fetches = 0;
+
+  @override
+  Future<TraineeCard> fetch(String customerId) async {
+    fetches++;
+    return TraineeCard(
+      customerId: customerId,
+      goals: 'Pierwsze podciągnięcie na drążku.',
+      sportExperience: null,
+      version: 1,
+      updatedAt: DateTime(2026, 10, 30),
+      updatedBy: 'Marek Nowak',
+      healthAccess: HealthAccess.notShared,
+      healthNotes: const [],
+    );
+  }
+
+  @override
+  Future<TraineeCard> update(
+    String customerId, {
+    required String goals,
+    required String sportExperience,
+    required int version,
+  }) => throw UnimplementedError();
+
+  @override
+  Future<HealthNote> addHealthNote(
+    String customerId, {
+    required HealthNoteKind kind,
+    required String description,
+  }) => throw UnimplementedError();
+
+  @override
+  Future<HealthNote> archiveHealthNote(String customerId, String noteId) =>
+      throw UnimplementedError();
+}
+
 class _Adapter implements HttpClientAdapter {
   Map<String, dynamic> body = {};
   int status = 200;
@@ -252,6 +291,7 @@ Future<ProviderContainer> _pump(
   double width = 600,
   double height = 1300,
   double scale = 1,
+  _CardApi? cards,
 }) async {
   tester.view.physicalSize = Size(width, height);
   tester.view.devicePixelRatio = 1;
@@ -263,6 +303,7 @@ Future<ProviderContainer> _pump(
       authControllerProvider.overrideWith(_Auth.new),
       traineeOverviewApiProvider.overrideWithValue(api),
       traineeProfileApiProvider.overrideWithValue(_ProfileApi()),
+      traineeCardApiProvider.overrideWithValue(cards ?? _CardApi()),
       traineesApiProvider.overrideWithValue(_Trainees(active: active)),
     ],
   );
@@ -823,6 +864,29 @@ void main() {
     expect(find.text('Anna Lewandowska'), findsOneWidget);
     expect(find.text('+48 600 300 400'), findsOneWidget);
     expect(find.text('Opiekunowie'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('shows the trainee card in its own tab and refreshes it', (
+    tester,
+  ) async {
+    final cards = _CardApi();
+    await _pump(tester, _Api(_overview(passes: [_pass()])), cards: cards);
+    expect(find.text('Karta'), findsOneWidget);
+    await tester.tap(find.text('Karta'));
+    await tester.pumpAndSettle();
+    expect(find.text('Cele i doświadczenie'), findsOneWidget);
+    expect(find.text('Pierwsze podciągnięcie na drążku.'), findsOneWidget);
+    expect(
+      find.text('Dane zdrowotne podopiecznego nie zostały Ci udostępnione.'),
+      findsOneWidget,
+    );
+    final loaded = cards.fetches;
+
+    // The shared card may change on another trainer's device.
+    await tester.tap(find.byTooltip('Odśwież pakiety i treningi'));
+    await tester.pumpAndSettle();
+    expect(cards.fetches, greaterThan(loaded));
     expect(tester.takeException(), isNull);
   });
 

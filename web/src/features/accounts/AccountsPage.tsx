@@ -14,6 +14,9 @@ export function AccountsPage() {
       <Group justify="space-between" align="flex-start">
         <Title order={2}>{pl.accounts.title}</Title>
         <Group gap="sm">
+          <Button variant="default" component={Link} to={paths.accountHistory}>
+            {pl.accounts.history.link}
+          </Button>
           <Button variant="default" component={Link} to={paths.roles}>
             {pl.accounts.access.matrix.link}
           </Button>

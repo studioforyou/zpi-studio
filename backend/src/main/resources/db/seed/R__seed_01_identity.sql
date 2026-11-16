@@ -90,11 +90,13 @@ ON CONFLICT DO NOTHING;
 -- Default permissions of the roles in this test studio. A real studio sets up its own;
 -- ADMIN always has every permission, so it needs no rows here.
 -- TRAINER: CUSTOMER_ACCOUNT_CREATE (trainers create accounts for new trainees),
--- SCHEDULE_EDIT_OWN, AVAILABILITY_EDIT_OWN, ATTENDANCE_CORRECT.
+-- SCHEDULE_EDIT_OWN, AVAILABILITY_EDIT_OWN, CUSTOMER_HEALTH_READ (health notes of trainees who
+-- shared them with the trainer, see seed 15), ATTENDANCE_CORRECT.
 INSERT INTO role_permission (role_id, permission_id) VALUES
     (2, 2),
     (2, 4),
     (2, 5),
+    (2, 6),
     (2, 8)
 ON CONFLICT DO NOTHING;
 

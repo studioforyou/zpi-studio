@@ -22,6 +22,7 @@ import { ApiError } from '@/shared/api/ApiError';
 import { pl } from '@/shared/i18n/pl';
 import { AccountAccessPanel } from './AccountAccessPanel';
 import { AccountDataForm } from './AccountDataForm';
+import { AccountHistoryPanel } from './AccountHistoryPanel';
 import { AccountStatusModal, type StatusAction } from './AccountStatusModal';
 import { RoleBadges, StatusBadge } from './accountBadges';
 import {
@@ -126,12 +127,18 @@ export function AccountDetailsPage() {
                 <Tabs.Tab value="access" disabled={selected?.kind === 'CHILD'}>
                   {texts.tabs.access}
                 </Tabs.Tab>
+                <Tabs.Tab value="history" disabled={selected?.kind === 'CHILD'}>
+                  {texts.tabs.history}
+                </Tabs.Tab>
               </Tabs.List>
               <Tabs.Panel value="data" pt="md">
                 <ProfileForm account={account.data} profile={selected} />
               </Tabs.Panel>
               <Tabs.Panel value="access" pt="md">
                 <AccountAccessPanel accountId={accountId} />
+              </Tabs.Panel>
+              <Tabs.Panel value="history" pt="md">
+                <AccountHistoryPanel accountId={accountId} />
               </Tabs.Panel>
             </Tabs>
           </Stack>

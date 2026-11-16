@@ -132,6 +132,27 @@ class OpenApiDocsTest {
 	}
 
 	@Test
+	void documentsTheTraineeCard() throws Exception {
+		String json = apiDocs();
+
+		Map<String, Object> paths = JsonPath.read(json, "$.paths");
+		assertThat(paths).containsKeys("/api/v1/me/trainees/{customerId}/card",
+				"/api/v1/me/trainees/{customerId}/health-notes",
+				"/api/v1/me/trainees/{customerId}/health-notes/{noteId}",
+				"/api/v1/me/trainees/{customerId}/health-notes/{noteId}/archive");
+		Map<String, Object> card = JsonPath.read(json, "$.paths['/api/v1/me/trainees/{customerId}/card']");
+		assertThat(card).containsOnlyKeys("get", "patch");
+		Map<String, Object> update = JsonPath.read(json, "$.components.schemas.UpdateTraineeCardRequest.properties");
+		assertThat(update).containsOnlyKeys("goals", "sportExperience", "version");
+		Map<String, Object> fields = JsonPath.read(json, "$.components.schemas.TraineeCard.properties");
+		assertThat(fields).containsOnlyKeys("customerId", "goals", "sportExperience", "version", "updatedAt",
+				"updatedBy", "healthAccess", "healthNotes");
+		Map<String, Object> note = JsonPath.read(json, "$.components.schemas.HealthNote.properties");
+		assertThat(note).containsOnlyKeys("id", "kind", "description", "reportedAt", "reportedBy", "archivedAt",
+				"archivedBy");
+	}
+
+	@Test
 	void documentsAttendance() throws Exception {
 		String json = apiDocs();
 

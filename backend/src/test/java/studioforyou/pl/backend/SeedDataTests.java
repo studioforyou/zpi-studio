@@ -217,6 +217,40 @@ class SeedDataTests {
 	}
 
 	@Test
+	void seededTraineeCardsShowHealthNotesOnlyToTrainersTheParticipantSharedThemWith() throws Exception {
+		String cards = "/api/v1/me/trainees/07000000-0000-0000-0000-0000000000%s/card";
+		String marek = seedToken(2);
+		String tomasz = seedGet(marek, cards.formatted("02"), false);
+		assertThat(JsonPath.<String>read(tomasz, "$.healthAccess")).isEqualTo("GRANTED");
+		assertThat(JsonPath.<String>read(tomasz, "$.goals")).isNotBlank();
+		assertThat(JsonPath.<List<String>>read(tomasz, "$.healthNotes[?(@.archivedAt == null)].kind"))
+			.containsExactly("OTHER", "INJURY");
+		assertThat(JsonPath.<List<String>>read(tomasz, "$.healthNotes[?(@.archivedAt != null)].archivedBy"))
+			.containsExactly("Marek Nowak");
+		String monika = seedGet(marek, cards.formatted("03"), false);
+		assertThat(JsonPath.<String>read(monika, "$.healthAccess")).isEqualTo("NOT_SHARED");
+		assertThat(JsonPath.<Object>read(monika, "$.healthNotes")).isNull();
+		assertThat(JsonPath.<String>read(monika, "$.goals")).isNotBlank();
+
+		String katarzyna = seedGet(seedToken(3), cards.formatted("01"), false);
+		assertThat(JsonPath.<String>read(katarzyna, "$.healthAccess")).isEqualTo("GRANTED");
+		assertThat(JsonPath.<List<String>>read(katarzyna, "$.healthNotes[*].kind")).containsExactly("CONDITION", "INJURY");
+		assertThat(JsonPath.<List<String>>read(katarzyna, "$.healthNotes[*].reportedBy"))
+			.containsExactly("Katarzyna Zielińska", "Katarzyna Zielińska");
+		assertThat(JsonPath.<String>read(katarzyna, "$.healthNotes[1].archivedBy")).isEqualTo("Ewa Wiśniewska");
+
+		String anna = seedToken(1);
+		String julia = seedGet(anna, cards.formatted("08"), false);
+		assertThat(JsonPath.<Integer>read(julia, "$.version")).isZero();
+		assertThat(JsonPath.<Object>read(julia, "$.goals")).isNull();
+		for (String customer : List.of("05", "06")) {
+			String card = seedGet(anna, cards.formatted(customer), false);
+			assertThat(JsonPath.<String>read(card, "$.healthAccess")).isEqualTo("NOT_SHARED");
+			assertThat(JsonPath.<String>read(card, "$.sportExperience")).isNotBlank();
+		}
+	}
+
+	@Test
 	@Transactional
 	void extendedPersonalSeedBalancesPackagesAndPreservesChangedRelationshipsAndCredits() {
 		assertThat(jdbc.sql("""
@@ -375,6 +409,38 @@ class SeedDataTests {
 		assertThat(jdbc.sql("SELECT entries_remaining::INT FROM customer_pass WHERE id = '28000000-0000-0000-0000-000000011001'").query(Integer.class).single()).isEqualTo(4);
 		assertThat(jdbc.sql("SELECT * FROM schedule_event WHERE id = '19000000-0000-0000-0000-000000011002'").query().singleRow()).isEqualTo(changed);
 		assertThat(rowCounts()).isEqualTo(counts);
+	}
+
+	@Test
+	@Transactional
+	void waitlistNotificationExamplesHaveBothModesAndKeepTesterChangesOnRerun() throws Exception {
+		String token = seedToken(6);
+		String parent = "/api/v1/me/profiles/07000000-0000-0000-0000-000000000003/group-classes/19000000-0000-0000-0000-00000001400";
+		String offered = seedGet(token, parent + "1", false);
+		assertThat(JsonPath.<String>read(offered, "$.waitlist.ownEntry.status")).isEqualTo("WAITING");
+		assertThat(JsonPath.<Integer>read(offered, "$.waitlist.confirmationMinutes")).isEqualTo(30);
+		assertThat(JsonPath.<Integer>read(seedGet(token, parent + "2", false), "$.waitlist.confirmationMinutes")).isZero();
+		String child = seedGet(token, "/api/v1/me/profiles/07000000-0000-0000-0000-000000000004/group-classes/19000000-0000-0000-0000-000000014003", false);
+		assertThat(JsonPath.<String>read(child, "$.waitlist.ownEntry.customerId"))
+			.isEqualTo("07000000-0000-0000-0000-000000000004");
+		assertThat(jdbc.sql("""
+				SELECT p.entries_remaining::INT AS remaining, sum(l.entries_delta)::INT AS balance
+				FROM customer_pass p JOIN pass_ledger l ON l.pass_id = p.id
+				WHERE p.id BETWEEN '28000000-0000-0000-0000-000000014001' AND '28000000-0000-0000-0000-000000014004'
+				GROUP BY p.id
+				""").query().listOfRows()).hasSize(4)
+			.allSatisfy(row -> assertThat(row.get("remaining")).isEqualTo(row.get("balance")));
+		Map<String, Long> counts = rowCounts();
+		jdbc.sql("UPDATE waitlist_entry SET status = 'CANCELLED', resolved_at = now() WHERE id = '31000000-0000-0000-0000-000000014004'").update();
+		jdbc.sql("UPDATE notification SET read_at = now() WHERE id = '44000000-0000-0000-0000-000000014004'").update();
+		var waiting = jdbc.sql("SELECT * FROM waitlist_entry WHERE id = '31000000-0000-0000-0000-000000014004'").query().singleRow();
+		var notification = jdbc.sql("SELECT * FROM notification WHERE id = '44000000-0000-0000-0000-000000014004'").query().singleRow();
+		var script = new ResourceDatabasePopulator(new ClassPathResource("db/seed/R__seed_17_waitlist_notifications.sql"));
+		script.execute(dataSource);
+		script.execute(dataSource);
+		assertThat(rowCounts()).isEqualTo(counts);
+		assertThat(jdbc.sql("SELECT * FROM waitlist_entry WHERE id = '31000000-0000-0000-0000-000000014004'").query().singleRow()).isEqualTo(waiting);
+		assertThat(jdbc.sql("SELECT * FROM notification WHERE id = '44000000-0000-0000-0000-000000014004'").query().singleRow()).isEqualTo(notification);
 	}
 
 	private Map<String, Long> rowCounts() {

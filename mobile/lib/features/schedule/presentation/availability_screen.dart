@@ -2,17 +2,37 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:mobile/core/auth/auth_controller.dart';
 import 'package:mobile/core/auth/auth_state.dart';
 import 'package:mobile/core/network/api_exception.dart';
 import 'package:mobile/features/schedule/data/availability_api.dart';
+import 'package:mobile/features/schedule/data/time_off_api.dart';
+import 'package:mobile/features/schedule/presentation/time_off_widgets.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
 
 /// Today's date without time; overridden in tests.
 final availabilityTodayProvider = Provider<DateTime>(
   (ref) => DateUtils.dateOnly(DateTime.now()),
 );
+
+/// The current moment, for what time off can still be changed; overridden in
+/// tests.
+final availabilityNowProvider = Provider<DateTime>((ref) => DateTime.now());
+
+/// A day the trainer picked in "Moje urlopy" for the calendar to show.
+final availabilityFocusProvider =
+    NotifierProvider<AvailabilityFocus, DateTime?>(AvailabilityFocus.new);
+
+class AvailabilityFocus extends Notifier<DateTime?> {
+  @override
+  DateTime? build() => null;
+
+  void show(DateTime day) => state = day;
+
+  void clear() => state = null;
+}
 
 /// The trainer's working hours, one week at a time: a column per day with
 /// a bar for each stretch of hours.
@@ -23,7 +43,24 @@ class AvailabilityScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.navAvailability)),
+      appBar: AppBar(
+        title: Text(l10n.navAvailability),
+        actions: [
+          IconButton(
+            key: const Key('time-off-list'),
+            tooltip: l10n.timeOffListTooltip,
+            icon: const Icon(Icons.list_alt),
+            onPressed: () async {
+              final day = await context.push<DateTime>(
+                '${GoRouterState.of(context).matchedLocation}/time-off',
+              );
+              if (day != null) {
+                ref.read(availabilityFocusProvider.notifier).show(day);
+              }
+            },
+          ),
+        ],
+      ),
       body: switch (ref.watch(authControllerProvider)) {
         AuthRestoring() || Unauthenticated() => const SizedBox(),
         Authenticated(:final session) =>
@@ -120,6 +157,14 @@ class _AvailabilityWeekState extends ConsumerState<AvailabilityWeek> {
     }
   }
 
+  void _focus(DateTime day) {
+    final week = mondayOf(day);
+    setState(() {
+      _weekStart = week.isBefore(_currentWeek) ? _currentWeek : week;
+      _selected = null;
+    });
+  }
+
   void _showWeek(int offset) {
     setState(() {
       _weekStart = _addDays(_weekStart, 7 * offset);
@@ -164,6 +209,77 @@ class _AvailabilityWeekState extends ConsumerState<AvailabilityWeek> {
     }
   }
 
+  Future<void> _openTimeOffEditor(TimeOffEditorTarget target) async {
+    final messenger = ScaffoldMessenger.of(context)..hideCurrentSnackBar();
+    final message = await showModalBottomSheet<String>(
+      context: context,
+      useRootNavigator: true,
+      isScrollControlled: true,
+      showDragHandle: true,
+      useSafeArea: true,
+      builder: (_) => TimeOffEditorSheet(
+        accountId: widget.accountId,
+        target: target,
+        now: ref.read(availabilityNowProvider),
+      ),
+    );
+    if (message != null) {
+      if (mounted) {
+        setState(() => _selected = null);
+      }
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(message)));
+    }
+  }
+
+  Future<void> _openTimeOff(TimeOff timeOff) async {
+    final l10n = AppLocalizations.of(context);
+    final messenger = ScaffoldMessenger.of(context)..hideCurrentSnackBar();
+    setState(() => _selected = null);
+    final action = await showModalBottomSheet<TimeOffDetailsAction>(
+      context: context,
+      useRootNavigator: true,
+      isScrollControlled: true,
+      showDragHandle: true,
+      useSafeArea: true,
+      builder: (_) => TimeOffDetailsSheet(
+        timeOff: timeOff,
+        now: ref.read(availabilityNowProvider),
+      ),
+    );
+    if (!mounted) {
+      return;
+    }
+    switch (action) {
+      case null:
+        return;
+      case TimeOffDetailsAction.edit:
+        await _openTimeOffEditor(EditTimeOff(timeOff));
+      case TimeOffDetailsAction.cancel:
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (_) => TimeOffCancelDialog(timeOff: timeOff),
+        );
+        if (confirmed != true) {
+          return;
+        }
+        String message;
+        try {
+          await ref.read(timeOffApiProvider).cancel(timeOff.id);
+          message = timeOff.status == TimeOffStatus.requested
+              ? l10n.timeOffWithdrawn
+              : l10n.timeOffCancelled;
+        } catch (e) {
+          message = timeOffErrorMessage(e, l10n);
+        }
+        ref.invalidate(ownTimeOffProvider(widget.accountId));
+        messenger
+          ..hideCurrentSnackBar()
+          ..showSnackBar(SnackBar(content: Text(message)));
+    }
+  }
+
   Future<void> _remove(_Selection selection) async {
     final l10n = AppLocalizations.of(context);
     final messenger = ScaffoldMessenger.of(context)..hideCurrentSnackBar();
@@ -202,6 +318,22 @@ class _AvailabilityWeekState extends ConsumerState<AvailabilityWeek> {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     final weekEnd = _addDays(_weekStart, 6);
+    ref.listen(availabilityFocusProvider, (_, day) {
+      if (day != null) {
+        _focus(day);
+        ref.read(availabilityFocusProvider.notifier).clear();
+      }
+    });
+    final nextWeek = _addDays(_weekStart, 7);
+    final timeOff = [
+      for (final entry
+          in ref.watch(ownTimeOffProvider(widget.accountId)).value ??
+              const <TimeOff>[])
+        if (entry.isActive &&
+            entry.startsAt.isBefore(nextWeek) &&
+            entry.endsAt.isAfter(_weekStart))
+          entry,
+    ];
 
     return SafeArea(
       child: Column(
@@ -251,6 +383,8 @@ class _AvailabilityWeekState extends ConsumerState<AvailabilityWeek> {
                   for (final slot in widget.slots)
                     if (_appliesInWeek(slot, _weekStart, weekEnd)) slot,
                 ],
+                timeOff: timeOff,
+                onTapTimeOff: _openTimeOff,
                 selected: _selected,
                 onTapSlot: _toggle,
                 onTapOutside: () => setState(() => _selected = null),
@@ -261,16 +395,47 @@ class _AvailabilityWeekState extends ConsumerState<AvailabilityWeek> {
             ),
           ),
           const SizedBox(height: 20),
-          FloatingActionButton(
-            heroTag: null,
-            backgroundColor: theme.colorScheme.primary,
-            foregroundColor: theme.colorScheme.onPrimary,
-            tooltip: l10n.availabilityAddHours,
-            onPressed: () => _openEditor(NewHours(weekStart: _weekStart)),
-            child: const Icon(Icons.add, size: 30),
+          MenuAnchor(
+            alignmentOffset: const Offset(-60, 8),
+            menuChildren: [
+              MenuItemButton(
+                key: const Key('availability-add-hours'),
+                leadingIcon: const Icon(Icons.schedule),
+                onPressed: () => _openEditor(NewHours(weekStart: _weekStart)),
+                child: Text(l10n.availabilityAddHoursOption),
+              ),
+              MenuItemButton(
+                key: const Key('availability-add-time-off'),
+                leadingIcon: const Icon(
+                  Icons.event_busy_outlined,
+                  color: timeOffColor,
+                ),
+                onPressed: () => _openTimeOffEditor(
+                  NewTimeOff(
+                    day: _weekStart.isAfter(_today) ? _weekStart : _today,
+                  ),
+                ),
+                child: Text(l10n.availabilityAddTimeOff),
+              ),
+            ],
+            builder: (context, menu, _) => FloatingActionButton(
+              heroTag: null,
+              backgroundColor: theme.colorScheme.primary,
+              foregroundColor: theme.colorScheme.onPrimary,
+              tooltip: l10n.availabilityAddMenu,
+              onPressed: () => menu.isOpen ? menu.close() : menu.open(),
+              child: const Icon(Icons.add, size: 30),
+            ),
           ),
           const SizedBox(height: 20),
-          const _Legend(),
+          _Legend(
+            approved: timeOff.any(
+              (entry) => entry.status == TimeOffStatus.approved,
+            ),
+            requested: timeOff.any(
+              (entry) => entry.status == TimeOffStatus.requested,
+            ),
+          ),
           const SizedBox(height: 12),
         ],
       ),
@@ -298,6 +463,8 @@ class _WeekCalendar extends StatelessWidget {
     required this.weekStart,
     required this.today,
     required this.slots,
+    required this.timeOff,
+    required this.onTapTimeOff,
     required this.selected,
     required this.onTapSlot,
     required this.onTapOutside,
@@ -308,6 +475,8 @@ class _WeekCalendar extends StatelessWidget {
   final DateTime weekStart;
   final DateTime today;
   final List<AvailabilitySlot> slots;
+  final List<TimeOff> timeOff;
+  final void Function(TimeOff timeOff) onTapTimeOff;
   final _Selection? selected;
   final void Function(AvailabilitySlot slot, DateTime day) onTapSlot;
   final VoidCallback onTapOutside;
@@ -473,13 +642,73 @@ class _WeekCalendar extends StatelessWidget {
                   }
                 }
 
+                // Time off covers the hours under it: those hours do not
+                // apply while the trainer is away.
+                final totalHeight = gridHeight + 2 * _edgePadding;
+                double yAt(int minutes) =>
+                    (_edgePadding +
+                            (minutes - firstHour * 60) / 120 * rowHeight)
+                        .clamp(0, totalHeight);
+                for (final (index, day) in days.indexed) {
+                  if (day.isBefore(today)) {
+                    continue;
+                  }
+                  final dayEnd = _addDays(day, 1);
+                  for (final entry in timeOff) {
+                    final from = entry.startsAt.isAfter(day)
+                        ? entry.startsAt
+                        : day;
+                    final to = entry.endsAt.isBefore(dayEnd)
+                        ? entry.endsAt
+                        : dayEnd;
+                    if (!from.isBefore(to)) {
+                      continue;
+                    }
+                    final wholeDay = from == day && to == dayEnd;
+                    final top = wholeDay
+                        ? 0.0
+                        : yAt(from.difference(day).inMinutes);
+                    final bottom = wholeDay
+                        ? totalHeight
+                        : yAt(to.difference(day).inMinutes);
+                    children.add(
+                      Positioned(
+                        left: _axisWidth + index * columnWidth + 3,
+                        width: columnWidth - 6,
+                        top: top,
+                        height: math.max(10.0, bottom - top),
+                        child: dimmed(
+                          index,
+                          GestureDetector(
+                            key: Key('time-off-${entry.id}-${formatDate(day)}'),
+                            behavior: HitTestBehavior.opaque,
+                            onTap: () => onTapTimeOff(entry),
+                            child: Semantics(
+                              button: true,
+                              label: timeOffKindLabel(
+                                AppLocalizations.of(context),
+                                entry.kind,
+                              ),
+                              child: CustomPaint(
+                                painter: TimeOffPainter(
+                                  requested:
+                                      entry.status == TimeOffStatus.requested,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  }
+                }
+
                 if (selected case final selection?) {
                   final index = selection.day.difference(weekStart).inDays;
                   final centre =
                       _axisWidth + index * columnWidth + columnWidth / 2;
                   final top = y(selection.slot.start);
                   final bottom = y(selection.slot.end);
-                  final totalHeight = gridHeight + 2 * _edgePadding;
                   const tipWidth = 110.0;
                   children.add(
                     Positioned(
@@ -772,8 +1001,12 @@ class _BarActions extends StatelessWidget {
   }
 }
 
+/// Explains the bars; time off is explained only in weeks that show some.
 class _Legend extends StatelessWidget {
-  const _Legend();
+  const _Legend({required this.approved, required this.requested});
+
+  final bool approved;
+  final bool requested;
 
   @override
   Widget build(BuildContext context) {
@@ -816,6 +1049,31 @@ class _Legend extends StatelessWidget {
             ),
           ],
         ),
+        if (approved)
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            spacing: 6,
+            children: [
+              const TimeOffSwatch(requested: false),
+              Flexible(
+                child: Text(l10n.availabilityLegendTimeOff, style: style),
+              ),
+            ],
+          ),
+        if (requested)
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            spacing: 6,
+            children: [
+              const TimeOffSwatch(requested: true),
+              Flexible(
+                child: Text(
+                  l10n.availabilityLegendTimeOffRequested,
+                  style: style,
+                ),
+              ),
+            ],
+          ),
       ],
     );
   }
