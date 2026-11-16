@@ -16,6 +16,7 @@ import java.util.stream.Collectors;
 
 import org.jspecify.annotations.Nullable;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
@@ -25,10 +26,12 @@ import org.springframework.transaction.annotation.Transactional;
 import studioforyou.pl.backend.audit.AuditLog;
 import studioforyou.pl.backend.offering.ServiceTypeSummary;
 import studioforyou.pl.backend.offering.ServiceTypes;
+import studioforyou.pl.backend.scheduling.ScheduleEventCancelled.Reason;
 
 /**
  * Events of the schedule for other modules: reports, staff access to an event's participants,
- * recording that an event with participants took place, and the chats of classes and fixed groups.
+ * recording that an event with participants took place, cancelling it, and the chats of classes and
+ * fixed groups.
  */
 @Repository
 public class ScheduledEvents {
@@ -46,10 +49,14 @@ public class ScheduledEvents {
 
 	private final ServiceTypes serviceTypes;
 
-	public ScheduledEvents(JdbcClient jdbc, AuditLog auditLog, ServiceTypes serviceTypes) {
+	private final ApplicationEventPublisher publisher;
+
+	public ScheduledEvents(JdbcClient jdbc, AuditLog auditLog, ServiceTypes serviceTypes,
+			ApplicationEventPublisher publisher) {
 		this.jdbc = jdbc;
 		this.auditLog = auditLog;
 		this.serviceTypes = serviceTypes;
+		this.publisher = publisher;
 	}
 
 	/** Events starting in {@code [from, to)} that were not cancelled. */
@@ -205,7 +212,10 @@ public class ScheduledEvents {
 		return completed;
 	}
 
-	/** Booking calls this only after the last participant cancels, holding the occurrence lock. */
+	/**
+	 * Booking calls this only after the last participant cancels, holding the occurrence lock. The
+	 * staff of the training are told about it ({@link ScheduleEventCancelled}).
+	 */
 	@Transactional(propagation = Propagation.MANDATORY)
 	public void cancelPersonal(UUID eventId, UUID actorId) {
 		if (jdbc.sql("""
@@ -216,7 +226,99 @@ public class ScheduledEvents {
 				""").param("id", eventId).param("actor", actorId).update() == 1) {
 			auditLog.append(new AuditLog.Entry(actorId, "scheduling", "schedule_event", eventId, "EVENT_CANCELLED",
 					Map.of("status", new AuditLog.Change("SCHEDULED", "CANCELLED")), "Odwołane przez klienta"));
+			publisher.publishEvent(cancelled(eventId, Reason.CANCELLED_BY_CLIENT, Set.of(), actorId, null, null));
 		}
+	}
+
+	/**
+	 * Scheduled classes starting in {@code [from, to)} that the automatic cancellation rule may
+	 * cancel: classes an administrator did not force to run ({@code force_run}), earliest first.
+	 */
+	public List<AutoCancelCandidate> findAutoCancelCandidates(Instant from, Instant to) {
+		return jdbc.sql("""
+				SELECT id, service_type_id, training_group_id, starts_at
+				FROM schedule_event
+				WHERE kind = 'CLASS' AND status = 'SCHEDULED' AND force_run = FALSE
+				  AND starts_at >= :from AND starts_at < :to
+				ORDER BY starts_at, id
+				""")
+			.param("from", OffsetDateTime.ofInstant(from, ZoneOffset.UTC))
+			.param("to", OffsetDateTime.ofInstant(to, ZoneOffset.UTC))
+			.query((rs, row) -> new AutoCancelCandidate(rs.getObject("id", UUID.class),
+					rs.getObject("service_type_id", UUID.class), rs.getObject("training_group_id", UUID.class),
+					instant(rs, "starts_at")))
+			.list();
+	}
+
+	/**
+	 * A class the automatic cancellation rule may cancel.
+	 *
+	 * @param trainingGroupId the fixed group of the class, or {@code null}
+	 */
+	public record AutoCancelCandidate(UUID id, UUID serviceTypeId, @Nullable UUID trainingGroupId,
+			Instant startsAt) {
+	}
+
+	/**
+	 * Cancels a scheduled class because fewer participants booked it than the minimum, unless an
+	 * administrator forced it to run. Booking calls this holding the occurrence lock, and cancels the
+	 * reservations in the same transaction. Everyone concerned is told about it
+	 * ({@link ScheduleEventCancelled}).
+	 *
+	 * @param customerIds the participants to tell: those with an active reservation or on the
+	 * waiting list
+	 * @param participants how many places were booked
+	 * @param minimumParticipants how many were needed
+	 * @return whether the class was cancelled now
+	 */
+	@Transactional(propagation = Propagation.MANDATORY)
+	public boolean cancelForTooFewParticipants(UUID eventId, Set<UUID> customerIds, int participants,
+			int minimumParticipants) {
+		String note = "Za mało uczestników: " + participants + " z wymaganych " + minimumParticipants;
+		boolean cancelled = jdbc.sql("""
+				UPDATE schedule_event SET status = 'CANCELLED', cancel_reason = 'TOO_FEW_PARTICIPANTS',
+				cancel_note = :note, cancelled_by = NULL, cancelled_at = now(), updated_at = now(),
+				version = version + 1
+				WHERE id = :id AND kind = 'CLASS' AND status = 'SCHEDULED' AND force_run = FALSE
+				""").param("id", eventId).param("note", note).update() == 1;
+		if (cancelled) {
+			auditLog.append(new AuditLog.Entry(null, "scheduling", "schedule_event", eventId, "EVENT_CANCELLED",
+					Map.of("status", new AuditLog.Change("SCHEDULED", "CANCELLED")), note));
+			publisher.publishEvent(cancelled(eventId, Reason.TOO_FEW_PARTICIPANTS, customerIds, null, participants,
+					minimumParticipants));
+		}
+		return cancelled;
+	}
+
+	/** The notice of a cancellation, with the event as it was when it was cancelled. */
+	private ScheduleEventCancelled cancelled(UUID eventId, Reason reason, Set<UUID> customerIds,
+			@Nullable UUID cancelledBy, @Nullable Integer participants, @Nullable Integer minimumParticipants) {
+		CancelledRow event = jdbc.sql("""
+				SELECT kind, title, service_type_id, starts_at, ends_at FROM schedule_event WHERE id = :id
+				""")
+			.param("id", eventId)
+			.query((rs, row) -> new CancelledRow(rs.getString("kind"), rs.getString("title"),
+					rs.getObject("service_type_id", UUID.class), instant(rs, "starts_at"), instant(rs, "ends_at")))
+			.single();
+		String name = (event.title() != null && !event.title().isBlank()) ? event.title().strip()
+				: (event.serviceTypeId() == null) ? null
+				: serviceTypes.findAllById(List.of(event.serviceTypeId())).stream()
+					.map(ServiceTypeSummary::name)
+					.findFirst()
+					.orElse(null);
+		List<String> rooms = jdbc.sql("""
+				SELECT r.name FROM event_resource er JOIN resource r ON r.id = er.resource_id
+				WHERE er.event_id = :id ORDER BY r.name
+				""")
+			.param("id", eventId)
+			.query(String.class)
+			.list();
+		return new ScheduleEventCancelled(eventId, event.kind(), name, event.startsAt(), event.endsAt(), rooms,
+				reason, customerIds, findStaff(eventId), cancelledBy, participants, minimumParticipants);
+	}
+
+	private record CancelledRow(String kind, @Nullable String title, @Nullable UUID serviceTypeId, Instant startsAt,
+			Instant endsAt) {
 	}
 
 	private static Instant instant(ResultSet rs, String column) throws SQLException {
