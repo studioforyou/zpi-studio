@@ -79,13 +79,13 @@ public enum NotificationType {
 	/** The studio cancelled a trainer's requested or approved time off. */
 	TIME_OFF_CANCELLED((short) 9, false, List.of(
 			new Placeholder(Placeholder.TIME_OFF_KIND, "Kind of absence: \"Urlop\", \"Zwolnienie lekarskie\" or \"Inna niedostępność\""),
-			new Placeholder(Placeholder.TIME_OFF_PERIOD, "When, in the studio time zone, e.g. \"19.11–20.11\" or \"17.11, 17:00–19:00\"")));
+			new Placeholder(Placeholder.TIME_OFF_PERIOD, "When, in the studio time zone, e.g. \"19.11–20.11\" or \"17.11, 17:00–19:00\""))),
 
 	/**
 	 * The time, the rooms or the staff of a class or training changed. Sent right after the change
 	 * to the participants (to a child's guardians) and to the staff before and after the change.
 	 */
-	CLASS_CHANGED((short) 5, false, List.of(
+	CLASS_CHANGED((short) 10, false, List.of(
 			new Placeholder(Placeholder.CLASS, "Name of the class or training"),
 			new Placeholder(Placeholder.DAY, "Day of the class after the change: \"dziś\", \"jutro\" or the weekday and date, e.g. \"wtorek 12.11\""),
 			new Placeholder(Placeholder.TIME, "Start time after the change, e.g. \"18:00\""),
@@ -98,7 +98,7 @@ public enum NotificationType {
 	 * child's guardians) and to its staff; a class cancelled for too few participants is told to
 	 * its staff by {@link #CLASS_AUTO_CANCELLED} instead.
 	 */
-	CLASS_CANCELLED((short) 6, false, List.of(
+	CLASS_CANCELLED((short) 11, false, List.of(
 			new Placeholder(Placeholder.CLASS, "Name of the class or training"),
 			new Placeholder(Placeholder.DAY, "Day of the class: \"dziś\", \"jutro\" or the weekday and date, e.g. \"wtorek 12.11\""),
 			new Placeholder(Placeholder.TIME, "Start time, e.g. \"18:00\""),
@@ -109,14 +109,13 @@ public enum NotificationType {
 	 * A group class was cancelled automatically because fewer participants booked it than the
 	 * minimum. Sent right after the cancellation to the staff of the class.
 	 */
-	CLASS_AUTO_CANCELLED((short) 7, false, List.of(
+	CLASS_AUTO_CANCELLED((short) 12, false, List.of(
 			new Placeholder(Placeholder.CLASS, "Name of the class"),
 			new Placeholder(Placeholder.DAY, "Day of the class: \"dziś\", \"jutro\" or the weekday and date, e.g. \"wtorek 12.11\""),
 			new Placeholder(Placeholder.TIME, "Start time, e.g. \"18:00\""),
 			new Placeholder(Placeholder.ROOM, "Room names, or \"studio\" when no room is assigned"),
 			new Placeholder(Placeholder.BOOKED, "How many participants booked the class, e.g. \"2\""),
 			new Placeholder(Placeholder.MINIMUM, "How many participants the class needed, e.g. \"4\"")));
-
 
 	private final short id;
 
