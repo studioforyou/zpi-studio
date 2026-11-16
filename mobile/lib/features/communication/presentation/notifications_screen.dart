@@ -250,8 +250,7 @@ class _NotificationTile extends ConsumerWidget {
     final icon = switch (notification.type) {
       'CLASS_REMINDER' => Icons.event_outlined,
       'CLASS_CHANGED' => Icons.edit_calendar_outlined,
-      'CLASS_CANCELLED' ||
-      'CLASS_AUTO_CANCELLED' => Icons.event_busy_outlined,
+      'CLASS_CANCELLED' || 'CLASS_AUTO_CANCELLED' => Icons.event_busy_outlined,
       'NEW_MESSAGE' => Icons.chat_bubble_outline,
       'PASS_EXPIRING' ||
       'PASS_LAST_ENTRY_USED' => Icons.confirmation_number_outlined,
