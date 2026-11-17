@@ -36,6 +36,9 @@ export type PassProduct = {
   maxSuspensionDays: number | null;
   isActive: boolean;
   serviceTypeIds: string[];
+  /** `null` = the product gives no make-up credits. */
+  makeupPolicyId: string | null;
+  makeupPolicyName: string | null;
   variants: PassProductVariant[];
 };
 
@@ -61,11 +64,20 @@ export type CreatePassProduct = {
   suspensionAllowed: boolean;
   maxSuspensionDays: number | null;
   serviceTypeIds: string[];
+  makeupPolicyId: string | null;
   variants: VariantInput[];
 };
 
-/** Fields left out stay unchanged; an empty description removes it. */
-export type UpdatePassProduct = Partial<Omit<CreatePassProduct, 'kind' | 'variants'>>;
+/**
+ * Fields left out stay unchanged; an empty description removes it. `removeMakeupPolicy`
+ * stops granting make-up credits.
+ */
+export type UpdatePassProduct = Partial<
+  Omit<CreatePassProduct, 'kind' | 'variants' | 'makeupPolicyId'> & {
+    makeupPolicyId: string;
+    removeMakeupPolicy: boolean;
+  }
+>;
 
 /** `active`: `true` active products, `false` archived ones, `undefined` all. */
 export async function listPassProducts(active?: boolean): Promise<PassProduct[]> {

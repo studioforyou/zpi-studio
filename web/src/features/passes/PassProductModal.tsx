@@ -33,14 +33,23 @@ import {
   type PassProductVariant,
   type ServiceType,
 } from './passesApi';
+import type { MakeupPolicy } from './makeupPoliciesApi';
 
 type Props = {
   product: PassProduct | null;
   onClose: () => void;
   serviceTypes: ServiceType[];
+  makeupPolicies: MakeupPolicy[];
+  onManagePolicies?: () => void;
 };
 
-export function PassProductModal({ product, onClose, serviceTypes }: Props) {
+export function PassProductModal({
+  product,
+  onClose,
+  serviceTypes,
+  makeupPolicies,
+  onManagePolicies,
+}: Props) {
   return (
     <Modal opened={product !== null} onClose={onClose} title={pl.passes.form.editTitle} size="xl">
       {/* The key resets the form state when another product is opened. */}
@@ -50,6 +59,8 @@ export function PassProductModal({ product, onClose, serviceTypes }: Props) {
           product={product}
           onClose={onClose}
           serviceTypes={serviceTypes}
+          makeupPolicies={makeupPolicies}
+          onManagePolicies={onManagePolicies}
         />
       )}
     </Modal>
@@ -65,6 +76,7 @@ function toFormValues(product: PassProduct): ProductFormValues {
     serviceTypeIds: product.serviceTypeIds,
     suspensionAllowed: product.suspensionAllowed,
     maxSuspensionDays: product.maxSuspensionDays,
+    makeupPolicyId: product.makeupPolicyId,
   };
 }
 
@@ -72,7 +84,9 @@ function PassProductDetails({
   product,
   onClose,
   serviceTypes,
-}: Required<Props> & { product: PassProduct }) {
+  makeupPolicies,
+  onManagePolicies,
+}: Omit<Props, 'product'> & { product: PassProduct }) {
   const queryClient = useQueryClient();
   const [values, setValues] = useState(() => toFormValues(product));
   const [newVariant, setNewVariant] = useState<VariantFormValues>(emptyVariant);
@@ -90,6 +104,9 @@ function PassProductDetails({
         serviceTypeIds: values.serviceTypeIds,
         suspensionAllowed: values.suspensionAllowed,
         maxSuspensionDays: values.suspensionAllowed ? values.maxSuspensionDays : null,
+        ...(values.makeupPolicyId === null
+          ? { removeMakeupPolicy: true }
+          : { makeupPolicyId: values.makeupPolicyId }),
       }),
     onSuccess: refresh,
   });
@@ -132,6 +149,14 @@ function PassProductDetails({
         values={values}
         onChange={setValues}
         serviceTypes={serviceTypes}
+        makeupPolicies={makeupPolicies}
+        onManagePolicies={
+          onManagePolicies &&
+          (() => {
+            onClose();
+            onManagePolicies();
+          })
+        }
         kindLocked
         showErrors
       />
