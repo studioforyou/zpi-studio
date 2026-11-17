@@ -1436,5 +1436,22 @@
   "@timeOffWithdrawText": {"placeholders": {"period": {"type": "String"}}},
   "timeOffDialogBack": "Nie",
   "timeOffCancelled": "Urlop został anulowany.",
-  "timeOffWithdrawn": "Wniosek został wycofany."
+  "timeOffWithdrawn": "Wniosek został wycofany.",
+  "rescheduleEdit": "Edytuj",
+  "rescheduleTitle": "Zmień termin",
+  "rescheduleCurrent": "Teraz: {when}",
+  "@rescheduleCurrent": {"placeholders": {"when": {"type": "String"}}},
+  "rescheduleInfo": "Zmienisz tylko te zajęcia. Uczestnicy dostaną powiadomienie o zmianie.",
+  "rescheduleSave": "Zapisz nowy termin",
+  "rescheduleConfirmTitle": "Zmienić termin?",
+  "rescheduleConfirmParticipants": "{count, plural, =0{Nikt nie jest zapisany na te zajęcia.} =1{1 uczestnik dostanie powiadomienie o zmianie.} other{{count} uczestników dostanie powiadomienie o zmianie.}}",
+  "@rescheduleConfirmParticipants": {"placeholders": {"count": {"type": "int"}}},
+  "rescheduleConfirmNotify": "Uczestnicy dostaną powiadomienie o zmianie.",
+  "rescheduleConfirmAction": "Zmień termin",
+  "rescheduleConfirmBack": "Anuluj",
+  "rescheduleSaved": "Termin zmieniony. Uczestnicy dostali powiadomienie.",
+  "rescheduleUnchanged": "To jest obecny termin zajęć.",
+  "rescheduleVersionConflict": "Zajęcia zostały w międzyczasie zmienione. Odśwież szczegóły i spróbuj ponownie.",
+  "rescheduleNotEditable": "Tych zajęć nie można już przesunąć.",
+  "rescheduleNotFound": "Nie prowadzisz już tych zajęć."
 }

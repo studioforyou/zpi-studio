@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:mobile/core/auth/auth_controller.dart';
 import 'package:mobile/core/auth/auth_state.dart';
 import 'package:mobile/features/schedule/data/schedule_api.dart';
+import 'package:mobile/features/schedule/presentation/reschedule_event_screen.dart';
 import 'package:mobile/features/schedule/presentation/widgets/schedule_calendar.dart';
 import 'package:mobile/features/schedule/presentation/widgets/series_change_widgets.dart';
 import 'package:mobile/features/trainings/data/event_participants_api.dart';
@@ -89,6 +90,18 @@ class _Details extends ConsumerWidget {
                       const SizedBox(height: 12),
                     ],
                   _EventSummary(event),
+                  if (canReschedule(event, staffId))
+                    Padding(
+                      padding: const EdgeInsets.only(top: 12),
+                      child: OutlinedButton.icon(
+                        key: const Key('trainerEventEdit'),
+                        onPressed: () => _reschedule(context, ref, event),
+                        icon: const Icon(Icons.edit_outlined),
+                        label: Text(
+                          AppLocalizations.of(context).rescheduleEdit,
+                        ),
+                      ),
+                    ),
                   if (event.kind != EventKind.consultation)
                     _AttendanceSection(event: event, query: query),
                 ];
@@ -108,6 +121,31 @@ class _Details extends ConsumerWidget {
     } catch (_) {
       // The observed providers display load failures and offer a retry.
     }
+  }
+
+  /// Opens the new time form; a saved change reloads the event.
+  Future<void> _reschedule(
+    BuildContext context,
+    WidgetRef ref,
+    ScheduleEvent event,
+  ) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final message = AppLocalizations.of(context).rescheduleSaved;
+    final participants = ref
+        .read(eventAttendanceProvider(query))
+        .value
+        ?.participants
+        .length;
+    final moved = await Navigator.of(context).push<ScheduleEvent>(
+      MaterialPageRoute(
+        builder: (_) =>
+            RescheduleEventScreen(event: event, participantCount: participants),
+      ),
+    );
+    if (moved == null || !context.mounted) return;
+    ref.invalidate(ownScheduleEventProvider(query));
+    ref.invalidate(eventAttendanceProvider(query));
+    messenger.showSnackBar(SnackBar(content: Text(message)));
   }
 
   void _retry(WidgetRef ref) {
