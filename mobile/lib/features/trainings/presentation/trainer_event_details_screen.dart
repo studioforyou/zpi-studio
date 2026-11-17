@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:mobile/core/auth/auth_controller.dart';
 import 'package:mobile/core/auth/auth_state.dart';
 import 'package:mobile/features/schedule/data/schedule_api.dart';
+import 'package:mobile/features/schedule/presentation/move_personal_training_screen.dart';
 import 'package:mobile/features/schedule/presentation/widgets/schedule_calendar.dart';
 import 'package:mobile/features/schedule/presentation/widgets/series_change_widgets.dart';
 import 'package:mobile/features/trainings/data/event_participants_api.dart';
@@ -89,11 +90,38 @@ class _Details extends ConsumerWidget {
                       const SizedBox(height: 12),
                     ],
                   _EventSummary(event),
+                  if (_canMove(event)) ...[
+                    const SizedBox(height: 8),
+                    OutlinedButton.icon(
+                      key: const Key('personalMoveButton'),
+                      onPressed: () => _move(context, event),
+                      icon: const Icon(Icons.event_repeat),
+                      label: Text(
+                        AppLocalizations.of(context).personalMoveAction,
+                      ),
+                    ),
+                  ],
                   if (event.kind != EventKind.consultation)
                     _AttendanceSection(event: event, query: query),
                 ];
               },
             ),
+      ),
+    );
+  }
+
+  /// The lead trainer moves a scheduled personal training to the new date
+  /// agreed with the client until it starts; the backend has the final say.
+  bool _canMove(ScheduleEvent event) =>
+      event.kind == EventKind.personalTraining &&
+      event.status == EventStatus.scheduled &&
+      DateTime.now().isBefore(event.startsAt) &&
+      event.staff.any((person) => person.isLead && person.staffId == staffId);
+
+  void _move(BuildContext context, ScheduleEvent event) {
+    Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => MovePersonalTrainingScreen(event: event),
       ),
     );
   }

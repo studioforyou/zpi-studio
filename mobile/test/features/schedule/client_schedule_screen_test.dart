@@ -1008,6 +1008,100 @@ void main() {
     },
   );
 
+  testWidgets('cancellation shows the pass and its balance before confirming', (
+    tester,
+  ) async {
+    final api = _Api(
+      data: groupClassJson(
+        reserved: true,
+        passConsequence: {
+          'source': 'PASS',
+          'productName': 'Open 8 wejść',
+          'entriesRemaining': 5,
+          'entriesAfterCancellation': 6,
+          'validUntil': '2030-11-30',
+          'expiresAt': null,
+        },
+      ),
+    );
+    await pump(tester, api, details: true);
+    await tapVisible(
+      tester,
+      find.widgetWithText(OutlinedButton, 'Odwołaj rezerwację'),
+    );
+    expect(
+      find.text(
+        'Karnet: Open 8 wejść\n'
+        'Odwołasz bez utraty wejścia.\n'
+        'Pozostało wejść: 5, po odwołaniu: 6\n'
+        'Ważny do 30.11.2030',
+      ),
+      findsOneWidget,
+    );
+    expect(api.cancellations, 0);
+  });
+
+  testWidgets(
+    'late cancellation explains the passed deadline and the forfeited entry',
+    (tester) async {
+      final api = _Api(
+        data: groupClassJson(
+          reserved: true,
+          entryReturned: false,
+          freeCancelUntil: '2020-11-02T10:00:00Z',
+          passConsequence: {
+            'source': 'PASS',
+            'productName': 'Open 8 wejść',
+            'entriesRemaining': 5,
+            'entriesAfterCancellation': 5,
+            'validUntil': null,
+            'expiresAt': null,
+          },
+        ),
+      );
+      await pump(tester, api, details: true);
+      await tapVisible(
+        tester,
+        find.widgetWithText(OutlinedButton, 'Odwołaj rezerwację'),
+      );
+      expect(
+        find.textContaining('Minął termin bezpłatnego odwołania'),
+        findsNWidgets(2),
+      );
+      expect(
+        find.textContaining(
+          'Wejście przepada.\nPozostało wejść: 5, po odwołaniu: 5',
+        ),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets(
+    'cancelling with an unlimited pass says the balance does not change',
+    (tester) async {
+      final api = _Api(
+        data: groupClassJson(
+          reserved: true,
+          passConsequence: {
+            'source': 'PASS',
+            'productName': 'Open bez limitu',
+            'entriesRemaining': null,
+            'entriesAfterCancellation': null,
+            'validUntil': null,
+            'expiresAt': null,
+          },
+        ),
+      );
+      await pump(tester, api, details: true);
+      await tapVisible(
+        tester,
+        find.widgetWithText(OutlinedButton, 'Odwołaj rezerwację'),
+      );
+      expect(find.textContaining('Karnet bez limitu wejść'), findsOneWidget);
+    },
+  );
+
   testWidgets(
     'a place booked without a pass is cancelled without an entry consequence',
     (tester) async {

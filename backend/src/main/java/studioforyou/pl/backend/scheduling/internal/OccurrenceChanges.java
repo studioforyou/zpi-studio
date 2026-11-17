@@ -20,6 +20,7 @@ import studioforyou.pl.backend.scheduling.internal.ScheduleConflicts.Assignments
 import studioforyou.pl.backend.scheduling.internal.ScheduleConflicts.Occurrence;
 import studioforyou.pl.backend.scheduling.internal.ScheduleDtos.ChangeEventRequest;
 import studioforyou.pl.backend.scheduling.internal.ScheduleDtos.OccurrencePreview;
+import studioforyou.pl.backend.scheduling.internal.ScheduleDtos.OwnPersonalTrainingChangeRequest;
 import studioforyou.pl.backend.scheduling.internal.ScheduleDtos.PlanPreviewResponse;
 import studioforyou.pl.backend.scheduling.internal.ScheduleDtos.ResourceAssignmentRequest;
 import studioforyou.pl.backend.scheduling.internal.ScheduleDtos.RestoreSeriesRequest;
@@ -129,6 +130,53 @@ class OccurrenceChanges {
 		publishChange(before, event);
 		this.notices.record(noticeBefore);
 		return this.queries.findEvent(eventId).orElseThrow();
+	}
+
+	/**
+	 * Lists the conflicts and warnings of a new time or rooms of a personal training the trainer
+	 * runs, without saving anything.
+	 */
+	@Transactional(readOnly = true)
+	PlanPreviewResponse previewOwnPersonalTraining(UUID eventId, UUID staffId,
+			OwnPersonalTrainingChangeRequest request) {
+		ScheduleEvent event = this.events.findById(eventId)
+			.filter((candidate) -> runsPersonalTraining(candidate, staffId))
+			.orElseThrow(OccurrenceChanges::personalTrainingNotFound);
+		return preview(eventId, asChange(event, request));
+	}
+
+	/**
+	 * Moves a personal training the trainer runs to a new time or rooms (#125). Only the time and
+	 * rooms change; the same checks, the participant's moved cancellation deadline and the change
+	 * notices apply as for a change by the administrator. The client does not need to accept it.
+	 */
+	ScheduleEventResponse changeOwnPersonalTraining(UUID eventId, UUID staffId,
+			OwnPersonalTrainingChangeRequest request) {
+		// The lead is checked under the event's lock, so a concurrent reassignment cannot slip through.
+		ScheduleEvent event = this.events.findByIdForUpdate(eventId)
+			.filter((candidate) -> runsPersonalTraining(candidate, staffId))
+			.orElseThrow(OccurrenceChanges::personalTrainingNotFound);
+		return change(eventId, asChange(event, request));
+	}
+
+	/** The administrator's change of the event that keeps everything but the time and rooms. */
+	private static ChangeEventRequest asChange(ScheduleEvent event, OwnPersonalTrainingChangeRequest request) {
+		List<StaffAssignmentRequest> staff = event.getStaff()
+			.stream()
+			.map((assignment) -> new StaffAssignmentRequest(assignment.staffId(), assignment.role()))
+			.toList();
+		return new ChangeEventRequest(request.version(), request.startsAt(), request.endsAt(), event.getTitle(),
+				toInteger(event.getCapacity()), staff, request.resources());
+	}
+
+	private static boolean runsPersonalTraining(ScheduleEvent event, UUID staffId) {
+		return event.getKind() == EventKind.PERSONAL_TRAINING && event.getStaff()
+			.stream()
+			.anyMatch((assignment) -> assignment.staffId().equals(staffId) && assignment.role() == StaffRole.LEAD);
+	}
+
+	private static ApiException personalTrainingNotFound() {
+		return new ApiException(ErrorCode.NOT_FOUND, "Personal training not found.");
 	}
 
 	/**

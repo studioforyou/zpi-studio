@@ -244,6 +244,11 @@ class GroupClassBookingTests {
 			.andExpect(jsonPath("$.version").value(0))
 			.andExpect(jsonPath("$.cancellation.allowed").value(true))
 			.andExpect(jsonPath("$.cancellation.entryReturned").value(true))
+			.andExpect(jsonPath("$.cancellation.passConsequence.source").value("PASS"))
+			.andExpect(jsonPath("$.cancellation.passConsequence.productName").value("booking-test-pass"))
+			.andExpect(jsonPath("$.cancellation.passConsequence.entriesRemaining").value(7))
+			.andExpect(jsonPath("$.cancellation.passConsequence.entriesAfterCancellation").value(8))
+			.andExpect(jsonPath("$.cancellation.passConsequence.validUntil").exists())
 			.andReturn();
 		String body = result.getResponse().getContentAsString();
 		String reservationId = JsonPath.read(body, "$.id");
@@ -403,6 +408,39 @@ class GroupClassBookingTests {
 		assertThat(bookings.get(actor, profile, event).availablePlaces()).isEqualTo(1);
 		assertThat(bookings.book(actor, profile, event, pass).reservation().id()).isNotEqualTo(created.id());
 		assertThat(balance(pass)).isEqualTo(7);
+	}
+
+	@Test
+	void cancellationPreviewShowsThePassBalanceBeforeAndAfterTheCancellation() {
+		var created = bookings.book(actor, profile, event, pass).reservation();
+		var timely = bookings.getReservation(actor, profile, created.id()).cancellation().passConsequence();
+		assertThat(timely.source()).isEqualTo("PASS");
+		assertThat(timely.productName()).isEqualTo("booking-test-pass");
+		assertThat(timely.entriesRemaining()).isEqualTo((short) 7);
+		assertThat(timely.entriesAfterCancellation()).isEqualTo((short) 8);
+		assertThat(timely.validUntil()).isEqualTo(LocalDate.now(ZoneId.of("Europe/Warsaw")).plusDays(29));
+		assertThat(timely.expiresAt()).isNull();
+		jdbc.sql("UPDATE reservation SET free_cancel_until = :past WHERE id = :id")
+			.param("past", utc(Instant.now().minusSeconds(30))).param("id", created.id()).update();
+		var late = bookings.getReservation(actor, profile, created.id()).cancellation();
+		assertThat(late.entryReturned()).isFalse();
+		assertThat(late.passConsequence().entriesRemaining()).isEqualTo((short) 7);
+		assertThat(late.passConsequence().entriesAfterCancellation()).isEqualTo((short) 7);
+		jdbc.sql("UPDATE customer_pass SET entries_total = NULL, entries_remaining = NULL WHERE id = :id")
+			.param("id", pass).update();
+		var unlimited = bookings.getReservation(actor, profile, created.id()).cancellation().passConsequence();
+		assertThat(unlimited.entriesRemaining()).isNull();
+		assertThat(unlimited.entriesAfterCancellation()).isNull();
+	}
+
+	@Test
+	void cancellationThatIsNotAllowedHasNoPassConsequence() {
+		var created = bookings.book(actor, profile, event, pass).reservation();
+		jdbc.sql("UPDATE reservation SET free_cancel_until = :past, late_cancel_allowed_snapshot = false WHERE id = :id")
+			.param("past", utc(Instant.now().minusSeconds(30))).param("id", created.id()).update();
+		var cancellation = bookings.getReservation(actor, profile, created.id()).cancellation();
+		assertThat(cancellation.allowed()).isFalse();
+		assertThat(cancellation.passConsequence()).isNull();
 	}
 
 	@Test

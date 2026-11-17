@@ -2,6 +2,7 @@ package studioforyou.pl.backend.membership;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -35,9 +36,19 @@ public interface BookingEntitlements {
 	 */
 	void consume(UUID customerId, UUID passId, UUID reservationId, UUID actorAccountId);
 
+	/**
+	 * The current balance of a pass the customer holds, whatever its status, e.g. to show what a
+	 * cancellation does to it. Empty when the customer holds no such pass.
+	 */
+	Optional<HeldPass> held(UUID customerId, UUID passId);
+
 	/** A usable pass; a null balance denotes unlimited entries. */
 	record EligiblePass(UUID id, String productName, Short entriesRemaining, LocalDate validFrom,
 			LocalDate validUntil) {
+	}
+
+	/** A pass the customer holds; a null balance denotes unlimited entries. */
+	record HeldPass(UUID id, String productName, Short entriesRemaining, LocalDate validUntil) {
 	}
 
 }
