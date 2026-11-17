@@ -84,3 +84,16 @@ To see the state without the permission, revoke `CUSTOMER_HEALTH_READ` from Mare
 ## Account history (seed 16)
 
 `R__seed_16_account_history.sql` adds the changes behind the seeded roles and overrides, so the administrator's account history (**Konta → Historia zmian**, signed in as Beata) has every kind of entry: Beata created as an administrator by Anna, Karolina invited, activated and given the trainer role, Ewa's attendance correction taken away, Tomasz's trainer role granted and revoked the next day, and Marek's temporary permission to manage the whole schedule. Final roles and overrides stay as seed 01 sets them. The older seed 06 entries (Marek's trainer role, Katarzyna's approval, Adam's suspension) are shown too, the status ones from `account_status_change`.
+
+## Make-up policies (seed 21)
+
+`R__seed_21_makeup_policies.sql` adds two policies next to the two from seed 02, so the panel's **Karnety → Zasady odrobień** (#84) shows an active and an inactive one: "Odrabianie 3 tygodnie" (21 days, at most 3 per pass, used by the new "Karnet Calisthenics") and the inactive "Odrabianie warsztatów" (7 days, checked against the booking date, no product uses it).
+
+For the trainer's **Pakiety → Odróbki** section (#78), signed in as Anna:
+
+| Trainee | Credits | What it shows |
+| --- | --- | --- |
+| Piotr | 2 from "Karnet Calisthenics - 8 wejść" | A Calisthenics class he cancelled in time (expires in 5 days, orange) and one the studio cancelled (17 days); 2 of 3 credits used |
+| Julia | 1 from her expired PT package (seed 10) | No source class (granted by staff); the package reached its limit, 2 of 2 |
+
+The pass ledger of Piotr's new pass matches its balance (8 activated, two entries consumed for the two cancelled classes). Re-running the seed only adds missing rows.

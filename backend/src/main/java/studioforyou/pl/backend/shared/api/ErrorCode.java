@@ -61,6 +61,8 @@ public enum ErrorCode {
 	PASS_ENTRIES_EXHAUSTED(HttpStatus.UNPROCESSABLE_CONTENT),
 	MAKEUP_CREDIT_NOT_AVAILABLE(HttpStatus.CONFLICT),
 	MAKEUP_CREDIT_NOT_USABLE(HttpStatus.UNPROCESSABLE_CONTENT),
+	/** A make-up policy linked to a product does not exist or is inactive. */
+	MAKEUP_POLICY_UNAVAILABLE(HttpStatus.UNPROCESSABLE_CONTENT),
 	PASS_SERVICE_MISMATCH(HttpStatus.UNPROCESSABLE_CONTENT),
 	/** The product does not allow suspension, or the suspension breaks its rules. */
 	PASS_SUSPENSION_NOT_ALLOWED(HttpStatus.UNPROCESSABLE_CONTENT),

@@ -8,8 +8,10 @@ import java.time.ZoneId;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
@@ -23,6 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 import studioforyou.pl.backend.configuration.StudioSettings;
 import studioforyou.pl.backend.customer.TraineeAssignments;
 import studioforyou.pl.backend.customer.TraineeAssignments.Trainee;
+import studioforyou.pl.backend.membership.TraineeMakeupCredits;
 import studioforyou.pl.backend.membership.TraineePasses;
 import studioforyou.pl.backend.membership.TraineePasses.Funding;
 import studioforyou.pl.backend.membership.TraineePasses.FundingRequest;
@@ -60,8 +63,11 @@ class TraineeOverviewQueries {
 
 	private final JdbcClient jdbc;
 
+	private final TraineeMakeupCredits makeups;
+
 	TraineeOverviewQueries(StaffProfiles staff, TraineeAssignments assignments, ServiceTypes services,
-			TraineePasses passes, PersonalTrainingSchedule schedule, StudioSettings studio, JdbcClient jdbc) {
+			TraineePasses passes, PersonalTrainingSchedule schedule, StudioSettings studio, JdbcClient jdbc,
+			TraineeMakeupCredits makeups) {
 		this.staff = staff;
 		this.assignments = assignments;
 		this.services = services;
@@ -69,6 +75,7 @@ class TraineeOverviewQueries {
 		this.schedule = schedule;
 		this.studio = studio;
 		this.jdbc = jdbc;
+		this.makeups = makeups;
 	}
 
 	OverviewList list(UUID accountId) {
@@ -97,6 +104,63 @@ class TraineeOverviewQueries {
 		List<UUID> activeIds = context.trainees().stream().filter(Trainee::active).map(Trainee::id).toList();
 		List<Session> items = sessions(context, activeIds, from, to).values().stream().flatMap(List::stream).sorted(BY_TIME).toList();
 		return new CalendarList(context.checkedOn(), context.checkedAt(), items);
+	}
+
+	/**
+	 * The participant's unused make-up credits with what each was granted for and where it can be
+	 * used, plus the per-pass limits. Read-only: nothing is booked or spent.
+	 */
+	MakeupCreditList makeupCredits(UUID accountId, UUID customerId) {
+		Context context = context(accountId);
+		requireTrainee(context, customerId);
+		TraineeMakeupCredits.Summary summary = makeups.find(customerId, context.checkedAt(), context.checkedOn());
+		List<UUID> reservationIds = summary.credits().stream().map(TraineeMakeupCredits.Credit::sourceReservationId)
+			.filter(Objects::nonNull).distinct().toList();
+		Map<UUID, OriginRow> origins = reservationIds.isEmpty() ? Map.of() : jdbc.sql("""
+				SELECT r.id, r.cancel_kind, e.title, e.service_type_id, e.starts_at
+				FROM reservation r JOIN schedule_event e ON e.id = r.event_id
+				WHERE r.id IN (:ids) AND r.customer_id = :customer
+				""")
+			.param("ids", reservationIds).param("customer", customerId)
+			.query((rs, n) -> new OriginRow(rs.getObject("id", UUID.class), rs.getString("cancel_kind"), rs.getString("title"),
+					rs.getObject("service_type_id", UUID.class), rs.getObject("starts_at", OffsetDateTime.class).toInstant()))
+			.list().stream().collect(Collectors.toMap(OriginRow::reservationId, Function.identity()));
+		Set<UUID> serviceIds = new HashSet<>();
+		summary.credits().forEach(credit -> serviceIds.addAll(credit.serviceTypeIds()));
+		origins.values().stream().map(OriginRow::serviceTypeId).filter(Objects::nonNull).forEach(serviceIds::add);
+		Map<UUID, ServiceTypeSummary> serviceById = serviceIds.isEmpty() ? Map.of()
+				: services.findAllById(serviceIds).stream().collect(Collectors.toMap(ServiceTypeSummary::id, Function.identity()));
+		List<MakeupCredit> items = summary.credits().stream().map(credit -> {
+			OriginRow row = credit.sourceReservationId() == null ? null : origins.get(credit.sourceReservationId());
+			MakeupOrigin origin = row == null ? null : new MakeupOrigin(originTitle(row, serviceById), row.startsAt(),
+					originReason(row.cancelKind()));
+			List<MakeupService> usable = credit.serviceTypeIds().stream().map(serviceById::get).filter(Objects::nonNull)
+				.filter(ServiceTypeSummary::active)
+				.map(service -> new MakeupService(service.id(), service.name()))
+				.sorted(Comparator.comparing(MakeupService::name)).toList();
+			return new MakeupCredit(credit.id(), credit.sourcePassId(), credit.productName(), credit.policyName(),
+					credit.grantedAt(), credit.expiresAt(), origin, usable);
+		}).toList();
+		List<MakeupLimit> limits = summary.limits().stream()
+			.map(limit -> new MakeupLimit(limit.passId(), limit.productName(), limit.granted(), limit.max(), limit.reached()))
+			.toList();
+		Instant nearest = items.isEmpty() ? null : items.getFirst().expiresAt();
+		return new MakeupCreditList(context.checkedOn(), context.checkedAt(), customerId, items.size(), nearest, items, limits);
+	}
+
+	private static String originTitle(OriginRow row, Map<UUID, ServiceTypeSummary> serviceById) {
+		ServiceTypeSummary service = row.serviceTypeId() == null ? null : serviceById.get(row.serviceTypeId());
+		if (service != null && !"PERSONAL_TRAINING".equals(service.category())) {
+			return service.name();
+		}
+		return row.title() != null ? row.title() : (service != null ? service.name() : null);
+	}
+
+	private static String originReason(String cancelKind) {
+		if ("STUDIO".equals(cancelKind)) {
+			return "CANCELLED_BY_STUDIO";
+		}
+		return "IN_TIME".equals(cancelKind) ? "CANCELLED_IN_TIME" : "OTHER";
 	}
 
 	private static void requireWindow(Instant from, Instant to) {
@@ -253,6 +317,36 @@ class TraineeOverviewQueries {
 	}
 
 	record OverviewList(LocalDate checkedOn, Instant checkedAt, List<Overview> items) {
+	}
+
+	private record OriginRow(UUID reservationId, String cancelKind, String title, UUID serviceTypeId, Instant startsAt) {
+	}
+
+	/**
+	 * @param totalCount the number of unused, unexpired credits
+	 * @param nearestExpiresAt the soonest expiry among them, or {@code null} without credits
+	 * @param limits passes whose make-up policy limits the credits per pass, reached limits first
+	 */
+	record MakeupCreditList(LocalDate checkedOn, Instant checkedAt, UUID customerId, int totalCount,
+			Instant nearestExpiresAt, List<MakeupCredit> items, List<MakeupLimit> limits) {
+	}
+
+	/**
+	 * @param origin the cancelled class the credit was granted for, or {@code null} when staff granted it directly
+	 * @param services active services the credit can book
+	 */
+	record MakeupCredit(UUID id, UUID sourcePassId, String productName, String policyName, Instant grantedAt,
+			Instant expiresAt, MakeupOrigin origin, List<MakeupService> services) {
+	}
+
+	/** @param reason {@code CANCELLED_BY_STUDIO}, {@code CANCELLED_IN_TIME} or {@code OTHER} */
+	record MakeupOrigin(String title, Instant startsAt, String reason) {
+	}
+
+	record MakeupService(UUID id, String name) {
+	}
+
+	record MakeupLimit(UUID passId, String productName, int granted, int max, boolean reached) {
 	}
 
 	record CalendarList(LocalDate checkedOn, Instant checkedAt, List<Session> items) {
