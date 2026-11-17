@@ -103,6 +103,14 @@ class ScheduleChangeNotices {
 	 * holds the events as {@link #snapshots} read them before.
 	 */
 	void record(Map<UUID, Snapshot> before) {
+		record(before, Set.of());
+	}
+
+	/**
+	 * As {@link #record(Map)}, but the staff members in {@code silentStaff}, e.g. the trainer who
+	 * made the change, get no notice.
+	 */
+	void record(Map<UUID, Snapshot> before, Set<UUID> silentStaff) {
 		Map<UUID, Snapshot> after = snapshots(before.keySet());
 		List<Snapshot> changed = before.values()
 			.stream()
@@ -117,7 +125,7 @@ class ScheduleChangeNotices {
 		Map<UUID, Set<UUID>> customersByEvent = this.participants
 			.participantsToTell(changed.stream().map(Snapshot::eventId).toList());
 		Set<UUID> toldCustomers = new HashSet<>();
-		Set<UUID> toldStaff = new HashSet<>();
+		Set<UUID> toldStaff = new HashSet<>(silentStaff);
 		List<ScheduleChangesRecorded.Notice> recorded = new ArrayList<>();
 		for (Snapshot previous : changed) {
 			Snapshot current = after.get(previous.eventId());
