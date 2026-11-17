@@ -9,6 +9,8 @@ import 'package:mobile/features/schedule/data/class_planning_api.dart';
 import 'package:mobile/features/schedule/data/personal_training_change_api.dart';
 import 'package:mobile/features/schedule/data/schedule_api.dart';
 import 'package:mobile/features/trainings/data/event_participants_api.dart';
+import 'package:mobile/features/trainings/data/trainee_overview_api.dart';
+import 'package:mobile/features/trainings/presentation/widgets/trainee_overview_widgets.dart';
 import 'package:mobile/features/trainings/presentation/trainer_event_details_screen.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
 
@@ -171,6 +173,78 @@ void main() {
     await tester.pump(const Duration(milliseconds: 500));
     await tester.pumpAndSettle();
   }
+
+  Future<void> pumpTile(WidgetTester tester, ScheduleEvent event) async {
+    tester.view.physicalSize = const Size(800, 2000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    scheduleApi = _ScheduleApi(event);
+    changeApi = _ChangeApi(scheduleApi);
+    final training = TraineeTraining(
+      event: event,
+      reservationId: 'reservation-1',
+      trainerConfirmedAt: null,
+      clientConfirmedAt: null,
+      attendance: 'UNMARKED',
+      settlementStatus: 'OPEN',
+      funding: 'RESERVED',
+      passId: 'pass-1',
+      passName: 'Pakiet 10',
+      requiresAttention: false,
+      customerName: 'Monika Dąbrowska',
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        retry: (_, _) => null,
+        overrides: [
+          authControllerProvider.overrideWith(_Auth.new),
+          scheduleApiProvider.overrideWithValue(scheduleApi),
+          personalTrainingChangeApiProvider.overrideWithValue(changeApi),
+          planningRoomsProvider.overrideWith(
+            (_) async => const [
+              PlanningRoom(id: 'gym', name: 'Siłownia', maxPeople: 10),
+            ],
+          ),
+        ],
+        child: MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          locale: const Locale('pl'),
+          home: Scaffold(
+            body: PersonalTrainingScheduleTile(
+              training: training,
+              checkedAt: DateTime.now(),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets('the schedule tile of a personal training opens the move form', (
+    tester,
+  ) async {
+    await pumpTile(tester, _event());
+    await tester.tap(find.text('Monika Dąbrowska'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('personalMoveButton')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Zmień termin treningu'), findsOneWidget);
+    expect(find.byKey(const Key('personalMoveButton')), findsNothing);
+  });
+
+  testWidgets('the schedule tile offers no move to an assistant', (
+    tester,
+  ) async {
+    await pumpTile(tester, _event(lead: false));
+    await tester.tap(find.text('Monika Dąbrowska'));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('personalMoveButton')), findsNothing);
+  });
 
   FilledButton saveButton(WidgetTester tester) =>
       tester.widget<FilledButton>(find.byKey(const Key('personalMoveSave')));

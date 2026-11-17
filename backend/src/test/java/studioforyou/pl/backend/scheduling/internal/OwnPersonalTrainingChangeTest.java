@@ -59,7 +59,7 @@ class OwnPersonalTrainingChangeTest extends ScheduleTestSupport {
 	}
 
 	@Test
-	void theClientsFreeCancellationDeadlineMovesWithTheTrainingAndTheyAreTold() throws Exception {
+	void theClientsFreeCancellationDeadlineMovesWithTheTrainingAndOnlyTheClientIsTold() throws Exception {
 		String id = personalTraining(MAREK, "10:00", "11:00");
 		UUID customer = book(id, at(this.monday, "10:00").minus(Duration.ofHours(12)));
 
@@ -73,6 +73,11 @@ class OwnPersonalTrainingChangeTest extends ScheduleTestSupport {
 				"SELECT count(*) FROM schedule_change_notice WHERE event_id = ? AND customer_id = ?", Integer.class,
 				UUID.fromString(id), customer))
 			.isEqualTo(1);
+		// The trainer made the change, so they are not told about it.
+		assertThat(this.jdbcTemplate.queryForObject(
+				"SELECT count(*) FROM schedule_change_notice WHERE event_id = ? AND staff_id IS NOT NULL",
+				Integer.class, UUID.fromString(id)))
+			.isZero();
 	}
 
 	@Test

@@ -176,8 +176,14 @@ class _MovePersonalTrainingScreenState
           .read(personalTrainingChangeApiProvider)
           .change(widget.event.id, move);
       if (!mounted || !_active) return;
+      // The trainer's calendar and trainee views show personal trainings
+      // from their own reads, so all of them are loaded again.
       ref.invalidate(ownScheduleProvider);
       ref.invalidate(ownScheduleEventProvider);
+      ref.invalidate(ownPersonalTrainingsProvider);
+      ref.invalidate(traineeOverviewsProvider);
+      ref.invalidate(traineeOverviewProvider);
+      ref.invalidate(traineeCalendarProvider);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(AppLocalizations.of(context).personalMoveSaved)),
       );

@@ -714,6 +714,7 @@
   "personalMoveNotEditable": "Tego treningu nie można już przesunąć, bo się rozpoczął albo został odwołany.",
   "personalMovePast": "Nowy termin musi być w przyszłości.",
   "personalMoveNotFound": "Nie prowadzisz już tego treningu albo został usunięty.",
+  "personalMoveLoadError": "Nie udało się pobrać treningu. Spróbuj ponownie.",
   "addClassButton": "Dodaj zajęcia",
   "addClassTitle": "Nowe zajęcia",
   "addClassOnce": "Jednorazowe",

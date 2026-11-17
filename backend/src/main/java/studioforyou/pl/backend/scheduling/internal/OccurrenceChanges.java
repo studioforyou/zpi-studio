@@ -110,6 +110,14 @@ class OccurrenceChanges {
 	 * exception; a request that changes nothing leaves the event as it is.
 	 */
 	ScheduleEventResponse change(UUID eventId, ChangeEventRequest request) {
+		return change(eventId, request, null);
+	}
+
+	/**
+	 * Applies the change; the staff member who made it, if any, gets no notice of their own
+	 * change.
+	 */
+	private ScheduleEventResponse change(UUID eventId, ChangeEventRequest request, @Nullable UUID changedBy) {
 		ScheduleEvent event = lockForChange(eventId, request.version());
 		ZoneId zone = this.studio.zone();
 		Occurrence occurrence = this.planner.checkedOccurrence(request.startsAt(), request.endsAt(), zone);
@@ -128,7 +136,7 @@ class OccurrenceChanges {
 		}
 		this.events.flush();
 		publishChange(before, event);
-		this.notices.record(noticeBefore);
+		this.notices.record(noticeBefore, changedBy);
 		return this.queries.findEvent(eventId).orElseThrow();
 	}
 
@@ -148,7 +156,8 @@ class OccurrenceChanges {
 	/**
 	 * Moves a personal training the trainer runs to a new time or rooms (#125). Only the time and
 	 * rooms change; the same checks, the participant's moved cancellation deadline and the change
-	 * notices apply as for a change by the administrator. The client does not need to accept it.
+	 * notices apply as for a change by the administrator, except that the trainer gets no notice of
+	 * their own change. The client does not need to accept it.
 	 */
 	ScheduleEventResponse changeOwnPersonalTraining(UUID eventId, UUID staffId,
 			OwnPersonalTrainingChangeRequest request) {
@@ -156,7 +165,7 @@ class OccurrenceChanges {
 		ScheduleEvent event = this.events.findByIdForUpdate(eventId)
 			.filter((candidate) -> runsPersonalTraining(candidate, staffId))
 			.orElseThrow(OccurrenceChanges::personalTrainingNotFound);
-		return change(eventId, asChange(event, request));
+		return change(eventId, asChange(event, request), staffId);
 	}
 
 	/** The administrator's change of the event that keeps everything but the time and rooms. */
