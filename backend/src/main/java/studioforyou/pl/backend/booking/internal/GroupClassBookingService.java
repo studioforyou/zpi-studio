@@ -21,6 +21,7 @@ import studioforyou.pl.backend.booking.internal.GroupClassDtos.EligiblePassRespo
 import studioforyou.pl.backend.booking.internal.GroupClassDtos.GroupClassResponse;
 import studioforyou.pl.backend.booking.internal.GroupClassDtos.HistoryEntryResponse;
 import studioforyou.pl.backend.booking.internal.GroupClassDtos.InstructorResponse;
+import studioforyou.pl.backend.booking.internal.GroupClassDtos.PassConsequence;
 import studioforyou.pl.backend.booking.internal.GroupClassDtos.ReservationResponse;
 import studioforyou.pl.backend.booking.internal.GroupClassDtos.RoomResponse;
 import studioforyou.pl.backend.booking.internal.GroupClassDtos.ParticipantResponse;
@@ -379,10 +380,33 @@ class GroupClassBookingService {
 	CancellationAvailability cancellationFor(Reservation reservation, Occurrence event, Instant now) {
 		CancellationAvailability result = cancellation(reservation, event, now);
 		if (result.allowed() && Boolean.TRUE.equals(result.entryReturned()) && reservation.makeupCreditId() != null) {
-			return new CancellationAvailability(true, null, this.makeups.canReturn(reservation.customerId(),
+			result = new CancellationAvailability(true, null, this.makeups.canReturn(reservation.customerId(),
 					reservation.makeupCreditId(), reservation.id(), now));
 		}
-		return result;
+		if (!result.allowed() || result.entryReturned() == null) {
+			return result;
+		}
+		return new CancellationAvailability(true, null, result.entryReturned(),
+				passConsequence(reservation, result.entryReturned()));
+	}
+
+	/**
+	 * What cancelling does to the funding of the reservation, so the participant sees it before
+	 * confirming. The entry was taken from the balance at booking, so a returned entry adds one.
+	 */
+	private PassConsequence passConsequence(Reservation reservation, boolean entryReturned) {
+		if (reservation.makeupCreditId() != null) {
+			return this.makeups.held(reservation.customerId(), reservation.makeupCreditId())
+				.map(credit -> new PassConsequence(PassConsequence.MAKEUP_CREDIT, credit.productName(), null, null,
+						null, credit.expiresAt()))
+				.orElse(null);
+		}
+		return this.entitlements.held(reservation.customerId(), reservation.customerPassId())
+			.map(pass -> new PassConsequence(PassConsequence.PASS, pass.productName(), pass.entriesRemaining(),
+					pass.entriesRemaining() == null ? null
+							: (short) (pass.entriesRemaining() + (entryReturned ? 1 : 0)),
+					pass.validUntil(), null))
+			.orElse(null);
 	}
 
 	private ReservationResponse reservationResponse(Reservation reservation, Occurrence event, Instant now) {

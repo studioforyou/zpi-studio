@@ -39,7 +39,8 @@ import org.springframework.stereotype.Component;
  * gets ASSIGNED, one who leaves it UNASSIGNED, the rest CHANGED, each with the values before and
  * after. A later change is a new notice, even of the same event. A change of several occurrences
  * at once tells each person once, about the earliest occurrence that concerns them. Changes of the
- * title or the capacity only, and changes of blocks, tell nobody. The notices of a change are also
+ * title or the capacity only, and changes of blocks, tell nobody. A staff member who makes the
+ * change themselves, such as a trainer moving their own personal training, is not told about it. The notices of a change are also
  * published as {@link ScheduleChangesRecorded}, so that the people get a push notification too.
  */
 @Component
@@ -103,6 +104,14 @@ class ScheduleChangeNotices {
 	 * holds the events as {@link #snapshots} read them before.
 	 */
 	void record(Map<UUID, Snapshot> before) {
+		record(before, null);
+	}
+
+	/**
+	 * As {@link #record(Map)}, but the staff member who made the change, if any, gets no notice of
+	 * it: they already know.
+	 */
+	void record(Map<UUID, Snapshot> before, @Nullable UUID changedBy) {
 		Map<UUID, Snapshot> after = snapshots(before.keySet());
 		List<Snapshot> changed = before.values()
 			.stream()
@@ -129,7 +138,7 @@ class ScheduleChangeNotices {
 			Set<UUID> staff = new LinkedHashSet<>(previous.staffIds());
 			staff.addAll(current.staffIds());
 			for (UUID member : staff) {
-				if (toldStaff.add(member)) {
+				if (!member.equals(changedBy) && toldStaff.add(member)) {
 					NoticeKind kind = !previous.staffIds().contains(member) ? NoticeKind.ASSIGNED
 							: !current.staffIds().contains(member) ? NoticeKind.UNASSIGNED : NoticeKind.CHANGED;
 					recorded.add(insert(previous, current, null, member, kind));

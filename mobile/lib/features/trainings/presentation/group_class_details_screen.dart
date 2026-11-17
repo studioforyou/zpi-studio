@@ -157,7 +157,7 @@ class _GroupClassDetailsScreenState
             reservation.cancellation.allowed
                 ? reservation.makeupCreditId != null
                       ? l10n.makeupCancelForfeits
-                      : l10n.classesCancelForfeitsEntry
+                      : _forfeitedEntry(l10n, reservation)
                 : classReason(l10n, reservation.cancellation.reason),
           ),
         ],
@@ -395,15 +395,7 @@ class _GroupClassDetailsScreenState
       ask: () => _confirm(
         event,
         title: l10n.classesCancelTitle,
-        consequence: reservation.makeupCreditId != null
-            ? reservation.cancellation.entryReturned == true
-                  ? l10n.makeupCancelReturns
-                  : l10n.makeupCancelForfeits
-            : reservation.customerPassId == null
-            ? l10n.classesCancelWithoutPass
-            : reservation.cancellation.entryReturned == true
-            ? l10n.classesCancelReturnsEntry
-            : l10n.classesCancelForfeitsEntry,
+        consequence: _cancellationConsequence(l10n, reservation),
         keep: l10n.classesKeepReservation,
         confirm: l10n.classesCancel,
       ),
@@ -662,6 +654,51 @@ class _GroupClassDetailsScreenState
       if (pass.validUntil != null)
         l10n.passValidUntil(DateFormat('dd.MM.yyyy').format(pass.validUntil!)),
     ].join(' · ');
+  }
+
+  /// What cancelling does to the pass or make-up credit, as the server
+  /// forecasts it. The server checks it again when the participant confirms.
+  String _cancellationConsequence(
+    AppLocalizations l10n,
+    ClassReservation reservation,
+  ) {
+    final returned = reservation.cancellation.entryReturned == true;
+    final funding = reservation.cancellation.passConsequence;
+    if (reservation.makeupCreditId != null) {
+      return [
+        if (funding != null)
+          l10n.classesCancelMakeupCredit(funding.productName),
+        if (funding?.expiresAt case final expiresAt?)
+          l10n.makeupExpiresAt(DateFormat('dd.MM.yyyy').format(expiresAt)),
+        returned ? l10n.makeupCancelReturns : l10n.makeupCancelForfeits,
+      ].join('\n');
+    }
+    if (reservation.customerPassId == null) {
+      return l10n.classesCancelWithoutPass;
+    }
+    return [
+      if (funding != null) l10n.classesCancelPass(funding.productName),
+      returned
+          ? l10n.classesCancelReturnsEntry
+          : _forfeitedEntry(l10n, reservation),
+      if (funding != null)
+        if (funding.isUnlimitedPass)
+          l10n.classesCancelUnlimitedPass
+        else if ((funding.entriesRemaining, funding.entriesAfterCancellation)
+            case (final now?, final after?))
+          l10n.classesCancelEntriesBalance(now, after),
+      if (funding?.validUntil case final validUntil?)
+        l10n.passValidUntil(DateFormat('dd.MM.yyyy').format(validUntil)),
+    ].join('\n');
+  }
+
+  /// A forfeited entry is explained by the free cancellation deadline that
+  /// has passed, when the reservation has one.
+  String _forfeitedEntry(AppLocalizations l10n, ClassReservation reservation) {
+    final deadline = reservation.freeCancelUntil;
+    return deadline != null && deadline.isBefore(DateTime.now())
+        ? l10n.classesCancelLateForfeitsEntry(classDateTime(deadline))
+        : l10n.classesCancelForfeitsEntry;
   }
 
   String? _participantName() => clientSession(ref.read(authControllerProvider))
