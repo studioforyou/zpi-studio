@@ -139,6 +139,7 @@ abstract class ScheduleTestSupport {
 
 	@AfterEach
 	void cleanUp() {
+		this.jdbcTemplate.update("DELETE FROM substitution_request");
 		String testAccounts = "SELECT id FROM account WHERE email LIKE '%" + TEST_EMAIL_DOMAIN + "'";
 		// A saved change or cancellation of an event notifies its staff in the background.
 		NotificationCleanup.deleteNotifications(this.jdbcClient, testAccounts);
