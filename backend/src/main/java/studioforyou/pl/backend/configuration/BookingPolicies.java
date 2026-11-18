@@ -24,6 +24,22 @@ public interface BookingPolicies {
 	/** The caller serializes edits to the service. Null overrides restore studio defaults. */
 	void replaceForService(ServiceContext service, Values overrides, UUID changedBy);
 
+	/**
+	 * Whether the automatic cancellation is switched off for every class of the fixed group by the
+	 * group's current policy.
+	 */
+	boolean isAutoCancelDisabledForGroup(UUID trainingGroupId);
+
+	/**
+	 * Switches the automatic cancellation off for every class of the fixed group ({@code disabled}),
+	 * or back to the rule the group's classes inherit. The group's other rules are kept; a change
+	 * closes the group's current policy and creates its next version. The caller checks the group
+	 * exists and serializes edits to it.
+	 *
+	 * @return whether the policy changed
+	 */
+	boolean changeGroupAutoCancel(UUID trainingGroupId, boolean disabled, UUID changedBy);
+
 	record ServiceContext(UUID id, boolean groupRulesAllowed, Integer minParticipants, Integer maxParticipants) {
 	}
 

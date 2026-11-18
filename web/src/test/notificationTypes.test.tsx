@@ -119,6 +119,8 @@ test('edits reminder times and content, and rejects unknown placeholders', async
   await userEvent.paste('Za : ');
   (body as HTMLTextAreaElement).setSelectionRange(3, 3);
   await userEvent.click(within(dialog).getByRole('button', { name: 'Wstaw: Ile czasu przed' }));
+  // The field puts the caret after the inserted field in the next frame; move it only after that.
+  await new Promise((resolve) => requestAnimationFrame(resolve));
   const end = (body as HTMLTextAreaElement).value.length;
   (body as HTMLTextAreaElement).setSelectionRange(end, end);
   await userEvent.click(within(dialog).getByRole('button', { name: 'Wstaw: Nazwa zajęć' }));
