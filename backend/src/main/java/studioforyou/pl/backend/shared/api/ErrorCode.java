@@ -156,7 +156,10 @@ public enum ErrorCode {
 	/** The request was already approved, rejected or cancelled. */
 	TIME_OFF_ALREADY_DECIDED(HttpStatus.CONFLICT),
 	/** The time off is rejected, cancelled or already over. */
-	TIME_OFF_NOT_CANCELLABLE(HttpStatus.UNPROCESSABLE_CONTENT);
+	TIME_OFF_NOT_CANCELLABLE(HttpStatus.UNPROCESSABLE_CONTENT),
+	// communication: announcements
+	/** Nobody would get the announcement, e.g. an empty group or no one with the marketing consent. */
+	ANNOUNCEMENT_NO_RECIPIENTS(HttpStatus.UNPROCESSABLE_CONTENT);
 
 	private final HttpStatus status;
 

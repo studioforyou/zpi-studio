@@ -18,6 +18,8 @@ public enum DocumentKind {
 	/** Optional consent to marketing e-mails. */
 	MARKETING_EMAIL,
 	/** Optional consent to marketing text messages. */
-	MARKETING_SMS
+	MARKETING_SMS,
+	/** Optional consent to marketing notifications in the app (studio announcements marked as marketing). */
+	MARKETING_PUSH
 
 }

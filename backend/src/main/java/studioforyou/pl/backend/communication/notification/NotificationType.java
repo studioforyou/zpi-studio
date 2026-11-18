@@ -122,7 +122,10 @@ public enum NotificationType {
 			new Placeholder(Placeholder.TIME, "Start time, e.g. \"18:00\""),
 			new Placeholder(Placeholder.ROOM, "Room names, or \"studio\" when no room is assigned"),
 			new Placeholder(Placeholder.BOOKED, "How many participants booked the class, e.g. \"2\""),
-			new Placeholder(Placeholder.MINIMUM, "How many participants the class needed, e.g. \"4\"")));
+			new Placeholder(Placeholder.MINIMUM, "How many participants the class needed, e.g. \"4\""))),
+
+	/** A message the administrator wrote; its title and text come from the announcement, not a template. */
+	ANNOUNCEMENT((short) 14, false, List.of());
 
 	private final short id;
 
@@ -146,6 +149,11 @@ public enum NotificationType {
 
 	public List<Placeholder> placeholders() {
 		return placeholders;
+	}
+
+	/** Whether the administrator configures the type in the notification settings. */
+	public boolean configurable() {
+		return this != ANNOUNCEMENT;
 	}
 
 	public static Optional<NotificationType> fromCode(String code) {
