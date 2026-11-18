@@ -634,6 +634,71 @@ void main() {
     );
 
     testWidgets(
+      'a studio announcement is labelled and opens its whole text in place',
+      (tester) async {
+        const body =
+            'W czwartek ćwiczymy w Sali 2 (piętro wyżej). Godzina bez zmian.';
+        final notifications = _Notifications(
+          items: [
+            AppNotification(
+              id: 'offer',
+              type: 'ANNOUNCEMENT',
+              title: 'Promocja −20% na karnety',
+              body: 'Karnety 20% taniej.',
+              data: {'announcementId': 'a-2', 'marketing': 'true'},
+              createdAt: DateTime.now(),
+            ),
+            AppNotification(
+              id: 'room',
+              type: 'ANNOUNCEMENT',
+              title: 'Zmiana sali w czwartek',
+              body: body,
+              data: {
+                'announcementId': 'a-1',
+                'marketing': 'false',
+                'author': 'Beata Lis',
+                'audience': 'grupa Pole dance początkujący',
+              },
+              createdAt: DateTime.now(),
+            ),
+          ],
+        );
+        final container = await pumpApp(
+          tester,
+          push: _Push(),
+          devices: _Devices(),
+          notifications: notifications,
+        );
+        await tester.tap(find.text('Anna').first);
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Wiadomości'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byTooltip('Powiadomienia'));
+        await tester.pumpAndSettle();
+
+        Finder inCards(String text) =>
+            find.descendant(of: find.byType(Card), matching: find.text(text));
+        expect(inCards('Oferta'), findsOneWidget);
+        expect(inCards('Komunikat studia'), findsOneWidget);
+        expect(find.byIcon(Icons.campaign_outlined), findsNWidgets(2));
+
+        await tester.tap(find.text('Zmiana sali w czwartek'));
+        await tester.pumpAndSettle();
+        expect(location(container), clientNotificationsPath);
+        expect(find.text('grupa Pole dance początkujący'), findsOneWidget);
+        expect(find.textContaining('Beata Lis'), findsOneWidget);
+        expect(find.textContaining('zgodziłeś(-aś)'), findsNothing);
+        expect(notifications.read, ['room']);
+        await tester.tap(find.text('Zamknij'));
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('Promocja −20% na karnety'));
+        await tester.pumpAndSettle();
+        expect(find.textContaining('zgodziłeś(-aś)'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
       'long notifications remain usable on a narrow screen with enlarged text',
       (tester) async {
         final notifications = _Notifications(
