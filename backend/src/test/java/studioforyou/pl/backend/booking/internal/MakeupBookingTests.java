@@ -70,6 +70,7 @@ class MakeupBookingTests {
 
 	@AfterEach
 	void cleanup() {
+		studioforyou.pl.backend.WaitlistNotificationCleanup.removeForService(jdbc, service);
 		jdbc.sql("UPDATE makeup_credit SET used_reservation_id = NULL WHERE source_pass_id IN (SELECT id FROM customer_pass WHERE variant_id = :v)").param("v", variant).update();
 		jdbc.sql("DELETE FROM waitlist_entry WHERE event_id IN (SELECT id FROM schedule_event WHERE service_type_id = :s)").param("s", service).update();
 		jdbc.sql("DELETE FROM pass_ledger WHERE pass_id IN (SELECT id FROM customer_pass WHERE variant_id = :v)").param("v", variant).update();

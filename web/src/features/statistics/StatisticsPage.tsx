@@ -9,6 +9,7 @@ import { BookingOutcomesPanel } from './BookingOutcomesPanel';
 import { ClassAttendancePanel } from './ClassAttendancePanel';
 import { CustomerActivityPanel } from './CustomerActivityPanel';
 import { OverviewPanel } from './OverviewPanel';
+import { SalesPanel } from './SalesPanel';
 import { StatisticsFilterBar } from './StatisticsFilterBar';
 import { defaultStatisticsTab, statisticsTabs, type StatisticsTab } from './statisticsTabs';
 import { useStatisticsFilters, type StatisticsFilters } from './useStatisticsFilters';
@@ -23,6 +24,7 @@ const panels: Record<StatisticsTab, (props: PanelProps) => ReactNode> = {
   attendance: ({ filters }) => <ClassAttendancePanel filters={filters} />,
   outcomes: ({ filters }) => <BookingOutcomesPanel filters={filters} />,
   customers: ({ filters }) => <CustomerActivityPanel filters={filters} />,
+  sales: ({ filters }) => <SalesPanel filters={filters} />,
 };
 
 /** The studio's dashboard: every report, for the period and events chosen above them. */

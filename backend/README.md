@@ -63,6 +63,12 @@ Spring Modulith's event publication registry (`event_publication`) stores the ev
 
 New messages (`NEW_MESSAGE`, #153) work this way inside `communication`: `MessagingService.send` publishes `MessageSent`, and `MessageNotifications` notifies every other participant of the conversation. In a private conversation the recipient gets it in the role they talk in there; in a group or class chat members get it as clients (a child's chat goes to the guardians) and leaders as trainers. A recipient has **one notification per conversation** for the messages they have not read: its deduplication key ends with the first unread message, and `Notifications.notifyNowOrUpdate` updates it with each new message (who wrote them, how many, the latest text), moves it to the top, makes it unread and sends it again. The push carries the notification ID as its tag (`android.notification.tag`, `apns-collapse-id`), so the phone replaces the previous one. Reading the conversation (`POST .../conversations/{id}/read`, also sending a message) marks its notifications read; the next message starts a new one. The push `data` has `conversationId`, the latest `messageId` and `role`, so the app opens the conversation in that role.
 
+## Account history
+
+`GET /api/v1/account-history` (administrators only, #63) shows who changed accounts and when, newest first: creation (invitation or a new administrator), activation (the owner accepting the invitation), suspension, reactivation and closure from `account_status_change`, and granted and revoked roles and added and removed permission overrides from the `identity` entries of `audit_log`. Filters: `accountId`, `actorId` (who made the change), `type` (repeatable), `query` (the changed account's name or e-mail) and `from`/`to` (studio dates). It returns a standard page. `GET /api/v1/account-history/actors` lists everyone who changed an account, for the actor filter.
+
+A status change without an author that only the owner can make (accepting the invitation, registering) is shown as the owner's; any other one has no actor (the system). The reasons the backend saves when the administrator gives none (e.g. `Suspended by an administrator`) are left out. Roles given when an account is created (by invitation or as a new administrator) are recorded in `audit_log` since #63; accounts created earlier have no such entry. Personal data edits are not part of this history.
+
 ## Tests
 
 Requires JDK 21. From `backend/`, run only the module architecture test without a Spring context, database, or Docker:

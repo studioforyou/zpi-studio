@@ -102,6 +102,27 @@ class PersonalTrainingActionsTests {
 	}
 
 	@Test
+	void theTrainerIsToldWhenTheClientCancelsTheTraining() throws Exception {
+		UUID trainerAccount=jdbc.sql("INSERT INTO account (email,status) VALUES (:email,'ACTIVE') RETURNING id").param("email","pt-actions-trainer-"+UUID.randomUUID()+"@example.test").query(UUID.class).single();
+		UUID staff=jdbc.sql("INSERT INTO staff_profile (account_id,first_name,last_name,calendar_color,status) VALUES (:account,'Iga','Trener','#E91E63','ACTIVE') RETURNING id").param("account",trainerAccount).query(UUID.class).single();
+		jdbc.sql("INSERT INTO event_staff (event_id,staff_id,role) VALUES (:event,:staff,'LEAD')").param("event",event).param("staff",staff).update();
+		try {
+			cancel("MAKEUP_GRANTED",30,0).andExpect(status().isOk());
+			String trainerNotices="SELECT n.title || ' / ' || n.body FROM notification n JOIN notification_type t ON t.id=n.notification_type_id WHERE n.recipient_id=:id AND t.code='CLASS_CANCELLED'";
+			Instant deadline=Instant.now().plusSeconds(10);
+			while(jdbc.sql(trainerNotices).param("id",trainerAccount).query(String.class).list().isEmpty() && Instant.now().isBefore(deadline)) Thread.sleep(50);
+			assertThat(jdbc.sql(trainerNotices).param("id",trainerAccount).query(String.class).single())
+				.startsWith("Zajęcia odwołane / Odwołano: Personal session, ").endsWith("Powód: rezygnacja klienta (PT Tester).");
+		}
+		finally {
+			studioforyou.pl.backend.NotificationCleanup.deleteNotifications(jdbc,"SELECT '"+trainerAccount+"'::uuid");
+			jdbc.sql("DELETE FROM event_staff WHERE staff_id=:staff").param("staff",staff).update();
+			jdbc.sql("DELETE FROM staff_profile WHERE id=:staff").param("staff",staff).update();
+			jdbc.sql("DELETE FROM account WHERE id=:id").param("id",trainerAccount).update();
+		}
+	}
+
+	@Test
 	void lateCancellationAndAChangedQuoteCannotSilentlyGrantOrSpendAnotherEntry() throws Exception {
 		jdbc.sql("UPDATE reservation SET free_cancel_until=now()-interval '1 hour' WHERE id=:id").param("id",reservation).update();
 		cancel("MAKEUP_GRANTED",30,0).andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("CANCELLATION_CONSEQUENCE_CHANGED"));
