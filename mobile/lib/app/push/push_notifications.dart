@@ -70,6 +70,8 @@ class PushNotifications {
   /// its `profileId`. Other types open the notifications screen.
   static const _clientPaths = {
     'CLASS_REMINDER': clientReservationsPath,
+    'CLASS_CHANGED': clientSchedulePath,
+    'CLASS_CANCELLED': clientReservationsPath,
     'PASS_EXPIRING': clientPassesPath,
     'PASS_LAST_ENTRY_USED': clientPassesPath,
   };
@@ -78,6 +80,14 @@ class PushNotifications {
     'TIME_OFF_APPROVED': trainerAvailabilityPath,
     'TIME_OFF_REJECTED': trainerAvailabilityPath,
     'TIME_OFF_CANCELLED': trainerAvailabilityPath,
+  };
+
+  /// Notification types about a class a trainer runs; with the role
+  /// `TRAINER` they open the trainer's schedule.
+  static const _trainerScheduleTypes = {
+    'CLASS_CHANGED',
+    'CLASS_CANCELLED',
+    'CLASS_AUTO_CANCELLED',
   };
 
   /// Opens what a notification is about (its `data`) and marks it read. A
@@ -89,13 +99,53 @@ class PushNotifications {
       return;
     }
     final notificationId = data['notificationId'];
-    if (notificationId != null) unawaited(_markRead(notificationId));
+    if (notificationId != null) unawaited(markRead(notificationId));
 
     final session = auth.session;
     final router = _ref.read(appRouterProvider);
     final conversationId = data['conversationId'];
     if (data['type'] == newMessageType && conversationId != null) {
       _openConversation(session, conversationId, data['role']);
+      return;
+    }
+    if ((data['type'] == 'WAITLIST_PLACE_OFFERED' ||
+            data['type'] == 'WAITLIST_PLACE_GRANTED') &&
+        session.roles.contains(AppRole.client)) {
+      final eventId = data['eventId'];
+      final choice = session.choices
+          .where(
+            (choice) =>
+                choice.role == AppRole.client &&
+                choice.profile?.id == data['profileId'],
+          )
+          .firstOrNull;
+      if (choice == null || eventId == null || eventId.isEmpty) {
+        router.go(
+          session.activeRole == AppRole.client
+              ? clientNotificationsPath
+              : trainerNotificationsPath,
+        );
+        return;
+      }
+      if (session.activeRole != AppRole.client ||
+          session.activeProfileId != choice.profile?.id) {
+        _ref.read(authControllerProvider.notifier).choose(choice);
+      }
+      router.go(clientClassDetailsLocation(eventId));
+      return;
+    }
+    if (_trainerScheduleTypes.contains(data['type']) &&
+        data['role'] == AppRole.trainer.apiValue &&
+        session.roles.contains(AppRole.trainer)) {
+      if (session.activeRole != AppRole.trainer) {
+        final choice = session.choices
+            .where((choice) => choice.role == AppRole.trainer)
+            .firstOrNull;
+        if (choice != null) {
+          _ref.read(authControllerProvider.notifier).choose(choice);
+        }
+      }
+      router.go(trainerSchedulePath);
       return;
     }
     final clientPath = _clientPaths[data['type']];
@@ -168,7 +218,7 @@ class PushNotifications {
       ..invalidate(unreadCountProvider);
   }
 
-  Future<void> _markRead(String notificationId) async {
+  Future<void> markRead(String notificationId) async {
     try {
       await _ref.read(notificationsApiProvider).markRead(notificationId);
     } catch (_) {
@@ -189,7 +239,7 @@ class PushNotifications {
       if (open.id == conversationId) {
         open.messageArrived(conversationId);
         final notificationId = message.data['notificationId'];
-        if (notificationId != null) unawaited(_markRead(notificationId));
+        if (notificationId != null) unawaited(markRead(notificationId));
         return;
       }
     }
@@ -201,7 +251,7 @@ class PushNotifications {
     if (messenger == null || text.isEmpty) return;
     messenger.showSnackBar(
       SnackBar(
-        content: Text(text),
+        content: Text(text, maxLines: 3, overflow: TextOverflow.ellipsis),
         action: SnackBarAction(
           label: AppLocalizations.of(messenger.context).notificationsShow,
           onPressed: () => open(message.data),

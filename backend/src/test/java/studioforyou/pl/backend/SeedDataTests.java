@@ -299,6 +299,26 @@ class SeedDataTests {
 		assertThat(JsonPath.<Integer>read(personal, "$.totals.absent")).isPositive();
 	}
 
+	@Test
+	void salesHistoryShowsPassesBoughtInTheAppAndAssignedAtTheDesk() throws Exception {
+		// Beata, the studio's administrator; the history covers half a year before the first run.
+		String token = seedToken(10);
+		LocalDate today = LocalDate.now(ZoneId.of("Europe/Warsaw"));
+		String sales = report(token, "/api/v1/reports/pass-sales", today.minusDays(90), today, null);
+		assertThat(JsonPath.<Integer>read(sales, "$.totals.passes")).isGreaterThanOrEqualTo(100);
+		assertThat(JsonPath.<Integer>read(sales, "$.totals.online")).isPositive();
+		assertThat(JsonPath.<Integer>read(sales, "$.totals.studio")).isPositive();
+		assertThat(JsonPath.<Integer>read(sales, "$.totals.free")).isPositive();
+		assertThat(JsonPath.<Integer>read(sales, "$.previous.totals.passes")).isPositive();
+		List<Integer> perKind = JsonPath.read(sales, "$.kinds[?(@.kind != 'VOUCHER')].counts.passes");
+		assertThat(perKind).hasSize(4).allSatisfy((passes) -> assertThat(passes).isPositive());
+		// Pole Dance 4 entries was sold at its old price before the price change 120 days ago.
+		String older = report(token, "/api/v1/reports/pass-sales", today.minusDays(180), today.minusDays(121), null);
+		List<Integer> polePrices = JsonPath.read(older,
+				"$.products[?(@.name == 'Karnet Pole Dance')].variants[*].priceMinor");
+		assertThat(polePrices).contains(16000);
+	}
+
 	private String report(String token, String path, LocalDate from, LocalDate to, @Nullable String kind)
 			throws Exception {
 		var request = get(path).header("Authorization", "Bearer " + token)
@@ -426,6 +446,38 @@ class SeedDataTests {
 		assertThat(jdbc.sql("SELECT status FROM substitution_request WHERE id='22000000-0000-0000-0000-000000127002'")
 			.query(String.class).single()).isEqualTo("CANCELLED");
 		assertThat(rowCounts()).isEqualTo(counts);
+	}
+
+	@Test
+	@Transactional
+	void waitlistNotificationExamplesHaveBothModesAndKeepTesterChangesOnRerun() throws Exception {
+		String token = seedToken(6);
+		String parent = "/api/v1/me/profiles/07000000-0000-0000-0000-000000000003/group-classes/19000000-0000-0000-0000-00000001400";
+		String offered = seedGet(token, parent + "1", false);
+		assertThat(JsonPath.<String>read(offered, "$.waitlist.ownEntry.status")).isEqualTo("WAITING");
+		assertThat(JsonPath.<Integer>read(offered, "$.waitlist.confirmationMinutes")).isEqualTo(30);
+		assertThat(JsonPath.<Integer>read(seedGet(token, parent + "2", false), "$.waitlist.confirmationMinutes")).isZero();
+		String child = seedGet(token, "/api/v1/me/profiles/07000000-0000-0000-0000-000000000004/group-classes/19000000-0000-0000-0000-000000014003", false);
+		assertThat(JsonPath.<String>read(child, "$.waitlist.ownEntry.customerId"))
+			.isEqualTo("07000000-0000-0000-0000-000000000004");
+		assertThat(jdbc.sql("""
+				SELECT p.entries_remaining::INT AS remaining, sum(l.entries_delta)::INT AS balance
+				FROM customer_pass p JOIN pass_ledger l ON l.pass_id = p.id
+				WHERE p.id BETWEEN '28000000-0000-0000-0000-000000014001' AND '28000000-0000-0000-0000-000000014004'
+				GROUP BY p.id
+				""").query().listOfRows()).hasSize(4)
+			.allSatisfy(row -> assertThat(row.get("remaining")).isEqualTo(row.get("balance")));
+		Map<String, Long> counts = rowCounts();
+		jdbc.sql("UPDATE waitlist_entry SET status = 'CANCELLED', resolved_at = now() WHERE id = '31000000-0000-0000-0000-000000014004'").update();
+		jdbc.sql("UPDATE notification SET read_at = now() WHERE id = '44000000-0000-0000-0000-000000014004'").update();
+		var waiting = jdbc.sql("SELECT * FROM waitlist_entry WHERE id = '31000000-0000-0000-0000-000000014004'").query().singleRow();
+		var notification = jdbc.sql("SELECT * FROM notification WHERE id = '44000000-0000-0000-0000-000000014004'").query().singleRow();
+		var script = new ResourceDatabasePopulator(new ClassPathResource("db/seed/R__seed_17_waitlist_notifications.sql"));
+		script.execute(dataSource);
+		script.execute(dataSource);
+		assertThat(rowCounts()).isEqualTo(counts);
+		assertThat(jdbc.sql("SELECT * FROM waitlist_entry WHERE id = '31000000-0000-0000-0000-000000014004'").query().singleRow()).isEqualTo(waiting);
+		assertThat(jdbc.sql("SELECT * FROM notification WHERE id = '44000000-0000-0000-0000-000000014004'").query().singleRow()).isEqualTo(notification);
 	}
 
 	private Map<String, Long> rowCounts() {

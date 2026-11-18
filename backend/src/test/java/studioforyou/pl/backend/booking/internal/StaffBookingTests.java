@@ -145,6 +145,7 @@ class StaffBookingTests {
 
 	@AfterEach
 	void cleanUp() {
+		studioforyou.pl.backend.WaitlistNotificationCleanup.removeForService(jdbc, service);
 		String events = "SELECT id FROM schedule_event WHERE service_type_id = '" + service + "'";
 		String reservations = "SELECT id FROM reservation WHERE event_id IN (" + events + ")";
 		String accounts = "SELECT id FROM account WHERE email LIKE '%" + EMAIL_DOMAIN + "'";

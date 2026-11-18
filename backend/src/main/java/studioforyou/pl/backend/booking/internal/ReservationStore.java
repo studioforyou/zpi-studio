@@ -87,6 +87,13 @@ class ReservationStore {
 				""").param("event", eventId).param("customer", customerId).query(MAPPER).optional();
 	}
 
+	/** Locks the event's active reservations in id order, after the caller has locked the event. */
+	List<Reservation> lockActiveInEvent(UUID eventId) {
+		return this.jdbc.sql("""
+				SELECT * FROM reservation WHERE event_id = :event AND status = 'ACTIVE' ORDER BY id FOR UPDATE
+				""").param("event", eventId).query(MAPPER).list();
+	}
+
 	int activeCount(UUID eventId) {
 		return this.jdbc.sql("SELECT count(*) FROM reservation WHERE event_id = :event AND status = 'ACTIVE'")
 			.param("event", eventId).query(Integer.class).single();
@@ -198,7 +205,12 @@ class ReservationStore {
 			.param("credit", creditId).param("id", reservationId).query(MAPPER).single();
 	}
 
-	/** @param entryReturned whether the pass entry or make-up credit was returned; null without funding */
+	/**
+	 * @param actorId the account that cancelled it, or {@code null} when the system did
+	 * @param entryReturned whether the pass entry or make-up credit was returned; null without funding
+	 * @param kind {@code IN_TIME} or {@code LATE} when the participant cancelled, {@code STUDIO} when
+	 * the class was cancelled
+	 */
 	Reservation cancel(Reservation reservation, UUID actorId, Instant now, Boolean entryReturned, String kind) {
 		return this.jdbc.sql("""
 				UPDATE reservation SET status = 'CANCELLED', cancelled_at = :now, cancelled_by = :actor,

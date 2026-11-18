@@ -11,6 +11,20 @@ function countOf(count: number, one: string, few: string, many: string): string 
   return `${count.toLocaleString('pl-PL')} ${unit}`;
 }
 
+const waitlistClassFields = {
+  zajęcia: {
+    label: 'Nazwa zajęć',
+    description: 'Nazwa zajęć z listą rezerwową',
+    example: 'Pole dance',
+  },
+  dzień: {
+    label: 'Dzień zajęć',
+    description: 'Dzień tygodnia i data zajęć',
+    example: 'piątek 13.11',
+  },
+  godzina: { label: 'Godzina', description: 'Godzina rozpoczęcia zajęć', example: '18:00' },
+};
+
 /** "1 zajęcia", "3 zajęcia", "5 zajęć". */
 function eventCount(n: number): string {
   const few = n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14);
@@ -1335,6 +1349,16 @@ export const pl = {
       before: (time: string) => `${time} przed`,
       edit: 'Edytuj',
       types: {
+        WAITLIST_PLACE_OFFERED: {
+          name: 'Miejsce z listy rezerwowej do potwierdzenia',
+          description:
+            'Wysyłane, gdy zwolni się miejsce wymagające potwierdzenia. Zawiera termin na decyzję; powiadomienie dziecka dostaje rodzic.',
+        },
+        WAITLIST_PLACE_GRANTED: {
+          name: 'Automatyczny zapis z listy rezerwowej',
+          description:
+            'Wysyłane po automatycznym zapisie na zwolnione miejsce. Nie wymaga dodatkowego potwierdzenia.',
+        },
         CLASS_REMINDER: {
           name: 'Przypomnienie o zajęciach',
           description:
@@ -1372,8 +1396,32 @@ export const pl = {
           description:
             'Wysyłane trenerowi od razu, gdy studio anuluje jego zatwierdzoną nieobecność. Gdy trener sam ją anuluje, nic nie jest wysyłane.',
         },
+        CLASS_CHANGED: {
+          name: 'Zmiana zajęć',
+          description:
+            'Wysyłane od razu po zmianie godziny, sali lub prowadzącego zajęć albo treningu: zapisanym uczestnikom, osobom z listy rezerwowej oraz trenerom przed zmianą i po niej. Powiadomienia dziecka dostaje rodzic.',
+        },
+        CLASS_CANCELLED: {
+          name: 'Odwołanie zajęć',
+          description:
+            'Wysyłane od razu po odwołaniu zajęć albo treningu: zapisanym uczestnikom, osobom z listy rezerwowej i trenerom. Gdy zajęcia odwołano automatycznie z powodu zbyt małej liczby uczestników, trenerzy dostają osobne powiadomienie. Powiadomienia dziecka dostaje rodzic.',
+        },
+        CLASS_AUTO_CANCELLED: {
+          name: 'Automatyczne odwołanie zajęć',
+          description:
+            'Wysyłane trenerom od razu, gdy zajęcia grupowe zostaną odwołane automatycznie, bo zapisało się mniej osób niż wymagane minimum.',
+        },
       },
       placeholders: {
+        WAITLIST_PLACE_OFFERED: {
+          ...waitlistClassFields,
+          'potwierdź do': {
+            label: 'Termin potwierdzenia',
+            description: 'Data i godzina końca oferty w czasie studia',
+            example: '13.11, 15:30',
+          },
+        },
+        WAITLIST_PLACE_GRANTED: waitlistClassFields,
         CLASS_REMINDER: {
           zajęcia: {
             label: 'Nazwa zajęć',
@@ -1503,6 +1551,99 @@ export const pl = {
             example: '19.11–20.11',
           },
         },
+        CLASS_CHANGED: {
+          zajęcia: {
+            label: 'Nazwa zajęć',
+            description: 'Nazwa zajęć lub treningu',
+            example: 'Pole dance',
+          },
+          dzień: {
+            label: 'Dzień',
+            description: 'Dzień zajęć po zmianie: „dziś”, „jutro” albo dzień tygodnia z datą',
+            example: 'jutro',
+          },
+          godzina: {
+            label: 'Godzina',
+            description: 'Godzina rozpoczęcia po zmianie, np. „19:00”',
+            example: '19:00',
+          },
+          sala: {
+            label: 'Sala',
+            description: 'Sala po zmianie albo „studio”, gdy sala nie jest przypisana',
+            example: 'Sala 2',
+          },
+          prowadzący: {
+            label: 'Prowadzący',
+            description: 'Prowadzący po zmianie, np. „Anna Nowak”',
+            example: 'Anna Nowak',
+          },
+          zmiany: {
+            label: 'Co się zmieniło',
+            description:
+              'Co się zmieniło, z wartościami przed i po, np. „godzina 18:00–19:00 → 19:00–20:00”; dla trenera dodanego lub usuniętego z zajęć informacja o tym',
+            example: 'godzina 18:00–19:00 → 19:00–20:00, sala Sala 1 → Sala 2',
+          },
+        },
+        CLASS_CANCELLED: {
+          zajęcia: {
+            label: 'Nazwa zajęć',
+            description: 'Nazwa zajęć lub treningu',
+            example: 'Pole dance',
+          },
+          dzień: {
+            label: 'Dzień',
+            description: '„dziś”, „jutro” albo dzień tygodnia z datą, np. „wtorek 12.11”',
+            example: 'jutro',
+          },
+          godzina: {
+            label: 'Godzina',
+            description: 'Godzina rozpoczęcia, np. „18:00”',
+            example: '18:00',
+          },
+          sala: {
+            label: 'Sala',
+            description: 'Nazwa sali albo „studio”, gdy sala nie jest przypisana',
+            example: 'Sala 1',
+          },
+          powód: {
+            label: 'Powód',
+            description:
+              'Dlaczego odwołano zajęcia, np. „zbyt mało zapisanych osób” albo „rezygnacja klienta (Anna Nowak)”',
+            example: 'zbyt mało zapisanych osób',
+          },
+        },
+        CLASS_AUTO_CANCELLED: {
+          zajęcia: {
+            label: 'Nazwa zajęć',
+            description: 'Nazwa zajęć lub treningu',
+            example: 'Pole dance',
+          },
+          dzień: {
+            label: 'Dzień',
+            description: '„dziś”, „jutro” albo dzień tygodnia z datą, np. „wtorek 12.11”',
+            example: 'jutro',
+          },
+          godzina: {
+            label: 'Godzina',
+            description: 'Godzina rozpoczęcia, np. „18:00”',
+            example: '18:00',
+          },
+          sala: {
+            label: 'Sala',
+            description: 'Nazwa sali albo „studio”, gdy sala nie jest przypisana',
+            example: 'Sala 1',
+          },
+          zapisanych: {
+            label: 'Liczba zapisanych',
+            description: 'Ile osób było zapisanych w chwili sprawdzenia, np. „2”',
+            example: '2',
+          },
+          minimum: {
+            label: 'Wymagane minimum',
+            description: 'Ilu uczestników wymagały zajęcia, np. „4”',
+            example: '4',
+          },
+        },
       },
       form: {
         leadTimes: 'Kiedy wysłać',
@@ -1546,6 +1687,7 @@ export const pl = {
       attendance: 'Frekwencja i obłożenie',
       outcomes: 'Nieobecności i anulowania',
       customers: 'Klienci',
+      sales: 'Sprzedaż',
     },
     filters: {
       label: 'Filtry',
@@ -1569,6 +1711,8 @@ export const pl = {
       inactive: (name: string) => `${name} (nieaktywne)`,
       clear: 'Wyczyść filtry',
       lookupError: 'Nie udało się wczytać list do filtrów; raporty działają bez nich.',
+      salesNotFiltered:
+        'Sprzedaż obejmuje całe studio: filtry typu, rodzaju zajęć, instruktora, grupy i sali jej nie dotyczą.',
       customersNotFiltered:
         'Raport klientów obejmuje całe studio: filtry typu, rodzaju zajęć, instruktora, grupy i sali go nie dotyczą.',
       groupKindsOnly:
@@ -1609,6 +1753,71 @@ export const pl = {
     /** Shared by the attendance and cancellation reports. */
     heldOnly:
       'Liczą się zajęcia, które już się rozpoczęły i nie zostały odwołane przez studio. Uczestnik bez zaznaczonej obecności liczy się jako obecny, tak jak przy zamknięciu zajęć przez trenera.',
+    sales: {
+      loadError: 'Nie udało się wczytać sprzedaży.',
+      rules:
+        'Liczą się karnety kupione i opłacone przez klientów oraz przypisane przez studio w wybranym okresie (według daty zakupu). Nieopłacone i anulowane zamówienia się nie liczą. Przychód to cena faktycznie zapłacona.',
+      empty: 'Brak sprzedaży w tym okresie',
+      emptyHint:
+        'Wybierz dłuższy okres albo sprawdź, czy klienci mogą kupować karnety w aplikacji.',
+      revenue: 'Przychód ze sprzedaży',
+      passes: 'Sprzedane karnety',
+      average: 'Średnia wartość karnetu',
+      topProduct: 'Najczęściej kupowany',
+      topProducts: 'Najchętniej kupowane',
+      previous: (value: string) => `poprzednio ${value}`,
+      noChange: 'bez zmian',
+      free: (count: number) =>
+        `w tym ${countOf(count, 'przypisany', 'przypisane', 'przypisanych')} bez opłaty`,
+      topDetail: (passes: number, share: string, revenue: string) =>
+        `${passes.toLocaleString('pl-PL')} szt. · ${share} sprzedanych · ${revenue}`,
+      rankingTitle: {
+        kind: 'Sprzedaż według rodzaju karnetu',
+        product: 'Sprzedaż według produktu',
+      },
+      rankingSubtitle: {
+        passes: 'Liczba sprzedanych karnetów, od największej',
+        revenue: 'Przychód, od największego',
+      },
+      groupByLabel: 'Grupuj według',
+      groupBy: { kind: 'Rodzaj karnetu', product: 'Produkt' },
+      measureLabel: 'Pokaż',
+      measure: { passes: 'Liczba', revenue: 'Przychód' },
+      pieces: (count: number) => `${count.toLocaleString('pl-PL')} szt.`,
+      trendTitle: 'Sprzedaż w czasie',
+      trendSubtitle: {
+        day: 'Dzień po dniu, według rodzaju karnetu',
+        week: 'Tydzień po tygodniu, według rodzaju karnetu',
+        month: 'Miesiąc po miesiącu, według rodzaju karnetu',
+      },
+      tableTitle: 'Produkty',
+      tableSubtitle: 'Rozwiń produkt, żeby zobaczyć warianty (liczba wejść, ważność, cena)',
+      columns: {
+        product: 'Produkt',
+        kind: 'Rodzaj',
+        passes: 'Sprzedane',
+        online: 'przez aplikację',
+        studio: 'w studiu',
+        revenue: 'Przychód',
+        share: 'Udział w przychodzie',
+      },
+      freeInRow: (count: number) => `(${count.toLocaleString('pl-PL')} bez opłaty)`,
+      total: 'Razem',
+      expand: (name: string) => `Pokaż warianty: ${name}`,
+      collapse: (name: string) => `Ukryj warianty: ${name}`,
+      variant: (entries: string, days: number, price: string) =>
+        `${entries} · ${countOf(days, 'dzień', 'dni', 'dni')} · ${price}`,
+      unlimited: 'bez limitu',
+      sessions: (count: number) => countOf(count, 'sesja', 'sesje', 'sesji'),
+      entries: (count: number) => passEntryCount(count),
+      kinds: {
+        ENTRY_PASS: 'Karnet na wejścia',
+        SINGLE_ENTRY: 'Wejście jednorazowe',
+        PT_PACKAGE: 'Pakiet treningów personalnych',
+        TIME_PASS: 'Karnet czasowy',
+        VOUCHER: 'Voucher',
+      },
+    },
     customers: {
       active: 'Aktywni klienci',
       new: 'Nowi klienci',

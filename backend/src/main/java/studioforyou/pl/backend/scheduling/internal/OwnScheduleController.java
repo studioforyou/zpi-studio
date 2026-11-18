@@ -14,6 +14,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import studioforyou.pl.backend.identity.CurrentAccount;
 import studioforyou.pl.backend.scheduling.internal.ScheduleDtos.OwnEventRequest;
+import studioforyou.pl.backend.scheduling.internal.ScheduleDtos.OwnConsultationRequest;
 import studioforyou.pl.backend.scheduling.internal.ScheduleDtos.PlanPreviewResponse;
 import studioforyou.pl.backend.scheduling.internal.ScheduleDtos.ScheduleEventResponse;
 import studioforyou.pl.backend.scheduling.internal.ScheduleQueries.TimetableFilter;
@@ -134,6 +135,25 @@ class OwnScheduleController {
 	PlanPreviewResponse previewOwnScheduleEvent(@Valid @RequestBody OwnEventRequest request,
 			Authentication authentication) {
 		return this.planner.previewEvent(request.runBy(staffId(authentication)));
+	}
+
+	@PostMapping("/consultations")
+	@Operation(summary = "Reserve my time and a room for a consultation", operationId = "createOwnConsultation",
+			description = "Creates a private one-off consultation without a customer, reservation or pass entry. "
+					+ "The trainer comes from the signed-in account. The room is reserved exclusively. "
+					+ "Conflicts reject the request with RESOURCE_CAPACITY_EXCEEDED or STAFF_SCHEDULE_CONFLICT.")
+	ResponseEntity<ScheduleEventResponse> createOwnConsultation(@Valid @RequestBody OwnConsultationRequest request,
+			Authentication authentication) {
+		return ResponseEntity.status(HttpStatus.CREATED).body(this.planner.createConsultation(request,
+				staffId(authentication), CurrentAccount.of(authentication).id()));
+	}
+
+	@PostMapping("/consultations/preview")
+	@Operation(summary = "Check a consultation's room and trainer availability without saving",
+			operationId = "previewOwnConsultation")
+	PlanPreviewResponse previewOwnConsultation(@Valid @RequestBody OwnConsultationRequest request,
+			Authentication authentication) {
+		return this.planner.previewConsultation(request, staffId(authentication));
 	}
 
 	private UUID staffId(Authentication authentication) {
