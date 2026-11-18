@@ -8,6 +8,7 @@ export type TimeOffStatus = (typeof timeOffStatuses)[number];
 
 /** Leave or unavailability of a staff member; `endsAt` is exclusive. */
 export type TimeOff = {
+  version?: number;
   id: string;
   staffId: string;
   staffDisplayName: string;
@@ -36,6 +37,7 @@ export type TimeOffQuery = {
 };
 
 export type RecordTimeOffInput = {
+  substitutionEventIds?: string[];
   staffId: string;
   kind: TimeOffKind;
   startsAt: string;
@@ -82,17 +84,114 @@ export function recordTimeOff(input: RecordTimeOffInput): Promise<TimeOff> {
   return apiFetch<TimeOff>('/api/v1/staff/time-off', { method: 'POST', body: input });
 }
 
-export function approveTimeOff(id: string, note: string | null): Promise<TimeOff> {
+export function approveTimeOff(
+  id: string,
+  note: string | null,
+  version?: number,
+  substitutionEventIds?: string[],
+): Promise<TimeOff> {
   return apiFetch<TimeOff>(`/api/v1/staff/time-off/${id}/approve`, {
     method: 'POST',
-    body: { note },
+    body: { note, version, substitutionEventIds },
   });
 }
 
-export function rejectTimeOff(id: string, note: string | null): Promise<TimeOff> {
+export type TimeOffLesson = {
+  eventId: string;
+  eventVersion: number;
+  title: string;
+  kind: string;
+  rooms: string;
+  startsAt: string;
+  endsAt: string;
+  selectable: boolean;
+  selected: boolean;
+  requestId: string | null;
+  requestVersion: number | null;
+  status: string;
+  substituteStaffId: string | null;
+  substituteTrainer: string | null;
+};
+
+export type TimeOffPlan = {
+  timeOffId: string | null;
+  version: number;
+  status: string;
+  items: TimeOffLesson[];
+};
+export const timeOffCoverKeys = {
+  all: [...timeOffKeys.all, 'substitutions'] as const,
+  plan: (id: string) => [...timeOffCoverKeys.all, id] as const,
+  preview: (staff: string, from: string, to: string) =>
+    [...timeOffCoverKeys.all, 'preview', staff, from, to] as const,
+  candidates: (id: string, version: number, ids: string[]) =>
+    [...timeOffCoverKeys.all, id, 'candidates', version, ids] as const,
+};
+
+export function getTimeOffPlan(id: string): Promise<TimeOffPlan> {
+  return apiFetch(`/api/v1/staff/time-off/${id}/substitutions`);
+}
+
+export function previewTimeOffPlan(
+  staffId: string,
+  from: string,
+  to: string,
+): Promise<TimeOffPlan> {
+  return apiFetch(
+    `/api/v1/staff/time-off/substitution-options?${new URLSearchParams({ staffId, from, to })}`,
+  );
+}
+
+export function saveTimeOffSelection(
+  id: string,
+  version: number,
+  eventIds: string[],
+): Promise<TimeOffPlan> {
+  return apiFetch(`/api/v1/staff/time-off/${id}/substitutions`, {
+    method: 'POST',
+    body: { version, eventIds },
+  });
+}
+
+export async function timeOffCandidates(id: string, version: number, eventIds: string[]) {
+  const result = await apiFetch<ListResponse<import('./substitutionApi').SubstitutionCandidate>>(
+    `/api/v1/staff/time-off/${id}/substitutions/candidates`,
+    { method: 'POST', body: { version, eventIds } },
+  );
+  return result.items;
+}
+
+export type TimeOffBatch = {
+  version: number;
+  items: Pick<TimeOffLesson, 'eventId' | 'eventVersion' | 'requestId' | 'requestVersion'>[];
+  staffId?: string;
+  note?: string;
+};
+
+export function decideTimeOffCover(
+  id: string,
+  action: 'approve' | 'assign',
+  input: TimeOffBatch,
+): Promise<TimeOffPlan> {
+  return apiFetch(`/api/v1/staff/time-off/${id}/substitutions/${action}`, {
+    method: 'POST',
+    body: input,
+  });
+}
+
+export function chosenTimeOffEvents(
+  plan: TimeOffPlan | undefined,
+  choices: Record<string, boolean>,
+): string[] {
+  return (plan?.items ?? [])
+    .filter((i) => i.selectable && (choices[i.eventId] ?? i.selected))
+    .map((i) => i.eventId);
+}
+
+export function rejectTimeOff(id: string, note: string | null, version?: number): Promise<TimeOff> {
   return apiFetch<TimeOff>(`/api/v1/staff/time-off/${id}/reject`, {
     method: 'POST',
-    body: { note },
+    body: { note, version },
   });
 }
 

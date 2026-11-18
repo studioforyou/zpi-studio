@@ -14,6 +14,8 @@ import studioforyou.pl.backend.audit.AuditLog;
 import studioforyou.pl.backend.configuration.StudioSettings;
 import studioforyou.pl.backend.scheduling.SubstitutionOffers;
 import studioforyou.pl.backend.scheduling.SubstitutionOpened;
+import studioforyou.pl.backend.scheduling.ScheduleEventChanged;
+import studioforyou.pl.backend.scheduling.ScheduleEventCancelled;
 import studioforyou.pl.backend.scheduling.internal.ScheduleDtos.AssignmentScope;
 import studioforyou.pl.backend.scheduling.internal.ScheduleDtos.ChangeAssignmentsRequest;
 import studioforyou.pl.backend.scheduling.internal.ScheduleDtos.ResourceAssignmentRequest;
@@ -29,6 +31,7 @@ import studioforyou.pl.backend.shared.api.ErrorCode;
 import studioforyou.pl.backend.staff.StaffProfiles;
 
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.context.event.EventListener;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -47,8 +50,11 @@ class SubstitutionManagement implements SubstitutionOffers {
 			       NULLIF(concat_ws(' ', s.first_name, s.last_name), '') AS substitute_name,
 			       COALESCE((SELECT string_agg(room.name, ', ' ORDER BY room.name) FROM event_resource er
 			         JOIN resource room ON room.id = er.resource_id WHERE er.event_id = e.id), 'Studio') AS rooms,
-			       EXISTS (SELECT 1 FROM event_staff es WHERE es.event_id = e.id
-			         AND es.staff_id = r.original_staff_id AND es.role = 'LEAD') AS current_lead
+			       (EXISTS (SELECT 1 FROM event_staff es WHERE es.event_id = e.id
+			         AND es.staff_id = r.original_staff_id AND es.role = 'LEAD')
+			         AND e.kind IN ('CLASS','PERSONAL_TRAINING')
+			         AND (r.time_off_id IS NULL OR EXISTS (SELECT 1 FROM staff_time_off t WHERE t.id=r.time_off_id
+			           AND t.status='APPROVED' AND e.starts_at<t.ends_at AND e.ends_at>t.starts_at))) AS current_lead
 			FROM substitution_request r JOIN schedule_event e ON e.id = r.event_id
 			JOIN staff_profile o ON o.id = r.original_staff_id
 			LEFT JOIN staff_profile s ON s.id = r.substitute_staff_id
@@ -215,10 +221,33 @@ class SubstitutionManagement implements SubstitutionOffers {
 	private void closeAndReopen(Row row, UUID actor, String status, @Nullable String note) {
 		decide(row, actor, status, row.substituteStaffId(), note);
 		UUID replacement = this.jdbc.sql("""
-				INSERT INTO substitution_request (event_id, original_staff_id, requested_by, reason)
-				SELECT event_id, original_staff_id, requested_by, reason FROM substitution_request WHERE id = :id RETURNING id
+				INSERT INTO substitution_request (event_id, original_staff_id, requested_by, reason, time_off_id)
+				SELECT event_id, original_staff_id, requested_by, reason, time_off_id FROM substitution_request WHERE id = :id RETURNING id
 				""").param("id", row.id()).query(UUID.class).single();
 		this.publisher.publishEvent(new SubstitutionOpened(replacement, 0));
+	}
+
+	@EventListener
+	void moved(ScheduleEventChanged event) {
+		if (!event.moved()) return;
+		this.jdbc.sql("""
+				UPDATE substitution_request r SET status='EXPIRED', version=version+1,
+				decision_note='Termin przeniesiono poza okres nieobecności.'
+				WHERE r.event_id=:event AND r.time_off_id IS NOT NULL AND r.status IN ('OPEN','CLAIMED')
+				AND NOT EXISTS (SELECT 1 FROM staff_time_off t WHERE t.id=r.time_off_id AND t.status='APPROVED'
+				  AND :starts<t.ends_at AND :ends>t.starts_at)
+				""").param("event", event.eventId()).param("starts", Timestamp.from(event.startsAt()))
+			.param("ends", Timestamp.from(event.endsAt())).update();
+	}
+
+	@EventListener
+	void cancelled(ScheduleEventCancelled event) {
+		this.jdbc.sql("""
+				UPDATE substitution_request r SET status='CANCELLED', version=version+1,
+				decided_by=:actor, decided_at=now(), decision_note='Zajęcia zostały odwołane.'
+				WHERE r.event_id=:event AND r.status IN ('OPEN','CLAIMED')
+				AND EXISTS (SELECT 1 FROM schedule_event e WHERE e.id=r.event_id AND e.status='CANCELLED')
+				""").param("event", event.eventId()).param("actor", event.cancelledBy(), java.sql.Types.OTHER).update();
 	}
 
 	private void decide(Row row, UUID actor, String status, @Nullable UUID candidate, @Nullable String note) {

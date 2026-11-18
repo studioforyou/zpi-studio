@@ -151,6 +151,7 @@ class _AvailabilityAdapter implements HttpClientAdapter {
   final requests = <_Request>[];
   final timeOffRequests = <_Request>[];
   List<Map<String, dynamic>> timeOff = [];
+  List<Map<String, dynamic>> coverLessons = [];
   List<Map<String, dynamic>> slots = [
     _weekly('slot-mon', 1, '08:00', '10:00'),
     _weekly('slot-thu', 4, '17:00', '21:00'),
@@ -235,6 +236,16 @@ class _AvailabilityAdapter implements HttpClientAdapter {
   }
 
   ResponseBody _timeOffResponse(RequestOptions options) {
+    if (options.method == 'GET' &&
+        (options.path.endsWith('/substitution-options') ||
+            options.path.endsWith('/substitutions'))) {
+      return _json({
+        'timeOffId': null,
+        'version': 0,
+        'status': 'REQUESTED',
+        'items': coverLessons,
+      }, 200);
+    }
     if (options.method == 'GET') {
       return _json({'items': timeOff}, 200);
     }
@@ -593,8 +604,11 @@ void main() {
     await tapAndSettle(tester, find.text('Urlop lub niedostępność'));
 
     expect(find.byType(TimeOffEditorSheet), findsOneWidget);
-    expect(find.text('W tym czasie nie masz zajęć.'), findsOneWidget);
-    await tapAndSettle(tester, find.text('Zwolnienie lekarskie'));
+    expect(
+      find.text('W tym terminie nie ma zajęć do przekazania.'),
+      findsOneWidget,
+    );
+    await tapAndSettle(tester, find.text('Zwolnienie'));
     await tapAndSettle(tester, find.text('Wyślij wniosek'));
 
     expect(adapter.timeOffRequests.single.method, 'POST');
@@ -603,11 +617,60 @@ void main() {
       'startsAt': DateTime(2030, 11, 6).toUtc().toIso8601String(),
       'endsAt': DateTime(2030, 11, 7).toUtc().toIso8601String(),
       'reason': null,
+      'substitutionEventIds': <String>[],
     });
     expect(find.byType(TimeOffEditorSheet), findsNothing);
     expect(find.text('Wniosek został wysłany do studia.'), findsOneWidget);
     expect(adapter.requests, isEmpty);
   });
+
+  testWidgets(
+    'selects all cover sessions by default and sends only checked ones',
+    (tester) async {
+      adapter.coverLessons = [
+        for (var i = 1; i <= 3; i++)
+          {
+            'eventId': 'event-$i',
+            'title': 'Trening personalny',
+            'rooms': 'Sala A',
+            'startsAt': '2030-11-06T${11 + i}:00:00',
+            'endsAt': '2030-11-06T${12 + i}:00:00',
+            'selectable': i != 3,
+            'selected': true,
+            'status': i == 3 ? 'OPEN' : 'NOT_REQUESTED',
+          },
+      ];
+      await openAvailability(tester);
+      await tapAndSettle(tester, find.byTooltip('Dodaj'));
+      await tapAndSettle(tester, find.text('Urlop lub niedostępność'));
+      final checkboxes = find.byType(CheckboxListTile);
+      expect(
+        tester.widgetList<CheckboxListTile>(checkboxes).map((c) => c.value),
+        [true, true, false],
+      );
+      expect(
+        tester.widget<CheckboxListTile>(checkboxes.at(2)).onChanged,
+        isNull,
+      );
+      await tester.ensureVisible(find.text('Odznacz wszystkie'));
+      await tapAndSettle(tester, find.text('Odznacz wszystkie'));
+      expect(
+        tester
+            .widgetList<CheckboxListTile>(checkboxes)
+            .every((c) => c.value == false),
+        isTrue,
+      );
+      await tapAndSettle(tester, find.text('Zaznacz wszystkie'));
+      await tester.ensureVisible(checkboxes.at(1));
+      await tapAndSettle(tester, checkboxes.at(1));
+      await tester.ensureVisible(find.text('Wyślij wniosek'));
+      await tapAndSettle(tester, find.text('Wyślij wniosek'));
+      expect(
+        (adapter.timeOffRequests.single.data as Map)['substitutionEventIds'],
+        ['event-1'],
+      );
+    },
+  );
 
   testWidgets('changes a request that waits for a decision', (tester) async {
     adapter.timeOff = _someTimeOff();
@@ -637,6 +700,8 @@ void main() {
       'startsAt': DateTime(2030, 11, 13, 17).toUtc().toIso8601String(),
       'endsAt': DateTime(2030, 11, 13, 19).toUtc().toIso8601String(),
       'reason': 'Szkolenie',
+      'substitutionEventIds': <String>[],
+      'version': 0,
     });
     expect(find.text('Wniosek został zmieniony.'), findsOneWidget);
   });

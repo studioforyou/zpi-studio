@@ -104,3 +104,113 @@ SELECT '29000000-0000-0000-0000-000000019001','03000000-0000-0000-0000-000000000
 FROM substitution_request r JOIN schedule_event e ON e.id=r.event_id
 WHERE r.id='22000000-0000-0000-0000-000000019001' AND r.status='OPEN'
 ON CONFLICT DO NOTHING;
+
+
+-- DEV/STAGE: a pending request with a saved selection and an approved absence with offers.
+-- Insert-only fixtures keep the trainer's choices and the administrator's decisions on reruns.
+WITH slots AS (
+    SELECT ((day::DATE + hour::TIME) AT TIME ZONE 'Europe/Warsaw') AS starts_at
+    FROM generate_series((CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Warsaw')::DATE + 8,
+                         (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Warsaw')::DATE + 15, INTERVAL '1 day') day
+    CROSS JOIN (VALUES ('10:00'), ('13:00'), ('16:00')) hours(hour)
+), free AS (
+    SELECT starts_at, row_number() OVER (ORDER BY starts_at) AS ordinal FROM slots s
+    WHERE NOT EXISTS (
+        SELECT 1 FROM schedule_event e WHERE e.status <> 'CANCELLED'
+          AND e.starts_at < s.starts_at + INTERVAL '1 hour' AND e.ends_at > s.starts_at
+          AND (EXISTS (SELECT 1 FROM event_staff es WHERE es.event_id=e.id AND es.staff_id IN (
+              '08000000-0000-0000-0000-000000000002'::UUID, '08000000-0000-0000-0000-000000000003'::UUID))
+            OR EXISTS (SELECT 1 FROM event_resource er WHERE er.event_id=e.id AND er.resource_id=
+              '15000000-0000-0000-0000-000000000002'::UUID))
+    ) AND NOT EXISTS (
+        SELECT 1 FROM staff_time_off t WHERE t.staff_id IN (
+            '08000000-0000-0000-0000-000000000002'::UUID, '08000000-0000-0000-0000-000000000003'::UUID)
+          AND t.status IN ('REQUESTED','APPROVED')
+          AND t.starts_at < s.starts_at + INTERVAL '1 hour' AND t.ends_at > s.starts_at
+    )
+)
+INSERT INTO schedule_event(id,kind,service_type_id,title,starts_at,ends_at,capacity,visibility,status,created_by)
+SELECT ('19000000-0000-0000-0000-'||lpad((20000+slot)::TEXT,12,'0'))::UUID,
+       CASE WHEN slot=2 THEN 'CLASS' ELSE 'PERSONAL_TRAINING' END,
+       CASE WHEN slot=2 THEN '10000000-0000-0000-0000-000000000003'::UUID ELSE '10000000-0000-0000-0000-000000000004'::UUID END,
+       CASE WHEN slot=2 THEN 'Fitness — trening grupowy' ELSE 'Trening personalny' END,
+       starts_at, starts_at+INTERVAL '1 hour', CASE WHEN slot=2 THEN 10 ELSE 1 END,
+       CASE WHEN slot=2 THEN 'PUBLIC' ELSE 'PRIVATE' END, 'SCHEDULED', '03000000-0000-0000-0000-000000000010'
+FROM generate_series(1,7) slot JOIN free ON ordinal=CASE WHEN slot<=4 THEN slot ELSE slot+3 END
+ON CONFLICT DO NOTHING;
+
+INSERT INTO event_staff(event_id,staff_id,role)
+SELECT id, CASE WHEN id<='19000000-0000-0000-0000-000000020004'::UUID
+                THEN '08000000-0000-0000-0000-000000000002'::UUID ELSE '08000000-0000-0000-0000-000000000003'::UUID END, 'LEAD'
+FROM schedule_event e WHERE id BETWEEN '19000000-0000-0000-0000-000000020001' AND '19000000-0000-0000-0000-000000020007'
+AND NOT EXISTS (SELECT 1 FROM event_staff es WHERE es.event_id=e.id) ON CONFLICT DO NOTHING;
+
+INSERT INTO event_resource(event_id,resource_id,blocks_whole_room)
+SELECT id,'15000000-0000-0000-0000-000000000002',TRUE FROM schedule_event e
+WHERE id BETWEEN '19000000-0000-0000-0000-000000020001' AND '19000000-0000-0000-0000-000000020007'
+AND NOT EXISTS (SELECT 1 FROM event_resource er WHERE er.event_id=e.id) ON CONFLICT DO NOTHING;
+
+INSERT INTO staff_time_off(id,staff_id,kind,starts_at,ends_at,status,reason,requested_at,decided_by,decided_at)
+SELECT '17000000-0000-0000-0000-000000020001','08000000-0000-0000-0000-000000000002','VACATION',
+       date_trunc('day',min(starts_at) AT TIME ZONE 'Europe/Warsaw') AT TIME ZONE 'Europe/Warsaw',
+       (date_trunc('day',max(ends_at) AT TIME ZONE 'Europe/Warsaw') + INTERVAL '1 day') AT TIME ZONE 'Europe/Warsaw',
+       'REQUESTED','Wyjazd rodzinny',now(),NULL,NULL
+FROM schedule_event WHERE id BETWEEN '19000000-0000-0000-0000-000000020001' AND '19000000-0000-0000-0000-000000020004'
+HAVING count(*)=4 ON CONFLICT DO NOTHING;
+
+INSERT INTO staff_time_off(id,staff_id,kind,starts_at,ends_at,status,reason,requested_at,decided_by,decided_at)
+SELECT '17000000-0000-0000-0000-000000020002','08000000-0000-0000-0000-000000000003','VACATION',
+       date_trunc('day',min(starts_at) AT TIME ZONE 'Europe/Warsaw') AT TIME ZONE 'Europe/Warsaw',
+       (date_trunc('day',max(ends_at) AT TIME ZONE 'Europe/Warsaw') + INTERVAL '1 day') AT TIME ZONE 'Europe/Warsaw',
+       'APPROVED','Wyjazd',now(),'03000000-0000-0000-0000-000000000010',now()
+FROM schedule_event WHERE id BETWEEN '19000000-0000-0000-0000-000000020005' AND '19000000-0000-0000-0000-000000020007'
+HAVING count(*)=3 ON CONFLICT DO NOTHING;
+
+INSERT INTO time_off_substitution(time_off_id,event_id,selected)
+SELECT CASE WHEN e.id<='19000000-0000-0000-0000-000000020004'::UUID
+            THEN '17000000-0000-0000-0000-000000020001'::UUID ELSE '17000000-0000-0000-0000-000000020002'::UUID END,
+       e.id, e.id<>'19000000-0000-0000-0000-000000020004'::UUID
+FROM schedule_event e WHERE id BETWEEN '19000000-0000-0000-0000-000000020001' AND '19000000-0000-0000-0000-000000020007'
+AND EXISTS (SELECT 1 FROM staff_time_off t WHERE t.id=CASE WHEN e.id<='19000000-0000-0000-0000-000000020004'::UUID
+            THEN '17000000-0000-0000-0000-000000020001'::UUID ELSE '17000000-0000-0000-0000-000000020002'::UUID END)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO substitution_request(id,event_id,original_staff_id,requested_by,status,substitute_staff_id,claimed_at,time_off_id)
+SELECT ('22000000-0000-0000-0000-'||lpad(slot::TEXT,12,'0'))::UUID,e.id,
+       '08000000-0000-0000-0000-000000000003','03000000-0000-0000-0000-000000000003',
+       CASE WHEN slot=20007 THEN 'OPEN' ELSE 'CLAIMED' END,
+       CASE WHEN slot<>20007 THEN '08000000-0000-0000-0000-000000000002'::UUID END,
+       CASE WHEN slot<>20007 THEN now() END,'17000000-0000-0000-0000-000000020002'
+FROM generate_series(20005,20007) slot JOIN schedule_event e
+  ON e.id=('19000000-0000-0000-0000-'||lpad(slot::TEXT,12,'0'))::UUID
+WHERE EXISTS (SELECT 1 FROM staff_time_off t WHERE t.id='17000000-0000-0000-0000-000000020002' AND t.status='APPROVED')
+AND EXISTS (SELECT 1 FROM time_off_substitution ts WHERE ts.event_id=e.id AND ts.selected)
+AND NOT EXISTS (SELECT 1 FROM substitution_request r WHERE r.event_id=e.id)
+ON CONFLICT DO NOTHING;
+
+-- A consultation stays visible for a manual decision and never becomes a cover offer.
+WITH available AS (
+    SELECT candidate FROM staff_time_off t
+    CROSS JOIN LATERAL generate_series(t.starts_at + INTERVAL '9 hours', t.ends_at - INTERVAL '1 hour', INTERVAL '30 minutes') candidate
+    WHERE t.id='17000000-0000-0000-0000-000000020001'
+      AND extract(hour FROM candidate AT TIME ZONE 'Europe/Warsaw') BETWEEN 9 AND 19
+      AND NOT EXISTS (SELECT 1 FROM schedule_event e WHERE e.status<>'CANCELLED'
+        AND e.starts_at<candidate+INTERVAL '30 minutes' AND e.ends_at>candidate
+        AND (EXISTS (SELECT 1 FROM event_staff es WHERE es.event_id=e.id AND es.staff_id='08000000-0000-0000-0000-000000000002')
+          OR EXISTS (SELECT 1 FROM event_resource er WHERE er.event_id=e.id AND er.resource_id='15000000-0000-0000-0000-000000000002')))
+    ORDER BY candidate LIMIT 1
+)
+INSERT INTO schedule_event(id,kind,title,starts_at,ends_at,visibility,status,guest_name,created_by)
+SELECT '19000000-0000-0000-0000-000000020008','CONSULTATION','Konsultacja',candidate,candidate+INTERVAL '30 minutes',
+       'PRIVATE','SCHEDULED','Gość testowy','03000000-0000-0000-0000-000000000010'
+FROM available ON CONFLICT DO NOTHING;
+
+INSERT INTO event_staff(event_id,staff_id,role)
+SELECT id,'08000000-0000-0000-0000-000000000002','LEAD' FROM schedule_event e
+WHERE id='19000000-0000-0000-0000-000000020008' AND NOT EXISTS (SELECT 1 FROM event_staff es WHERE es.event_id=e.id)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO event_resource(event_id,resource_id,blocks_whole_room)
+SELECT id,'15000000-0000-0000-0000-000000000002',TRUE FROM schedule_event e
+WHERE id='19000000-0000-0000-0000-000000020008' AND NOT EXISTS (SELECT 1 FROM event_resource er WHERE er.event_id=e.id)
+ON CONFLICT DO NOTHING;

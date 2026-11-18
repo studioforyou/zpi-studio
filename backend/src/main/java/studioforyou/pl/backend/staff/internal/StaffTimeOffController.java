@@ -29,6 +29,7 @@ import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 import studioforyou.pl.backend.shared.api.AccountAuthentication;
 import studioforyou.pl.backend.shared.api.ApiProblem;
 import studioforyou.pl.backend.shared.api.ListResponse;
+import studioforyou.pl.backend.staff.TimeOffSubstitutions;
 import studioforyou.pl.backend.staff.internal.TimeOffDtos.CreateStaffTimeOffRequest;
 import studioforyou.pl.backend.staff.internal.TimeOffDtos.DecisionRequest;
 import studioforyou.pl.backend.staff.internal.TimeOffDtos.TimeOffResponse;
@@ -43,9 +44,11 @@ import studioforyou.pl.backend.staff.internal.TimeOffDtos.TimeOffResponse;
 class StaffTimeOffController {
 
 	private final StaffTimeOff timeOff;
+	private final TimeOffSubstitutions substitutions;
 
-	StaffTimeOffController(StaffTimeOff timeOff) {
+	StaffTimeOffController(StaffTimeOff timeOff, TimeOffSubstitutions substitutions) {
 		this.timeOff = timeOff;
+		this.substitutions = substitutions;
 	}
 
 	@GetMapping
@@ -81,7 +84,7 @@ class StaffTimeOffController {
 	ResponseEntity<TimeOffResponse> recordStaffTimeOff(AccountAuthentication authentication,
 			@Valid @RequestBody CreateStaffTimeOffRequest request) {
 		TimeOffResponse created = this.timeOff.record(accountId(authentication), request.staffId(), request.kind(),
-				request.startsAt(), request.endsAt(), request.reason());
+				request.startsAt(), request.endsAt(), request.reason(), request.substitutionEventIds());
 		URI location = ServletUriComponentsBuilder.fromCurrentRequest()
 			.path("/{timeOffId}")
 			.buildAndExpand(created.id())
@@ -98,7 +101,8 @@ class StaffTimeOffController {
 					schema = @Schema(implementation = ApiProblem.class)))
 	TimeOffResponse approveStaffTimeOff(AccountAuthentication authentication, @PathVariable UUID timeOffId,
 			@Valid @RequestBody(required = false) @Nullable DecisionRequest request) {
-		return this.timeOff.approve(timeOffId, accountId(authentication), note(request));
+		return this.timeOff.approve(timeOffId, accountId(authentication), note(request),
+				request == null ? null : request.version(), request == null ? null : request.substitutionEventIds());
 	}
 
 	@PostMapping("/{timeOffId}/reject")
@@ -110,7 +114,7 @@ class StaffTimeOffController {
 					schema = @Schema(implementation = ApiProblem.class)))
 	TimeOffResponse rejectStaffTimeOff(AccountAuthentication authentication, @PathVariable UUID timeOffId,
 			@Valid @RequestBody(required = false) @Nullable DecisionRequest request) {
-		return this.timeOff.reject(timeOffId, accountId(authentication), note(request));
+		return this.timeOff.reject(timeOffId, accountId(authentication), note(request), request == null ? null : request.version());
 	}
 
 	@PostMapping("/{timeOffId}/cancel")
@@ -120,8 +124,48 @@ class StaffTimeOffController {
 	@ApiResponse(responseCode = "422", description = "TIME_OFF_NOT_CANCELLABLE: rejected, cancelled or already over.",
 			content = @Content(mediaType = "application/problem+json",
 					schema = @Schema(implementation = ApiProblem.class)))
-	TimeOffResponse cancelStaffTimeOff(@PathVariable UUID timeOffId) {
-		return this.timeOff.cancel(timeOffId);
+	TimeOffResponse cancelStaffTimeOff(AccountAuthentication authentication, @PathVariable UUID timeOffId) {
+		return this.timeOff.cancel(timeOffId, accountId(authentication));
+	}
+
+	@GetMapping("/substitution-options")
+	@Operation(summary = "Preview sessions covered by a time-off period", operationId = "previewStaffTimeOffSubstitutions")
+	TimeOffSubstitutions.Plan preview(@RequestParam UUID staffId, @RequestParam Instant from, @RequestParam Instant to) {
+		return this.substitutions.preview(staffId, from, to, null);
+	}
+
+	@GetMapping("/{timeOffId}/substitutions")
+	@Operation(summary = "Read the cover plan of a time-off entry", operationId = "getStaffTimeOffSubstitutions")
+	TimeOffSubstitutions.Plan substitutions(@PathVariable UUID timeOffId) {
+		return this.substitutions.plan(timeOffId, null);
+	}
+
+	@PostMapping("/{timeOffId}/substitutions")
+	@Operation(summary = "Choose sessions and open their substitution offers together", operationId = "selectTimeOffSubstitutions")
+	TimeOffSubstitutions.Plan select(AccountAuthentication auth, @PathVariable UUID timeOffId,
+			@Valid @RequestBody TimeOffSubstitutions.Selection input) {
+		return this.timeOff.selectSubstitutions(timeOffId, input, accountId(auth));
+	}
+
+	@PostMapping("/{timeOffId}/substitutions/candidates")
+	@Operation(summary = "Check a trainer against every selected session", operationId = "listTimeOffSubstitutionCandidates")
+	ListResponse<TimeOffSubstitutions.Candidate> candidates(@PathVariable UUID timeOffId,
+			@Valid @RequestBody TimeOffSubstitutions.Selection input) {
+		return new ListResponse<>(this.substitutions.candidates(timeOffId, input.eventIds()));
+	}
+
+	@PostMapping("/{timeOffId}/substitutions/approve")
+	@Operation(summary = "Approve selected substitution claims atomically", operationId = "approveTimeOffSubstitutions")
+	TimeOffSubstitutions.Plan approveSubstitutions(AccountAuthentication auth, @PathVariable UUID timeOffId,
+			@Valid @RequestBody TimeOffSubstitutions.Batch input) {
+		return this.substitutions.decide(timeOffId, input, accountId(auth), true);
+	}
+
+	@PostMapping("/{timeOffId}/substitutions/assign")
+	@Operation(summary = "Assign one checked trainer to selected sessions atomically", operationId = "assignTimeOffSubstitutions")
+	TimeOffSubstitutions.Plan assignSubstitutions(AccountAuthentication auth, @PathVariable UUID timeOffId,
+			@Valid @RequestBody TimeOffSubstitutions.Batch input) {
+		return this.substitutions.decide(timeOffId, input, accountId(auth), false);
 	}
 
 	private static @Nullable String note(@Nullable DecisionRequest request) {

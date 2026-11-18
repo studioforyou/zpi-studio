@@ -19,6 +19,8 @@ import { addDays, DEFAULT_TIME_ZONE, toInstant, todayIn } from '@/features/sched
 import { formatDateTime } from '@/features/schedule/scheduleFormat';
 import {
   cancelTimeOff,
+  getTimeOffPlan,
+  timeOffCoverKeys,
   listTimeOff,
   timeOffKeys,
   type TimeOff,
@@ -33,7 +35,7 @@ import {
 } from './timeOffFormat';
 import { RecordTimeOffModal } from './RecordTimeOffModal';
 import { TimeOffDecisionDrawer } from './TimeOffDecisionDrawer';
-import { useTrainerEventsDuring } from './trainerEvents';
+import { TimeOffSubstitutionsDrawer } from './TimeOffCoverage';
 
 type View = 'pending' | 'upcoming' | 'history';
 
@@ -75,15 +77,19 @@ function historyOf(items: TimeOff[]): TimeOff[] {
 /** How many events the trainer runs during the time off. */
 function EventCount({ timeOff }: { timeOff: TimeOff }) {
   const texts = pl.timeOff.events;
-  const { events, own } = useTrainerEventsDuring(timeOff);
+  const events = useQuery({
+    queryKey: timeOffCoverKeys.plan(timeOff.id),
+    queryFn: () => getTimeOffPlan(timeOff.id),
+  });
+  const count = events.data?.items.filter((item) => item.selectable).length ?? 0;
   if (!events.isSuccess) {
     return <Text c="dimmed">{texts.unknown}</Text>;
   }
-  return own.length === 0 ? (
+  return count === 0 ? (
     <Text c="dimmed">{texts.none}</Text>
   ) : (
     <Text c="orange.8" fw={500}>
-      {texts.count(own.length)}
+      {texts.count(count)}
     </Text>
   );
 }
@@ -100,6 +106,13 @@ export function TimeOffPage() {
   const [reviewing, setReviewing] = useState<TimeOff | null>(null);
   const [cancelling, setCancelling] = useState<TimeOff | null>(null);
   const [recording, setRecording] = useState(false);
+  const [covering, setCovering] = useState<TimeOff | null>(null);
+  function manageCoverage(entry: TimeOff) {
+    setReviewing(null);
+    setRecording(false);
+    setView('upcoming');
+    setCovering(entry);
+  }
 
   const studio = useQuery({
     queryKey: scheduleKeys.studio,
@@ -136,12 +149,7 @@ export function TimeOffPage() {
 
   return (
     <Stack>
-      <Stack gap="xs" maw={720}>
-        <Title order={2}>{texts.title}</Title>
-        <Text size="sm" c="dimmed">
-          {texts.intro}
-        </Text>
-      </Stack>
+      <Title order={2}>{texts.title}</Title>
       <Group justify="space-between" align="flex-end">
         <Select
           aria-label={texts.staffFilter}
@@ -274,6 +282,11 @@ export function TimeOffPage() {
                         </Button>
                       )}
                       {entry.status === 'APPROVED' && isCancellable(entry) && (
+                        <Button size="xs" variant="default" onClick={() => setCovering(entry)}>
+                          {pl.timeOffCover.manage}
+                        </Button>
+                      )}
+                      {entry.status === 'APPROVED' && isCancellable(entry) && (
                         <Button
                           size="xs"
                           variant="light"
@@ -297,9 +310,10 @@ export function TimeOffPage() {
       {reviewing && (
         <TimeOffDecisionDrawer
           key={reviewing.id}
-          timeOff={reviewing}
+          timeOff={timeOff.data?.find((entry) => entry.id === reviewing.id) ?? reviewing}
           timeZone={timeZone}
           onClose={() => setReviewing(null)}
+          onApproved={manageCoverage}
         />
       )}
       <Modal
@@ -314,6 +328,9 @@ export function TimeOffPage() {
                 cancelling.staffDisplayName,
                 formatPeriod(cancelling.startsAt, cancelling.endsAt, timeZone),
               )}
+            </Text>
+            <Text size="sm" c="dimmed">
+              {pl.timeOffCover.cancelHint}
             </Text>
             {cancel.error && <Alert color="red">{timeOffErrorMessage(cancel.error)}</Alert>}
             <Group justify="flex-end">
@@ -336,6 +353,15 @@ export function TimeOffPage() {
           staffOptions={staffOptions}
           timeZone={timeZone}
           onClose={() => setRecording(false)}
+          onRecorded={manageCoverage}
+        />
+      )}
+      {covering && (
+        <TimeOffSubstitutionsDrawer
+          key={covering.id}
+          timeOff={covering}
+          zone={timeZone}
+          onClose={() => setCovering(null)}
         />
       )}
     </Stack>

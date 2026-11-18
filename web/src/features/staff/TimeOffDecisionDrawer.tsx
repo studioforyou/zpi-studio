@@ -1,17 +1,26 @@
 import { useState } from 'react';
 import { Alert, Badge, Button, Drawer, Group, Paper, Stack, Text, Textarea } from '@mantine/core';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { pl } from '@/shared/i18n/pl';
 import { scheduleKeys } from '@/features/schedule/scheduleApi';
-import { eventTitle, formatDateTime } from '@/features/schedule/scheduleFormat';
-import { approveTimeOff, rejectTimeOff, timeOffKeys, type TimeOff } from './timeOffApi';
+import { formatDateTime } from '@/features/schedule/scheduleFormat';
+import {
+  chosenTimeOffEvents,
+  approveTimeOff,
+  rejectTimeOff,
+  getTimeOffPlan,
+  timeOffCoverKeys,
+  timeOffKeys,
+  type TimeOff,
+} from './timeOffApi';
 import { formatPeriod, kindColors, timeOffErrorMessage } from './timeOffFormat';
-import { useTrainerEventsDuring } from './trainerEvents';
+import { TimeOffSessionPicker } from './TimeOffCoverage';
 
 type TimeOffDecisionDrawerProps = {
   timeOff: TimeOff;
   timeZone: string;
   onClose: () => void;
+  onApproved: (entry: TimeOff) => void;
 };
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
@@ -29,22 +38,42 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
  * Shows a trainer's request with the events they run in that period, so the administrator
  * sees what needs a substitute before approving or rejecting it.
  */
-export function TimeOffDecisionDrawer({ timeOff, timeZone, onClose }: TimeOffDecisionDrawerProps) {
+export function TimeOffDecisionDrawer({
+  timeOff,
+  timeZone,
+  onClose,
+  onApproved,
+}: TimeOffDecisionDrawerProps) {
   const texts = pl.timeOff;
   const queryClient = useQueryClient();
   const [note, setNote] = useState('');
-  const { events, own, capped } = useTrainerEventsDuring(timeOff);
+  const [choices, setChoices] = useState<Record<string, boolean>>({});
+  const plan = useQuery({
+    queryKey: timeOffCoverKeys.plan(timeOff.id),
+    queryFn: () => getTimeOffPlan(timeOff.id),
+  });
 
   const decide = useMutation({
     mutationFn: (approve: boolean) => {
       const trimmed = note.trim() === '' ? null : note.trim();
-      return approve ? approveTimeOff(timeOff.id, trimmed) : rejectTimeOff(timeOff.id, trimmed);
+      return approve
+        ? approveTimeOff(
+            timeOff.id,
+            trimmed,
+            plan.data!.version,
+            chosenTimeOffEvents(plan.data, choices),
+          )
+        : rejectTimeOff(timeOff.id, trimmed, plan.data?.version);
     },
-    onSuccess: async () => {
+    onSuccess: async (entry, approved) => {
       await queryClient.invalidateQueries({ queryKey: timeOffKeys.all });
       // Approved leave changes the conflicts shown in the schedule.
       await queryClient.invalidateQueries({ queryKey: scheduleKeys.all });
-      onClose();
+      if (approved) onApproved(entry);
+      else onClose();
+    },
+    onError: () => {
+      void queryClient.invalidateQueries({ queryKey: timeOffKeys.all });
     },
   });
 
@@ -54,6 +83,9 @@ export function TimeOffDecisionDrawer({ timeOff, timeZone, onClose }: TimeOffDec
       onClose={onClose}
       position="right"
       size={520}
+      closeOnEscape={!decide.isPending}
+      closeOnClickOutside={!decide.isPending}
+      withCloseButton={!decide.isPending}
       title={
         <Text fw={700} size="lg">
           {texts.decision.title}
@@ -81,38 +113,25 @@ export function TimeOffDecisionDrawer({ timeOff, timeZone, onClose }: TimeOffDec
           <Text>{formatDateTime(timeOff.requestedAt, timeZone)}</Text>
         </Row>
         <Paper withBorder radius="md" p="sm">
-          <Text fw={600} mb={6}>
-            {texts.decision.eventsTitle}
-            {events.isSuccess && ` (${own.length})`}
-          </Text>
-          {events.isPending ? (
+          {plan.isPending ? (
             <Text size="sm">{texts.decision.eventsLoading}</Text>
-          ) : events.isError ? (
-            <Text size="sm" c="red">
+          ) : plan.isError ? (
+            <Alert color="red">
               {texts.decision.eventsError}
-            </Text>
-          ) : own.length === 0 ? (
-            <Text size="sm" c="dimmed">
-              {texts.decision.noEvents}
-            </Text>
+              <Button variant="subtle" onClick={() => void plan.refetch()}>
+                {pl.timeOffCover.retry}
+              </Button>
+            </Alert>
           ) : (
-            <Stack gap={4}>
-              {own.map((event) => (
-                <Text size="sm" key={event.id}>
-                  {formatDateTime(event.startsAt, timeZone)} · {eventTitle(event)}
-                </Text>
-              ))}
-            </Stack>
-          )}
-          {capped && (
-            <Text size="xs" c="dimmed" mt={6}>
-              {texts.decision.eventsCapped}
-            </Text>
+            <TimeOffSessionPicker
+              plan={plan.data}
+              choices={choices}
+              onChange={setChoices}
+              zone={timeZone}
+              disabled={decide.isPending}
+            />
           )}
         </Paper>
-        <Alert color="blue" variant="light">
-          {texts.decision.eventsHint}
-        </Alert>
         <Textarea
           label={texts.decision.note}
           placeholder={texts.decision.notePlaceholder}
@@ -135,7 +154,7 @@ export function TimeOffDecisionDrawer({ timeOff, timeZone, onClose }: TimeOffDec
           <Button
             color="green"
             loading={decide.isPending && decide.variables === true}
-            disabled={decide.isPending}
+            disabled={decide.isPending || !plan.isSuccess || plan.data.status !== 'REQUESTED'}
             onClick={() => decide.mutate(true)}
           >
             {texts.decision.approve}

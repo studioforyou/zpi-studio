@@ -10,8 +10,13 @@ import 'package:mobile/features/trainings/data/trainee_overview_api.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
 
 class SubstitutionOffersScreen extends ConsumerWidget {
-  const SubstitutionOffersScreen({super.key, this.initialRequestId});
+  const SubstitutionOffersScreen({
+    super.key,
+    this.initialRequestId,
+    this.embedded = false,
+  });
   final String? initialRequestId;
+  final bool embedded;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -22,14 +27,21 @@ class SubstitutionOffersScreen extends ConsumerWidget {
             key: ValueKey(scope),
             scope: scope,
             initialRequestId: initialRequestId,
+            embedded: embedded,
           );
   }
 }
 
 class _OffersPage extends ConsumerStatefulWidget {
-  const _OffersPage({super.key, required this.scope, this.initialRequestId});
+  const _OffersPage({
+    super.key,
+    required this.scope,
+    this.initialRequestId,
+    required this.embedded,
+  });
   final TrainerOverviewScope scope;
   final String? initialRequestId;
+  final bool embedded;
   @override
   ConsumerState<_OffersPage> createState() => _OffersPageState();
 }
@@ -112,7 +124,13 @@ class _OffersPageState extends ConsumerState<_OffersPage>
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
-      builder: (_) => _OfferSheet(scope: widget.scope, id: id),
+      builder: (_) => _OfferSheet(
+        scope: widget.scope,
+        id: id,
+        onClaimed: () {
+          if (mounted) setState(() => _mine = true);
+        },
+      ),
     );
     if (mounted) await _refresh();
   }
@@ -121,164 +139,172 @@ class _OffersPageState extends ConsumerState<_OffersPage>
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     final data = ref.watch(substitutionOffersProvider(_query));
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(l.substitutionOffersTitle),
-        actions: [
-          IconButton(
-            tooltip: l.substitutionOffersInfoTitle,
-            icon: const Icon(Icons.info_outline),
-            onPressed: () => showDialog<void>(
-              context: context,
-              builder: (context) => AlertDialog(
-                title: Text(l.substitutionOffersInfoTitle),
-                content: Text(l.substitutionOffersInfo),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: Text(l.substitutionClose),
-                  ),
-                ],
-              ),
+    final body = Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+          child: SizedBox(
+            width: double.infinity,
+            child: SegmentedButton<bool>(
+              direction:
+                  MediaQuery.sizeOf(context).width < 400 &&
+                      MediaQuery.textScalerOf(context).scale(14) > 18
+                  ? Axis.vertical
+                  : Axis.horizontal,
+              showSelectedIcon: false,
+              segments: [
+                ButtonSegment(
+                  value: false,
+                  label: Text(l.substitutionAvailable),
+                ),
+                ButtonSegment(value: true, label: Text(l.substitutionMyClaims)),
+              ],
+              selected: {_mine},
+              onSelectionChanged: (v) => setState(() => _mine = v.first),
             ),
           ),
-        ],
-      ),
-      body: Column(
-        children: [
+        ),
+        if (!_mine)
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-            child: SizedBox(
-              width: double.infinity,
-              child: SegmentedButton<bool>(
-                direction:
-                    MediaQuery.sizeOf(context).width < 400 &&
-                        MediaQuery.textScalerOf(context).scale(14) > 18
-                    ? Axis.vertical
-                    : Axis.horizontal,
-                showSelectedIcon: false,
-                segments: [
-                  ButtonSegment(
-                    value: false,
-                    label: Text(l.substitutionAvailable),
-                  ),
-                  ButtonSegment(
-                    value: true,
-                    label: Text(l.substitutionMyClaims),
-                  ),
-                ],
-                selected: {_mine},
-                onSelectionChanged: (v) => setState(() => _mine = v.first),
-              ),
-            ),
-          ),
-          if (!_mine)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Wrap(
-                spacing: 8,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [
-                  FilterChip(
-                    label: Text(l.substitutionMatching),
-                    selected: _matching,
-                    onSelected: (v) => setState(() => _matching = v),
-                  ),
-                  DropdownButton<int>(
-                    value: _days,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Wrap(
+              spacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                FilterChip(
+                  label: Text(l.substitutionMatching),
+                  selected: _matching,
+                  onSelected: (v) => setState(() => _matching = v),
+                ),
+                DropdownButton<int>(
+                  value: _days,
+                  underline: const SizedBox(),
+                  items: [7, 30, 60]
+                      .map(
+                        (n) => DropdownMenuItem(
+                          value: n,
+                          child: Text(l.substitutionDays(n)),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (v) => setState(() => _days = v!),
+                ),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 224),
+                  child: DropdownButton<String?>(
+                    value: _kind,
+                    isExpanded: true,
                     underline: const SizedBox(),
-                    items: [7, 30, 60]
-                        .map(
-                          (n) => DropdownMenuItem(
-                            value: n,
-                            child: Text(l.substitutionDays(n)),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: (v) => setState(() => _days = v!),
-                  ),
-                  ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 224),
-                    child: DropdownButton<String?>(
-                      value: _kind,
-                      isExpanded: true,
-                      underline: const SizedBox(),
-                      items: [
-                        DropdownMenuItem(
-                          value: null,
-                          child: Text(l.substitutionAllKinds),
+                    items: [
+                      DropdownMenuItem(
+                        value: null,
+                        child: Text(l.substitutionAllKinds),
+                      ),
+                      DropdownMenuItem(
+                        value: 'CLASS',
+                        child: Text(l.substitutionGroup),
+                      ),
+                      DropdownMenuItem(
+                        value: 'PERSONAL_TRAINING',
+                        child: Text(
+                          l.substitutionPersonal,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        DropdownMenuItem(
-                          value: 'CLASS',
-                          child: Text(l.substitutionGroup),
-                        ),
-                        DropdownMenuItem(
-                          value: 'PERSONAL_TRAINING',
-                          child: Text(
-                            l.substitutionPersonal,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                      onChanged: (v) => setState(() => _kind = v),
-                    ),
+                      ),
+                    ],
+                    onChanged: (v) => setState(() => _kind = v),
                   ),
-                ],
-              ),
-            ),
-          Expanded(
-            child: data.when(
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (_, _) => _LoadError(onRetry: _refresh),
-              data: (all) {
-                final items = all
-                    .where(
-                      (r) =>
-                          (_mine || !_matching || r.canClaim) &&
-                          (_mine || _kind == null || r.kind == _kind),
-                    )
-                    .toList();
-                return RefreshIndicator(
-                  onRefresh: _refresh,
-                  child: ListView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-                    children: items.isEmpty
-                        ? [
-                            Padding(
-                              padding: const EdgeInsets.all(32),
-                              child: Column(
-                                children: [
-                                  const Icon(
-                                    Icons.event_available_outlined,
-                                    size: 40,
-                                  ),
-                                  const SizedBox(height: 12),
-                                  Text(
-                                    _mine
-                                        ? l.substitutionNoClaims
-                                        : l.substitutionNoOffers,
-                                    textAlign: TextAlign.center,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ]
-                        : [
-                            for (final offer in items)
-                              _OfferCard(
-                                offer: offer,
-                                mine: _mine,
-                                onTap: () => _open(offer.id),
-                              ),
-                          ],
-                  ),
-                );
-              },
+                ),
+              ],
             ),
           ),
-        ],
+        Expanded(
+          child: data.when(
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (_, _) => _LoadError(onRetry: _refresh),
+            data: (all) {
+              final items = all
+                  .where(
+                    (r) =>
+                        (_mine || !_matching || r.canClaim) &&
+                        (_mine || _kind == null || r.kind == _kind),
+                  )
+                  .toList();
+              return RefreshIndicator(
+                onRefresh: _refresh,
+                child: ListView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                  children: items.isEmpty
+                      ? [
+                          Padding(
+                            padding: const EdgeInsets.all(32),
+                            child: Column(
+                              children: [
+                                const Icon(
+                                  Icons.event_available_outlined,
+                                  size: 40,
+                                ),
+                                const SizedBox(height: 12),
+                                Text(
+                                  _mine
+                                      ? l.substitutionNoClaims
+                                      : l.substitutionNoOffers,
+                                  textAlign: TextAlign.center,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ]
+                      : [
+                          for (final offer in items)
+                            _OfferCard(
+                              offer: offer,
+                              mine: _mine,
+                              onTap: () => _open(offer.id),
+                            ),
+                        ],
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+    return widget.embedded
+        ? body
+        : Scaffold(
+            appBar: AppBar(
+              title: Text(l.substitutionOffersTitle),
+              actions: const [SubstitutionOffersInfoButton()],
+            ),
+            body: body,
+          );
+  }
+}
+
+class SubstitutionOffersInfoButton extends StatelessWidget {
+  const SubstitutionOffersInfoButton({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    return IconButton(
+      tooltip: l.substitutionOffersInfoTitle,
+      icon: const Icon(Icons.info_outline),
+      onPressed: () => showDialog<void>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text(l.substitutionOffersInfoTitle),
+          content: Text(l.substitutionOffersInfo),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text(l.substitutionClose),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -383,9 +409,14 @@ class _OfferCard extends StatelessWidget {
 }
 
 class _OfferSheet extends ConsumerStatefulWidget {
-  const _OfferSheet({required this.scope, required this.id});
+  const _OfferSheet({
+    required this.scope,
+    required this.id,
+    required this.onClaimed,
+  });
   final TrainerOverviewScope scope;
   final String id;
+  final VoidCallback onClaimed;
   @override
   ConsumerState<_OfferSheet> createState() => _OfferSheetState();
 }
@@ -443,6 +474,7 @@ class _OfferSheetState extends ConsumerState<_OfferSheet> {
       ref.invalidate(ownPersonalTrainingsProvider);
       ref.invalidate(trainerScheduleEventsProvider);
       ref.invalidate(ownScheduleProvider);
+      if (!withdraw) widget.onClaimed();
     } catch (e) {
       if (!_current) return;
       setState(

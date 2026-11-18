@@ -84,16 +84,7 @@ class _TrainerScheduleScreenState extends ConsumerState<TrainerScheduleScreen>
     final serviceTypes =
         ref.watch(scheduleServiceTypesProvider).value ?? const {};
     return Scaffold(
-      appBar: AppBar(
-        title: Text(AppLocalizations.of(context).navSchedule),
-        actions: [
-          TextButton.icon(
-            onPressed: () => context.push(trainerSubstitutionsPath),
-            icon: const Icon(Icons.swap_horiz),
-            label: Text(AppLocalizations.of(context).substitutionOffersTitle),
-          ),
-        ],
-      ),
+      appBar: AppBar(title: Text(AppLocalizations.of(context).navSchedule)),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _addEvent,
         icon: const Icon(Icons.add),

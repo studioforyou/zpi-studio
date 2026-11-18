@@ -2,6 +2,8 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mobile/core/network/api_exception.dart';
 import 'package:mobile/core/network/dio_provider.dart';
+import 'package:mobile/core/auth/auth_controller.dart';
+import 'package:mobile/core/auth/auth_state.dart';
 
 /// Time off of the signed-in trainer (`OwnTimeOffController` in the backend).
 const ownTimeOffPath = '/api/v1/me/time-off';
@@ -52,6 +54,7 @@ class TimeOff {
     required this.decidedAt,
     required this.decisionNote,
     required this.decidedByName,
+    this.version = 0,
   });
 
   factory TimeOff.fromJson(Map<String, dynamic> json) {
@@ -69,10 +72,12 @@ class TimeOff {
       decidedAt: optional('decidedAt'),
       decisionNote: json['decisionNote'] as String?,
       decidedByName: json['decidedByName'] as String?,
+      version: json['version'] as int? ?? 0,
     );
   }
 
   final String id;
+  final int version;
   final TimeOffKind kind;
   final TimeOffStatus status;
 
@@ -156,10 +161,14 @@ class TimeOffApi {
     required DateTime startsAt,
     required DateTime endsAt,
     required String reason,
+    List<String>? substitutionEventIds,
   }) => _send(
     () => _dio.post<Map<String, dynamic>>(
       ownTimeOffPath,
-      data: _body(kind, startsAt, endsAt, reason),
+      data: {
+        ..._body(kind, startsAt, endsAt, reason),
+        'substitutionEventIds': ?substitutionEventIds,
+      },
     ),
   );
 
@@ -170,10 +179,16 @@ class TimeOffApi {
     required DateTime startsAt,
     required DateTime endsAt,
     required String reason,
+    List<String>? substitutionEventIds,
+    int? version,
   }) => _send(
     () => _dio.patch<Map<String, dynamic>>(
       '$ownTimeOffPath/$id',
-      data: _body(kind, startsAt, endsAt, reason),
+      data: {
+        ..._body(kind, startsAt, endsAt, reason),
+        'substitutionEventIds': ?substitutionEventIds,
+        'version': ?version,
+      },
     ),
   );
 
@@ -207,7 +222,117 @@ class TimeOffApi {
       throw TimeOffApiException.fromDio(e);
     }
   }
+
+  Future<TimeOffSubstitutionPlan> previewSubstitutions(
+    DateTime from,
+    DateTime to, {
+    String? timeOffId,
+  }) async {
+    try {
+      final response = await _dio.get<Map<String, dynamic>>(
+        '$ownTimeOffPath/substitution-options',
+        queryParameters: {
+          'from': from.toUtc().toIso8601String(),
+          'to': to.toUtc().toIso8601String(),
+          'timeOffId': ?timeOffId,
+        },
+      );
+      return TimeOffSubstitutionPlan.fromJson(response.data!);
+    } on DioException catch (e) {
+      throw TimeOffApiException.fromDio(e);
+    }
+  }
+
+  Future<TimeOffSubstitutionPlan> substitutionPlan(String id) async {
+    try {
+      final response = await _dio.get<Map<String, dynamic>>(
+        '$ownTimeOffPath/$id/substitutions',
+      );
+      return TimeOffSubstitutionPlan.fromJson(response.data!);
+    } on DioException catch (e) {
+      throw TimeOffApiException.fromDio(e);
+    }
+  }
 }
+
+class TimeOffSubstitutionPlan {
+  const TimeOffSubstitutionPlan({
+    required this.version,
+    required this.status,
+    required this.items,
+  });
+  factory TimeOffSubstitutionPlan.fromJson(Map<String, dynamic> json) =>
+      TimeOffSubstitutionPlan(
+        version: json['version'] as int,
+        status: json['status'] as String,
+        items: [
+          for (final item in json['items'] as List)
+            TimeOffLesson.fromJson(item as Map<String, dynamic>),
+        ],
+      );
+  final int version;
+  final String status;
+  final List<TimeOffLesson> items;
+}
+
+class TimeOffLesson {
+  const TimeOffLesson({
+    required this.eventId,
+    required this.title,
+    required this.rooms,
+    required this.startsAt,
+    required this.endsAt,
+    required this.selectable,
+    required this.selected,
+    required this.status,
+  });
+  factory TimeOffLesson.fromJson(Map<String, dynamic> json) => TimeOffLesson(
+    eventId: json['eventId'] as String,
+    title: json['title'] as String,
+    rooms: json['rooms'] as String,
+    startsAt: DateTime.parse(json['startsAt'] as String).toLocal(),
+    endsAt: DateTime.parse(json['endsAt'] as String).toLocal(),
+    selectable: json['selectable'] as bool,
+    selected: json['selected'] as bool,
+    status: json['status'] as String,
+  );
+  final String eventId, title, rooms, status;
+  final DateTime startsAt, endsAt;
+  final bool selectable, selected;
+}
+
+typedef TimeOffOptionsQuery = ({
+  String accountId,
+  DateTime from,
+  DateTime to,
+  String? timeOffId,
+});
+final timeOffSubstitutionOptionsProvider = FutureProvider.autoDispose
+    .family<TimeOffSubstitutionPlan, TimeOffOptionsQuery>((ref, query) {
+      final auth = ref.watch(authControllerProvider);
+      if (auth is! Authenticated || auth.session.accountId != query.accountId) {
+        throw const ApiException(statusCode: 403, message: 'Account changed.');
+      }
+      return ref
+          .watch(timeOffApiProvider)
+          .previewSubstitutions(
+            query.from,
+            query.to,
+            timeOffId: query.timeOffId,
+          );
+    });
+
+final timeOffSubstitutionPlanProvider = FutureProvider.autoDispose
+    .family<TimeOffSubstitutionPlan, ({String accountId, String id})>((
+      ref,
+      query,
+    ) {
+      final auth = ref.watch(authControllerProvider);
+      if (auth is! Authenticated || auth.session.accountId != query.accountId) {
+        throw const ApiException(statusCode: 403, message: 'Account changed.');
+      }
+      return ref.watch(timeOffApiProvider).substitutionPlan(query.id);
+    });
 
 final timeOffApiProvider = Provider<TimeOffApi>(
   (ref) => TimeOffApi(ref.watch(dioProvider)),

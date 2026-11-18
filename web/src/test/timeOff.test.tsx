@@ -3,10 +3,37 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { TimeOffPage } from '@/features/staff/TimeOffPage';
 import { formatPeriod, isCancellable } from '@/features/staff/timeOffFormat';
-import type { TimeOff } from '@/features/staff/timeOffApi';
+import type { TimeOff, TimeOffLesson, TimeOffPlan } from '@/features/staff/timeOffApi';
+import { TimeOffSubstitutionsDrawer, TimeOffSessionPicker } from '@/features/staff/TimeOffCoverage';
 import { renderWithProviders } from './renderWithProviders';
 
 const ZONE = 'Europe/Warsaw';
+
+test('unchecked sessions and consultations clearly require a manual decision', async () => {
+  const consultation = {
+    ...lesson('consultation', '2026-11-12T17:00:00Z'),
+    title: 'Konsultacja',
+    kind: 'CONSULTATION',
+    status: 'MANUAL',
+    selectable: false,
+    selected: false,
+  };
+  renderWithProviders(
+    <TimeOffSessionPicker
+      plan={coverPlan([consultation, lesson('class', '2026-11-13T17:00:00Z')])}
+      choices={{ class: false }}
+      onChange={() => {}}
+      zone={ZONE}
+    />,
+  );
+  expect(screen.getByText('Do decyzji studia')).toBeInTheDocument();
+  expect(
+    screen.getByText(
+      'Odznaczone zajęcia i konsultacje nie są automatycznie odwoływane. Administrator musi ustalić ich dalszy przebieg.',
+    ),
+  ).toBeInTheDocument();
+  expect(screen.getAllByRole('checkbox')[0]).toBeDisabled();
+});
 
 const vacation: TimeOff = {
   id: 'off-1',
@@ -57,28 +84,27 @@ const staff = [
   { id: 'staff-piotr', firstName: 'Piotr', lastName: 'Nowak', displayName: 'Piotr Nowak' },
 ].map((member) => ({ ...member, calendarColor: null, isActive: true, serviceTypeIds: [] }));
 
-function annaClass(id: string, startsAt: string, staffId = 'staff-anna', status = 'SCHEDULED') {
+function lesson(id: string, startsAt: string, status = 'NOT_REQUESTED'): TimeOffLesson {
   return {
-    id,
+    eventId: id,
+    eventVersion: 2,
     kind: 'CLASS',
     status,
-    visibility: 'PUBLIC',
-    title: null,
-    serviceTypeId: 'svc',
-    serviceTypeName: 'Pole dance – grupa',
-    seriesId: null,
-    isSeriesException: false,
-    trainingGroupId: null,
+    title: 'Pole dance – grupa',
+    rooms: 'Sala A',
     startsAt,
     endsAt: startsAt.replace('T17', 'T18'),
-    capacity: 10,
-    staff: [{ staffId, displayName: null, role: 'LEAD' }],
-    resources: [],
-    cancelReason: null,
-    blockReason: null,
-    guestName: null,
-    version: 0,
+    selectable: true,
+    selected: true,
+    requestId: status === 'NOT_REQUESTED' ? null : `request-${id}`,
+    requestVersion: status === 'NOT_REQUESTED' ? null : 3,
+    substituteStaffId: status === 'CLAIMED' ? 'staff-piotr' : null,
+    substituteTrainer: status === 'CLAIMED' ? 'Piotr Nowak' : null,
   };
+}
+
+function coverPlan(items: TimeOffLesson[] = [], status = 'REQUESTED'): TimeOffPlan {
+  return { timeOffId: vacation.id, version: 4, status, items };
 }
 
 function json(body: unknown, status = 200): Response {
@@ -105,6 +131,11 @@ function stubApi(...routes: Route[]) {
 }
 
 const lookups: Route = (url) => {
+  if (
+    url.endsWith('/substitutions') ||
+    url.startsWith('/api/v1/staff/time-off/substitution-options?')
+  )
+    return json(coverPlan());
   if (url.startsWith('/api/v1/schedule-events?')) {
     return json({ items: [] });
   }
@@ -217,14 +248,10 @@ test('the pending count shows on the trainer’s events and in the table', async
   stubApi(
     listing([vacation]),
     (url) =>
-      url.startsWith('/api/v1/schedule-events?')
-        ? json({
-            items: [
-              annaClass('e1', '2026-11-12T17:00:00Z'),
-              annaClass('e2', '2026-11-13T17:00:00Z'),
-              annaClass('e3', '2026-11-11T17:00:00Z', 'staff-piotr'),
-            ],
-          })
+      url.endsWith('/off-1/substitutions')
+        ? json(
+            coverPlan([lesson('e1', '2026-11-12T17:00:00Z'), lesson('e2', '2026-11-13T17:00:00Z')]),
+          )
         : undefined,
     lookups,
   );
@@ -234,18 +261,14 @@ test('the pending count shows on the trainer’s events and in the table', async
   expect(await within(row).findByText('2 zajęcia')).toBeInTheDocument();
 });
 
-test('review shows the trainer’s classes in that period and approves with a note', async () => {
+test('review defaults to all sessions, supports all/none and approves only the chosen session', async () => {
   const fetchMock = stubApi(
     listing([vacation]),
     (url) =>
-      url.startsWith('/api/v1/schedule-events?')
-        ? json({
-            items: [
-              annaClass('e1', '2026-11-12T17:00:00Z'),
-              annaClass('e2', '2026-11-11T17:00:00Z', 'staff-piotr'),
-              annaClass('e3', '2026-11-13T17:00:00Z', 'staff-anna', 'CANCELLED'),
-            ],
-          })
+      url.endsWith('/off-1/substitutions')
+        ? json(
+            coverPlan([lesson('e1', '2026-11-12T17:00:00Z'), lesson('e2', '2026-11-13T17:00:00Z')]),
+          )
         : undefined,
     (url, init) =>
       url === '/api/v1/staff/time-off/off-1/approve' && init.method === 'POST'
@@ -258,11 +281,13 @@ test('review shows the trainer’s classes in that period and approves with a no
   await userEvent.click(await screen.findByRole('button', { name: 'Rozpatrz' }));
 
   const dialog = await screen.findByRole('dialog');
-  expect(
-    await within(dialog).findByText('12.11.2026 18:00 · Pole dance – grupa'),
-  ).toBeInTheDocument();
-  expect(within(dialog).getByText('Zajęcia trenera w tym czasie (1)')).toBeInTheDocument();
-  expect(within(dialog).getByText(/Zatwierdzenie nie zmienia grafiku/)).toBeInTheDocument();
+  expect(await within(dialog).findByText('12.11.2026 18:00–19:00')).toBeInTheDocument();
+  const checks = within(dialog).getAllByRole('checkbox');
+  checks.forEach((check) => expect(check).toBeChecked());
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Odznacz wszystkie' }));
+  checks.forEach((check) => expect(check).not.toBeChecked());
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Zaznacz wszystkie' }));
+  await userEvent.click(checks[1]);
 
   await userEvent.type(
     within(dialog).getByLabelText('Notatka dla trenera (opcjonalnie)'),
@@ -273,9 +298,13 @@ test('review shows the trainer’s classes in that period and approves with a no
   await waitFor(() =>
     expect(bodyOf(fetchMock, 'POST', '/api/v1/staff/time-off/off-1/approve')).toEqual({
       note: 'Zastępuje Piotr',
+      version: 4,
+      substitutionEventIds: ['e1'],
     }),
   );
-  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+  expect(
+    await screen.findByRole('dialog', { name: 'Zastępstwa na czas nieobecności · Anna Kowalska' }),
+  ).toBeInTheDocument();
 });
 
 test('a request someone else already decided shows a clear message', async () => {
@@ -293,7 +322,7 @@ test('a request someone else already decided shows a clear message', async () =>
   await userEvent.click(await screen.findByRole('button', { name: 'Rozpatrz' }));
   const dialog = await screen.findByRole('dialog');
   expect(
-    await within(dialog).findByText(/nie ma w tym czasie zaplanowanych zajęć/),
+    await within(dialog).findByText('Brak zajęć do przekazania w tym okresie.'),
   ).toBeInTheDocument();
   await userEvent.click(within(dialog).getByRole('button', { name: 'Odrzuć' }));
 
@@ -353,6 +382,7 @@ test('records whole days of sick leave for a trainer', async () => {
       startsAt: '2026-10-31T23:00:00.000Z',
       endsAt: '2026-11-03T23:00:00.000Z',
       reason: 'Telefon rano',
+      substitutionEventIds: [],
     }),
   );
 });
@@ -372,4 +402,111 @@ test('a time range that ends before it starts is not sent', async () => {
 
   expect(within(dialog).getByText('Koniec musi być po początku.')).toBeInTheDocument();
   expect(fetchMock.mock.calls.some(([, init]) => init.method === 'POST')).toBe(false);
+});
+
+test('bulk approval confirms the selected claims with their original versions', async () => {
+  const items = [
+    lesson('e1', '2026-11-12T17:00:00Z', 'CLAIMED'),
+    lesson('e2', '2026-11-13T17:00:00Z', 'CLAIMED'),
+  ];
+  const fetchMock = stubApi((url, init) => {
+    if (url.endsWith('/substitutions') && init.method === 'GET')
+      return json(coverPlan(items, 'APPROVED'));
+    if (url.endsWith('/substitutions/approve')) return json(coverPlan([], 'APPROVED'));
+    return undefined;
+  });
+  renderWithProviders(
+    <TimeOffSubstitutionsDrawer
+      timeOff={{ ...vacation, status: 'APPROVED' }}
+      zone={ZONE}
+      onClose={() => {}}
+    />,
+  );
+  await userEvent.click(await screen.findByRole('button', { name: 'Zatwierdź zgłoszonych (2)' }));
+  expect(fetchMock.mock.calls.some(([, init]) => init.method === 'POST')).toBe(false);
+  const confirm = await screen.findByRole('dialog', { name: 'Zatwierdzić wybrane zastępstwa?' });
+  expect(within(confirm).getAllByText(/Piotr Nowak/)).toHaveLength(2);
+  await userEvent.click(within(confirm).getByRole('button', { name: 'Potwierdź' }));
+  await waitFor(() =>
+    expect(bodyOf(fetchMock, 'POST', '/api/v1/staff/time-off/off-1/substitutions/approve')).toEqual(
+      {
+        version: 4,
+        note: '',
+        items: [
+          { eventId: 'e1', eventVersion: 2, requestId: 'request-e1', requestVersion: 3 },
+          { eventId: 'e2', eventVersion: 2, requestId: 'request-e2', requestVersion: 3 },
+        ],
+      },
+    ),
+  );
+});
+
+test('batch assignment offers only trainers available for all checked sessions', async () => {
+  const items = [
+    lesson('e1', '2026-11-12T17:00:00Z', 'OPEN'),
+    lesson('e2', '2026-11-13T17:00:00Z'),
+  ];
+  const fetchMock = stubApi((url, init) => {
+    if (url.endsWith('/substitutions') && init.method === 'GET')
+      return json(coverPlan(items, 'APPROVED'));
+    if (url.endsWith('/candidates'))
+      return json({
+        items: [
+          {
+            staffId: 'good',
+            displayName: 'Ewa Dostępna',
+            available: true,
+            reason: null,
+            warnings: [],
+          },
+          {
+            staffId: 'busy',
+            displayName: 'Piotr Zajęty',
+            available: false,
+            reason: 'STAFF_BUSY',
+            warnings: [],
+          },
+        ],
+      });
+    if (url.endsWith('/assign')) return json({ code: 'VERSION_CONFLICT' }, 409);
+    return undefined;
+  });
+  renderWithProviders(
+    <TimeOffSubstitutionsDrawer
+      timeOff={{ ...vacation, status: 'APPROVED' }}
+      zone={ZONE}
+      onClose={() => {}}
+    />,
+  );
+  const select = await screen.findByRole('combobox', {
+    name: 'Wybierz zastępcę dla zaznaczonych terminów',
+  });
+  await waitFor(() => expect(select).not.toBeDisabled());
+  await userEvent.click(select);
+  expect(await screen.findByRole('option', { name: /Piotr Zajęty/, hidden: true })).toHaveAttribute(
+    'data-combobox-disabled',
+    'true',
+  );
+  await userEvent.click(screen.getByRole('option', { name: 'Ewa Dostępna', hidden: true }));
+  await userEvent.click(screen.getByRole('button', { name: 'Przypisz zastępcę (2)' }));
+  const confirm = await screen.findByRole('dialog', {
+    name: 'Przypisać zastępcę do tych terminów?',
+  });
+  expect(within(confirm).getByText('Ewa Dostępna')).toBeInTheDocument();
+  await userEvent.click(within(confirm).getByRole('button', { name: 'Potwierdź' }));
+  expect(
+    await screen.findByText(
+      'Wniosek lub grafik się zmienił. Odśwież widok i sprawdź zaznaczone terminy.',
+    ),
+  ).toBeInTheDocument();
+  expect(
+    bodyOf(fetchMock, 'POST', '/api/v1/staff/time-off/off-1/substitutions/assign'),
+  ).toMatchObject({
+    version: 4,
+    staffId: 'good',
+    items: [
+      { eventId: 'e1', requestVersion: 3 },
+      { eventId: 'e2', requestId: null, requestVersion: null },
+    ],
+  });
 });

@@ -69,8 +69,8 @@ const clientTrainingHistoryPath =
     '$clientReservationsPath/$clientTrainingHistorySubPath';
 
 const trainerSchedulePath = '/trainer/schedule';
-const trainerSubstitutionsPath = '$trainerSchedulePath/substitutions';
 const trainerTrainingsPath = '/trainer/trainings';
+const trainerSubstitutionsPath = '$trainerTrainingsPath/substitutions';
 const trainerMessagesPath = '/trainer/messages';
 const trainerNotificationsPath = '$trainerMessagesPath/$notificationsSubPath';
 const trainerTraineePickerSubPath = 'to-trainee';
@@ -233,12 +233,6 @@ StatefulShellRoute _trainerShell() => _roleShell([
     (l10n) => l10n.navSchedule,
     routes: [
       GoRoute(
-        path: 'substitutions',
-        builder: (_, state) => SubstitutionOffersScreen(
-          initialRequestId: state.uri.queryParameters['request'],
-        ),
-      ),
-      GoRoute(
         path: trainerAddClassSubPath,
         builder: (_, _) => const AddClassScreen(),
       ),
@@ -255,6 +249,12 @@ StatefulShellRoute _trainerShell() => _roleShell([
     Icons.fitness_center,
     (l10n) => l10n.navTrainings,
     routes: [
+      GoRoute(
+        path: 'substitutions',
+        builder: (_, state) => SubstitutionOffersScreen(
+          initialRequestId: state.uri.queryParameters['request'],
+        ),
+      ),
       // Opened with context.push('/trainer/trainings/new-cooperation').
       GoRoute(
         path: trainerNewCooperationSubPath,

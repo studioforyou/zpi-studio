@@ -40,6 +40,28 @@ class SubstitutionManagementTest extends ScheduleTestSupport {
 	}
 
 	@Test
+	void availableOffersExcludeOwnRequestsAndClaims() throws Exception {
+		String request = request(createEvent(poleClass(this.monday, "18:00", "19:00")));
+		qualify();
+		list(ANNA_TOKEN, false).andExpect(jsonPath("$.items").isEmpty());
+		list(ANNA_TOKEN, true).andExpect(jsonPath("$.items").isEmpty());
+		list(MAREK_TOKEN, false).andExpect(jsonPath("$.items.length()").value(1))
+			.andExpect(jsonPath("$.items[0].id").value(request));
+		list(MAREK_TOKEN, true).andExpect(jsonPath("$.items").isEmpty());
+
+		action(MAREK_TOKEN, OFFERS, request, "claim", 0).andExpect(status().isOk());
+		list(MAREK_TOKEN, false).andExpect(jsonPath("$.items").isEmpty());
+		list(MAREK_TOKEN, true).andExpect(jsonPath("$.items.length()").value(1))
+			.andExpect(jsonPath("$.items[0].id").value(request))
+			.andExpect(jsonPath("$.items[0].status").value("CLAIMED"));
+		list(ANNA_TOKEN, false).andExpect(jsonPath("$.items").isEmpty());
+
+		action(ADMIN_TOKEN, ADMIN, request, "approve", 1).andExpect(status().isOk());
+		list(MAREK_TOKEN, false).andExpect(jsonPath("$.items").isEmpty());
+		list(MAREK_TOKEN, true).andExpect(jsonPath("$.items[0].status").value("APPROVED"));
+	}
+
+	@Test
 	void rejectPreservesDecisionAndOpensANewOfferWithoutLosingTheOriginalReason() throws Exception {
 		String event = createEvent(poleClass(this.monday, "18:00", "19:00"));
 		String request = request(event); qualify();

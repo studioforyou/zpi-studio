@@ -1,6 +1,7 @@
 package studioforyou.pl.backend.staff.internal;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -21,7 +22,9 @@ final class TimeOffDtos {
 			@NotNull @Schema(description = "Start, inclusive.", example = "2026-11-09T23:00:00Z") Instant startsAt,
 			@NotNull @Schema(description = "End, exclusive.", example = "2026-11-14T23:00:00Z") Instant endsAt,
 			@Size(max = MAX_TEXT_LENGTH) @Schema(description = "Optional note for the administrator.",
-					example = "Wyjazd rodzinny") @Nullable String reason) {
+					example = "Wyjazd rodzinny") @Nullable String reason,
+			@Nullable @Size(max = 1000) List<@NotNull UUID> substitutionEventIds,
+			@Nullable Integer version) {
 	}
 
 	@Schema(name = "CreateStaffTimeOffRequest",
@@ -29,12 +32,14 @@ final class TimeOffDtos {
 	record CreateStaffTimeOffRequest(@NotNull UUID staffId, @NotNull TimeOffKind kind,
 			@NotNull @Schema(description = "Start, inclusive.", example = "2026-11-09T23:00:00Z") Instant startsAt,
 			@NotNull @Schema(description = "End, exclusive.", example = "2026-11-14T23:00:00Z") Instant endsAt,
-			@Size(max = MAX_TEXT_LENGTH) @Nullable String reason) {
+			@Size(max = MAX_TEXT_LENGTH) @Nullable String reason,
+			@Nullable @Size(max = 1000) List<@NotNull UUID> substitutionEventIds) {
 	}
 
 	@Schema(name = "TimeOffDecisionRequest", description = "Optional note shown to the staff member.")
 	record DecisionRequest(@Size(max = MAX_TEXT_LENGTH) @Schema(example = "Zastępstwo ustalone.")
-	@Nullable String note) {
+	@Nullable String note, @Nullable Integer version,
+	@Nullable @Size(max = 1000) List<@NotNull UUID> substitutionEventIds) {
 	}
 
 	@Schema(name = "TimeOff", description = "Leave or unavailability of a staff member.")
@@ -46,7 +51,7 @@ final class TimeOffDtos {
 			@Schema(description = "Who approved or rejected it; null while requested.", example = "Beata Lis")
 			@Nullable String decidedByName,
 			@Schema(description = "Recorded by the studio, approved at once, rather than requested by the staff member.")
-			boolean recordedByStudio) {
+			boolean recordedByStudio, int version) {
 	}
 
 }

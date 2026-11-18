@@ -80,11 +80,6 @@ class ReservationStore {
 			.param("id", reservationId).param("event", eventId).query(ROSTER).optional();
 	}
 
-	List<Reservation> lockActiveInEvent(UUID eventId) {
-		return this.jdbc.sql("SELECT * FROM reservation WHERE event_id = :event AND status = 'ACTIVE' ORDER BY id FOR UPDATE")
-			.param("event", eventId).query(MAPPER).list();
-	}
-
 	Optional<Reservation> lockActive(UUID customerId, UUID eventId) {
 		return this.jdbc.sql("""
 				SELECT * FROM reservation

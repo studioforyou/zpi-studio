@@ -240,14 +240,20 @@ class _NotificationTile extends ConsumerWidget {
     final unread = notification.isUnread;
     final l10n = AppLocalizations.of(context);
     final substitution = notification.type == 'SUBSTITUTION_AVAILABLE';
-    final name = substitution ? notification.data['title'] : notification.data['eventName'];
+    final name = substitution
+        ? notification.data['title']
+        : notification.data['eventName'];
     final startsAt = DateTime.tryParse(
-      (substitution ? notification.data['startsAt'] : notification.data['eventStartsAt']) ?? '',
+      (substitution
+              ? notification.data['startsAt']
+              : notification.data['eventStartsAt']) ??
+          '',
     )?.toLocal();
     final deadline = DateTime.tryParse(
       notification.data['offerExpiresAt'] ?? '',
     )?.toLocal();
-    final structured = (_isWaitlist || substitution) && name != null && startsAt != null;
+    final structured =
+        (_isWaitlist || substitution) && name != null && startsAt != null;
     final icon = switch (notification.type) {
       'CLASS_REMINDER' => Icons.event_outlined,
       'CLASS_CHANGED' => Icons.edit_calendar_outlined,
@@ -352,9 +358,14 @@ class _NotificationTile extends ConsumerWidget {
                               color: theme.colorScheme.onSurfaceVariant,
                             ),
                           ),
-                          if (_isWaitlist && deadline != null) _deadline(context, deadline),
-                          if (substitution && notification.data['rooms'] != null)
-                            Text(notification.data['rooms']!, style: theme.textTheme.bodySmall),
+                          if (_isWaitlist && deadline != null)
+                            _deadline(context, deadline),
+                          if (substitution &&
+                              notification.data['rooms'] != null)
+                            Text(
+                              notification.data['rooms']!,
+                              style: theme.textTheme.bodySmall,
+                            ),
                         ],
                       ),
                     ] else

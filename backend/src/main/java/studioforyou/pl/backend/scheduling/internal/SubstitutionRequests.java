@@ -156,7 +156,8 @@ class SubstitutionRequests {
 	}
 
 	private static boolean editable(ScheduleEvent event) {
-		return event.getStatus() == EventStatus.SCHEDULED && event.getStartsAt().isAfter(Instant.now());
+		return (event.getKind() == EventKind.CLASS || event.getKind() == EventKind.PERSONAL_TRAINING)
+				&& event.getStatus() == EventStatus.SCHEDULED && event.getStartsAt().isAfter(Instant.now());
 	}
 
 	private @Nullable StoredRequest activeRequest(UUID eventId) {

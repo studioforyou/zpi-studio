@@ -32,6 +32,52 @@ function eventCount(n: number): string {
 }
 
 export const pl = {
+  timeOffCover: {
+    title: 'Zastępstwa na czas nieobecności',
+    manage: 'Zastępstwa',
+    manual: 'Do decyzji studia',
+    manualWarning:
+      'Odznaczone zajęcia i konsultacje nie są automatycznie odwoływane. Administrator musi ustalić ich dalszy przebieg.',
+    selected: 'Wybrane',
+    all: 'Zaznacz wszystkie',
+    none: 'Odznacz wszystkie',
+    session: 'Zajęcia',
+    when: 'Termin',
+    status: 'Stan zastępstwa',
+    substitute: 'Zastępca',
+    select: 'Wybierz zastępcę dla zaznaczonych terminów',
+    selectPlaceholder: 'Dostępni trenerzy',
+    empty: 'Brak zajęć do przekazania w tym okresie.',
+    error: 'Nie udało się pobrać planu zastępstw.',
+    retry: 'Odśwież',
+    info: 'Zaznacz zajęcia wymagające zastępstwa. Oferty powstaną po zatwierdzeniu nieobecności. Wcześniejsze, osobne zgłoszenia pozostaną aktywne.',
+    managementInfo:
+      'Możesz rozesłać wybrane oferty, zatwierdzić zgłoszonych trenerów albo przypisać jedną osobę do kilku wolnych terminów. Dostępność sprawdzamy dla każdego terminu.',
+    waiting: 'Wybrane do zgłoszenia',
+    unselected: 'Bez szukania zastępstwa',
+    closed: 'Termin zamknięty',
+    already: 'Zgłoszone osobno',
+    start: 'Szukaj zastępstw',
+    save: 'Zapisz wybór',
+    approve: 'Zatwierdź zgłoszonych',
+    assign: 'Przypisz zastępcę',
+    approveTitle: 'Zatwierdzić wybrane zastępstwa?',
+    assignTitle: 'Przypisać zastępcę do tych terminów?',
+    selectionTitle: 'Zapisać plan zastępstw?',
+    selectionInfo:
+      'Otworzymy brakujące oferty zaznaczonych zajęć. Zamkniemy otwarte zgłoszenia utworzone z tej nieobecności, jeśli zostały odznaczone.',
+    changeInfo:
+      'Zmienimy prowadzących tylko wymienionych terminów. Zapisy uczestników i ich wejścia pozostaną bez zmian.',
+    confirm: 'Potwierdź',
+    back: 'Wróć',
+    note: 'Notatka do decyzji (opcjonalnie)',
+    changed: 'Wniosek lub grafik się zmienił. Odśwież widok i sprawdź zaznaczone terminy.',
+    unavailable: 'Trener nie jest dostępny dla wszystkich zaznaczonych terminów.',
+    overlapping: 'Zaznaczone terminy nakładają się na siebie',
+    cancelHint:
+      'Otwarte oferty z tej nieobecności zostaną zamknięte. Przyjęte zastępstwa pozostaną w grafiku.',
+    pendingOnly: 'Zastępstwa można przypisać po zatwierdzeniu nieobecności.',
+  },
   appName: 'studio4U',
   panelName: 'Panel administratora',
   nav: {
@@ -2038,8 +2084,6 @@ export const pl = {
   },
   timeOff: {
     title: 'Urlopy i niedostępności',
-    intro:
-      'Wnioski trenerów czekają tu na decyzję. Wniosek widać w grafiku jako ostrzeżenie już przed decyzją, a zatwierdzony urlop blokuje planowanie zajęć temu trenerowi.',
     add: '+ Dodaj nieobecność',
     pendingBadge: (count: number) => `${count} do decyzji`,
     tabs: {

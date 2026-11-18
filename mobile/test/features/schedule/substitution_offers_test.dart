@@ -142,8 +142,22 @@ void main() {
     await tester.pumpAndSettle();
     expect(api.actions, 1);
     expect(api.withdrawn, false);
-    expect(find.text('Czeka na studio'), findsOneWidget);
+    expect(find.text('Czeka na studio'), findsNWidgets(2));
     expect(find.text('Wycofaj zgłoszenie'), findsOneWidget);
+    Navigator.of(tester.element(find.text('Wycofaj zgłoszenie'))).pop();
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<SegmentedButton<bool>>(find.byType(SegmentedButton<bool>))
+          .selected,
+      {true},
+    );
+    await tester.tap(find.text('Dostępne'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Pasujące do mnie'));
+    await tester.pumpAndSettle();
+    expect(find.text('Trening personalny'), findsNothing);
+    expect(find.text('Zajęty termin'), findsOneWidget);
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
@@ -152,7 +166,7 @@ void main() {
   ) async {
     final api = Api()..current = offer(status: 'CLAIMED');
     await pump(tester, api);
-    await tester.tap(find.text('Moje zgłoszenia'));
+    await tester.tap(find.text('Moje zastępstwa'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Trening personalny'));
     await tester.pumpAndSettle();
@@ -195,7 +209,7 @@ void main() {
     (tester) async {
       final api = Api()..current = offer(status: 'CLAIMED');
       await pump(tester, api);
-      await tester.tap(find.text('Moje zgłoszenia'));
+      await tester.tap(find.text('Moje zastępstwa'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Trening personalny'));
       await tester.pumpAndSettle();
