@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import {
   Alert,
+  Box,
   Button,
   Checkbox,
   Group,
@@ -143,6 +144,7 @@ function MakeupPolicyForm({ policy, onClose }: Omit<Props, 'opened'>) {
         <NumberInput
           label={t.form.validityDays}
           description={t.form.validityHint}
+          inputWrapperOrder={['label', 'input', 'description', 'error']}
           required
           min={1}
           allowDecimal={false}
@@ -150,22 +152,25 @@ function MakeupPolicyForm({ policy, onClose }: Omit<Props, 'opened'>) {
           onChange={(days) => set('validityDays', toNumber(days))}
           error={submitted ? daysError : undefined}
         />
-        <Stack gap={6}>
-          <NumberInput
-            label={t.form.maxPerPass}
-            min={1}
-            allowDecimal={false}
-            disabled={values.unlimited}
-            value={values.unlimited ? '' : (values.maxPerPass ?? '')}
-            onChange={(max) => set('maxPerPass', toNumber(max))}
-            error={submitted ? limitError : undefined}
-          />
-          <Checkbox
-            label={t.form.noLimit}
-            checked={values.unlimited}
-            onChange={(event) => set('unlimited', event.currentTarget.checked)}
-          />
-        </Stack>
+        <NumberInput
+          label={t.form.maxPerPass}
+          min={1}
+          allowDecimal={false}
+          disabled={values.unlimited}
+          value={values.unlimited ? '' : (values.maxPerPass ?? '')}
+          onChange={(max) => set('maxPerPass', toNumber(max))}
+          error={submitted ? limitError : undefined}
+          inputContainer={(input) => (
+            <Group gap="md" wrap="nowrap">
+              <Box w={120}>{input}</Box>
+              <Checkbox
+                label={t.form.noLimit}
+                checked={values.unlimited}
+                onChange={(event) => set('unlimited', event.currentTarget.checked)}
+              />
+            </Group>
+          )}
+        />
       </Group>
       <Stack gap={6}>
         <Text size="sm" fw={500}>
