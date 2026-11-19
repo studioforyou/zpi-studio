@@ -299,6 +299,26 @@ class SeedDataTests {
 		assertThat(JsonPath.<Integer>read(personal, "$.totals.absent")).isPositive();
 	}
 
+	@Test
+	void salesHistoryShowsPassesBoughtInTheAppAndAssignedAtTheDesk() throws Exception {
+		// Beata, the studio's administrator; the history covers half a year before the first run.
+		String token = seedToken(10);
+		LocalDate today = LocalDate.now(ZoneId.of("Europe/Warsaw"));
+		String sales = report(token, "/api/v1/reports/pass-sales", today.minusDays(90), today, null);
+		assertThat(JsonPath.<Integer>read(sales, "$.totals.passes")).isGreaterThanOrEqualTo(100);
+		assertThat(JsonPath.<Integer>read(sales, "$.totals.online")).isPositive();
+		assertThat(JsonPath.<Integer>read(sales, "$.totals.studio")).isPositive();
+		assertThat(JsonPath.<Integer>read(sales, "$.totals.free")).isPositive();
+		assertThat(JsonPath.<Integer>read(sales, "$.previous.totals.passes")).isPositive();
+		List<Integer> perKind = JsonPath.read(sales, "$.kinds[?(@.kind != 'VOUCHER')].counts.passes");
+		assertThat(perKind).hasSize(4).allSatisfy((passes) -> assertThat(passes).isPositive());
+		// Pole Dance 4 entries was sold at its old price before the price change 120 days ago.
+		String older = report(token, "/api/v1/reports/pass-sales", today.minusDays(180), today.minusDays(121), null);
+		List<Integer> polePrices = JsonPath.read(older,
+				"$.products[?(@.name == 'Karnet Pole Dance')].variants[*].priceMinor");
+		assertThat(polePrices).contains(16000);
+	}
+
 	private String report(String token, String path, LocalDate from, LocalDate to, @Nullable String kind)
 			throws Exception {
 		var request = get(path).header("Authorization", "Bearer " + token)
@@ -408,6 +428,23 @@ class SeedDataTests {
 		new ResourceDatabasePopulator(script).execute(dataSource);
 		assertThat(jdbc.sql("SELECT entries_remaining::INT FROM customer_pass WHERE id = '28000000-0000-0000-0000-000000011001'").query(Integer.class).single()).isEqualTo(4);
 		assertThat(jdbc.sql("SELECT * FROM schedule_event WHERE id = '19000000-0000-0000-0000-000000011002'").query().singleRow()).isEqualTo(changed);
+		assertThat(rowCounts()).isEqualTo(counts);
+	}
+
+	@Test
+	@Transactional
+	void substitutionExamplesAreScopedAndPreserveWithdrawalsOnRerun() throws Exception {
+		String marek = seedGet(seedToken(2), "/api/v1/me/substitution-requests", true);
+		List<String> requests = JsonPath.read(marek, "$.items[*].id");
+		assertThat(requests).contains("22000000-0000-0000-0000-000000127002", "22000000-0000-0000-0000-000000127003")
+			.doesNotContain("22000000-0000-0000-0000-000000127004");
+		Map<String, Long> counts = rowCounts();
+		jdbc.sql("UPDATE substitution_request SET status='CANCELLED' WHERE id='22000000-0000-0000-0000-000000127002'").update();
+		var script = new ResourceDatabasePopulator(new ClassPathResource("db/seed/R__seed_18_substitutions.sql"));
+		script.execute(dataSource);
+		script.execute(dataSource);
+		assertThat(jdbc.sql("SELECT status FROM substitution_request WHERE id='22000000-0000-0000-0000-000000127002'")
+			.query(String.class).single()).isEqualTo("CANCELLED");
 		assertThat(rowCounts()).isEqualTo(counts);
 	}
 

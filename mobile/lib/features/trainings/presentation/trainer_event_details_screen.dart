@@ -7,6 +7,7 @@ import 'package:mobile/features/schedule/data/schedule_api.dart';
 import 'package:mobile/features/schedule/presentation/reschedule_event_screen.dart';
 import 'package:mobile/features/schedule/presentation/widgets/schedule_calendar.dart';
 import 'package:mobile/features/schedule/presentation/widgets/series_change_widgets.dart';
+import 'package:mobile/features/schedule/presentation/widgets/substitution_widgets.dart';
 import 'package:mobile/features/trainings/data/event_participants_api.dart';
 import 'package:mobile/features/trainings/presentation/add_class_participants_screen.dart';
 import 'package:mobile/features/trainings/presentation/widgets/group_class_widgets.dart';
@@ -102,8 +103,10 @@ class _Details extends ConsumerWidget {
                         ),
                       ),
                     ),
-                  if (event.kind != EventKind.consultation)
+                  if (event.kind != EventKind.consultation) ...[
+                    OwnSubstitutionSection(event: event),
                     _AttendanceSection(event: event, query: query),
+                  ],
                 ];
               },
             ),
