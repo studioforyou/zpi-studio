@@ -673,6 +673,7 @@ export const pl = {
       audience: 'Dla kogo',
       services: 'Usługi',
       variants: 'Warianty',
+      makeups: 'Odrabianie',
       status: 'Status',
     },
     status: { active: 'Aktywny', archived: 'Zarchiwizowany', inactive: 'Nieaktywny' },
@@ -696,6 +697,12 @@ export const pl = {
       suspensionAllowed: 'Można zawiesić',
       maxSuspensionDays: 'Maksymalnie dni zawieszenia',
       firstVariant: 'Pierwszy wariant',
+      makeupPolicy: 'Zasady odrobień',
+      noMakeups: 'Bez odrobień',
+      noMakeupsHint: 'Odwołane zajęcia z tego karnetu nie dają odróbek.',
+      inactivePolicy: (name: string) => `${name} (nieaktywna)`,
+      inactivePolicyHint: 'Ta zasada jest nieaktywna: karnet nie przyznaje nowych odróbek.',
+      managePolicies: 'Zarządzaj zasadami',
       save: 'Zapisz',
       cancel: 'Anuluj',
       required: 'To pole jest wymagane.',
@@ -725,8 +732,87 @@ export const pl = {
       PASS_PRODUCT_ARCHIVED: 'Karnet jest zarchiwizowany.',
       PASS_VARIANT_INACTIVE: 'Ten wariant jest już nieaktywny.',
       SERVICE_TYPE_UNAVAILABLE: 'Wybrana usługa nie istnieje lub jest nieaktywna.',
+      MAKEUP_POLICY_UNAVAILABLE: 'Wybrana zasada odrobień nie istnieje lub jest nieaktywna.',
       VALIDATION_FAILED: 'Sprawdź poprawność danych w formularzu.',
       ACCESS_DENIED: 'Brak uprawnień do zmiany oferty.',
+      unknown: 'Nie udało się zapisać zmian. Spróbuj ponownie.',
+    },
+  },
+  makeupPolicies: {
+    tab: 'Zasady odrobień',
+    intro:
+      'Zasady określają, kiedy uczestnik dostaje odróbkę za odwołane zajęcia i jak długo może z niej skorzystać. Zasadę wybierasz w ustawieniach karnetu.',
+    add: 'Dodaj zasadę',
+    loadError: 'Nie udało się wczytać zasad odrobień.',
+    emptyTitle: 'Nie ma jeszcze żadnych zasad odrobień',
+    emptyText:
+      'Dodaj pierwszą zasadę, a potem wybierz ją w karnecie, aby uczestnicy mogli odrabiać odwołane zajęcia.',
+    columns: {
+      name: 'Nazwa',
+      validity: 'Ważność odróbki',
+      limit: 'Limit na karnet',
+      grantedFor: 'Odróbka za',
+      expiryCheck: 'Ważność sprawdzana',
+      products: 'Karnety',
+      status: 'Status',
+      actions: 'Działania',
+    },
+    days: (days: number) => (days === 1 ? '1 dzień' : `${days} dni`),
+    noLimit: 'bez limitu',
+    perPass: (max: number) => `maks. ${max}`,
+    grantedFor: { inTime: 'odwołanie w terminie', studio: 'odwołanie przez studio', none: 'nic' },
+    expiryChecks: { EVENT_DATE: 'w dniu zajęć', BOOK_DATE: 'w chwili zapisu' },
+    productCount: (count: number) =>
+      count === 0
+        ? 'nieużywana'
+        : count === 1
+          ? '1 karnet'
+          : count % 10 >= 2 && count % 10 <= 4 && (count % 100 < 12 || count % 100 > 14)
+            ? `${count} karnety`
+            : `${count} karnetów`,
+    status: { active: 'Aktywna', inactive: 'Nieaktywna' },
+    edit: 'Edytuj',
+    deactivate: 'Dezaktywuj',
+    activate: 'Aktywuj',
+    summary: (days: string, limit: string, grantedFor: string) =>
+      `Ważna ${days}, ${limit} na karnet, za: ${grantedFor}.`,
+    form: {
+      createTitle: 'Nowa zasada odrobień',
+      editTitle: 'Edycja zasady odrobień',
+      name: 'Nazwa',
+      namePlaceholder: 'np. Odrabianie 30 dni',
+      validityDays: 'Ważność odróbki (dni)',
+      validityHint: 'Liczona od chwili przyznania odróbki.',
+      maxPerPass: 'Maksymalnie odróbek z jednego karnetu',
+      noLimit: 'Bez limitu',
+      grantFor: 'Odróbka przysługuje, gdy',
+      grantOnInTimeCancel: 'uczestnik odwoła zajęcia w terminie',
+      grantOnStudioCancel: 'studio odwoła zajęcia',
+      expiryCheck: 'Ważność odróbki sprawdzana',
+      expiryCheckHint: {
+        EVENT_DATE: 'Zajęcia muszą odbyć się przed końcem ważności odróbki.',
+        BOOK_DATE: 'Wystarczy zapisać się przed końcem ważności, zajęcia mogą być później.',
+      },
+      changeNote:
+        'Zmiany dotyczą tylko odróbek przyznanych od teraz. Odróbki już przyznane zachowują swój termin ważności.',
+      required: 'To pole jest wymagane.',
+      positive: 'Podaj liczbę większą od zera.',
+      save: 'Zapisz',
+      cancel: 'Anuluj',
+    },
+    confirmDeactivate: {
+      title: 'Dezaktywować zasadę?',
+      text: (name: string) =>
+        `Zasada „${name}” przestanie przyznawać nowe odróbki. Odróbki już przyznane pozostaną ważne do końca swojego terminu.`,
+      products: (count: string) =>
+        `Zasadę wybrano w: ${count}. Te karnety przestaną dawać odróbki.`,
+      confirm: 'Dezaktywuj',
+      cancel: 'Anuluj',
+    },
+    errors: {
+      VALIDATION_FAILED: 'Sprawdź poprawność danych w formularzu.',
+      ACCESS_DENIED: 'Brak uprawnień do zmiany zasad odrobień.',
+      NOT_FOUND: 'Ta zasada już nie istnieje. Odśwież stronę.',
       unknown: 'Nie udało się zapisać zmian. Spróbuj ponownie.',
     },
   },

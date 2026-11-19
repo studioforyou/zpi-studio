@@ -31,8 +31,8 @@ import studioforyou.pl.backend.offering.PassProductKind;
 
 /**
  * A pass product with its price variants and the services it pays for. Products are
- * archived ({@code is_active = false}), never deleted. The make-up policy is managed by
- * the membership module and is not mapped here.
+ * archived ({@code is_active = false}), never deleted. The make-up policy itself is managed by
+ * the membership module; the product only refers to it.
  */
 @Entity
 @Table(name = "pass_product")
@@ -51,6 +51,9 @@ public class PassProduct {
 
 	@Enumerated(EnumType.STRING)
 	private PassProductAudience audience;
+
+	@Column(name = "makeup_policy_id")
+	private UUID makeupPolicyId;
 
 	@Column(name = "suspension_allowed")
 	private boolean suspensionAllowed;
@@ -120,6 +123,15 @@ public class PassProduct {
 
 	public void setAudience(PassProductAudience audience) {
 		this.audience = audience;
+	}
+
+	/** The policy that grants make-up credits, or {@code null} when the product gives none. */
+	public UUID getMakeupPolicyId() {
+		return this.makeupPolicyId;
+	}
+
+	public void setMakeupPolicyId(UUID makeupPolicyId) {
+		this.makeupPolicyId = makeupPolicyId;
 	}
 
 	public boolean isSuspensionAllowed() {

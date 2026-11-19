@@ -4,8 +4,10 @@ import 'package:mobile/core/auth/auth_controller.dart';
 import 'package:mobile/features/schedule/data/schedule_api.dart';
 import 'package:mobile/features/schedule/presentation/widgets/schedule_calendar.dart';
 import 'package:mobile/features/trainings/data/trainee_card_api.dart';
+import 'package:mobile/features/trainings/data/trainee_makeups_api.dart';
 import 'package:mobile/features/trainings/data/trainee_overview_api.dart';
 import 'package:mobile/features/trainings/presentation/widgets/trainee_card_view.dart';
+import 'package:mobile/features/trainings/presentation/widgets/trainee_makeups_section.dart';
 import 'package:mobile/features/trainings/presentation/widgets/trainee_overview_widgets.dart';
 import 'package:mobile/features/trainings/presentation/widgets/trainee_profile_view.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
@@ -61,6 +63,7 @@ class _OverviewScreenState extends ConsumerState<_OverviewScreen>
     ref.invalidate(traineeOverviewProvider(widget.query));
     // Another trainer of the trainee may have changed the shared card.
     ref.invalidate(traineeCardProvider(widget.query));
+    ref.invalidate(traineeMakeupsProvider(widget.query));
     final calendar = _calendarQuery;
     if (calendar != null) ref.invalidate(traineeCalendarProvider(calendar));
     try {
@@ -141,6 +144,8 @@ class _OverviewScreenState extends ConsumerState<_OverviewScreen>
                   physics: const AlwaysScrollableScrollPhysics(),
                   padding: const EdgeInsets.all(16),
                   children: [
+                    TraineeMakeupsSection(query: widget.query),
+                    const SizedBox(height: 16),
                     if (details.trainee.nextTraining case final next?)
                       TraineeNextTraining(
                         next,

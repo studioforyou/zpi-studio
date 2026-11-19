@@ -22,6 +22,7 @@ import studioforyou.pl.backend.offering.internal.PassProductCatalog.NewProduct;
  * @param suspensionAllowed whether the pass can be suspended; {@code false} when missing
  * @param maxSuspensionDays the longest allowed suspension, or {@code null} without a limit; ignored without suspension
  * @param serviceTypeIds the active services the product pays for
+ * @param makeupPolicyId an active make-up policy, or {@code null} when the product gives no make-up credits
  */
 @Schema(name = "CreatePassProductRequest")
 public record CreatePassProductRequest(
@@ -32,11 +33,12 @@ public record CreatePassProductRequest(
 		Boolean suspensionAllowed,
 		@Positive Short maxSuspensionDays,
 		@NotNull Set<@NotNull UUID> serviceTypeIds,
+		UUID makeupPolicyId,
 		@NotEmpty List<@NotNull @Valid PassProductVariantRequest> variants) {
 
 	NewProduct toCommand() {
 		return new NewProduct(name, description, kind, audience, Boolean.TRUE.equals(suspensionAllowed),
-				maxSuspensionDays, serviceTypeIds,
+				maxSuspensionDays, serviceTypeIds, makeupPolicyId,
 				variants.stream().map(PassProductVariantRequest::toCommand).toList());
 	}
 
