@@ -430,4 +430,58 @@ void main() {
     );
     expect(participantsApi.calls, 2);
   });
+
+  ScheduleEvent future({bool lead = true}) {
+    final start = DateTime.now().add(const Duration(days: 3));
+    return ScheduleEvent(
+      id: 'event-1',
+      kind: EventKind.groupClass,
+      status: EventStatus.scheduled,
+      title: 'Pole dance dla dzieci',
+      serviceTypeName: 'Pole dance',
+      startsAt: start,
+      endsAt: start.add(const Duration(hours: 1)),
+      capacity: 10,
+      staff: [
+        EventStaff(
+          staffId: lead ? 'staff-1' : 'staff-2',
+          displayName: 'Marek Nowak',
+          isLead: true,
+        ),
+        if (!lead)
+          const EventStaff(
+            staffId: 'staff-1',
+            displayName: 'Anna Kowalska',
+            isLead: false,
+          ),
+      ],
+      roomNames: const ['Sala pole dance'],
+      roomIds: const ['pole'],
+    );
+  }
+
+  testWidgets('the lead trainer can edit the time of a future class', (
+    tester,
+  ) async {
+    scheduleApi.event = future();
+    await pumpScreen(tester);
+
+    expect(find.widgetWithText(OutlinedButton, 'Edytuj'), findsOneWidget);
+    expect(find.byIcon(Icons.edit_outlined), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('trainerEventEdit')));
+    await tester.pumpAndSettle();
+    expect(find.text('Zmień termin'), findsOneWidget);
+  });
+
+  testWidgets('an assistant has no edit button', (tester) async {
+    scheduleApi.event = future(lead: false);
+    await pumpScreen(tester);
+    expect(find.byKey(const Key('trainerEventEdit')), findsNothing);
+  });
+
+  testWidgets('a past class cannot be edited', (tester) async {
+    await pumpScreen(tester);
+    expect(find.byKey(const Key('trainerEventEdit')), findsNothing);
+  });
 }
