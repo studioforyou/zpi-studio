@@ -15,6 +15,7 @@ import 'package:mobile/core/network/api_exception.dart';
 import 'package:mobile/features/schedule/data/schedule_api.dart';
 import 'package:mobile/features/schedule/presentation/widgets/schedule_calendar.dart';
 import 'package:mobile/features/trainings/data/trainee_card_api.dart';
+import 'package:mobile/features/trainings/data/trainee_makeups_api.dart';
 import 'package:mobile/features/trainings/data/trainee_overview_api.dart';
 import 'package:mobile/features/trainings/data/trainee_profile_api.dart';
 import 'package:mobile/features/trainings/data/trainees_api.dart';
@@ -258,6 +259,17 @@ class _CardApi implements TraineeCardApi {
       throw UnimplementedError();
 }
 
+class _NoMakeups implements TraineeMakeupsApi {
+  @override
+  Future<TraineeMakeups> fetch(String customerId) async => TraineeMakeups(
+    checkedOn: _checkedOn,
+    totalCount: 0,
+    nearestExpiresAt: null,
+    items: const [],
+    limits: const [],
+  );
+}
+
 class _Adapter implements HttpClientAdapter {
   Map<String, dynamic> body = {};
   int status = 200;
@@ -304,6 +316,7 @@ Future<ProviderContainer> _pump(
       traineeOverviewApiProvider.overrideWithValue(api),
       traineeProfileApiProvider.overrideWithValue(_ProfileApi()),
       traineeCardApiProvider.overrideWithValue(cards ?? _CardApi()),
+      traineeMakeupsApiProvider.overrideWithValue(_NoMakeups()),
       traineesApiProvider.overrideWithValue(_Trainees(active: active)),
     ],
   );

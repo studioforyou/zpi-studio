@@ -1,6 +1,8 @@
 package studioforyou.pl.backend.offering.internal;
 
 import java.net.URI;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -53,8 +55,10 @@ public class PassProductController {
 			Authentication authentication) {
 		boolean admin = isAdmin(authentication);
 		Boolean filter = admin ? active : Boolean.TRUE;
+		List<PassProduct> products = catalog.list(filter);
+		Map<UUID, String> policyNames = catalog.makeupPolicyNames(products);
 		return new PassProductListResponse(
-				catalog.list(filter).stream().map((product) -> PassProductResponse.from(product, admin)).toList());
+				products.stream().map((product) -> PassProductResponse.from(product, admin, policyNames)).toList());
 	}
 
 	@GetMapping("/{productId}")
@@ -68,7 +72,7 @@ public class PassProductController {
 		if (!admin && !product.isActive()) {
 			throw new ApiException(ErrorCode.NOT_FOUND, "Pass product not found.");
 		}
-		return PassProductResponse.from(product, admin);
+		return response(product, admin);
 	}
 
 	@PostMapping
@@ -79,12 +83,13 @@ public class PassProductController {
 			mediaType = "application/problem+json", schema = @Schema(implementation = ApiProblem.class)))
 	@ApiResponse(responseCode = "409", description = "PASS_VARIANT_ALREADY_EXISTS: two variants with the same entries and validity.",
 			content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ApiProblem.class)))
-	@ApiResponse(responseCode = "422", description = "SERVICE_TYPE_UNAVAILABLE: a service type does not exist or is inactive.",
+	@ApiResponse(responseCode = "422", description = "SERVICE_TYPE_UNAVAILABLE: a service type does not exist or is inactive. "
+			+ "MAKEUP_POLICY_UNAVAILABLE: the make-up policy does not exist or is inactive.",
 			content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ApiProblem.class)))
 	public ResponseEntity<PassProductResponse> create(@Valid @RequestBody CreatePassProductRequest request) {
 		PassProduct product = catalog.create(request.toCommand());
 		return ResponseEntity.created(URI.create("/api/v1/pass-products/" + product.getId()))
-			.body(PassProductResponse.from(product, true));
+			.body(response(product, true));
 	}
 
 	@PatchMapping("/{productId}")
@@ -96,11 +101,12 @@ public class PassProductController {
 			mediaType = "application/problem+json", schema = @Schema(implementation = ApiProblem.class)))
 	@ApiResponse(responseCode = "404", description = "No such product.", content = @Content(
 			mediaType = "application/problem+json", schema = @Schema(implementation = ApiProblem.class)))
-	@ApiResponse(responseCode = "422", description = "SERVICE_TYPE_UNAVAILABLE: a newly added service type does not exist or is inactive.",
+	@ApiResponse(responseCode = "422", description = "SERVICE_TYPE_UNAVAILABLE: a newly added service type does not exist or is inactive. "
+			+ "MAKEUP_POLICY_UNAVAILABLE: a newly linked make-up policy does not exist or is inactive.",
 			content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ApiProblem.class)))
 	public PassProductResponse update(@PathVariable UUID productId,
 			@Valid @RequestBody UpdatePassProductRequest request) {
-		return PassProductResponse.from(catalog.update(productId, request.toChanges()), true);
+		return response(catalog.update(productId, request.toChanges()), true);
 	}
 
 	@PostMapping("/{productId}/archive")
@@ -111,7 +117,7 @@ public class PassProductController {
 	@ApiResponse(responseCode = "404", description = "No such product.", content = @Content(
 			mediaType = "application/problem+json", schema = @Schema(implementation = ApiProblem.class)))
 	public PassProductResponse archive(@PathVariable UUID productId) {
-		return PassProductResponse.from(catalog.archive(productId), true);
+		return response(catalog.archive(productId), true);
 	}
 
 	@PostMapping("/{productId}/restore")
@@ -121,7 +127,7 @@ public class PassProductController {
 	@ApiResponse(responseCode = "404", description = "No such product.", content = @Content(
 			mediaType = "application/problem+json", schema = @Schema(implementation = ApiProblem.class)))
 	public PassProductResponse restore(@PathVariable UUID productId) {
-		return PassProductResponse.from(catalog.restore(productId), true);
+		return response(catalog.restore(productId), true);
 	}
 
 	@GetMapping("/{productId}/variants/{variantId}")
@@ -183,6 +189,10 @@ public class PassProductController {
 	private static ResponseEntity<PassProductVariantResponse> created(UUID productId, PassProductVariant variant) {
 		URI location = URI.create("/api/v1/pass-products/" + productId + "/variants/" + variant.getId());
 		return ResponseEntity.created(location).body(PassProductVariantResponse.from(variant));
+	}
+
+	private PassProductResponse response(PassProduct product, boolean withInactiveVariants) {
+		return PassProductResponse.from(product, withInactiveVariants, catalog.makeupPolicyNames(List.of(product)));
 	}
 
 	private static boolean isAdmin(Authentication authentication) {

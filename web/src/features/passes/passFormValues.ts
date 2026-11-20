@@ -8,6 +8,8 @@ export type ProductFormValues = {
   serviceTypeIds: string[];
   suspensionAllowed: boolean;
   maxSuspensionDays: number | null;
+  /** `null` = no make-up credits. */
+  makeupPolicyId: string | null;
 };
 
 export type VariantFormValues = {

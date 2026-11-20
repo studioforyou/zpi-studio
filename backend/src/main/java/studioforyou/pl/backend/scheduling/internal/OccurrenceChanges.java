@@ -8,6 +8,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 
 import org.jspecify.annotations.Nullable;
@@ -20,6 +21,7 @@ import studioforyou.pl.backend.scheduling.internal.ScheduleConflicts.Assignments
 import studioforyou.pl.backend.scheduling.internal.ScheduleConflicts.Occurrence;
 import studioforyou.pl.backend.scheduling.internal.ScheduleDtos.ChangeEventRequest;
 import studioforyou.pl.backend.scheduling.internal.ScheduleDtos.OccurrencePreview;
+import studioforyou.pl.backend.scheduling.internal.ScheduleDtos.OwnRescheduleRequest;
 import studioforyou.pl.backend.scheduling.internal.ScheduleDtos.PlanPreviewResponse;
 import studioforyou.pl.backend.scheduling.internal.ScheduleDtos.ResourceAssignmentRequest;
 import studioforyou.pl.backend.scheduling.internal.ScheduleDtos.RestoreSeriesRequest;
@@ -40,7 +42,8 @@ import org.springframework.transaction.annotation.Transactional;
  * be brought back to the rule. The same checks as for a new event apply: the event must start in
  * the future and its rooms and staff must be free at the new time. The capacity may not drop below
  * the places already taken (reservations and held waiting-list offers). A block keeps the rules it
- * was planned with: no staff, no capacity, rooms taken whole.
+ * was planned with: no staff, no capacity, rooms taken whole. A trainer may move an occurrence
+ * they lead to another time or room; everything else about it stays.
  */
 @Service
 @Transactional
@@ -109,6 +112,64 @@ class OccurrenceChanges {
 	 * exception; a request that changes nothing leaves the event as it is.
 	 */
 	ScheduleEventResponse change(UUID eventId, ChangeEventRequest request) {
+		return change(eventId, request, Set.of());
+	}
+
+	/**
+	 * Lists the conflicts and warnings of moving an occurrence the trainer leads, without saving
+	 * anything.
+	 */
+	@Transactional(readOnly = true)
+	PlanPreviewResponse previewOwn(UUID eventId, UUID staffId, OwnRescheduleRequest request) {
+		return preview(eventId, ownChange(eventId, staffId, request));
+	}
+
+	/**
+	 * Moves an occurrence the trainer leads to another time and, optionally, another room. Its
+	 * title, capacity and staff stay as they are. The participants and the other staff members are
+	 * told about the change; the trainer who made it is not.
+	 */
+	ScheduleEventResponse rescheduleOwn(UUID eventId, UUID staffId, OwnRescheduleRequest request) {
+		return change(eventId, ownChange(eventId, staffId, request), Set.of(staffId));
+	}
+
+	/**
+	 * The full change of an event the trainer leads that only moves it. An event the trainer does
+	 * not lead is not found, as for anyone else's event.
+	 */
+	private ChangeEventRequest ownChange(UUID eventId, UUID staffId, OwnRescheduleRequest request) {
+		ScheduleEvent event = this.events.findById(eventId)
+			.filter((candidate) -> candidate.getKind() != EventKind.BLOCK)
+			.filter((candidate) -> candidate.getStaff()
+				.stream()
+				.anyMatch((assignment) -> assignment.staffId().equals(staffId) && assignment.role() == StaffRole.LEAD))
+			.orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "Schedule event not found."));
+		List<StaffAssignmentRequest> staff = event.getStaff()
+			.stream()
+			.map((assignment) -> new StaffAssignmentRequest(assignment.staffId(), assignment.role()))
+			.toList();
+		List<ResourceAssignmentRequest> resources;
+		if (request.resourceId() == null) {
+			resources = event.getResources()
+				.stream()
+				.map((assignment) -> new ResourceAssignmentRequest(assignment.resourceId(),
+						assignment.blocksWholeRoom()))
+				.toList();
+		}
+		else {
+			boolean blocksWholeRoom = event.getResources()
+				.stream()
+				.allMatch(EventResourceAssignment::blocksWholeRoom);
+			resources = List.of(new ResourceAssignmentRequest(request.resourceId(), blocksWholeRoom));
+		}
+		return new ChangeEventRequest(request.version(), request.startsAt(), request.endsAt(), event.getTitle(),
+				toInteger(event.getCapacity()), staff, resources);
+	}
+
+	/**
+	 * Applies the change; the staff members in {@code silentStaff} get no notice of it.
+	 */
+	private ScheduleEventResponse change(UUID eventId, ChangeEventRequest request, Set<UUID> silentStaff) {
 		ScheduleEvent event = lockForChange(eventId, request.version());
 		ZoneId zone = this.studio.zone();
 		Occurrence occurrence = this.planner.checkedOccurrence(request.startsAt(), request.endsAt(), zone);
@@ -127,7 +188,7 @@ class OccurrenceChanges {
 		}
 		this.events.flush();
 		publishChange(before, event);
-		this.notices.record(noticeBefore);
+		this.notices.record(noticeBefore, silentStaff);
 		return this.queries.findEvent(eventId).orElseThrow();
 	}
 

@@ -44,6 +44,8 @@ const adultProduct: PassProduct = {
   maxSuspensionDays: null,
   isActive: true,
   serviceTypeIds: [],
+  makeupPolicyId: null,
+  makeupPolicyName: null,
   variants: [
     {
       id: 'variant-1',

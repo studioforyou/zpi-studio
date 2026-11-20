@@ -19,6 +19,8 @@ import studioforyou.pl.backend.offering.internal.PassProductCatalog.ProductChang
  * @param description new description; an empty text removes it
  * @param suspensionAllowed whether the pass can be suspended; {@code false} also removes the day limit
  * @param serviceTypeIds the full new list of services the product pays for
+ * @param makeupPolicyId a new active make-up policy for the product
+ * @param removeMakeupPolicy {@code true} to stop granting make-up credits; takes precedence over {@code makeupPolicyId}
  */
 @Schema(name = "UpdatePassProductRequest")
 public record UpdatePassProductRequest(
@@ -27,10 +29,13 @@ public record UpdatePassProductRequest(
 		PassProductAudience audience,
 		Boolean suspensionAllowed,
 		@Positive Short maxSuspensionDays,
-		Set<@NotNull UUID> serviceTypeIds) {
+		Set<@NotNull UUID> serviceTypeIds,
+		UUID makeupPolicyId,
+		Boolean removeMakeupPolicy) {
 
 	ProductChanges toChanges() {
-		return new ProductChanges(name, description, audience, suspensionAllowed, maxSuspensionDays, serviceTypeIds);
+		return new ProductChanges(name, description, audience, suspensionAllowed, maxSuspensionDays, serviceTypeIds,
+				makeupPolicyId, Boolean.TRUE.equals(removeMakeupPolicy));
 	}
 
 }

@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { pl } from '@/shared/i18n/pl';
 import { EventAttendanceSection } from './EventAttendanceSection';
 import { CancelStudioEventModal } from './CancelStudioEventModal';
+import { EventAutoCancellationSection } from './EventAutoCancellationSection';
 import { EventReservationsSection } from './EventReservationsSection';
 import {
   getRecurrenceSeries,
@@ -224,7 +225,11 @@ export function EventDetailsDrawer({
             <>
               <Divider />
               {managesBookings(event) ? (
-                <EventReservationsSection event={event} />
+                <>
+                  <EventReservationsSection event={event} />
+                  <Divider />
+                  <EventAutoCancellationSection event={event} lookups={lookups} />
+                </>
               ) : (
                 <EventAttendanceSection event={event} timeZone={lookups.timeZone} />
               )}

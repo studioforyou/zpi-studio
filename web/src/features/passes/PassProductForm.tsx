@@ -1,4 +1,5 @@
 import {
+  Anchor,
   Checkbox,
   Flex,
   Group,
@@ -7,10 +8,13 @@ import {
   Select,
   Stack,
   Switch,
+  Text,
   Textarea,
   TextInput,
 } from '@mantine/core';
 import { pl } from '@/shared/i18n/pl';
+import type { MakeupPolicy } from './makeupPoliciesApi';
+import { policySummary } from './makeupPolicyFormat';
 import {
   passProductAudiences,
   passProductKinds,
@@ -24,15 +28,22 @@ type ProductFieldsProps = {
   values: ProductFormValues;
   onChange: (values: ProductFormValues) => void;
   serviceTypes: ServiceType[];
+  makeupPolicies: MakeupPolicy[];
+  /** Opens the make-up policies tab; the link is hidden without it. */
+  onManagePolicies?: () => void;
   /** The kind is chosen once, when the product is created. */
   kindLocked?: boolean;
   showErrors?: boolean;
 };
 
+const NO_MAKEUPS = 'none';
+
 export function ProductFields({
   values,
   onChange,
   serviceTypes,
+  makeupPolicies,
+  onManagePolicies,
   kindLocked = false,
   showErrors = false,
 }: ProductFieldsProps) {
@@ -42,6 +53,17 @@ export function ProductFields({
   const serviceOptions = serviceTypes
     .filter((service) => service.isActive || values.serviceTypeIds.includes(service.id))
     .map((service) => ({ value: service.id, label: service.name }));
+  // An inactive policy stays visible while it is still linked to the product.
+  const policyOptions = [
+    { value: NO_MAKEUPS, label: pl.passes.form.noMakeups },
+    ...makeupPolicies
+      .filter((policy) => policy.isActive || policy.id === values.makeupPolicyId)
+      .map((policy) => ({
+        value: policy.id,
+        label: policy.isActive ? policy.name : pl.passes.form.inactivePolicy(policy.name),
+      })),
+  ];
+  const chosenPolicy = makeupPolicies.find((policy) => policy.id === values.makeupPolicyId);
 
   return (
     <Stack gap="sm">
@@ -88,6 +110,29 @@ export function ProductFields({
         searchable
         clearable
       />
+      <Stack gap={4}>
+        <Select
+          label={pl.passes.form.makeupPolicy}
+          data={policyOptions}
+          value={values.makeupPolicyId ?? NO_MAKEUPS}
+          onChange={(id) => set('makeupPolicyId', id === null || id === NO_MAKEUPS ? null : id)}
+          allowDeselect={false}
+        />
+        <Group justify="space-between" gap="xs" wrap="nowrap" align="flex-start">
+          <Text size="xs" c="dimmed">
+            {chosenPolicy
+              ? chosenPolicy.isActive
+                ? policySummary(chosenPolicy)
+                : pl.passes.form.inactivePolicyHint
+              : pl.passes.form.noMakeupsHint}
+          </Text>
+          {onManagePolicies && (
+            <Anchor component="button" type="button" size="xs" onClick={onManagePolicies}>
+              {pl.passes.form.managePolicies}
+            </Anchor>
+          )}
+        </Group>
+      </Stack>
       <Group align="flex-end">
         {/* Same height as the input, so the switch sits level with its box, not its label. */}
         <Flex h="var(--input-height-sm)" align="center">

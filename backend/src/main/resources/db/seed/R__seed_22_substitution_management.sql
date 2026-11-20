@@ -1,3 +1,4 @@
+-- Seed 22: substitution management and time-off coverage (#129, #135, #154).
 -- DEV/STAGE: insert-only examples. Decisions, dates, balances and read state survive reruns.
 WITH slots AS (
     SELECT ((day::DATE + hour::TIME) AT TIME ZONE 'Europe/Warsaw') AS candidate

@@ -118,6 +118,8 @@ class ScheduleEvent {
     this.serviceTypeId,
     this.seriesChange,
     this.guestName,
+    this.roomIds = const [],
+    this.eventVersion = 0,
   });
 
   factory ScheduleEvent.fromJson(Map<String, dynamic> json) {
@@ -140,7 +142,14 @@ class ScheduleEvent {
         for (final resource in json['resources'] as List)
           (resource as Map<String, dynamic>)['name'] as String,
       ],
+      roomIds: [
+        for (final resource in json['resources'] as List)
+          if ((resource as Map<String, dynamic>)['resourceId']
+              case final String id)
+            id,
+      ],
       seriesChange: SeriesChange.fromJson(json['seriesChange']),
+      eventVersion: json['version'] as int? ?? 0,
     );
   }
 
@@ -164,6 +173,12 @@ class ScheduleEvent {
   final int? capacity;
   final List<EventStaff> staff;
   final List<String> roomNames;
+
+  /// The rooms' ids, in the order of [roomNames].
+  final List<String> roomIds;
+
+  /// The version a change of the event is based on.
+  final int eventVersion;
 
   /// How a one-off change makes this occurrence differ from its series, or
   /// `null` when it is as usual.

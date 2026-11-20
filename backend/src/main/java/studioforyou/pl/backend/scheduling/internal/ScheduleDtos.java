@@ -332,4 +332,14 @@ final class ScheduleDtos {
 			@NotNull @Schema(description = "The event's version the change is based on.") Integer version) {
 	}
 
+	@Schema(name = "RescheduleOwnEventRequest", description = "A new time, and optionally another room, of one "
+			+ "occurrence the signed-in trainer leads. The title, capacity and staff stay as they are.")
+	record OwnRescheduleRequest(
+			@NotNull @Schema(description = "The event's version the change is based on.") Integer version,
+			@NotNull @Schema(example = "2026-11-03T17:30:00Z") Instant startsAt,
+			@NotNull @Schema(example = "2026-11-03T18:30:00Z") Instant endsAt,
+			@Schema(description = "The room to move the event to; the event keeps its rooms when missing.")
+			UUID resourceId) {
+	}
+
 }

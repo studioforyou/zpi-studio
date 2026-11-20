@@ -23,6 +23,8 @@ const product: PassProduct = {
   maxSuspensionDays: null,
   isActive: true,
   serviceTypeIds: ['service-1'],
+  makeupPolicyId: null,
+  makeupPolicyName: null,
   variants: [
     {
       id: 'variant-1',
@@ -50,6 +52,9 @@ function mockApi(onPost: (url: string, body: unknown) => Response = () => json(p
     }
     if (url.startsWith('/api/v1/service-types')) {
       return Promise.resolve(json({ items: [poleDance] }));
+    }
+    if (url.startsWith('/api/v1/makeup-policies')) {
+      return Promise.resolve(json({ items: [] }));
     }
     return Promise.resolve(json({ items: [product] }));
   });
