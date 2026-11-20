@@ -19,6 +19,9 @@ import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 
 class OwnSubstitutionControllerTest extends ScheduleTestSupport {
 
+	@org.springframework.test.context.bean.override.mockito.MockitoBean
+	studioforyou.pl.backend.communication.notification.Notifications notifications;
+
 	private static final String REQUESTS = "/api/v1/me/substitution-requests";
 
 	@Test

@@ -321,16 +321,17 @@ class NotificationTests {
 
 	@Test
 	void theAdministratorConfiguresAType() throws Exception {
+		String reminder = "$.items[?(@.code == 'CLASS_REMINDER')]";
 		mvc.perform(withToken(get("/api/v1/notification-types"), "admin")).andExpect(status().isOk())
-			.andExpect(jsonPath("$.items[0].code").value("CLASS_REMINDER"))
-			.andExpect(jsonPath("$.items[0].enabled").value(true))
-			.andExpect(jsonPath("$.items[0].timed").value(true))
-			.andExpect(jsonPath("$.items[0].leadTimesMinutes[0]").value(1440))
-			.andExpect(jsonPath("$.items[0].leadTimesMinutes[1]").value(120))
-			.andExpect(jsonPath("$.items[0].title").value("Przypomnienie o zajęciach"))
-			.andExpect(jsonPath("$.items[0].body").value("{{zajęcia}}: {{dzień}}, godz. {{godzina}}. Sala: {{sala}}."))
-			.andExpect(jsonPath("$.items[0].placeholders[0].name").value("zajęcia"))
-			.andExpect(jsonPath("$.items[0].placeholders[4].name").value("ile przed"));
+			.andExpect(jsonPath(reminder, hasSize(1)))
+			.andExpect(jsonPath(reminder + ".enabled").value(true))
+			.andExpect(jsonPath(reminder + ".timed").value(true))
+			.andExpect(jsonPath(reminder + ".leadTimesMinutes[0]").value(1440))
+			.andExpect(jsonPath(reminder + ".leadTimesMinutes[1]").value(120))
+			.andExpect(jsonPath(reminder + ".title").value("Przypomnienie o zajęciach"))
+			.andExpect(jsonPath(reminder + ".body").value("{{zajęcia}}: {{dzień}}, godz. {{godzina}}. Sala: {{sala}}."))
+			.andExpect(jsonPath(reminder + ".placeholders[0].name").value("zajęcia"))
+			.andExpect(jsonPath(reminder + ".placeholders[4].name").value("ile przed"));
 
 		update("{\"enabled\": false, \"leadTimesMinutes\": [60, 2880], \"title\": \" Już {{ile przed}}! \", "
 				+ "\"body\": \"{{zajęcia}} o {{godzina}}\"}")

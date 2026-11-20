@@ -59,6 +59,16 @@ ScheduleEvent _event({
 );
 
 class _Api implements SubstitutionApi {
+  @override
+  Future<List<SubstitutionOffer>> fetchOffers(OfferQuery query) =>
+      throw UnimplementedError();
+  @override
+  Future<SubstitutionOffer> fetchOffer(String id) => throw UnimplementedError();
+  @override
+  Future<SubstitutionOffer> actOnOffer(
+    SubstitutionOffer offer, {
+    required bool withdraw,
+  }) => throw UnimplementedError();
   SubstitutionRequest? request;
   Object? failure;
   Object? loadFailure;

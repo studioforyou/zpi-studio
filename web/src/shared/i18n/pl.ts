@@ -32,18 +32,137 @@ function eventCount(n: number): string {
 }
 
 export const pl = {
+  timeOffCover: {
+    title: 'Zastępstwa na czas nieobecności',
+    manage: 'Zastępstwa',
+    manual: 'Do decyzji studia',
+    manualWarning:
+      'Odznaczone zajęcia i konsultacje nie są automatycznie odwoływane. Administrator musi ustalić ich dalszy przebieg.',
+    selected: 'Wybrane',
+    all: 'Zaznacz wszystkie',
+    none: 'Odznacz wszystkie',
+    session: 'Zajęcia',
+    when: 'Termin',
+    status: 'Stan zastępstwa',
+    substitute: 'Zastępca',
+    select: 'Wybierz zastępcę dla zaznaczonych terminów',
+    selectPlaceholder: 'Dostępni trenerzy',
+    empty: 'Brak zajęć do przekazania w tym okresie.',
+    error: 'Nie udało się pobrać planu zastępstw.',
+    retry: 'Odśwież',
+    info: 'Zaznacz zajęcia wymagające zastępstwa. Oferty powstaną po zatwierdzeniu nieobecności. Wcześniejsze, osobne zgłoszenia pozostaną aktywne.',
+    managementInfo:
+      'Możesz rozesłać wybrane oferty, zatwierdzić zgłoszonych trenerów albo przypisać jedną osobę do kilku wolnych terminów. Dostępność sprawdzamy dla każdego terminu.',
+    waiting: 'Wybrane do zgłoszenia',
+    unselected: 'Bez szukania zastępstwa',
+    closed: 'Termin zamknięty',
+    already: 'Zgłoszone osobno',
+    start: 'Szukaj zastępstw',
+    save: 'Zapisz wybór',
+    approve: 'Zatwierdź zgłoszonych',
+    assign: 'Przypisz zastępcę',
+    approveTitle: 'Zatwierdzić wybrane zastępstwa?',
+    assignTitle: 'Przypisać zastępcę do tych terminów?',
+    selectionTitle: 'Zapisać plan zastępstw?',
+    selectionInfo:
+      'Otworzymy brakujące oferty zaznaczonych zajęć. Zamkniemy otwarte zgłoszenia utworzone z tej nieobecności, jeśli zostały odznaczone.',
+    changeInfo:
+      'Zmienimy prowadzących tylko wymienionych terminów. Zapisy uczestników i ich wejścia pozostaną bez zmian.',
+    confirm: 'Potwierdź',
+    back: 'Wróć',
+    note: 'Notatka do decyzji (opcjonalnie)',
+    changed: 'Wniosek lub grafik się zmienił. Odśwież widok i sprawdź zaznaczone terminy.',
+    unavailable: 'Trener nie jest dostępny dla wszystkich zaznaczonych terminów.',
+    overlapping: 'Zaznaczone terminy nakładają się na siebie',
+    cancelHint:
+      'Otwarte oferty z tej nieobecności zostaną zamknięte. Przyjęte zastępstwa pozostaną w grafiku.',
+    pendingOnly: 'Zastępstwa można przypisać po zatwierdzeniu nieobecności.',
+  },
   appName: 'studio4U',
   panelName: 'Panel administratora',
   nav: {
     schedule: 'Grafik',
     rooms: 'Sale',
     timeOff: 'Urlopy',
+    substitutions: 'Zastępstwa',
     accounts: 'Konta',
     passes: 'Karnety',
     trainings: 'Treningi',
     communication: 'Komunikacja',
     statistics: 'Statystyki',
     system: 'Status systemu',
+  },
+  substitutions: {
+    title: 'Zastępstwa',
+    intro: 'Zgłoszenia zastępstw i obsada zajęć.',
+    open: 'Do obsadzenia',
+    pending: 'Do decyzji',
+    history: 'Zamknięte',
+    statuses: {
+      OPEN: 'Szuka zastępstwa',
+      CLAIMED: 'Czeka na decyzję',
+      APPROVED: 'Zatwierdzone',
+      REJECTED: 'Kandydat odrzucony',
+      CANCELLED: 'Zamknięte',
+      EXPIRED: 'Nieaktualne',
+    },
+    trainerFilter: 'Prowadzący',
+    allTrainers: 'Wszyscy prowadzący',
+    from: 'Od',
+    to: 'Do',
+    invalidRange: 'Wybierz poprawny przedział, najwyżej 93 dni.',
+    event: 'Zajęcia',
+    when: 'Termin',
+    original: 'Za kogo',
+    candidate: 'Zastępca',
+    status: 'Status',
+    details: 'Otwórz',
+    empty: 'Brak zgłoszeń dla wybranych filtrów.',
+    noCandidate: 'Brak zgłoszonego zastępcy',
+    personal: 'Personalne',
+    group: 'Grupowe',
+    approve: 'Zatwierdź zastępcę',
+    reject: 'Odrzuć kandydata',
+    assign: 'Przypisz zastępcę',
+    close: 'Zamknij zgłoszenie',
+    select: 'Wybierz zastępcę',
+    selectPlaceholder: 'Dostępni trenerzy',
+    note: 'Notatka do decyzji (opcjonalnie)',
+    noteHint: 'Notatka jest widoczna dla zgłoszonego zastępcy.',
+    currentCandidate: 'Zgłoszony zastępca',
+    available: 'Dostępny',
+    unavailable: 'Niedostępny',
+    noAvailable: 'Brak dostępnych zastępców w tym terminie.',
+    reasons: {
+      NOT_QUALIFIED: 'brak kwalifikacji',
+      UNAVAILABLE: 'kolizja lub urlop',
+      INACTIVE: 'nieaktywne konto',
+      OWN_EVENT: 'obecny prowadzący',
+      CLOSED: 'zgłoszenie zamknięte',
+    },
+    warning: 'Termin poza godzinami dostępności lub podczas zgłoszonej nieobecności.',
+    confirmApprove: 'Zatwierdzić zastępcę?',
+    approveHint:
+      'Zmienimy prowadzącego tylko tego terminu. Zapisy uczestników i ich wejścia pozostaną bez zmian.',
+    confirmReject: 'Odrzucić kandydata?',
+    rejectHint: 'Decyzja pozostanie w historii. Oferta wróci do dostępnych zastępstw.',
+    confirmAssign: 'Przypisać wybranego zastępcę?',
+    confirmClose: 'Zamknąć zgłoszenie?',
+    closeHint: 'Zajęcia pozostaną w grafiku obecnego prowadzącego.',
+    confirm: 'Potwierdź',
+    back: 'Wróć',
+    refresh: 'Odśwież',
+    cancelEvent: 'Odwołaj zajęcia',
+    cancelTitle: 'Odwołać ten termin?',
+    cancelHint:
+      'Anulujemy rezerwacje i zwrócimy przypisane wejścia oraz ważne odróbki. Pozostałe terminy serii pozostaną bez zmian.',
+    cancelReason: 'Powód odwołania',
+    cancelRequired: 'Podaj powód odwołania.',
+    changedError: 'Zgłoszenie zmieniło się w międzyczasie. Sprawdź odświeżone dane.',
+    unavailableError:
+      'Trener nie może już poprowadzić tego terminu. Sprawdź kandydatów i wybierz ponownie.',
+    networkError: 'Brak połączenia. Spróbuj ponownie.',
+    loadingError: 'Nie udało się pobrać zgłoszeń.',
   },
   auth: {
     loginTitle: 'Logowanie',
@@ -1465,6 +1584,11 @@ export const pl = {
       before: (time: string) => `${time} przed`,
       edit: 'Edytuj',
       types: {
+        SUBSTITUTION_AVAILABLE: {
+          name: 'Dostępne zastępstwo',
+          description:
+            'Wysyłane aktywnym trenerom z odpowiednimi kwalifikacjami i wolnym terminem. Otwiera ofertę przejęcia zastępstwa.',
+        },
         WAITLIST_PLACE_OFFERED: {
           name: 'Miejsce z listy rezerwowej do potwierdzenia',
           description:
@@ -1529,6 +1653,28 @@ export const pl = {
         },
       },
       placeholders: {
+        SUBSTITUTION_AVAILABLE: {
+          zajęcia: {
+            label: 'Zajęcia',
+            description: 'Nazwa zajęć lub usługi, bez danych uczestnika',
+            example: 'Trening personalny',
+          },
+          dzień: {
+            label: 'Dzień',
+            description: 'Data terminu w strefie czasowej studia',
+            example: 'sob., 14.11',
+          },
+          godzina: {
+            label: 'Godziny',
+            description: 'Początek i koniec zajęć',
+            example: '18:00–19:00',
+          },
+          sala: {
+            label: 'Sala',
+            description: 'Sale zajęte przez wydarzenie',
+            example: 'Sala treningowa 1',
+          },
+        },
         WAITLIST_PLACE_OFFERED: {
           ...waitlistClassFields,
           'potwierdź do': {
@@ -2054,8 +2200,6 @@ export const pl = {
   },
   timeOff: {
     title: 'Urlopy i niedostępności',
-    intro:
-      'Wnioski trenerów czekają tu na decyzję. Wniosek widać w grafiku jako ostrzeżenie już przed decyzją, a zatwierdzony urlop blokuje planowanie zajęć temu trenerowi.',
     add: '+ Dodaj nieobecność',
     pendingBadge: (count: number) => `${count} do decyzji`,
     tabs: {

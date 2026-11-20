@@ -42,4 +42,14 @@ public class AccountRoles {
 		return roles;
 	}
 
+	/** Active trainer accounts, e.g. recipients of offers of a substitution. */
+	public Set<UUID> activeTrainers(Collection<UUID> accountIds) {
+		if (accountIds.isEmpty()) return Set.of();
+		return jdbc.sql("""
+				SELECT DISTINCT a.id FROM account a
+				JOIN account_role ar ON ar.account_id = a.id JOIN role r ON r.id = ar.role_id
+				WHERE a.id IN (:ids) AND a.status = 'ACTIVE' AND r.code = 'TRAINER'
+				""").param("ids", accountIds).query(UUID.class).set();
+	}
+
 }

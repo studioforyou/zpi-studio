@@ -63,6 +63,24 @@ class SeedDataTests {
 	}
 
 	@Test
+	@Transactional
+	void timeOffExamplesKeepSelectionsAndDecisionsOnRerun() {
+		assertThat(jdbc.sql("SELECT count(*) FROM time_off_substitution WHERE time_off_id='17000000-0000-0000-0000-000000020001' AND selected")
+			.query(Integer.class).single()).isEqualTo(3);
+		assertThat(jdbc.sql("SELECT count(*) FROM substitution_request WHERE time_off_id='17000000-0000-0000-0000-000000020002' AND status='CLAIMED'")
+			.query(Integer.class).single()).isEqualTo(2);
+		jdbc.sql("UPDATE time_off_substitution SET selected=FALSE WHERE event_id='19000000-0000-0000-0000-000000020001'").update();
+		jdbc.sql("UPDATE substitution_request SET status='CANCELLED' WHERE id='22000000-0000-0000-0000-000000020005'").update();
+		Map<String, Long> counts = rowCounts();
+		new ResourceDatabasePopulator(new ClassPathResource("db/seed/R__seed_22_substitution_management.sql")).execute(dataSource);
+		assertThat(rowCounts()).isEqualTo(counts);
+		assertThat(jdbc.sql("SELECT selected FROM time_off_substitution WHERE event_id='19000000-0000-0000-0000-000000020001'")
+			.query(Boolean.class).single()).isFalse();
+		assertThat(jdbc.sql("SELECT status FROM substitution_request WHERE id='22000000-0000-0000-0000-000000020005'")
+			.query(String.class).single()).isEqualTo("CANCELLED");
+	}
+
+	@Test
 	void seedCanRunAgain() throws Exception {
 		Map<String, Long> before = rowCounts();
 
@@ -446,6 +464,48 @@ class SeedDataTests {
 		assertThat(jdbc.sql("SELECT status FROM substitution_request WHERE id='22000000-0000-0000-0000-000000127002'")
 			.query(String.class).single()).isEqualTo("CANCELLED");
 		assertThat(rowCounts()).isEqualTo(counts);
+	}
+
+	@Test
+	@Transactional
+	void substitutionManagementExamplesCoverEligibilityAndKeepTesterDecisions() throws Exception {
+		String response = seedGet(seedToken(2), "/api/v1/me/substitution-offers", true);
+		List<Map<String,Object>> rows = JsonPath.read(response, "$.items");
+		var examples = rows.stream().collect(Collectors.toMap((r) -> r.get("id"), Function.identity()));
+		assertThat(examples.get("22000000-0000-0000-0000-000000019001").get("canClaim")).isEqualTo(true);
+		assertThat(examples.get("22000000-0000-0000-0000-000000019003").get("unavailableReason")).isEqualTo("UNAVAILABLE");
+		assertThat(examples.get("22000000-0000-0000-0000-000000019004").get("unavailableReason")).isEqualTo("UNAVAILABLE");
+		assertThat(examples.get("22000000-0000-0000-0000-000000019005").get("unavailableReason")).isEqualTo("NOT_QUALIFIED");
+		assertThat(examples).doesNotContainKeys("22000000-0000-0000-0000-000000019006", "22000000-0000-0000-0000-000000019002");
+		List<Map<String,Object>> mine = JsonPath.read(seedGet(seedToken(2), "/api/v1/me/substitution-offers?mine=true", true), "$.items");
+		assertThat(mine).anySatisfy(row -> {
+			assertThat(row.get("id")).isEqualTo("22000000-0000-0000-0000-000000019002");
+			assertThat(row.get("status")).isEqualTo("CLAIMED");
+		}).noneSatisfy(row -> assertThat(examples).containsKey(row.get("id")));
+		Map<String,Long> counts = rowCounts();
+		jdbc.sql("UPDATE substitution_request SET status='CANCELLED' WHERE id='22000000-0000-0000-0000-000000019001'").update();
+		jdbc.sql("UPDATE notification SET read_at=now() WHERE id='29000000-0000-0000-0000-000000019001'").update();
+		var script = new ResourceDatabasePopulator(new ClassPathResource("db/seed/R__seed_22_substitution_management.sql"));
+		script.execute(dataSource); script.execute(dataSource);
+		assertThat(jdbc.sql("SELECT status FROM substitution_request WHERE id='22000000-0000-0000-0000-000000019001'").query(String.class).single()).isEqualTo("CANCELLED");
+		assertThat(jdbc.sql("SELECT read_at IS NOT NULL FROM notification WHERE id='29000000-0000-0000-0000-000000019001'").query(Boolean.class).single()).isTrue();
+		assertThat(rowCounts()).isEqualTo(counts);
+	}
+
+	@Test
+	@Transactional
+	void studioCancellationReturnsAReservedEntryExactlyOnce() throws Exception {
+		String token=seedToken(10);
+		String path="/api/v1/schedule-events/19000000-0000-0000-0000-000000019001/cancel";
+		String json="{\"version\":0,\"reason\":\"Brak zastępcy\"}";
+		int before=jdbc.sql("SELECT entries_remaining FROM customer_pass WHERE id='28000000-0000-0000-0000-000000019001'").query(Integer.class).single();
+		mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post(path)
+			.header("Authorization","Bearer "+token).contentType("application/json").content(json)).andExpect(status().isOk());
+		assertThat(jdbc.sql("SELECT entries_remaining FROM customer_pass WHERE id='28000000-0000-0000-0000-000000019001'").query(Integer.class).single()).isEqualTo(before+1);
+		assertThat(jdbc.sql("SELECT status FROM reservation WHERE id='21000000-0000-0000-0000-000000019001'").query(String.class).single()).isEqualTo("CANCELLED");
+		mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post(path)
+			.header("Authorization","Bearer "+token).contentType("application/json").content(json)).andExpect(status().isConflict());
+		assertThat(jdbc.sql("SELECT count(*) FROM pass_ledger WHERE reservation_id='21000000-0000-0000-0000-000000019001' AND kind='ENTRY_RETURNED'").query(Integer.class).single()).isEqualTo(1);
 	}
 
 	@Test

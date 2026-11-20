@@ -239,19 +239,27 @@ class _NotificationTile extends ConsumerWidget {
     final theme = Theme.of(context);
     final unread = notification.isUnread;
     final l10n = AppLocalizations.of(context);
-    final name = notification.data['eventName'];
+    final substitution = notification.type == 'SUBSTITUTION_AVAILABLE';
+    final name = substitution
+        ? notification.data['title']
+        : notification.data['eventName'];
     final startsAt = DateTime.tryParse(
-      notification.data['eventStartsAt'] ?? '',
+      (substitution
+              ? notification.data['startsAt']
+              : notification.data['eventStartsAt']) ??
+          '',
     )?.toLocal();
     final deadline = DateTime.tryParse(
       notification.data['offerExpiresAt'] ?? '',
     )?.toLocal();
-    final structured = _isWaitlist && name != null && startsAt != null;
+    final structured =
+        (_isWaitlist || substitution) && name != null && startsAt != null;
     final icon = switch (notification.type) {
       'CLASS_REMINDER' => Icons.event_outlined,
       'CLASS_CHANGED' => Icons.edit_calendar_outlined,
       'CLASS_CANCELLED' || 'CLASS_AUTO_CANCELLED' => Icons.event_busy_outlined,
       'NEW_MESSAGE' => Icons.chat_bubble_outline,
+      'SUBSTITUTION_AVAILABLE' => Icons.swap_horiz,
       'PASS_EXPIRING' ||
       'PASS_LAST_ENTRY_USED' => Icons.confirmation_number_outlined,
       'WAITLIST_PLACE_OFFERED' => Icons.event_seat_outlined,
@@ -350,7 +358,14 @@ class _NotificationTile extends ConsumerWidget {
                               color: theme.colorScheme.onSurfaceVariant,
                             ),
                           ),
-                          if (deadline != null) _deadline(context, deadline),
+                          if (_isWaitlist && deadline != null)
+                            _deadline(context, deadline),
+                          if (substitution &&
+                              notification.data['rooms'] != null)
+                            Text(
+                              notification.data['rooms']!,
+                              style: theme.textTheme.bodySmall,
+                            ),
                         ],
                       ),
                     ] else

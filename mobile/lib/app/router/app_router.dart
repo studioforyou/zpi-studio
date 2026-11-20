@@ -30,6 +30,7 @@ import 'package:mobile/features/schedule/presentation/availability_screen.dart';
 import 'package:mobile/features/schedule/presentation/time_off_list_screen.dart';
 import 'package:mobile/features/schedule/presentation/schedule_screen.dart';
 import 'package:mobile/features/schedule/presentation/trainer_schedule_screen.dart';
+import 'package:mobile/features/schedule/presentation/substitution_offers_screen.dart';
 import 'package:mobile/features/trainings/presentation/new_cooperation_screen.dart';
 import 'package:mobile/features/trainings/presentation/new_client_account_screen.dart';
 import 'package:mobile/features/trainings/presentation/reservations_screen.dart';
@@ -69,6 +70,7 @@ const clientTrainingHistoryPath =
 
 const trainerSchedulePath = '/trainer/schedule';
 const trainerTrainingsPath = '/trainer/trainings';
+const trainerSubstitutionsPath = '$trainerTrainingsPath/substitutions';
 const trainerMessagesPath = '/trainer/messages';
 const trainerNotificationsPath = '$trainerMessagesPath/$notificationsSubPath';
 const trainerTraineePickerSubPath = 'to-trainee';
@@ -247,6 +249,12 @@ StatefulShellRoute _trainerShell() => _roleShell([
     Icons.fitness_center,
     (l10n) => l10n.navTrainings,
     routes: [
+      GoRoute(
+        path: 'substitutions',
+        builder: (_, state) => SubstitutionOffersScreen(
+          initialRequestId: state.uri.queryParameters['request'],
+        ),
+      ),
       // Opened with context.push('/trainer/trainings/new-cooperation').
       GoRoute(
         path: trainerNewCooperationSubPath,

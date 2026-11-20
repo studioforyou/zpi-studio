@@ -11,23 +11,37 @@ import {
   Textarea,
   TextInput,
 } from '@mantine/core';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { pl } from '@/shared/i18n/pl';
 import { scheduleKeys } from '@/features/schedule/scheduleApi';
 import { addDays, toInstant, todayIn } from '@/features/schedule/studioTime';
-import { recordTimeOff, timeOffKeys, timeOffKinds, type TimeOffKind } from './timeOffApi';
+import {
+  chosenTimeOffEvents,
+  recordTimeOff,
+  previewTimeOffPlan,
+  timeOffCoverKeys,
+  timeOffKeys,
+  timeOffKinds,
+  type TimeOff,
+  type TimeOffKind,
+} from './timeOffApi';
 import { timeOffErrorMessage } from './timeOffFormat';
-import { formatDateTime, eventTitle } from '@/features/schedule/scheduleFormat';
-import { useTrainerEventsDuring } from './trainerEvents';
+import { TimeOffSessionPicker } from './TimeOffCoverage';
 
 type RecordTimeOffModalProps = {
   staffOptions: { value: string; label: string }[];
   timeZone: string;
   onClose: () => void;
+  onRecorded: (entry: TimeOff) => void;
 };
 
 /** Records approved time off for a trainer, e.g. sick leave reported by phone. */
-export function RecordTimeOffModal({ staffOptions, timeZone, onClose }: RecordTimeOffModalProps) {
+export function RecordTimeOffModal({
+  staffOptions,
+  timeZone,
+  onClose,
+  onRecorded,
+}: RecordTimeOffModalProps) {
   const texts = pl.timeOff.form;
   const queryClient = useQueryClient();
   const today = todayIn(timeZone);
@@ -40,6 +54,7 @@ export function RecordTimeOffModal({ staffOptions, timeZone, onClose }: RecordTi
   const [timeTo, setTimeTo] = useState('16:00');
   const [reason, setReason] = useState('');
   const [submitted, setSubmitted] = useState(false);
+  const [choices, setChoices] = useState<Record<string, boolean>>({});
 
   // Whole days run from the first day's midnight to the midnight after the last day.
   const period =
@@ -56,14 +71,13 @@ export function RecordTimeOffModal({ staffOptions, timeZone, onClose }: RecordTi
         : null;
   const periodInvalid = period !== null && period.endsAt.getTime() <= period.startsAt.getTime();
   const checkEvents = staffId !== null && period !== null && !periodInvalid;
-  const { events, own } = useTrainerEventsDuring(
-    {
-      staffId: staffId ?? '',
-      startsAt: checkEvents ? period.startsAt.toISOString() : new Date(0).toISOString(),
-      endsAt: checkEvents ? period.endsAt.toISOString() : new Date(1).toISOString(),
-    },
-    checkEvents,
-  );
+  const from = checkEvents ? period.startsAt.toISOString() : '';
+  const to = checkEvents ? period.endsAt.toISOString() : '';
+  const plan = useQuery({
+    queryKey: timeOffCoverKeys.preview(staffId ?? '', from, to),
+    queryFn: () => previewTimeOffPlan(staffId!, from, to),
+    enabled: checkEvents,
+  });
 
   const save = useMutation({
     mutationFn: () =>
@@ -73,18 +87,19 @@ export function RecordTimeOffModal({ staffOptions, timeZone, onClose }: RecordTi
         startsAt: period!.startsAt.toISOString(),
         endsAt: period!.endsAt.toISOString(),
         reason: reason.trim() === '' ? null : reason.trim(),
+        substitutionEventIds: chosenTimeOffEvents(plan.data, choices),
       }),
-    onSuccess: async () => {
+    onSuccess: async (entry) => {
       await queryClient.invalidateQueries({ queryKey: timeOffKeys.all });
       await queryClient.invalidateQueries({ queryKey: scheduleKeys.all });
-      onClose();
+      onRecorded(entry);
     },
   });
 
   function handleSubmit(event: FormEvent) {
     event.preventDefault();
     setSubmitted(true);
-    if (!staffId || period === null || periodInvalid) {
+    if (!staffId || period === null || periodInvalid || !plan.isSuccess) {
       return;
     }
     save.mutate();
@@ -93,7 +108,15 @@ export function RecordTimeOffModal({ staffOptions, timeZone, onClose }: RecordTi
   const required = (value: string | null) => (submitted && !value ? texts.required : undefined);
 
   return (
-    <Modal opened onClose={onClose} title={texts.title} size="lg">
+    <Modal
+      opened
+      onClose={onClose}
+      title={texts.title}
+      size="lg"
+      closeOnEscape={!save.isPending}
+      closeOnClickOutside={!save.isPending}
+      withCloseButton={!save.isPending}
+    >
       <form onSubmit={handleSubmit} noValidate>
         <Stack>
           <Select
@@ -103,7 +126,10 @@ export function RecordTimeOffModal({ staffOptions, timeZone, onClose }: RecordTi
             searchable
             data={staffOptions}
             value={staffId}
-            onChange={setStaffId}
+            onChange={(value) => {
+              setStaffId(value);
+              setChoices({});
+            }}
             error={required(staffId)}
           />
           <Stack gap={4}>
@@ -183,26 +209,35 @@ export function RecordTimeOffModal({ staffOptions, timeZone, onClose }: RecordTi
             value={reason}
             onChange={(event) => setReason(event.currentTarget.value)}
           />
-          {checkEvents && events.isSuccess && own.length > 0 && (
-            <Alert color="yellow" variant="light" title={texts.eventsWarning(own.length)}>
-              <Stack gap={2}>
-                {own.map((event) => (
-                  <Text size="sm" key={event.id}>
-                    {formatDateTime(event.startsAt, timeZone)} · {eventTitle(event)}
-                  </Text>
-                ))}
-              </Stack>
-            </Alert>
-          )}
-          <Alert color="blue" variant="light">
-            {texts.hint}
-          </Alert>
+          {checkEvents &&
+            (plan.isPending ? (
+              <Text size="sm">{pl.timeOff.decision.eventsLoading}</Text>
+            ) : plan.isError ? (
+              <Alert color="red">
+                {pl.timeOffCover.error}
+                <Button variant="subtle" onClick={() => void plan.refetch()}>
+                  {pl.timeOffCover.retry}
+                </Button>
+              </Alert>
+            ) : (
+              <TimeOffSessionPicker
+                plan={plan.data}
+                choices={choices}
+                onChange={setChoices}
+                zone={timeZone}
+                disabled={save.isPending}
+              />
+            ))}
           {save.error && <Alert color="red">{timeOffErrorMessage(save.error)}</Alert>}
           <Group justify="flex-end">
-            <Button variant="default" onClick={onClose}>
+            <Button variant="default" onClick={onClose} disabled={save.isPending}>
               {texts.cancel}
             </Button>
-            <Button type="submit" loading={save.isPending}>
+            <Button
+              type="submit"
+              loading={save.isPending}
+              disabled={checkEvents && !plan.isSuccess}
+            >
               {texts.save}
             </Button>
           </Group>

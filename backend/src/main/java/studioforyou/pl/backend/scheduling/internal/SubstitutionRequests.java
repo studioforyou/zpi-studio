@@ -13,6 +13,8 @@ import org.jspecify.annotations.Nullable;
 import studioforyou.pl.backend.shared.api.ApiException;
 import studioforyou.pl.backend.shared.api.ErrorCode;
 import studioforyou.pl.backend.staff.StaffProfiles;
+import studioforyou.pl.backend.scheduling.SubstitutionOpened;
+import org.springframework.context.ApplicationEventPublisher;
 
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
@@ -26,11 +28,13 @@ class SubstitutionRequests {
 	private final JdbcClient jdbc;
 	private final ScheduleEventRepository events;
 	private final StaffProfiles staff;
+	private final ApplicationEventPublisher publisher;
 
-	SubstitutionRequests(JdbcClient jdbc, ScheduleEventRepository events, StaffProfiles staff) {
+	SubstitutionRequests(JdbcClient jdbc, ScheduleEventRepository events, StaffProfiles staff, ApplicationEventPublisher publisher) {
 		this.jdbc = jdbc;
 		this.events = events;
 		this.staff = staff;
+		this.publisher = publisher;
 	}
 
 	@Schema(name = "CreateOwnSubstitutionRequest")
@@ -96,12 +100,14 @@ class SubstitutionRequests {
 					"This event already has an active substitution request.");
 		}
 		String reason = input.reason();
-		return this.jdbc.sql("""
+		RequestResponse created = this.jdbc.sql("""
 				INSERT INTO substitution_request (event_id, original_staff_id, requested_by, reason)
 				VALUES (:event, :staff, :account, :reason) RETURNING *
 				""").param("event", eventId).param("staff", staffId).param("account", accountId)
 			.param("reason", (reason == null || reason.isBlank()) ? null : reason.strip())
 			.query(SubstitutionRequests::map).single().response(staffId, true);
+		this.publisher.publishEvent(new SubstitutionOpened(created.id(), 0));
+		return created;
 	}
 
 	void cancel(UUID requestId, UUID staffId) {
@@ -117,7 +123,7 @@ class SubstitutionRequests {
 			throw new ApiException(ErrorCode.SUBSTITUTION_NOT_OPEN,
 					"Only an open substitution request can be withdrawn.");
 		}
-		this.jdbc.sql("UPDATE substitution_request SET status = 'CANCELLED' WHERE id = :id")
+		this.jdbc.sql("UPDATE substitution_request SET status = 'CANCELLED', version = version + 1 WHERE id = :id")
 			.param("id", requestId).update();
 	}
 
@@ -150,7 +156,8 @@ class SubstitutionRequests {
 	}
 
 	private static boolean editable(ScheduleEvent event) {
-		return event.getStatus() == EventStatus.SCHEDULED && event.getStartsAt().isAfter(Instant.now());
+		return (event.getKind() == EventKind.CLASS || event.getKind() == EventKind.PERSONAL_TRAINING)
+				&& event.getStatus() == EventStatus.SCHEDULED && event.getStartsAt().isAfter(Instant.now());
 	}
 
 	private @Nullable StoredRequest activeRequest(UUID eventId) {

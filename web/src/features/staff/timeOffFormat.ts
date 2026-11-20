@@ -72,6 +72,7 @@ export function timeOffErrorMessage(error: Error): string {
   if (error.code === NETWORK_ERROR) {
     return pl.timeOff.errors.network;
   }
+  if (error.code === 'VERSION_CONFLICT') return pl.timeOffCover.changed;
   if (error.code !== null && isKnownCode(error.code)) {
     return pl.timeOff.errors[error.code];
   }

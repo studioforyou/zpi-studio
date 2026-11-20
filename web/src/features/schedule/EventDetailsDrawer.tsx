@@ -3,6 +3,7 @@ import { Alert, Badge, Button, Divider, Drawer, Group, Modal, Stack, Text } from
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { pl } from '@/shared/i18n/pl';
 import { EventAttendanceSection } from './EventAttendanceSection';
+import { CancelStudioEventModal } from './CancelStudioEventModal';
 import { EventAutoCancellationSection } from './EventAutoCancellationSection';
 import { EventReservationsSection } from './EventReservationsSection';
 import {
@@ -69,6 +70,7 @@ export function EventDetailsDrawer({
   const texts = pl.schedule;
   const queryClient = useQueryClient();
   const [confirmRestore, setConfirmRestore] = useState(false);
+  const [cancelEvent, setCancelEvent] = useState(false);
   const restore = useMutation({
     mutationFn: (target: ScheduleEvent) => restoreEventSeries(target.id, target.version),
     onSuccess: async () => {
@@ -94,6 +96,20 @@ export function EventDetailsDrawer({
     >
       {event && (
         <Stack gap="md">
+          {isChangeable(event) && (
+            <Button variant="subtle" color="red" size="xs" onClick={() => setCancelEvent(true)}>
+              {pl.substitutions.cancelEvent}
+            </Button>
+          )}
+          <CancelStudioEventModal
+            target={
+              cancelEvent
+                ? { id: event.id, version: event.version, title: eventTitle(event) }
+                : null
+            }
+            onClose={() => setCancelEvent(false)}
+            onCancelled={onClose}
+          />
           <Group gap="xs">
             <Badge variant="light">{texts.kinds[event.kind]}</Badge>
             <Badge color={statusColors[event.status]} variant="light">

@@ -1,6 +1,7 @@
 package studioforyou.pl.backend.staff.internal;
 
 import java.net.URI;
+import java.time.Instant;
 import java.util.UUID;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -19,6 +20,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
@@ -26,6 +28,7 @@ import studioforyou.pl.backend.shared.api.AccountAuthentication;
 import studioforyou.pl.backend.shared.api.ApiProblem;
 import studioforyou.pl.backend.shared.api.ListResponse;
 import studioforyou.pl.backend.staff.StaffProfiles;
+import studioforyou.pl.backend.staff.TimeOffSubstitutions;
 import studioforyou.pl.backend.staff.internal.TimeOffDtos.CreateOwnTimeOffRequest;
 import studioforyou.pl.backend.staff.internal.TimeOffDtos.TimeOffResponse;
 
@@ -44,10 +47,12 @@ class OwnTimeOffController {
 	private final StaffTimeOff timeOff;
 
 	private final StaffProfiles staffProfiles;
+	private final TimeOffSubstitutions substitutions;
 
-	OwnTimeOffController(StaffTimeOff timeOff, StaffProfiles staffProfiles) {
+	OwnTimeOffController(StaffTimeOff timeOff, StaffProfiles staffProfiles, TimeOffSubstitutions substitutions) {
 		this.timeOff = timeOff;
 		this.staffProfiles = staffProfiles;
+		this.substitutions = substitutions;
 	}
 
 	@GetMapping
@@ -74,7 +79,7 @@ class OwnTimeOffController {
 	ResponseEntity<TimeOffResponse> requestOwnTimeOff(AccountAuthentication authentication,
 			@Valid @RequestBody CreateOwnTimeOffRequest request) {
 		TimeOffResponse created = this.timeOff.request(staffId(authentication), request.kind(), request.startsAt(),
-				request.endsAt(), request.reason());
+				request.endsAt(), request.reason(), request.substitutionEventIds());
 		URI location = ServletUriComponentsBuilder.fromCurrentRequest()
 			.path("/{timeOffId}")
 			.buildAndExpand(created.id())
@@ -96,7 +101,7 @@ class OwnTimeOffController {
 	TimeOffResponse updateOwnTimeOff(AccountAuthentication authentication, @PathVariable UUID timeOffId,
 			@Valid @RequestBody CreateOwnTimeOffRequest request) {
 		return this.timeOff.updateOwn(staffId(authentication), timeOffId, request.kind(), request.startsAt(),
-				request.endsAt(), request.reason());
+				request.endsAt(), request.reason(), request.substitutionEventIds(), request.version());
 	}
 
 	@PostMapping("/{timeOffId}/cancel")
@@ -115,6 +120,19 @@ class OwnTimeOffController {
 		UUID accountId = authentication.activeAccountId()
 			.orElseThrow(() -> new AccessDeniedException("An active application account is required."));
 		return this.staffProfiles.getByAccount(accountId).id();
+	}
+
+	@GetMapping("/substitution-options")
+	@Operation(summary = "Preview my sessions needing cover during time off", operationId = "previewOwnTimeOffSubstitutions")
+	TimeOffSubstitutions.Plan preview(AccountAuthentication auth, @RequestParam Instant from, @RequestParam Instant to,
+			@RequestParam(required = false) UUID timeOffId) {
+		return this.substitutions.preview(staffId(auth), from, to, timeOffId);
+	}
+
+	@GetMapping("/{timeOffId}/substitutions")
+	@Operation(summary = "Read cover selected for my time off", operationId = "getOwnTimeOffSubstitutions")
+	TimeOffSubstitutions.Plan substitutions(AccountAuthentication auth, @PathVariable UUID timeOffId) {
+		return this.substitutions.plan(timeOffId, staffId(auth));
 	}
 
 }
