@@ -30,8 +30,8 @@ import studioforyou.pl.backend.scheduling.ScheduleEventCancelled.Reason;
 
 /**
  * Events of the schedule for other modules: reports, staff access to an event's participants,
- * recording that an event with participants took place, cancelling it, and the chats of classes and
- * fixed groups.
+ * recording that an event with participants took place, cancelling it or forcing a class to run,
+ * and the chats of classes and fixed groups.
  */
 @Repository
 public class ScheduledEvents {
@@ -257,6 +257,40 @@ public class ScheduledEvents {
 	 */
 	public record AutoCancelCandidate(UUID id, UUID serviceTypeId, @Nullable UUID trainingGroupId,
 			Instant startsAt) {
+	}
+
+	/**
+	 * Whether an administrator forced the class to run although too few participants booked it, so
+	 * the automatic cancellation rule leaves it alone ({@code force_run}).
+	 */
+	public boolean isForcedToRun(UUID eventId) {
+		return jdbc.sql("SELECT force_run FROM schedule_event WHERE id = :id")
+			.param("id", eventId)
+			.query(Boolean.class)
+			.optional()
+			.orElse(false);
+	}
+
+	/**
+	 * Forces a scheduled class to run whatever the number of its participants, or lets the
+	 * automatic cancellation rule decide again. Booking calls this holding the occurrence lock,
+	 * after checking the class has not started. It is not an edit of the class's details, so its
+	 * version stays; the change is kept in the audit log.
+	 *
+	 * @param actorId the administrator who changed it
+	 * @return whether the setting changed
+	 */
+	@Transactional(propagation = Propagation.MANDATORY)
+	public boolean changeForceRun(UUID eventId, boolean forceRun, UUID actorId) {
+		boolean changed = jdbc.sql("""
+				UPDATE schedule_event SET force_run = :forceRun, updated_at = now()
+				WHERE id = :id AND kind = 'CLASS' AND status = 'SCHEDULED' AND force_run <> :forceRun
+				""").param("id", eventId).param("forceRun", forceRun).update() == 1;
+		if (changed) {
+			auditLog.append(new AuditLog.Entry(actorId, "scheduling", "schedule_event", eventId,
+					"EVENT_FORCE_RUN_CHANGED", Map.of("forceRun", new AuditLog.Change(!forceRun, forceRun)), null));
+		}
+		return changed;
 	}
 
 	/**

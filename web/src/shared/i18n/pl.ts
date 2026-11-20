@@ -1271,6 +1271,36 @@ export const pl = {
         },
       },
     },
+    autoCancellation: {
+      title: 'Automatyczne odwołanie',
+      loading: 'Wczytywanie reguły automatycznego odwołania…',
+      loadError: 'Nie udało się wczytać reguły automatycznego odwołania.',
+      retry: 'Spróbuj ponownie',
+      participants: (participants: number, minimum: number) =>
+        `Zapisanych: ${participants}, wymagane minimum: ${minimum}`,
+      pending: (time: string) =>
+        `Liczba zapisanych zostanie sprawdzona ${time}. Jeśli będzie poniżej minimum, zajęcia zostaną odwołane, a uczestnicy dostaną zwrot wejść i powiadomienie.`,
+      belowMinimum: 'Na razie zapisanych jest za mało – zajęcia zostaną odwołane przy sprawdzeniu.',
+      forced: 'Zajęcia odbędą się bez względu na liczbę zapisanych.',
+      off: 'Reguła automatycznego odwołania nie obowiązuje dla tych zajęć.',
+      offForGroup: (group: string) =>
+        `Reguła automatycznego odwołania jest wyłączona dla grupy ${group}.`,
+      closed:
+        'Liczba zapisanych została już sprawdzona – zajęcia nie zostaną odwołane automatycznie.',
+      forceRun: 'Wymuś odbycie się zajęć',
+      forceRunHint:
+        'Zajęcia nie zostaną odwołane automatycznie, nawet jeśli zapisze się mniej osób niż minimum. Możesz to cofnąć do startu zajęć.',
+      disableForGroup: (group: string) => `Wyłącz automatyczne odwołanie dla grupy ${group}`,
+      disableForGroupHint:
+        'Dotyczy wszystkich zajęć tej stałej grupy, także zaplanowanych później. Zajęcia już odwołane nie wrócą.',
+      unknownGroup: 'tych zajęć',
+      errors: {
+        notEditable:
+          'Zajęcia są już odwołane, odbyte albo się zaczęły. Wymusić można tylko zaplanowane zajęcia przed startem.',
+        notFound: 'Nie znaleziono tych zajęć albo grupy.',
+        unknown: 'Nie udało się zapisać zmiany. Spróbuj ponownie.',
+      },
+    },
     assignmentFields: {
       leads: 'Prowadzący',
       assistants: 'Asystenci',

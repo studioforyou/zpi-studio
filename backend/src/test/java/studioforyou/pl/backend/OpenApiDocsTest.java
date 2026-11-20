@@ -209,6 +209,31 @@ class OpenApiDocsTest {
 	}
 
 	@Test
+	void documentsTheOverridesOfAutomaticCancellation() throws Exception {
+		String json = apiDocs();
+
+		String event = "$.paths['/api/v1/schedule-events/{eventId}/auto-cancellation']";
+		assertThat((Map<String, Object>) JsonPath.read(json, event)).containsOnlyKeys("get", "put");
+		assertThat((String) JsonPath.read(json, event + ".get.operationId")).isEqualTo("getEventAutoCancellation");
+		assertThat((String) JsonPath.read(json, event + ".put.operationId")).isEqualTo("changeEventAutoCancellation");
+		assertThat((Map<String, Object>) JsonPath.read(json, event + ".put.responses"))
+			.containsKeys("200", "400", "401", "403", "404", "422");
+		assertThat((Map<String, Object>) JsonPath.read(json, "$.components.schemas.EventAutoCancellation.properties"))
+			.containsOnlyKeys("eventId", "state", "ruleEnabled", "forceRun", "trainingGroupId", "disabledForGroup",
+					"participants", "minimumParticipants", "checkAt");
+		assertThat((Map<String, Object>) JsonPath.read(json,
+				"$.components.schemas.ChangeEventAutoCancellationRequest.properties"))
+			.containsOnlyKeys("forceRun");
+		String group = "$.paths['/api/v1/training-groups/{groupId}/auto-cancellation']";
+		assertThat((Map<String, Object>) JsonPath.read(json, group)).containsOnlyKeys("get", "put");
+		assertThat((String) JsonPath.read(json, group + ".put.operationId"))
+			.isEqualTo("changeTrainingGroupAutoCancellation");
+		assertThat((Map<String, Object>) JsonPath.read(json,
+				"$.components.schemas.ChangeTrainingGroupAutoCancellationRequest.properties"))
+			.containsOnlyKeys("disabled");
+	}
+
+	@Test
 	void sessionOperationsGetAuthErrors() throws Exception {
 		Map<String, Object> responses = JsonPath.read(apiDocs(), "$.paths['/api/v1/studio'].get.responses");
 
