@@ -91,6 +91,10 @@ public enum ErrorCode {
 	DISPUTE_WINDOW_CLOSED(HttpStatus.UNPROCESSABLE_CONTENT),
 	PERSONAL_SESSION_NOT_HELD(HttpStatus.UNPROCESSABLE_CONTENT),
 	PERSONAL_SESSION_NOT_CONFIRMED(HttpStatus.UNPROCESSABLE_CONTENT),
+	/** Another administrator has already decided on the dispute. */
+	DISPUTE_ALREADY_RESOLVED(HttpStatus.CONFLICT),
+	/** The chosen decision does not fit the session's funding, e.g. a make-up credit from an unlimited pass. */
+	DISPUTE_RESOLUTION_UNAVAILABLE(HttpStatus.UNPROCESSABLE_CONTENT),
 
 	// booking: attendance
 	/** Attendance is recorded only once the event has started. */

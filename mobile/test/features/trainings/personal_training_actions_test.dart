@@ -580,6 +580,59 @@ void main() {
   );
 
   testWidgets(
+    'a resolved dispute shows the studio decision, its effect and the explanation',
+    (tester) async {
+      final api = _Api()
+        ..session = PersonalSession(
+          id: 'event',
+          reservationId: 'reservation',
+          status: EventStatus.completed,
+          title: 'Trening indywidualny',
+          serviceTypeName: 'Personalny',
+          startsAt: DateTime(2030, 11, 5, 18),
+          endsAt: DateTime(2030, 11, 5, 19),
+          staff: const [
+            EventStaff(staffId: 'trainer', displayName: 'Marek', isLead: true),
+          ],
+          roomNames: const ['Sala'],
+          version: 5,
+          passName: 'Pakiet PT',
+          attendance: 'PRESENT',
+          trainerConfirmedAt: DateTime(2030, 11, 5, 19),
+          settlementStatus: 'FINAL',
+          cancellation: const PersonalCancellation(allowed: false, late: false),
+          canDispute: false,
+          disputeReason: 'DISPUTE_RESOLVED',
+          dispute: const PersonalDispute(
+            status: 'RESOLVED',
+            reason: 'Trening trwał 30 minut.',
+            resolution: 'UPHELD',
+            resolutionEffect: 'ENTRY_RETURNED',
+            resolutionNote: 'Trener potwierdził skrócenie zajęć.',
+          ),
+        );
+      await pump(tester, api);
+      expect(find.text('Zgłoszenie rozpatrzone'), findsWidgets);
+      expect(find.text('Trening trwał 30 minut.'), findsOneWidget);
+      expect(
+        find.text('Zgłoszenie uznane: wejście wróciło do pakietu.'),
+        findsOneWidget,
+      );
+      expect(
+        find.text('Uzasadnienie studia: Trener potwierdził skrócenie zajęć.'),
+        findsOneWidget,
+      );
+      expect(find.text('Zgłoś niezgodność'), findsNothing);
+      expect(
+        find.text(
+          'Administrator sprawdzi zgłoszenie. Saldo pakietu pozostaje bez zmian.',
+        ),
+        findsNothing,
+      );
+    },
+  );
+
+  testWidgets(
     'pending cancellation completing after leaving the screen does not use a disposed ref',
     (tester) async {
       final api = _Api()..pendingCancel = Completer<PersonalSession>();
