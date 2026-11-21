@@ -119,6 +119,12 @@ class _TrainerScheduleScreenState extends ConsumerState<TrainerScheduleScreen>
               onTap: () => Navigator.pop(context, trainerAddClassPath),
             ),
             ListTile(
+              leading: const Icon(Icons.person_outline),
+              title: Text(l10n.eventKindPersonalTraining),
+              onTap: () =>
+                  Navigator.pop(context, trainerAddPersonalTrainingPath),
+            ),
+            ListTile(
               leading: const Icon(Icons.forum_outlined),
               title: Text(l10n.eventKindConsultation),
               onTap: () => Navigator.pop(context, trainerAddConsultationPath),
@@ -128,6 +134,11 @@ class _TrainerScheduleScreenState extends ConsumerState<TrainerScheduleScreen>
       ),
     );
     if (!mounted || path == null) return;
+    if (path == trainerAddPersonalTrainingPath) {
+      final eventId = await context.push<String>(path);
+      if (mounted && eventId != null) _openEventById(eventId);
+      return;
+    }
     final event = await context.push<ScheduleEvent>(path);
     if (mounted && event != null) _openEvent(event);
   }

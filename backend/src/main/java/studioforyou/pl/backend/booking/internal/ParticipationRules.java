@@ -98,6 +98,12 @@ class ParticipationRules {
 		return unmet.isEmpty() ? null : unmet.getFirst();
 	}
 
+	/** Personal-session planning has no occurrence yet, but applies the same participation requirements. */
+	String participantReason(ProfileDetails participant, UUID serviceTypeId, LocalDate date, boolean funded) {
+		List<String> unmet = unmetRequirements(participant, serviceTypeId, date, funded, true);
+		return unmet.isEmpty() ? null : unmet.getFirst();
+	}
+
 	/**
 	 * Every requirement of the class this participant does not meet, in the order
 	 * {@link #participantReason} checks them, for an administrator who may override them.
@@ -109,8 +115,13 @@ class ParticipationRules {
 
 	private List<String> unmetRequirements(ProfileDetails participant, Occurrence event, LocalDate date,
 			boolean funded, boolean firstOnly) {
+		return unmetRequirements(participant, event.serviceTypeId(), date, funded, firstOnly);
+	}
+
+	private List<String> unmetRequirements(ProfileDetails participant, UUID serviceTypeId, LocalDate date,
+			boolean funded, boolean firstOnly) {
 		List<String> unmet = new ArrayList<>();
-		ServiceTypes.Definition service = this.services.findDefinitionById(event.serviceTypeId()).orElse(null);
+		ServiceTypes.Definition service = this.services.findDefinitionById(serviceTypeId).orElse(null);
 		if (service == null || !service.active()) {
 			unmet.add("SERVICE_TYPE_UNAVAILABLE");
 		}
@@ -121,7 +132,7 @@ class ParticipationRules {
 		if (firstOnly && !unmet.isEmpty()) {
 			return unmet.subList(0, 1);
 		}
-		if (this.documents.hasMissing(participant.id(), event.serviceTypeId(), participant.kind().name())) {
+		if (this.documents.hasMissing(participant.id(), serviceTypeId, participant.kind().name())) {
 			unmet.add("REQUIRED_DOCUMENTS_MISSING");
 		}
 		if (!funded) {

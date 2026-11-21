@@ -99,6 +99,11 @@ class ReservationStore {
 			.param("event", eventId).query(Integer.class).single();
 	}
 
+	List<UUID> activeEventIds(UUID customerId) {
+		return jdbc.sql("SELECT event_id FROM reservation WHERE customer_id = :id AND status = 'ACTIVE'")
+			.param("id", customerId).query(UUID.class).list();
+	}
+
 	List<UUID> activeParticipantIds(UUID eventId) {
 		return this.jdbc.sql("SELECT customer_id FROM reservation WHERE event_id = :event AND status = 'ACTIVE' ORDER BY customer_id")
 			.param("event", eventId).query(UUID.class).list();
