@@ -327,15 +327,6 @@ final class ScheduleDtos {
 			@NotNull List<@Valid @NotNull ResourceAssignmentRequest> resources) {
 	}
 
-	@Schema(name = "ChangeOwnPersonalTrainingRequest", description = "A new time and rooms of a personal training "
-			+ "the signed-in trainer runs. Its title, capacity, staff and participants stay as they are.")
-	record OwnPersonalTrainingChangeRequest(
-			@NotNull @Schema(description = "The event's version the change is based on.") Integer version,
-			@NotNull @Schema(example = "2026-11-03T17:30:00Z") Instant startsAt,
-			@NotNull @Schema(example = "2026-11-03T18:30:00Z") Instant endsAt,
-			@NotNull List<@Valid @NotNull ResourceAssignmentRequest> resources) {
-	}
-
 	@Schema(name = "RestoreSeriesOccurrenceRequest")
 	record RestoreSeriesRequest(
 			@NotNull @Schema(description = "The event's version the change is based on.") Integer version) {

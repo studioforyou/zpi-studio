@@ -16,7 +16,6 @@ import studioforyou.pl.backend.identity.CurrentAccount;
 import studioforyou.pl.backend.scheduling.internal.ScheduleDtos.OwnEventRequest;
 import studioforyou.pl.backend.scheduling.internal.ScheduleDtos.OwnConsultationRequest;
 import studioforyou.pl.backend.scheduling.internal.ScheduleDtos.OwnRescheduleRequest;
-import studioforyou.pl.backend.scheduling.internal.ScheduleDtos.OwnPersonalTrainingChangeRequest;
 import studioforyou.pl.backend.scheduling.internal.ScheduleDtos.PlanPreviewResponse;
 import studioforyou.pl.backend.scheduling.internal.ScheduleDtos.ScheduleEventResponse;
 import studioforyou.pl.backend.scheduling.internal.ScheduleQueries.TimetableFilter;
@@ -34,7 +33,6 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -42,7 +40,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * The signed-in trainer's own schedule: the classes and trainings they run or assist, the
- * one-off group classes they add to it and the new dates of their personal trainings. The staff member comes from the account, never from the
+ * one-off group classes they add to it and new times of single occurrences they lead. The staff member comes from the account, never from the
  * request.
  */
 @RestController
@@ -202,47 +200,6 @@ class OwnScheduleController {
 	PlanPreviewResponse previewOwnScheduleEventReschedule(@PathVariable UUID eventId,
 			@Valid @RequestBody OwnRescheduleRequest request, Authentication authentication) {
 		return this.occurrenceChanges.previewOwn(eventId, staffId(authentication), request);
-	}
-
-	@PutMapping("/{eventId}")
-	@Operation(summary = "Move my personal training to a new time or room", operationId = "changeOwnPersonalTraining",
-			description = "Changes the time and rooms of a personal training the signed-in trainer runs as LEAD, e.g. "
-					+ "to record a new date agreed with the client. The title, capacity, staff and participants stay "
-					+ "as they are and the client does not need to accept the change. The participant's free "
-					+ "cancellation deadline moves with the training and the participant and staff are told about the "
-					+ "change. A room or the trainer taken at the new time rejects the change; the response then lists "
-					+ "the conflicts in `conflicts`.")
-	@ApiResponse(responseCode = "200", description = "The moved training.")
-	@ApiResponse(responseCode = "400", description = "VALIDATION_FAILED, also when the new time is not in the "
-			+ "future.", content = @Content(mediaType = "application/problem+json",
-					schema = @Schema(implementation = ApiProblem.class)))
-	@ApiResponse(responseCode = "404", description = "No such personal training, the trainer does not run it, or "
-			+ "the account has no staff profile.", content = @Content(mediaType = "application/problem+json",
-					schema = @Schema(implementation = ApiProblem.class)))
-	@ApiResponse(responseCode = "409", description = "VERSION_CONFLICT, RESOURCE_CAPACITY_EXCEEDED or "
-			+ "STAFF_SCHEDULE_CONFLICT.", content = @Content(mediaType = "application/problem+json",
-					schema = @Schema(implementation = ApiProblem.class)))
-	@ApiResponse(responseCode = "422", description = "EVENT_NOT_EDITABLE when the training is not scheduled or has "
-			+ "already started, RESOURCE_UNAVAILABLE or SERVICE_NOT_ALLOWED_IN_ROOM.", content = @Content(
-					mediaType = "application/problem+json", schema = @Schema(implementation = ApiProblem.class)))
-	ScheduleEventResponse changeOwnPersonalTraining(@PathVariable UUID eventId,
-			@Valid @RequestBody OwnPersonalTrainingChangeRequest request, Authentication authentication) {
-		return this.occurrenceChanges.changeOwnPersonalTraining(eventId, staffId(authentication), request);
-	}
-
-	@PostMapping("/{eventId}/change-preview")
-	@Operation(summary = "Check moving my personal training before saving it",
-			operationId = "previewOwnPersonalTrainingChange",
-			description = "Validates the request like moving the training and lists the conflicts and warnings at "
-					+ "the new time, e.g. a room taken by another event or a time outside the trainer's working "
-					+ "hours, without saving anything. The training does not conflict with itself.")
-	@ApiResponse(responseCode = "200", description = "The moved occurrence and its problems.")
-	@ApiResponse(responseCode = "404", description = "No such personal training, the trainer does not run it, or "
-			+ "the account has no staff profile.", content = @Content(mediaType = "application/problem+json",
-					schema = @Schema(implementation = ApiProblem.class)))
-	PlanPreviewResponse previewOwnPersonalTrainingChange(@PathVariable UUID eventId,
-			@Valid @RequestBody OwnPersonalTrainingChangeRequest request, Authentication authentication) {
-		return this.occurrenceChanges.previewOwnPersonalTraining(eventId, staffId(authentication), request);
 	}
 
 	private UUID staffId(Authentication authentication) {

@@ -148,10 +148,6 @@ class ScheduleEvent {
               case final String id)
             id,
       ],
-      roomIds: [
-        for (final resource in json['resources'] as List)
-          (resource as Map<String, dynamic>)['resourceId'] as String,
-      ],
       seriesChange: SeriesChange.fromJson(json['seriesChange']),
       eventVersion: json['version'] as int? ?? 0,
     );
@@ -182,12 +178,6 @@ class ScheduleEvent {
   final List<String> roomIds;
 
   /// The version a change of the event is based on.
-  final int eventVersion;
-
-  /// Ids of the event's rooms, in the order of [roomNames].
-  final List<String> roomIds;
-
-  /// The event's version that a change of it is based on.
   final int eventVersion;
 
   /// How a one-off change makes this occurrence differ from its series, or
