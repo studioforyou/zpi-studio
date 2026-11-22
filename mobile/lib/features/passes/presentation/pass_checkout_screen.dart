@@ -24,7 +24,9 @@ class PassCheckoutScreen extends ConsumerStatefulWidget {
   final PassProduct product;
   final PassVariant variant;
 
-  /// The pass being renewed with the same variant, if any.
+  /// The pass being renewed with the same variant, if any. While it is still
+  /// running and its renewal was not declined, the screen also offers saying
+  /// it will not be renewed, which stops the reminders about it.
   final OwnPass? renewedPass;
 
   @override
@@ -37,6 +39,7 @@ class _PassCheckoutScreenState extends ConsumerState<PassCheckoutScreen> {
   bool _termsAccepted = false;
   bool _submitting = false;
   bool _failed = false;
+  bool _declining = false;
 
   /// The order placed by an earlier attempt whose payment failed, so a retry
   /// only pays it.
@@ -138,7 +141,7 @@ class _PassCheckoutScreenState extends ConsumerState<PassCheckoutScreen> {
             ),
           FilledButton(
             key: const Key('checkout-pay'),
-            onPressed: _termsAccepted && !_submitting
+            onPressed: _termsAccepted && !_submitting && !_declining
                 ? () => _pay(afterCurrent ? followed : null)
                 : null,
             child: _submitting
@@ -148,9 +151,70 @@ class _PassCheckoutScreenState extends ConsumerState<PassCheckoutScreen> {
                   )
                 : Text(l10n.checkoutPay(formatMoney(variant.price))),
           ),
+          if (widget.renewedPass case final renewed?
+              when renewed.isRunning && !renewed.renewalDeclined)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: TextButton(
+                key: const Key('checkout-decline-renewal'),
+                onPressed: _submitting || _declining || _placedOrderId != null
+                    ? null
+                    : () => _declineRenewal(renewed),
+                child: Text(l10n.checkoutDeclineRenewal),
+              ),
+            ),
         ],
       ),
     );
+  }
+
+  /// Asks to confirm, then says [pass] will not be renewed and closes the
+  /// screen.
+  Future<void> _declineRenewal(OwnPass pass) async {
+    final l10n = AppLocalizations.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(l10n.checkoutDeclineRenewalTitle),
+        content: Text(l10n.checkoutDeclineRenewalMessage(pass.productName)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(l10n.checkoutDeclineRenewalBack),
+          ),
+          FilledButton(
+            key: const Key('checkout-decline-renewal-confirm'),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(l10n.checkoutDeclineRenewalConfirm),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) {
+      return;
+    }
+    setState(() => _declining = true);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await ref
+          .read(passesApiProvider)
+          .declineRenewal(widget.profileId, pass.id);
+      ref.invalidate(ownPassesProvider(widget.profileId));
+      if (!mounted) {
+        return;
+      }
+      messenger.showSnackBar(
+        SnackBar(content: Text(l10n.checkoutDeclineRenewalDone)),
+      );
+      Navigator.of(context).pop();
+    } on Exception {
+      if (mounted) {
+        setState(() => _declining = false);
+        messenger.showSnackBar(
+          SnackBar(content: Text(l10n.passRenewalDeclineError)),
+        );
+      }
+    }
   }
 
   /// The profile's usable pass that ends last, to start the new one after it.

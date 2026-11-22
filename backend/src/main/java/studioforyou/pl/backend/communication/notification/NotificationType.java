@@ -32,7 +32,8 @@ public enum NotificationType {
 
 	/**
 	 * Reminder that a pass is about to expire, sent before 9:00 on its last day. Not sent when the
-	 * participant already has a following pass or no entries are left.
+	 * participant already has a following pass, no entries are left or the participant said they
+	 * will not renew it.
 	 */
 	PASS_EXPIRING((short) 2, true, List.of(
 			new Placeholder(Placeholder.PASS, "Name of the pass"),
@@ -41,7 +42,7 @@ public enum NotificationType {
 
 	/**
 	 * A booking used the last entry of a pass. Sent once per pass, and not when the participant
-	 * already has a following pass.
+	 * already has a following pass or said they will not renew it.
 	 */
 	PASS_LAST_ENTRY_USED((short) 3, false, List.of(
 			new Placeholder(Placeholder.PASS, "Name of the pass"),

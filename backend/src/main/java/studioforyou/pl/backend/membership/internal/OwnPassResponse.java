@@ -20,12 +20,14 @@ import studioforyou.pl.backend.membership.CustomerPassStatus;
  * @param validUntil the last day the pass is valid, inclusive
  * @param expiringSoon whether a usable pass is about to run out: at most {@value #EXPIRING_WITHIN_DAYS}
  * days left (counting today and the last day) or at most {@value #EXPIRING_WITH_ENTRIES} entries left
+ * @param renewalDeclined whether the participant said they will not renew the pass, so no more
+ * reminders to buy the next one are sent for it
  */
 @Schema(name = "OwnPass")
 public record OwnPassResponse(UUID id, UUID customerId, UUID variantId,
 		@Schema(example = "Karnet Pole Dance") String productName, @Schema(example = "8") Short entriesTotal,
 		@Schema(example = "5") Short entriesRemaining, CustomerPassStatus status, LocalDate validFrom,
-		LocalDate validUntil, boolean expiringSoon) {
+		LocalDate validUntil, boolean expiringSoon, boolean renewalDeclined) {
 
 	/** A usable pass with at most this many days left, counting today and the last day, is expiring soon. */
 	static final int EXPIRING_WITHIN_DAYS = 7;
@@ -42,7 +44,7 @@ public record OwnPassResponse(UUID id, UUID customerId, UUID variantId,
 		CustomerPassStatus status = pass.statusOn(today, suspended);
 		return new OwnPassResponse(pass.getId(), pass.getCustomerId(), pass.getVariantId(), pass.getProductName(),
 				pass.getEntriesTotal(), pass.getEntriesRemaining(), status, pass.getValidFrom(), pass.getValidUntil(),
-				expiringSoon(pass, status, today));
+				expiringSoon(pass, status, today), pass.getRenewalDeclinedAt() != null);
 	}
 
 	private static boolean expiringSoon(CustomerPass pass, CustomerPassStatus status, LocalDate today) {

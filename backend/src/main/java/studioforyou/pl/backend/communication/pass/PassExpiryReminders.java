@@ -28,8 +28,8 @@ import studioforyou.pl.backend.membership.ExpiringPasses.ExpiringPass;
  * <p>
  * A reminder is due from its moment for {@link #GRACE}, so a missed job run is caught up. It is not
  * sent for a pass assigned after the moment, for a pass with no entries left, or when the
- * participant already holds a following pass. Extending the pass moves the reminders to the new
- * last day, which counts as a new reminder.
+ * participant already holds a following pass or said they will not renew this one. Extending the
+ * pass moves the reminders to the new last day, which counts as a new reminder.
  */
 @Component
 public class PassExpiryReminders {
