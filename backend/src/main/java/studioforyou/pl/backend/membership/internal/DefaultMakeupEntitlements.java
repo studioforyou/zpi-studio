@@ -4,6 +4,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -74,6 +75,14 @@ class DefaultMakeupEntitlements implements MakeupEntitlements {
 			jdbc.sql("UPDATE makeup_credit SET status = 'AVAILABLE', used_at = NULL, used_reservation_id = NULL WHERE id = :id")
 				.param("id", creditId).update();
 		}
+	}
+
+	@Override
+	public Optional<HeldCredit> held(UUID profileId, UUID creditId) {
+		return jdbc.sql(SELECT).param("id", creditId).param("profile", profileId)
+			.query((row, number) -> new HeldCredit(row.getObject("id", UUID.class), row.getString("product_name"),
+					row.getObject("expires_at", OffsetDateTime.class).toInstant()))
+			.optional();
 	}
 
 	private Credit usable(Row row, Instant now) {

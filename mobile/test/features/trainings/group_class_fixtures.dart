@@ -5,18 +5,21 @@ Map<String, dynamic> reservationJson({
   bool active = true,
   bool entryReturned = true,
   bool withPass = true,
+  String freeCancelUntil = '2030-11-02T10:00:00Z',
+  Map<String, dynamic>? passConsequence,
 }) => {
   'id': 'reservation-1',
   'eventId': 'class-1',
   'customerId': profileId,
   'status': active ? 'ACTIVE' : 'CANCELLED',
   'customerPassId': withPass ? 'pass-1' : null,
-  'freeCancelUntil': '2030-11-02T10:00:00Z',
+  'freeCancelUntil': freeCancelUntil,
   'entryReturned': active || !withPass ? null : entryReturned,
   'cancellation': {
     'allowed': active,
     'reason': active ? null : 'RESERVATION_NOT_ACTIVE',
     'entryReturned': withPass ? entryReturned : null,
+    'passConsequence': passConsequence,
   },
   'version': 3,
 };
@@ -56,6 +59,8 @@ Map<String, dynamic> groupClassJson({
   int? waitlistPosition,
   int? waitingCount,
   String? promotionBlockedReason,
+  String freeCancelUntil = '2030-11-02T10:00:00Z',
+  Map<String, dynamic>? passConsequence,
 }) => {
   'id': 'class-1',
   'title': title,
@@ -79,6 +84,8 @@ Map<String, dynamic> groupClassJson({
           profileId: profileId,
           entryReturned: entryReturned,
           withPass: reservedWithPass,
+          freeCancelUntil: freeCancelUntil,
+          passConsequence: passConsequence,
         )
       : null,
   'booking': {

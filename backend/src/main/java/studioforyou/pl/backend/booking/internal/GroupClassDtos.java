@@ -94,7 +94,33 @@ final class GroupClassDtos {
 	record CancellationAvailability(boolean allowed, String reason,
 			@Schema(description = "Current consequence to confirm; null when cancellation is unavailable or the reservation "
 					+ "has no pass (an administrator booked it without a pass entry, so there is no entry to return).")
-			Boolean entryReturned) {
+			Boolean entryReturned,
+			@Schema(description = "What the cancellation does to the pass or make-up credit funding the reservation, "
+					+ "shown before the participant confirms it; null when entryReturned is null.")
+			PassConsequence passConsequence) {
+
+		CancellationAvailability(boolean allowed, String reason, Boolean entryReturned) {
+			this(allowed, reason, entryReturned, null);
+		}
+
+	}
+
+	@Schema(name = "GroupClassCancellationPassConsequence")
+	record PassConsequence(
+			@Schema(description = "PASS or MAKEUP_CREDIT.") String source,
+			String productName,
+			@Schema(description = "Entries left on the pass now; null for an unlimited pass or a make-up credit.")
+			Short entriesRemaining,
+			@Schema(description = "Entries left on the pass after the cancellation; null for an unlimited pass or a "
+					+ "make-up credit.")
+			Short entriesAfterCancellation,
+			@Schema(description = "Last day the pass is valid; null for a make-up credit.") LocalDate validUntil,
+			@Schema(description = "When the make-up credit expires; null for a pass.") Instant expiresAt) {
+
+		static final String PASS = "PASS";
+
+		static final String MAKEUP_CREDIT = "MAKEUP_CREDIT";
+
 	}
 
 	@Schema(name = "TrainingHistoryEntry")

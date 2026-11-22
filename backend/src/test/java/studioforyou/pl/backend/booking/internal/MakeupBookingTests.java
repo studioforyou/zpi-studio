@@ -142,6 +142,12 @@ class MakeupBookingTests {
 		Instant expiry = jdbc.sql("SELECT expires_at FROM makeup_credit WHERE id = :id").param("id", credit).query(OffsetDateTime.class).single().toInstant();
 		var reservation = bookings.bookMakeup(actor, profile, event, credit).reservation();
 		assertThat(reservation.cancellation().entryReturned()).isTrue();
+		var consequence = reservation.cancellation().passConsequence();
+		assertThat(consequence.source()).isEqualTo("MAKEUP_CREDIT");
+		assertThat(consequence.productName()).isEqualTo("Old pass");
+		assertThat(consequence.expiresAt()).isEqualTo(expiry);
+		assertThat(consequence.entriesRemaining()).isNull();
+		assertThat(consequence.entriesAfterCancellation()).isNull();
 		var request = new GroupClassDtos.CancelRequest(reservation.version(), true);
 		bookings.cancel(actor, profile, reservation.id(), request);
 		bookings.cancel(actor, profile, reservation.id(), request);
