@@ -10,6 +10,7 @@ import {
   type ProductFormValues,
   type VariantFormValues,
 } from './passFormValues';
+import type { MakeupPolicy } from './makeupPoliciesApi';
 import { createPassProduct, type ServiceType } from './passesApi';
 
 const emptyProduct: ProductFormValues = {
@@ -20,15 +21,24 @@ const emptyProduct: ProductFormValues = {
   serviceTypeIds: [],
   suspensionAllowed: false,
   maxSuspensionDays: null,
+  makeupPolicyId: null,
 };
 
 type Props = {
   opened: boolean;
   onClose: () => void;
   serviceTypes: ServiceType[];
+  makeupPolicies: MakeupPolicy[];
+  onManagePolicies?: () => void;
 };
 
-export function CreatePassProductModal({ opened, onClose, serviceTypes }: Props) {
+export function CreatePassProductModal({
+  opened,
+  onClose,
+  serviceTypes,
+  makeupPolicies,
+  onManagePolicies,
+}: Props) {
   const queryClient = useQueryClient();
   const [product, setProduct] = useState(emptyProduct);
   const [variant, setVariant] = useState<VariantFormValues>(emptyVariant);
@@ -44,6 +54,7 @@ export function CreatePassProductModal({ opened, onClose, serviceTypes }: Props)
         serviceTypeIds: product.serviceTypeIds,
         suspensionAllowed: product.suspensionAllowed,
         maxSuspensionDays: product.suspensionAllowed ? product.maxSuspensionDays : null,
+        makeupPolicyId: product.makeupPolicyId,
         variants: [
           {
             entriesCount: variant.unlimitedEntries ? null : variant.entriesCount,
@@ -80,6 +91,14 @@ export function CreatePassProductModal({ opened, onClose, serviceTypes }: Props)
           values={product}
           onChange={setProduct}
           serviceTypes={serviceTypes}
+          makeupPolicies={makeupPolicies}
+          onManagePolicies={
+            onManagePolicies &&
+            (() => {
+              close();
+              onManagePolicies();
+            })
+          }
           showErrors={submitted}
         />
         <Divider label={pl.passes.form.firstVariant} labelPosition="left" />

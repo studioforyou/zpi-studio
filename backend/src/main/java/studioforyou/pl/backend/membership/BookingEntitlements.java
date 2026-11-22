@@ -27,6 +27,9 @@ public interface BookingEntitlements {
 	 */
 	void release(UUID customerId, UUID passId, UUID reservationId, boolean returnEntry, UUID actorAccountId);
 
+	/** Returns a studio-cancelled reservation's allocated entry; null for legacy rows without an allocation. */
+	Boolean returnForCancelledEvent(UUID customerId, UUID passId, UUID reservationId, UUID actorAccountId);
+
 	/**
 	 * Settles the entry allocated to a reservation as used, once attendance is recorded: the
 	 * participant came, or stayed away without cancelling. The balance already went down when the

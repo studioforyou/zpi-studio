@@ -8,6 +8,7 @@ import 'package:mobile/core/auth/auth_state.dart';
 import 'package:mobile/core/auth/session.dart';
 import 'package:mobile/core/network/api_exception.dart';
 import 'package:mobile/features/schedule/data/schedule_api.dart';
+import 'package:mobile/features/schedule/data/substitution_api.dart';
 import 'package:mobile/features/trainings/data/trainee_overview_api.dart';
 import 'package:mobile/features/trainings/data/trainees_api.dart';
 import 'package:mobile/features/trainings/presentation/new_client_account_screen.dart';
@@ -189,6 +190,7 @@ void main() {
           ),
           traineesApiProvider.overrideWithValue(api),
           traineeOverviewApiProvider.overrideWithValue(_EmptyOverviewApi()),
+          substitutionOffersProvider.overrideWith((ref, query) async => []),
         ],
         child: MaterialApp.router(
           routerConfig: router,
@@ -228,6 +230,19 @@ void main() {
     // Without a known date of birth, none is shown.
     expect(find.textContaining('ur.'), findsOneWidget);
     expect(find.text('Zarejestruj nową współpracę'), findsOneWidget);
+  });
+
+  testWidgets('substitutions live in Trainings with a single page header', (
+    tester,
+  ) async {
+    await pumpScreen(tester, _FakeTraineesApi());
+    await tester.tap(find.widgetWithText(Tab, 'Zastępstwa'));
+    await tester.pumpAndSettle();
+    expect(find.byType(AppBar), findsOneWidget);
+    expect(find.text('Dostępne'), findsOneWidget);
+    expect(find.text('Moje zastępstwa'), findsOneWidget);
+    expect(find.byTooltip('Jak działają zastępstwa?'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
   });
 
   testWidgets('shows an empty state and a retry after a failure', (

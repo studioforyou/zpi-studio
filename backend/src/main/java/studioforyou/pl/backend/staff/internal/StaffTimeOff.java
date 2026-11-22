@@ -25,6 +25,7 @@ import studioforyou.pl.backend.shared.api.ApiException;
 import studioforyou.pl.backend.shared.api.ErrorCode;
 import studioforyou.pl.backend.shared.api.FieldErrorCode;
 import studioforyou.pl.backend.staff.TimeOffChanged;
+import studioforyou.pl.backend.staff.TimeOffSubstitutions;
 import studioforyou.pl.backend.staff.internal.TimeOffDtos.TimeOffResponse;
 
 /**
@@ -47,7 +48,7 @@ class StaffTimeOff {
 	private static final String SELECT = """
 			SELECT t.id, t.staff_id, s.first_name || ' ' || s.last_name AS staff_display_name, t.kind, t.status,
 			       t.starts_at, t.ends_at, t.reason, t.requested_at, t.decided_at, t.decision_note,
-			       d.first_name || ' ' || d.last_name AS decided_by_name,
+			       d.first_name || ' ' || d.last_name AS decided_by_name, t.version,
 			       (t.decided_by IS NOT NULL AND t.decided_at = t.requested_at) AS recorded_by_studio
 			FROM staff_time_off t
 			JOIN staff_profile s ON s.id = t.staff_id
@@ -57,12 +58,14 @@ class StaffTimeOff {
 	private final JdbcClient jdbc;
 
 	private final ApplicationEventPublisher events;
+	private final TimeOffSubstitutions substitutions;
 
 	private final Clock clock = Clock.systemUTC();
 
-	StaffTimeOff(JdbcClient jdbc, ApplicationEventPublisher events) {
+	StaffTimeOff(JdbcClient jdbc, ApplicationEventPublisher events, TimeOffSubstitutions substitutions) {
 		this.jdbc = jdbc;
 		this.events = events;
+		this.substitutions = substitutions;
 	}
 
 	/** Time off of one staff member, the latest first. */
@@ -120,8 +123,18 @@ class StaffTimeOff {
 	/** A trainer's request; it waits for an administrator's decision. */
 	TimeOffResponse request(UUID staffId, TimeOffKind kind, Instant startsAt, Instant endsAt,
 			@Nullable String reason) {
+		return request(staffId, kind, startsAt, endsAt, reason, null);
+	}
+
+	TimeOffResponse request(UUID staffId, TimeOffKind kind, Instant startsAt, Instant endsAt,
+			@Nullable String reason, @Nullable List<UUID> selected) {
 		validatePeriod(startsAt, endsAt, false);
-		return insert(staffId, kind, startsAt, endsAt, reason, TimeOffStatus.REQUESTED, null);
+		this.substitutions.prepare(staffId, startsAt, endsAt, selected, null);
+		TimeOffResponse created = insert(staffId, kind, startsAt, endsAt, reason, TimeOffStatus.REQUESTED, null);
+		if (selected != null) {
+			this.substitutions.replace(created.id(), staffId, startsAt, endsAt, selected, false, accountId(staffId));
+		}
+		return created;
 	}
 
 	/**
@@ -130,9 +143,18 @@ class StaffTimeOff {
 	 */
 	TimeOffResponse record(UUID adminAccountId, UUID staffId, TimeOffKind kind, Instant startsAt, Instant endsAt,
 			@Nullable String reason) {
+		return record(adminAccountId, staffId, kind, startsAt, endsAt, reason, null);
+	}
+
+	TimeOffResponse record(UUID adminAccountId, UUID staffId, TimeOffKind kind, Instant startsAt, Instant endsAt,
+			@Nullable String reason, @Nullable List<UUID> selected) {
 		validatePeriod(startsAt, endsAt, true);
+		this.substitutions.prepare(staffId, startsAt, endsAt, selected, null);
 		TimeOffResponse recorded = insert(staffId, kind, startsAt, endsAt, reason, TimeOffStatus.APPROVED,
 				adminAccountId);
+		if (selected != null) {
+			this.substitutions.replace(recorded.id(), staffId, startsAt, endsAt, selected, true, adminAccountId);
+		}
 		publish(recorded, TimeOffChanged.Change.APPROVED);
 		return recorded;
 	}
@@ -143,10 +165,16 @@ class StaffTimeOff {
 	 */
 	TimeOffResponse updateOwn(UUID staffId, UUID timeOffId, TimeOffKind kind, Instant startsAt, Instant endsAt,
 			@Nullable String reason) {
+		return updateOwn(staffId, timeOffId, kind, startsAt, endsAt, reason, null, null);
+	}
+
+	TimeOffResponse updateOwn(UUID staffId, UUID timeOffId, TimeOffKind kind, Instant startsAt, Instant endsAt,
+			@Nullable String reason, @Nullable List<UUID> selected, @Nullable Integer version) {
 		TimeOffResponse current = lock(timeOffId);
 		if (!current.staffId().equals(staffId)) {
 			throw notFound();
 		}
+		requireVersion(current, version);
 		if (current.status() != TimeOffStatus.REQUESTED) {
 			throw new ApiException(ErrorCode.TIME_OFF_ALREADY_DECIDED,
 					"Only a request that waits for a decision can be changed.",
@@ -154,11 +182,12 @@ class StaffTimeOff {
 		}
 		validatePeriod(startsAt, endsAt, false);
 		String trimmedReason = text(reason, "reason");
+		this.substitutions.prepare(staffId, startsAt, endsAt, selected, timeOffId);
 		lockStaff(staffId);
 		rejectOverlap(staffId, startsAt, endsAt, timeOffId);
 		this.jdbc.sql("""
 				UPDATE staff_time_off
-				SET kind = :kind, starts_at = :startsAt, ends_at = :endsAt, reason = :reason
+				SET kind = :kind, starts_at = :startsAt, ends_at = :endsAt, reason = :reason, version = version + 1
 				WHERE id = :id
 				""")
 			.param("kind", kind.name())
@@ -167,14 +196,34 @@ class StaffTimeOff {
 			.param("reason", trimmedReason)
 			.param("id", timeOffId)
 			.update();
+		if (selected != null) {
+			this.substitutions.replace(timeOffId, staffId, startsAt, endsAt, selected, false, accountId(staffId));
+		}
 		return get(timeOffId);
 	}
 
 	TimeOffResponse approve(UUID timeOffId, UUID adminAccountId, @Nullable String note) {
+		return approve(timeOffId, adminAccountId, note, null, null);
+	}
+
+	TimeOffResponse approve(UUID timeOffId, UUID adminAccountId, @Nullable String note,
+			@Nullable Integer version, @Nullable List<UUID> selected) {
+		TimeOffResponse current = lock(timeOffId);
+		requireVersion(current, version);
+		if (selected != null) {
+			this.substitutions.prepare(current.staffId(), current.startsAt(), current.endsAt(), selected, timeOffId);
+			this.substitutions.replace(timeOffId, current.staffId(), current.startsAt(), current.endsAt(), selected,
+					false, adminAccountId);
+		}
 		return decide(timeOffId, adminAccountId, note, TimeOffStatus.APPROVED);
 	}
 
 	TimeOffResponse reject(UUID timeOffId, UUID adminAccountId, @Nullable String note) {
+		return reject(timeOffId, adminAccountId, note, null);
+	}
+
+	TimeOffResponse reject(UUID timeOffId, UUID adminAccountId, @Nullable String note, @Nullable Integer version) {
+		requireVersion(lock(timeOffId), version);
 		return decide(timeOffId, adminAccountId, note, TimeOffStatus.REJECTED);
 	}
 
@@ -184,12 +233,19 @@ class StaffTimeOff {
 		if (!current.staffId().equals(staffId)) {
 			throw notFound();
 		}
-		return cancel(current);
+		TimeOffResponse cancelled = cancel(current);
+		this.substitutions.close(timeOffId, accountId(staffId));
+		return cancelled;
 	}
 
 	/** Cancels any staff member's time off, e.g. when they come back from leave early. */
 	TimeOffResponse cancel(UUID timeOffId) {
+		return cancel(timeOffId, accountId(get(timeOffId).staffId()));
+	}
+
+	TimeOffResponse cancel(UUID timeOffId, UUID actorId) {
 		TimeOffResponse cancelled = cancel(lock(timeOffId));
+		this.substitutions.close(timeOffId, actorId);
 		publish(cancelled, TimeOffChanged.Change.CANCELLED);
 		return cancelled;
 	}
@@ -199,7 +255,7 @@ class StaffTimeOff {
 			throw new ApiException(ErrorCode.TIME_OFF_NOT_CANCELLABLE,
 					"Only requested or approved time off that has not ended can be cancelled.");
 		}
-		this.jdbc.sql("UPDATE staff_time_off SET status = 'CANCELLED' WHERE id = :id")
+		this.jdbc.sql("UPDATE staff_time_off SET status = 'CANCELLED', version = version + 1 WHERE id = :id")
 			.param("id", current.id())
 			.update();
 		return get(current.id());
@@ -215,7 +271,8 @@ class StaffTimeOff {
 		}
 		this.jdbc.sql("""
 				UPDATE staff_time_off
-				SET status = :status, decided_by = :decidedBy, decided_at = :decidedAt, decision_note = :note
+				SET status = :status, decided_by = :decidedBy, decided_at = :decidedAt, decision_note = :note,
+				    version = version + 1
 				WHERE id = :id
 				""")
 			.param("status", decision.name())
@@ -225,18 +282,45 @@ class StaffTimeOff {
 			.param("id", timeOffId)
 			.update();
 		TimeOffResponse decided = get(timeOffId);
+		if (decision == TimeOffStatus.APPROVED) {
+			this.substitutions.activate(timeOffId, adminAccountId);
+		}
+		else {
+			this.substitutions.close(timeOffId, adminAccountId);
+		}
 		publish(decided, decision == TimeOffStatus.APPROVED ? TimeOffChanged.Change.APPROVED
 				: TimeOffChanged.Change.REJECTED);
 		return decided;
 	}
 
 	private void publish(TimeOffResponse timeOff, TimeOffChanged.Change change) {
-		UUID accountId = this.jdbc.sql("SELECT account_id FROM staff_profile WHERE id = :staffId")
-			.param("staffId", timeOff.staffId())
-			.query(UUID.class)
-			.single();
+		UUID accountId = accountId(timeOff.staffId());
 		this.events.publishEvent(new TimeOffChanged(timeOff.id(), accountId, change, timeOff.kind().name(),
 				timeOff.startsAt(), timeOff.endsAt(), timeOff.decisionNote()));
+	}
+
+	TimeOffSubstitutions.Plan selectSubstitutions(UUID id, TimeOffSubstitutions.Selection input, UUID actorId) {
+		TimeOffResponse current = lock(id);
+		requireVersion(current, input.version());
+		if (!current.status().isActive() || !current.endsAt().isAfter(this.clock.instant())) {
+			throw new ApiException(ErrorCode.TIME_OFF_ALREADY_DECIDED, "The time off is no longer active.");
+		}
+		this.substitutions.prepare(current.staffId(), current.startsAt(), current.endsAt(), input.eventIds(), id);
+		this.substitutions.replace(id, current.staffId(), current.startsAt(), current.endsAt(), input.eventIds(),
+				current.status() == TimeOffStatus.APPROVED, actorId);
+		this.jdbc.sql("UPDATE staff_time_off SET version = version + 1 WHERE id = :id").param("id", id).update();
+		return this.substitutions.plan(id, null);
+	}
+
+	private UUID accountId(UUID staffId) {
+		return this.jdbc.sql("SELECT account_id FROM staff_profile WHERE id = :id").param("id", staffId)
+			.query(UUID.class).single();
+	}
+
+	private static void requireVersion(TimeOffResponse current, @Nullable Integer version) {
+		if (version != null && current.version() != version) {
+			throw new ApiException(ErrorCode.VERSION_CONFLICT, "The time-off request changed. Refresh it.");
+		}
 	}
 
 	private TimeOffResponse insert(UUID staffId, TimeOffKind kind, Instant startsAt, Instant endsAt,
@@ -358,7 +442,7 @@ class StaffTimeOff {
 				rs.getString("staff_display_name"), TimeOffKind.valueOf(rs.getString("kind")),
 				TimeOffStatus.valueOf(rs.getString("status")), instant(rs, "starts_at"), instant(rs, "ends_at"),
 				rs.getString("reason"), instant(rs, "requested_at"), instant(rs, "decided_at"),
-				rs.getString("decision_note"), rs.getString("decided_by_name"), rs.getBoolean("recorded_by_studio"));
+				rs.getString("decision_note"), rs.getString("decided_by_name"), rs.getBoolean("recorded_by_studio"), rs.getInt("version"));
 	}
 
 }

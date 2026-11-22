@@ -139,6 +139,7 @@ abstract class ScheduleTestSupport {
 
 	@AfterEach
 	void cleanUp() {
+		this.jdbcTemplate.update("DELETE FROM substitution_request");
 		String testAccounts = "SELECT id FROM account WHERE email LIKE '%" + TEST_EMAIL_DOMAIN + "'";
 		// A saved change or cancellation of an event notifies its staff in the background.
 		NotificationCleanup.deleteNotifications(this.jdbcClient, testAccounts);
@@ -153,6 +154,7 @@ abstract class ScheduleTestSupport {
 		this.jdbcTemplate.update("DELETE FROM service_type_resource");
 		this.jdbcTemplate.update("DELETE FROM resource");
 		this.jdbcTemplate.update("DELETE FROM service_type WHERE id IN (?, ?, ?)", POLE, PERSONAL, ARCHIVED_SERVICE);
+		this.jdbcTemplate.update("DELETE FROM audit_log WHERE actor_account_id IN (" + testAccounts + ")");
 		this.jdbcTemplate.update("DELETE FROM staff_profile WHERE account_id IN (" + testAccounts + ")");
 		this.jdbcTemplate.update("DELETE FROM account_role WHERE account_id IN (" + testAccounts + ")");
 		this.jdbcTemplate.update("DELETE FROM identity_link WHERE account_id IN (" + testAccounts + ")");

@@ -32,18 +32,137 @@ function eventCount(n: number): string {
 }
 
 export const pl = {
+  timeOffCover: {
+    title: 'Zastępstwa na czas nieobecności',
+    manage: 'Zastępstwa',
+    manual: 'Do decyzji studia',
+    manualWarning:
+      'Odznaczone zajęcia i konsultacje nie są automatycznie odwoływane. Administrator musi ustalić ich dalszy przebieg.',
+    selected: 'Wybrane',
+    all: 'Zaznacz wszystkie',
+    none: 'Odznacz wszystkie',
+    session: 'Zajęcia',
+    when: 'Termin',
+    status: 'Stan zastępstwa',
+    substitute: 'Zastępca',
+    select: 'Wybierz zastępcę dla zaznaczonych terminów',
+    selectPlaceholder: 'Dostępni trenerzy',
+    empty: 'Brak zajęć do przekazania w tym okresie.',
+    error: 'Nie udało się pobrać planu zastępstw.',
+    retry: 'Odśwież',
+    info: 'Zaznacz zajęcia wymagające zastępstwa. Oferty powstaną po zatwierdzeniu nieobecności. Wcześniejsze, osobne zgłoszenia pozostaną aktywne.',
+    managementInfo:
+      'Możesz rozesłać wybrane oferty, zatwierdzić zgłoszonych trenerów albo przypisać jedną osobę do kilku wolnych terminów. Dostępność sprawdzamy dla każdego terminu.',
+    waiting: 'Wybrane do zgłoszenia',
+    unselected: 'Bez szukania zastępstwa',
+    closed: 'Termin zamknięty',
+    already: 'Zgłoszone osobno',
+    start: 'Szukaj zastępstw',
+    save: 'Zapisz wybór',
+    approve: 'Zatwierdź zgłoszonych',
+    assign: 'Przypisz zastępcę',
+    approveTitle: 'Zatwierdzić wybrane zastępstwa?',
+    assignTitle: 'Przypisać zastępcę do tych terminów?',
+    selectionTitle: 'Zapisać plan zastępstw?',
+    selectionInfo:
+      'Otworzymy brakujące oferty zaznaczonych zajęć. Zamkniemy otwarte zgłoszenia utworzone z tej nieobecności, jeśli zostały odznaczone.',
+    changeInfo:
+      'Zmienimy prowadzących tylko wymienionych terminów. Zapisy uczestników i ich wejścia pozostaną bez zmian.',
+    confirm: 'Potwierdź',
+    back: 'Wróć',
+    note: 'Notatka do decyzji (opcjonalnie)',
+    changed: 'Wniosek lub grafik się zmienił. Odśwież widok i sprawdź zaznaczone terminy.',
+    unavailable: 'Trener nie jest dostępny dla wszystkich zaznaczonych terminów.',
+    overlapping: 'Zaznaczone terminy nakładają się na siebie',
+    cancelHint:
+      'Otwarte oferty z tej nieobecności zostaną zamknięte. Przyjęte zastępstwa pozostaną w grafiku.',
+    pendingOnly: 'Zastępstwa można przypisać po zatwierdzeniu nieobecności.',
+  },
   appName: 'studio4U',
   panelName: 'Panel administratora',
   nav: {
     schedule: 'Grafik',
     rooms: 'Sale',
     timeOff: 'Urlopy',
+    substitutions: 'Zastępstwa',
     accounts: 'Konta',
     passes: 'Karnety',
     trainings: 'Treningi',
     communication: 'Komunikacja',
     statistics: 'Statystyki',
     system: 'Status systemu',
+  },
+  substitutions: {
+    title: 'Zastępstwa',
+    intro: 'Zgłoszenia zastępstw i obsada zajęć.',
+    open: 'Do obsadzenia',
+    pending: 'Do decyzji',
+    history: 'Zamknięte',
+    statuses: {
+      OPEN: 'Szuka zastępstwa',
+      CLAIMED: 'Czeka na decyzję',
+      APPROVED: 'Zatwierdzone',
+      REJECTED: 'Kandydat odrzucony',
+      CANCELLED: 'Zamknięte',
+      EXPIRED: 'Nieaktualne',
+    },
+    trainerFilter: 'Prowadzący',
+    allTrainers: 'Wszyscy prowadzący',
+    from: 'Od',
+    to: 'Do',
+    invalidRange: 'Wybierz poprawny przedział, najwyżej 93 dni.',
+    event: 'Zajęcia',
+    when: 'Termin',
+    original: 'Za kogo',
+    candidate: 'Zastępca',
+    status: 'Status',
+    details: 'Otwórz',
+    empty: 'Brak zgłoszeń dla wybranych filtrów.',
+    noCandidate: 'Brak zgłoszonego zastępcy',
+    personal: 'Personalne',
+    group: 'Grupowe',
+    approve: 'Zatwierdź zastępcę',
+    reject: 'Odrzuć kandydata',
+    assign: 'Przypisz zastępcę',
+    close: 'Zamknij zgłoszenie',
+    select: 'Wybierz zastępcę',
+    selectPlaceholder: 'Dostępni trenerzy',
+    note: 'Notatka do decyzji (opcjonalnie)',
+    noteHint: 'Notatka jest widoczna dla zgłoszonego zastępcy.',
+    currentCandidate: 'Zgłoszony zastępca',
+    available: 'Dostępny',
+    unavailable: 'Niedostępny',
+    noAvailable: 'Brak dostępnych zastępców w tym terminie.',
+    reasons: {
+      NOT_QUALIFIED: 'brak kwalifikacji',
+      UNAVAILABLE: 'kolizja lub urlop',
+      INACTIVE: 'nieaktywne konto',
+      OWN_EVENT: 'obecny prowadzący',
+      CLOSED: 'zgłoszenie zamknięte',
+    },
+    warning: 'Termin poza godzinami dostępności lub podczas zgłoszonej nieobecności.',
+    confirmApprove: 'Zatwierdzić zastępcę?',
+    approveHint:
+      'Zmienimy prowadzącego tylko tego terminu. Zapisy uczestników i ich wejścia pozostaną bez zmian.',
+    confirmReject: 'Odrzucić kandydata?',
+    rejectHint: 'Decyzja pozostanie w historii. Oferta wróci do dostępnych zastępstw.',
+    confirmAssign: 'Przypisać wybranego zastępcę?',
+    confirmClose: 'Zamknąć zgłoszenie?',
+    closeHint: 'Zajęcia pozostaną w grafiku obecnego prowadzącego.',
+    confirm: 'Potwierdź',
+    back: 'Wróć',
+    refresh: 'Odśwież',
+    cancelEvent: 'Odwołaj zajęcia',
+    cancelTitle: 'Odwołać ten termin?',
+    cancelHint:
+      'Anulujemy rezerwacje i zwrócimy przypisane wejścia oraz ważne odróbki. Pozostałe terminy serii pozostaną bez zmian.',
+    cancelReason: 'Powód odwołania',
+    cancelRequired: 'Podaj powód odwołania.',
+    changedError: 'Zgłoszenie zmieniło się w międzyczasie. Sprawdź odświeżone dane.',
+    unavailableError:
+      'Trener nie może już poprowadzić tego terminu. Sprawdź kandydatów i wybierz ponownie.',
+    networkError: 'Brak połączenia. Spróbuj ponownie.',
+    loadingError: 'Nie udało się pobrać zgłoszeń.',
   },
   auth: {
     loginTitle: 'Logowanie',
@@ -673,6 +792,7 @@ export const pl = {
       audience: 'Dla kogo',
       services: 'Usługi',
       variants: 'Warianty',
+      makeups: 'Odrabianie',
       status: 'Status',
     },
     status: { active: 'Aktywny', archived: 'Zarchiwizowany', inactive: 'Nieaktywny' },
@@ -696,6 +816,12 @@ export const pl = {
       suspensionAllowed: 'Można zawiesić',
       maxSuspensionDays: 'Maksymalnie dni zawieszenia',
       firstVariant: 'Pierwszy wariant',
+      makeupPolicy: 'Zasady odrobień',
+      noMakeups: 'Bez odrobień',
+      noMakeupsHint: 'Odwołane zajęcia z tego karnetu nie dają odróbek.',
+      inactivePolicy: (name: string) => `${name} (nieaktywna)`,
+      inactivePolicyHint: 'Ta zasada jest nieaktywna: karnet nie przyznaje nowych odróbek.',
+      managePolicies: 'Zarządzaj zasadami',
       save: 'Zapisz',
       cancel: 'Anuluj',
       required: 'To pole jest wymagane.',
@@ -725,8 +851,87 @@ export const pl = {
       PASS_PRODUCT_ARCHIVED: 'Karnet jest zarchiwizowany.',
       PASS_VARIANT_INACTIVE: 'Ten wariant jest już nieaktywny.',
       SERVICE_TYPE_UNAVAILABLE: 'Wybrana usługa nie istnieje lub jest nieaktywna.',
+      MAKEUP_POLICY_UNAVAILABLE: 'Wybrana zasada odrobień nie istnieje lub jest nieaktywna.',
       VALIDATION_FAILED: 'Sprawdź poprawność danych w formularzu.',
       ACCESS_DENIED: 'Brak uprawnień do zmiany oferty.',
+      unknown: 'Nie udało się zapisać zmian. Spróbuj ponownie.',
+    },
+  },
+  makeupPolicies: {
+    tab: 'Zasady odrobień',
+    intro:
+      'Zasady określają, kiedy uczestnik dostaje odróbkę za odwołane zajęcia i jak długo może z niej skorzystać. Zasadę wybierasz w ustawieniach karnetu.',
+    add: 'Dodaj zasadę',
+    loadError: 'Nie udało się wczytać zasad odrobień.',
+    emptyTitle: 'Nie ma jeszcze żadnych zasad odrobień',
+    emptyText:
+      'Dodaj pierwszą zasadę, a potem wybierz ją w karnecie, aby uczestnicy mogli odrabiać odwołane zajęcia.',
+    columns: {
+      name: 'Nazwa',
+      validity: 'Ważność odróbki',
+      limit: 'Limit na karnet',
+      grantedFor: 'Odróbka za',
+      expiryCheck: 'Ważność sprawdzana',
+      products: 'Karnety',
+      status: 'Status',
+      actions: 'Działania',
+    },
+    days: (days: number) => (days === 1 ? '1 dzień' : `${days} dni`),
+    noLimit: 'bez limitu',
+    perPass: (max: number) => `maks. ${max}`,
+    grantedFor: { inTime: 'odwołanie w terminie', studio: 'odwołanie przez studio', none: 'nic' },
+    expiryChecks: { EVENT_DATE: 'w dniu zajęć', BOOK_DATE: 'w chwili zapisu' },
+    productCount: (count: number) =>
+      count === 0
+        ? 'nieużywana'
+        : count === 1
+          ? '1 karnet'
+          : count % 10 >= 2 && count % 10 <= 4 && (count % 100 < 12 || count % 100 > 14)
+            ? `${count} karnety`
+            : `${count} karnetów`,
+    status: { active: 'Aktywna', inactive: 'Nieaktywna' },
+    edit: 'Edytuj',
+    deactivate: 'Dezaktywuj',
+    activate: 'Aktywuj',
+    summary: (days: string, limit: string, grantedFor: string) =>
+      `Ważna ${days}, ${limit} na karnet, za: ${grantedFor}.`,
+    form: {
+      createTitle: 'Nowa zasada odrobień',
+      editTitle: 'Edycja zasady odrobień',
+      name: 'Nazwa',
+      namePlaceholder: 'np. Odrabianie 30 dni',
+      validityDays: 'Ważność odróbki (dni)',
+      validityHint: 'Liczona od chwili przyznania odróbki.',
+      maxPerPass: 'Maksymalnie odróbek z jednego karnetu',
+      noLimit: 'Bez limitu',
+      grantFor: 'Odróbka przysługuje, gdy',
+      grantOnInTimeCancel: 'uczestnik odwoła zajęcia w terminie',
+      grantOnStudioCancel: 'studio odwoła zajęcia',
+      expiryCheck: 'Ważność odróbki sprawdzana',
+      expiryCheckHint: {
+        EVENT_DATE: 'Zajęcia muszą odbyć się przed końcem ważności odróbki.',
+        BOOK_DATE: 'Wystarczy zapisać się przed końcem ważności, zajęcia mogą być później.',
+      },
+      changeNote:
+        'Zmiany dotyczą tylko odróbek przyznanych od teraz. Odróbki już przyznane zachowują swój termin ważności.',
+      required: 'To pole jest wymagane.',
+      positive: 'Podaj liczbę większą od zera.',
+      save: 'Zapisz',
+      cancel: 'Anuluj',
+    },
+    confirmDeactivate: {
+      title: 'Dezaktywować zasadę?',
+      text: (name: string) =>
+        `Zasada „${name}” przestanie przyznawać nowe odróbki. Odróbki już przyznane pozostaną ważne do końca swojego terminu.`,
+      products: (count: string) =>
+        `Zasadę wybrano w: ${count}. Te karnety przestaną dawać odróbki.`,
+      confirm: 'Dezaktywuj',
+      cancel: 'Anuluj',
+    },
+    errors: {
+      VALIDATION_FAILED: 'Sprawdź poprawność danych w formularzu.',
+      ACCESS_DENIED: 'Brak uprawnień do zmiany zasad odrobień.',
+      NOT_FOUND: 'Ta zasada już nie istnieje. Odśwież stronę.',
       unknown: 'Nie udało się zapisać zmian. Spróbuj ponownie.',
     },
   },
@@ -1185,6 +1390,36 @@ export const pl = {
         },
       },
     },
+    autoCancellation: {
+      title: 'Automatyczne odwołanie',
+      loading: 'Wczytywanie reguły automatycznego odwołania…',
+      loadError: 'Nie udało się wczytać reguły automatycznego odwołania.',
+      retry: 'Spróbuj ponownie',
+      participants: (participants: number, minimum: number) =>
+        `Zapisanych: ${participants}, wymagane minimum: ${minimum}`,
+      pending: (time: string) =>
+        `Liczba zapisanych zostanie sprawdzona ${time}. Jeśli będzie poniżej minimum, zajęcia zostaną odwołane, a uczestnicy dostaną zwrot wejść i powiadomienie.`,
+      belowMinimum: 'Na razie zapisanych jest za mało – zajęcia zostaną odwołane przy sprawdzeniu.',
+      forced: 'Zajęcia odbędą się bez względu na liczbę zapisanych.',
+      off: 'Reguła automatycznego odwołania nie obowiązuje dla tych zajęć.',
+      offForGroup: (group: string) =>
+        `Reguła automatycznego odwołania jest wyłączona dla grupy ${group}.`,
+      closed:
+        'Liczba zapisanych została już sprawdzona – zajęcia nie zostaną odwołane automatycznie.',
+      forceRun: 'Wymuś odbycie się zajęć',
+      forceRunHint:
+        'Zajęcia nie zostaną odwołane automatycznie, nawet jeśli zapisze się mniej osób niż minimum. Możesz to cofnąć do startu zajęć.',
+      disableForGroup: (group: string) => `Wyłącz automatyczne odwołanie dla grupy ${group}`,
+      disableForGroupHint:
+        'Dotyczy wszystkich zajęć tej stałej grupy, także zaplanowanych później. Zajęcia już odwołane nie wrócą.',
+      unknownGroup: 'tych zajęć',
+      errors: {
+        notEditable:
+          'Zajęcia są już odwołane, odbyte albo się zaczęły. Wymusić można tylko zaplanowane zajęcia przed startem.',
+        notFound: 'Nie znaleziono tych zajęć albo grupy.',
+        unknown: 'Nie udało się zapisać zmiany. Spróbuj ponownie.',
+      },
+    },
     assignmentFields: {
       leads: 'Prowadzący',
       assistants: 'Asystenci',
@@ -1349,6 +1584,11 @@ export const pl = {
       before: (time: string) => `${time} przed`,
       edit: 'Edytuj',
       types: {
+        SUBSTITUTION_AVAILABLE: {
+          name: 'Dostępne zastępstwo',
+          description:
+            'Wysyłane aktywnym trenerom z odpowiednimi kwalifikacjami i wolnym terminem. Otwiera ofertę przejęcia zastępstwa.',
+        },
         WAITLIST_PLACE_OFFERED: {
           name: 'Miejsce z listy rezerwowej do potwierdzenia',
           description:
@@ -1413,6 +1653,28 @@ export const pl = {
         },
       },
       placeholders: {
+        SUBSTITUTION_AVAILABLE: {
+          zajęcia: {
+            label: 'Zajęcia',
+            description: 'Nazwa zajęć lub usługi, bez danych uczestnika',
+            example: 'Trening personalny',
+          },
+          dzień: {
+            label: 'Dzień',
+            description: 'Data terminu w strefie czasowej studia',
+            example: 'sob., 14.11',
+          },
+          godzina: {
+            label: 'Godziny',
+            description: 'Początek i koniec zajęć',
+            example: '18:00–19:00',
+          },
+          sala: {
+            label: 'Sala',
+            description: 'Sale zajęte przez wydarzenie',
+            example: 'Sala treningowa 1',
+          },
+        },
         WAITLIST_PLACE_OFFERED: {
           ...waitlistClassFields,
           'potwierdź do': {
@@ -1687,6 +1949,7 @@ export const pl = {
       attendance: 'Frekwencja i obłożenie',
       outcomes: 'Nieobecności i anulowania',
       customers: 'Klienci',
+      sales: 'Sprzedaż',
     },
     filters: {
       label: 'Filtry',
@@ -1710,6 +1973,8 @@ export const pl = {
       inactive: (name: string) => `${name} (nieaktywne)`,
       clear: 'Wyczyść filtry',
       lookupError: 'Nie udało się wczytać list do filtrów; raporty działają bez nich.',
+      salesNotFiltered:
+        'Sprzedaż obejmuje całe studio: filtry typu, rodzaju zajęć, instruktora, grupy i sali jej nie dotyczą.',
       customersNotFiltered:
         'Raport klientów obejmuje całe studio: filtry typu, rodzaju zajęć, instruktora, grupy i sali go nie dotyczą.',
       groupKindsOnly:
@@ -1750,6 +2015,71 @@ export const pl = {
     /** Shared by the attendance and cancellation reports. */
     heldOnly:
       'Liczą się zajęcia, które już się rozpoczęły i nie zostały odwołane przez studio. Uczestnik bez zaznaczonej obecności liczy się jako obecny, tak jak przy zamknięciu zajęć przez trenera.',
+    sales: {
+      loadError: 'Nie udało się wczytać sprzedaży.',
+      rules:
+        'Liczą się karnety kupione i opłacone przez klientów oraz przypisane przez studio w wybranym okresie (według daty zakupu). Nieopłacone i anulowane zamówienia się nie liczą. Przychód to cena faktycznie zapłacona.',
+      empty: 'Brak sprzedaży w tym okresie',
+      emptyHint:
+        'Wybierz dłuższy okres albo sprawdź, czy klienci mogą kupować karnety w aplikacji.',
+      revenue: 'Przychód ze sprzedaży',
+      passes: 'Sprzedane karnety',
+      average: 'Średnia wartość karnetu',
+      topProduct: 'Najczęściej kupowany',
+      topProducts: 'Najchętniej kupowane',
+      previous: (value: string) => `poprzednio ${value}`,
+      noChange: 'bez zmian',
+      free: (count: number) =>
+        `w tym ${countOf(count, 'przypisany', 'przypisane', 'przypisanych')} bez opłaty`,
+      topDetail: (passes: number, share: string, revenue: string) =>
+        `${passes.toLocaleString('pl-PL')} szt. · ${share} sprzedanych · ${revenue}`,
+      rankingTitle: {
+        kind: 'Sprzedaż według rodzaju karnetu',
+        product: 'Sprzedaż według produktu',
+      },
+      rankingSubtitle: {
+        passes: 'Liczba sprzedanych karnetów, od największej',
+        revenue: 'Przychód, od największego',
+      },
+      groupByLabel: 'Grupuj według',
+      groupBy: { kind: 'Rodzaj karnetu', product: 'Produkt' },
+      measureLabel: 'Pokaż',
+      measure: { passes: 'Liczba', revenue: 'Przychód' },
+      pieces: (count: number) => `${count.toLocaleString('pl-PL')} szt.`,
+      trendTitle: 'Sprzedaż w czasie',
+      trendSubtitle: {
+        day: 'Dzień po dniu, według rodzaju karnetu',
+        week: 'Tydzień po tygodniu, według rodzaju karnetu',
+        month: 'Miesiąc po miesiącu, według rodzaju karnetu',
+      },
+      tableTitle: 'Produkty',
+      tableSubtitle: 'Rozwiń produkt, żeby zobaczyć warianty (liczba wejść, ważność, cena)',
+      columns: {
+        product: 'Produkt',
+        kind: 'Rodzaj',
+        passes: 'Sprzedane',
+        online: 'przez aplikację',
+        studio: 'w studiu',
+        revenue: 'Przychód',
+        share: 'Udział w przychodzie',
+      },
+      freeInRow: (count: number) => `(${count.toLocaleString('pl-PL')} bez opłaty)`,
+      total: 'Razem',
+      expand: (name: string) => `Pokaż warianty: ${name}`,
+      collapse: (name: string) => `Ukryj warianty: ${name}`,
+      variant: (entries: string, days: number, price: string) =>
+        `${entries} · ${countOf(days, 'dzień', 'dni', 'dni')} · ${price}`,
+      unlimited: 'bez limitu',
+      sessions: (count: number) => countOf(count, 'sesja', 'sesje', 'sesji'),
+      entries: (count: number) => passEntryCount(count),
+      kinds: {
+        ENTRY_PASS: 'Karnet na wejścia',
+        SINGLE_ENTRY: 'Wejście jednorazowe',
+        PT_PACKAGE: 'Pakiet treningów personalnych',
+        TIME_PASS: 'Karnet czasowy',
+        VOUCHER: 'Voucher',
+      },
+    },
     customers: {
       active: 'Aktywni klienci',
       new: 'Nowi klienci',
@@ -1870,8 +2200,6 @@ export const pl = {
   },
   timeOff: {
     title: 'Urlopy i niedostępności',
-    intro:
-      'Wnioski trenerów czekają tu na decyzję. Wniosek widać w grafiku jako ostrzeżenie już przed decyzją, a zatwierdzony urlop blokuje planowanie zajęć temu trenerowi.',
     add: '+ Dodaj nieobecność',
     pendingBadge: (count: number) => `${count} do decyzji`,
     tabs: {

@@ -4,8 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:mobile/core/network/api_exception.dart';
-import 'package:mobile/features/schedule/data/schedule_api.dart';
 import 'package:mobile/features/schedule/data/time_off_api.dart';
+import 'package:mobile/features/schedule/presentation/widgets/time_off_substitution_selection.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
 
 /// The red of time off in the availability calendar.
@@ -13,9 +13,6 @@ const timeOffColor = Color(0xFFDE4036);
 
 /// The darker red of a request's dashed outline.
 const timeOffOutlineColor = Color(0xFFB71C1C);
-
-/// The schedule endpoint accepts windows of at most 93 days.
-const _maxEventsWindow = Duration(days: 93);
 
 /// A period can last at most 366 days.
 const _maxLength = Duration(days: 366);
@@ -26,7 +23,8 @@ String timeOffKindLabel(
   bool short = false,
 }) => switch (kind) {
   TimeOffKind.vacation => l10n.timeOffKindVacation,
-  TimeOffKind.sickLeave => l10n.timeOffKindSickLeave,
+  TimeOffKind.sickLeave =>
+    short ? l10n.timeOffKindSickLeaveShort : l10n.timeOffKindSickLeave,
   TimeOffKind.unavailable =>
     short ? l10n.timeOffKindUnavailableShort : l10n.timeOffKindUnavailable,
 };
@@ -84,6 +82,8 @@ String formatTimeOffPeriod(
 String timeOffErrorMessage(Object error, AppLocalizations l10n) {
   if (error is TimeOffApiException) {
     switch (error.code) {
+      case 'VERSION_CONFLICT':
+        return l10n.timeOffCoverChanged;
       case 'TIME_OFF_OVERLAP':
         return l10n.timeOffErrorOverlap;
       case 'TIME_OFF_ALREADY_DECIDED' || 'TIME_OFF_NOT_CANCELLABLE':
@@ -278,6 +278,7 @@ class TimeOffEditorSheet extends ConsumerStatefulWidget {
 }
 
 class _TimeOffEditorSheetState extends ConsumerState<TimeOffEditorSheet> {
+  List<String>? _substitutionEventIds;
   late TimeOffKind _kind;
   late bool _wholeDays;
   late DateTime _from;
@@ -360,6 +361,7 @@ class _TimeOffEditorSheetState extends ConsumerState<TimeOffEditorSheet> {
       setState(() => _error = invalid);
       return;
     }
+    if (_substitutionEventIds == null) return;
     final period = _period;
     setState(() {
       _busy = true;
@@ -375,6 +377,8 @@ class _TimeOffEditorSheetState extends ConsumerState<TimeOffEditorSheet> {
             startsAt: period.startsAt,
             endsAt: period.endsAt,
             reason: _reason.text,
+            substitutionEventIds: _substitutionEventIds,
+            version: timeOff.version,
           );
         case NewTimeOff():
           await api.request(
@@ -382,6 +386,7 @@ class _TimeOffEditorSheetState extends ConsumerState<TimeOffEditorSheet> {
             startsAt: period.startsAt,
             endsAt: period.endsAt,
             reason: _reason.text,
+            substitutionEventIds: _substitutionEventIds,
           );
       }
       ref.invalidate(ownTimeOffProvider(widget.accountId));
@@ -391,6 +396,8 @@ class _TimeOffEditorSheetState extends ConsumerState<TimeOffEditorSheet> {
         ).pop(_editing ? l10n.timeOffChanged : l10n.timeOffSent);
       }
     } catch (e) {
+      ref.invalidate(timeOffSubstitutionOptionsProvider);
+      ref.invalidate(ownTimeOffProvider(widget.accountId));
       if (mounted) {
         setState(() {
           _busy = false;
@@ -452,24 +459,6 @@ class _TimeOffEditorSheetState extends ConsumerState<TimeOffEditorSheet> {
     final theme = Theme.of(context);
     final period = _period;
     final valid = _validate(l10n) == null;
-    final eventsEnd =
-        period.endsAt.difference(period.startsAt) > _maxEventsWindow
-        ? period.startsAt.add(_maxEventsWindow)
-        : period.endsAt;
-    final events = valid
-        ? ref.watch(
-            ownScheduleProvider((
-              accountId: widget.accountId,
-              window: (from: period.startsAt, to: eventsEnd),
-            )),
-          )
-        : null;
-    final ownEvents = [
-      for (final event in events?.asData?.value ?? const <ScheduleEvent>[])
-        if (event.status == EventStatus.scheduled &&
-            event.kind != EventKind.block)
-          event,
-    ]..sort((a, b) => a.startsAt.compareTo(b.startsAt));
 
     return Padding(
       padding: EdgeInsets.fromLTRB(
@@ -591,35 +580,26 @@ class _TimeOffEditorSheetState extends ConsumerState<TimeOffEditorSheet> {
                 counterText: '',
               ),
             ),
-            if (events != null && events.hasValue)
-              ownEvents.isEmpty
-                  ? _Notice(
-                      key: const Key('time-off-no-events'),
-                      icon: Icons.check_circle,
-                      background: const Color(0xFFE8F2E6),
-                      foreground: const Color(0xFF1F4B1D),
-                      iconColor: const Color(0xFF2E6B2B),
-                      title: l10n.timeOffFormNoEvents,
-                    )
-                  : _Notice(
-                      key: const Key('time-off-events'),
-                      icon: Icons.warning_amber,
-                      background: const Color(0xFFFFF1DD),
-                      foreground: const Color(0xFF4D2A00),
-                      iconColor: const Color(0xFF9A5A00),
-                      title: l10n.timeOffFormEvents(ownEvents.length),
-                      lines: [
-                        for (final event in ownEvents)
-                          '${_capitalize(_weekdayDate.format(event.startsAt))}, '
-                              '${_time.format(event.startsAt)} · '
-                              '${event.name ?? ''}',
-                      ],
-                      footer: l10n.timeOffFormEventsHint,
-                    ),
+            if (valid)
+              TimeOffSubstitutionSelection(
+                accountId: widget.accountId,
+                from: period.startsAt,
+                to: period.endsAt,
+                timeOffId: switch (widget.target) {
+                  EditTimeOff(:final timeOff) => timeOff.id,
+                  _ => null,
+                },
+                enabled: !_busy,
+                onChanged: (ids, _) {
+                  if (mounted) setState(() => _substitutionEventIds = ids);
+                },
+              ),
             if (_error case final error?)
               Text(error, style: TextStyle(color: theme.colorScheme.error)),
             FilledButton(
-              onPressed: _busy ? null : () => _save(l10n),
+              onPressed: _busy || (valid && _substitutionEventIds == null)
+                  ? null
+                  : () => _save(l10n),
               child: _busy
                   ? SizedBox.square(
                       dimension: 20,
@@ -634,70 +614,6 @@ class _TimeOffEditorSheetState extends ConsumerState<TimeOffEditorSheet> {
                           : l10n.timeOffFormSubmit,
                     ),
             ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _Notice extends StatelessWidget {
-  const _Notice({
-    super.key,
-    required this.icon,
-    required this.background,
-    required this.foreground,
-    required this.iconColor,
-    required this.title,
-    this.lines = const [],
-    this.footer,
-  });
-
-  final IconData icon;
-  final Color background;
-  final Color foreground;
-  final Color iconColor;
-  final String title;
-  final List<String> lines;
-  final String? footer;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final style = theme.textTheme.bodyMedium?.copyWith(color: foreground);
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          spacing: 4,
-          children: [
-            Row(
-              spacing: 8,
-              children: [
-                Icon(icon, color: iconColor, size: 20),
-                Expanded(
-                  child: Text(
-                    title,
-                    style: style?.copyWith(fontWeight: FontWeight.w500),
-                  ),
-                ),
-              ],
-            ),
-            for (final line in lines)
-              Padding(
-                padding: const EdgeInsets.only(left: 28),
-                child: Text('• $line', style: style),
-              ),
-            if (footer case final footer?)
-              Padding(
-                padding: const EdgeInsets.only(top: 2),
-                child: Text(footer, style: style),
-              ),
           ],
         ),
       ),
@@ -789,80 +705,84 @@ class TimeOffDetailsSheet extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        spacing: 10,
-        children: [
-          Wrap(
-            spacing: 10,
-            runSpacing: 6,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              Text(
-                timeOffKindLabel(l10n, timeOff.kind),
-                style: theme.textTheme.titleLarge,
-              ),
-              TimeOffStatusChip(status: timeOff.status),
-            ],
-          ),
-          row(
-            l10n.timeOffDetailsWhen,
-            formatTimeOffPeriod(l10n, timeOff.startsAt, timeOff.endsAt),
-          ),
-          if (timeOff.reason case final reason?)
-            row(l10n.timeOffDetailsReason, reason),
-          if (timeOff.decisionNote case final note?)
-            row(l10n.timeOffDetailsNote, note),
-          if (decidedBy != null)
-            row(
-              timeOff.status == TimeOffStatus.rejected
-                  ? l10n.timeOffDetailsRejectedBy
-                  : l10n.timeOffDetailsApprovedBy,
-              decidedBy,
-            ),
-          if (requested)
-            row(
-              l10n.timeOffDetailsRequested,
-              _dateTime.format(timeOff.requestedAt),
-            ),
-          const SizedBox(height: 4),
-          if (requested && cancellable)
-            Row(
-              spacing: 12,
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          spacing: 10,
+          children: [
+            Wrap(
+              spacing: 10,
+              runSpacing: 6,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
-                Expanded(
-                  child: OutlinedButton(
-                    style: redOutline,
-                    onPressed: () =>
-                        Navigator.of(context).pop(TimeOffDetailsAction.cancel),
-                    child: Text(l10n.timeOffWithdraw),
-                  ),
+                Text(
+                  timeOffKindLabel(l10n, timeOff.kind),
+                  style: theme.textTheme.titleLarge,
                 ),
-                Expanded(
-                  child: FilledButton(
-                    onPressed: () =>
-                        Navigator.of(context).pop(TimeOffDetailsAction.edit),
-                    child: Text(l10n.timeOffEdit),
-                  ),
-                ),
+                TimeOffStatusChip(status: timeOff.status),
               ],
-            )
-          else if (cancellable) ...[
-            OutlinedButton(
-              style: redOutline,
-              onPressed: () =>
-                  Navigator.of(context).pop(TimeOffDetailsAction.cancel),
-              child: Text(l10n.timeOffCancel),
             ),
-            Text(
-              l10n.timeOffApprovedHint,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: scheme.onSurfaceVariant,
+            row(
+              l10n.timeOffDetailsWhen,
+              formatTimeOffPeriod(l10n, timeOff.startsAt, timeOff.endsAt),
+            ),
+            if (timeOff.reason case final reason?)
+              row(l10n.timeOffDetailsReason, reason),
+            if (timeOff.decisionNote case final note?)
+              row(l10n.timeOffDetailsNote, note),
+            if (decidedBy != null)
+              row(
+                timeOff.status == TimeOffStatus.rejected
+                    ? l10n.timeOffDetailsRejectedBy
+                    : l10n.timeOffDetailsApprovedBy,
+                decidedBy,
               ),
-            ),
+            if (requested)
+              row(
+                l10n.timeOffDetailsRequested,
+                _dateTime.format(timeOff.requestedAt),
+              ),
+            TimeOffSubstitutionSummary(timeOffId: timeOff.id),
+            const SizedBox(height: 4),
+            if (requested && cancellable)
+              Row(
+                spacing: 12,
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      style: redOutline,
+                      onPressed: () => Navigator.of(
+                        context,
+                      ).pop(TimeOffDetailsAction.cancel),
+                      child: Text(l10n.timeOffWithdraw),
+                    ),
+                  ),
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: () =>
+                          Navigator.of(context).pop(TimeOffDetailsAction.edit),
+                      child: Text(l10n.timeOffEdit),
+                    ),
+                  ),
+                ],
+              )
+            else if (cancellable) ...[
+              OutlinedButton(
+                style: redOutline,
+                onPressed: () =>
+                    Navigator.of(context).pop(TimeOffDetailsAction.cancel),
+                child: Text(l10n.timeOffCancel),
+              ),
+              Text(
+                l10n.timeOffApprovedHint,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: scheme.onSurfaceVariant,
+                ),
+              ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
@@ -884,10 +804,20 @@ class TimeOffCancelDialog extends StatelessWidget {
       title: Text(
         requested ? l10n.timeOffWithdrawTitle : l10n.timeOffCancelTitle,
       ),
-      content: Text(
-        requested
-            ? l10n.timeOffWithdrawText(period)
-            : l10n.timeOffCancelText(period),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            requested
+                ? l10n.timeOffWithdrawText(period)
+                : l10n.timeOffCancelText(period),
+          ),
+          if (!requested) ...[
+            const SizedBox(height: 12),
+            Text(l10n.timeOffCoverCancelHint),
+          ],
+        ],
       ),
       actions: [
         TextButton(
@@ -912,6 +842,3 @@ int _daysBetween(DateTime from, DateTime to) => DateTime.utc(
   to.month,
   to.day,
 ).difference(DateTime.utc(from.year, from.month, from.day)).inDays;
-
-String _capitalize(String text) =>
-    text.isEmpty ? text : text[0].toUpperCase() + text.substring(1);

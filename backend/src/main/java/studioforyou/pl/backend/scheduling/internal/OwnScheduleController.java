@@ -15,6 +15,7 @@ import jakarta.validation.Valid;
 import studioforyou.pl.backend.identity.CurrentAccount;
 import studioforyou.pl.backend.scheduling.internal.ScheduleDtos.OwnEventRequest;
 import studioforyou.pl.backend.scheduling.internal.ScheduleDtos.OwnConsultationRequest;
+import studioforyou.pl.backend.scheduling.internal.ScheduleDtos.OwnRescheduleRequest;
 import studioforyou.pl.backend.scheduling.internal.ScheduleDtos.OwnPersonalTrainingChangeRequest;
 import studioforyou.pl.backend.scheduling.internal.ScheduleDtos.PlanPreviewResponse;
 import studioforyou.pl.backend.scheduling.internal.ScheduleDtos.ScheduleEventResponse;
@@ -32,6 +33,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -160,6 +162,46 @@ class OwnScheduleController {
 	PlanPreviewResponse previewOwnConsultation(@Valid @RequestBody OwnConsultationRequest request,
 			Authentication authentication) {
 		return this.planner.previewConsultation(request, staffId(authentication));
+	}
+
+	@PutMapping("/{eventId}/reschedule")
+	@Operation(summary = "Move one of my events to another time or room", operationId = "rescheduleOwnScheduleEvent",
+			description = "Gives one event the signed-in trainer leads a new time and, optionally, another room. "
+					+ "Only this occurrence changes; for an occurrence of a series it becomes an exception to the "
+					+ "series. The title, capacity and staff stay. A room or a staff member taken at the new time, "
+					+ "or the trainer's approved leave, rejects the change; the response then lists the conflicts in "
+					+ "`conflicts`. The participants and the other staff members get a change notice.")
+	@ApiResponse(responseCode = "200", description = "The moved event.")
+	@ApiResponse(responseCode = "400", description = "VALIDATION_FAILED, also when the new time is not in the "
+			+ "future or the room is too small for the event.", content = @Content(
+					mediaType = "application/problem+json", schema = @Schema(implementation = ApiProblem.class)))
+	@ApiResponse(responseCode = "404", description = "No such event, the trainer does not lead it, or the account "
+			+ "has no staff profile.", content = @Content(mediaType = "application/problem+json",
+					schema = @Schema(implementation = ApiProblem.class)))
+	@ApiResponse(responseCode = "409", description = "VERSION_CONFLICT, RESOURCE_CAPACITY_EXCEEDED or "
+			+ "STAFF_SCHEDULE_CONFLICT.", content = @Content(mediaType = "application/problem+json",
+					schema = @Schema(implementation = ApiProblem.class)))
+	@ApiResponse(responseCode = "422", description = "EVENT_NOT_EDITABLE when the event is not scheduled or has "
+			+ "already started, RESOURCE_UNAVAILABLE or SERVICE_NOT_ALLOWED_IN_ROOM.", content = @Content(
+					mediaType = "application/problem+json", schema = @Schema(implementation = ApiProblem.class)))
+	ScheduleEventResponse rescheduleOwnScheduleEvent(@PathVariable UUID eventId,
+			@Valid @RequestBody OwnRescheduleRequest request, Authentication authentication) {
+		return this.occurrenceChanges.rescheduleOwn(eventId, staffId(authentication), request);
+	}
+
+	@PostMapping("/{eventId}/reschedule-preview")
+	@Operation(summary = "Check a new time of one of my events before saving it",
+			operationId = "previewOwnScheduleEventReschedule",
+			description = "Validates the request like moving the event and lists the conflicts and warnings at the "
+					+ "new time, e.g. a taken room, another event of the trainer, a leave or a time outside the "
+					+ "trainer's working hours, without saving anything. The event does not conflict with itself.")
+	@ApiResponse(responseCode = "200", description = "The moved occurrence and its problems.")
+	@ApiResponse(responseCode = "404", description = "No such event, the trainer does not lead it, or the account "
+			+ "has no staff profile.", content = @Content(mediaType = "application/problem+json",
+					schema = @Schema(implementation = ApiProblem.class)))
+	PlanPreviewResponse previewOwnScheduleEventReschedule(@PathVariable UUID eventId,
+			@Valid @RequestBody OwnRescheduleRequest request, Authentication authentication) {
+		return this.occurrenceChanges.previewOwn(eventId, staffId(authentication), request);
 	}
 
 	@PutMapping("/{eventId}")

@@ -5,6 +5,7 @@ export const paths = {
   schedule: '/schedule',
   rooms: '/rooms',
   timeOff: '/time-off',
+  substitutions: '/substitutions',
   accounts: '/accounts',
   accountDetails: (accountId: string, profileId?: string | null) =>
     profileId ? `/accounts/${accountId}?profile=${profileId}` : `/accounts/${accountId}`,

@@ -22,6 +22,9 @@ class JdbcBookingPolicies implements BookingPolicies {
 
 	private static final Values FALLBACK = new Values(true, 12, true, true, 14, 30, true, 0, false, 3, 3);
 
+	/** No explicit rule: every field inherits the level above. */
+	private static final Values EMPTY = new Values(null, null, null, null, null, null, null, null, null, null, null);
+
 	private final JdbcClient jdbc;
 
 	private record PolicyRow(UUID id, Values values) {
@@ -122,6 +125,61 @@ class JdbcBookingPolicies implements BookingPolicies {
 			.param("confirm", overrides.waitlistConfirmMinutes()).param("autoCancel", overrides.autoCancelEnabled())
 			.param("minimum", overrides.autoCancelMinParticipants()).param("checkHours", overrides.autoCancelHoursBefore())
 			.param("actor", changedBy).update();
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public boolean isAutoCancelDisabledForGroup(UUID trainingGroupId) {
+		return jdbc.sql("""
+				SELECT auto_cancel_enabled FROM booking_policy
+				WHERE scope = 'GROUP' AND training_group_id = :group
+				AND valid_from <= now() AND (valid_to IS NULL OR valid_to > now())
+				ORDER BY valid_from DESC, created_at DESC, id LIMIT 1
+				""").param("group", trainingGroupId)
+			.query((rs, row) -> Boolean.FALSE.equals(rs.getObject("auto_cancel_enabled", Boolean.class)))
+			.optional().orElse(false);
+	}
+
+	@Override
+	public boolean changeGroupAutoCancel(UUID trainingGroupId, boolean disabled, UUID changedBy) {
+		Values current = jdbc.sql("""
+				SELECT * FROM booking_policy WHERE scope = 'GROUP'
+				AND training_group_id = :group AND valid_to IS NULL
+				ORDER BY valid_from DESC, created_at DESC, id LIMIT 1 FOR UPDATE
+				""").param("group", trainingGroupId).query((rs, row) -> values(rs)).optional().orElse(null);
+		Boolean wanted = disabled ? Boolean.FALSE : null;
+		if (Objects.equals((current == null) ? null : current.autoCancelEnabled(), wanted)) {
+			return false;
+		}
+		Values next = withAutoCancel((current == null) ? EMPTY : current, wanted);
+		jdbc.sql("""
+				UPDATE booking_policy SET valid_to = now()
+				WHERE scope = 'GROUP' AND training_group_id = :group AND valid_to IS NULL
+				""").param("group", trainingGroupId).update();
+		if (!next.equals(EMPTY)) {
+			jdbc.sql("""
+					INSERT INTO booking_policy (scope, training_group_id, cancellation_allowed, free_cancel_hours,
+					late_cancel_allowed, late_cancel_forfeits_entry, booking_opens_days_before,
+					booking_closes_minutes_before, waitlist_enabled, waitlist_confirm_minutes,
+					auto_cancel_enabled, auto_cancel_min_participants, auto_cancel_hours_before, created_by)
+					VALUES ('GROUP', :group, :cancel, :freeHours, :late, :forfeit, :opens, :closes,
+					:waitlist, :confirm, :autoCancel, :minimum, :checkHours, :actor)
+					""").param("group", trainingGroupId).param("cancel", next.cancellationAllowed())
+				.param("freeHours", next.freeCancelHours()).param("late", next.lateCancelAllowed())
+				.param("forfeit", next.lateCancelForfeitsEntry()).param("opens", next.bookingOpensDaysBefore())
+				.param("closes", next.bookingClosesMinutesBefore()).param("waitlist", next.waitlistEnabled())
+				.param("confirm", next.waitlistConfirmMinutes()).param("autoCancel", next.autoCancelEnabled())
+				.param("minimum", next.autoCancelMinParticipants()).param("checkHours", next.autoCancelHoursBefore())
+				.param("actor", changedBy).update();
+		}
+		return true;
+	}
+
+	private static Values withAutoCancel(Values values, Boolean autoCancelEnabled) {
+		return new Values(values.cancellationAllowed(), values.freeCancelHours(), values.lateCancelAllowed(),
+				values.lateCancelForfeitsEntry(), values.bookingOpensDaysBefore(), values.bookingClosesMinutesBefore(),
+				values.waitlistEnabled(), values.waitlistConfirmMinutes(), autoCancelEnabled,
+				values.autoCancelMinParticipants(), values.autoCancelHoursBefore());
 	}
 
 	@Override

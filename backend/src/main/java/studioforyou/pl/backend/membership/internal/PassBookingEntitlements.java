@@ -125,6 +125,15 @@ class PassBookingEntitlements implements BookingEntitlements {
 		passes.flush();
 	}
 
+	@Override
+	@Transactional(propagation = Propagation.MANDATORY)
+	public Boolean returnForCancelledEvent(UUID customerId, UUID passId, UUID reservationId, UUID actorAccountId) {
+		passLock.acquire(customerId, passId);
+		if (!ledger.existsByPassIdAndReservationIdAndKind(passId, reservationId, PassLedgerKind.ENTRY_RESERVED)) return null;
+		release(customerId, passId, reservationId, true, actorAccountId);
+		return ledger.existsByPassIdAndReservationIdAndKind(passId, reservationId, PassLedgerKind.ENTRY_RETURNED);
+	}
+
 	private boolean usableOn(CustomerPass pass, LocalDate day) {
 		CustomerPassStatus status = pass.getStatus();
 		boolean running = status == CustomerPassStatus.ACTIVE || status == CustomerPassStatus.SCHEDULED;

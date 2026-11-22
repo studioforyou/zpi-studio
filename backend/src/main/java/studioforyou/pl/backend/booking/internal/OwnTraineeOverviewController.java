@@ -50,6 +50,16 @@ public class OwnTraineeOverviewController {
 		return queries.detail(authentication.requireActiveAccountId(), customerId);
 	}
 
+	@GetMapping("/{customerId}/makeup-credits")
+	@Operation(summary = "Read my trainee's make-up credits", operationId = "listOwnTraineeMakeupCredits",
+			description = "Unused credits that have not expired, soonest expiry first, with the cancelled class each one was "
+					+ "granted for, the services it can book and the per-pass limits. Read-only: nothing is booked or spent. "
+					+ "Another trainer's participant, an ended cooperation and an inactive participant return 404.")
+	public TraineeOverviewQueries.MakeupCreditList makeupCredits(@PathVariable UUID customerId,
+			AccountAuthentication authentication) {
+		return queries.makeupCredits(authentication.requireActiveAccountId(), customerId);
+	}
+
 	@GetMapping("/{customerId}/personal-trainings")
 	@Operation(summary = "Read my trainee's personal sessions in a calendar window", operationId = "listOwnTraineePersonalTrainings",
 			description = "Sessions with this trainer overlapping [from, to), at most 93 days. Shows existing confirmations "

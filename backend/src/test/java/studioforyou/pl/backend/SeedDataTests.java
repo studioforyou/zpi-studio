@@ -63,6 +63,24 @@ class SeedDataTests {
 	}
 
 	@Test
+	@Transactional
+	void timeOffExamplesKeepSelectionsAndDecisionsOnRerun() {
+		assertThat(jdbc.sql("SELECT count(*) FROM time_off_substitution WHERE time_off_id='17000000-0000-0000-0000-000000020001' AND selected")
+			.query(Integer.class).single()).isEqualTo(3);
+		assertThat(jdbc.sql("SELECT count(*) FROM substitution_request WHERE time_off_id='17000000-0000-0000-0000-000000020002' AND status='CLAIMED'")
+			.query(Integer.class).single()).isEqualTo(2);
+		jdbc.sql("UPDATE time_off_substitution SET selected=FALSE WHERE event_id='19000000-0000-0000-0000-000000020001'").update();
+		jdbc.sql("UPDATE substitution_request SET status='CANCELLED' WHERE id='22000000-0000-0000-0000-000000020005'").update();
+		Map<String, Long> counts = rowCounts();
+		new ResourceDatabasePopulator(new ClassPathResource("db/seed/R__seed_22_substitution_management.sql")).execute(dataSource);
+		assertThat(rowCounts()).isEqualTo(counts);
+		assertThat(jdbc.sql("SELECT selected FROM time_off_substitution WHERE event_id='19000000-0000-0000-0000-000000020001'")
+			.query(Boolean.class).single()).isFalse();
+		assertThat(jdbc.sql("SELECT status FROM substitution_request WHERE id='22000000-0000-0000-0000-000000020005'")
+			.query(String.class).single()).isEqualTo("CANCELLED");
+	}
+
+	@Test
 	void seedCanRunAgain() throws Exception {
 		Map<String, Long> before = rowCounts();
 
@@ -299,6 +317,26 @@ class SeedDataTests {
 		assertThat(JsonPath.<Integer>read(personal, "$.totals.absent")).isPositive();
 	}
 
+	@Test
+	void salesHistoryShowsPassesBoughtInTheAppAndAssignedAtTheDesk() throws Exception {
+		// Beata, the studio's administrator; the history covers half a year before the first run.
+		String token = seedToken(10);
+		LocalDate today = LocalDate.now(ZoneId.of("Europe/Warsaw"));
+		String sales = report(token, "/api/v1/reports/pass-sales", today.minusDays(90), today, null);
+		assertThat(JsonPath.<Integer>read(sales, "$.totals.passes")).isGreaterThanOrEqualTo(100);
+		assertThat(JsonPath.<Integer>read(sales, "$.totals.online")).isPositive();
+		assertThat(JsonPath.<Integer>read(sales, "$.totals.studio")).isPositive();
+		assertThat(JsonPath.<Integer>read(sales, "$.totals.free")).isPositive();
+		assertThat(JsonPath.<Integer>read(sales, "$.previous.totals.passes")).isPositive();
+		List<Integer> perKind = JsonPath.read(sales, "$.kinds[?(@.kind != 'VOUCHER')].counts.passes");
+		assertThat(perKind).hasSize(4).allSatisfy((passes) -> assertThat(passes).isPositive());
+		// Pole Dance 4 entries was sold at its old price before the price change 120 days ago.
+		String older = report(token, "/api/v1/reports/pass-sales", today.minusDays(180), today.minusDays(121), null);
+		List<Integer> polePrices = JsonPath.read(older,
+				"$.products[?(@.name == 'Karnet Pole Dance')].variants[*].priceMinor");
+		assertThat(polePrices).contains(16000);
+	}
+
 	private String report(String token, String path, LocalDate from, LocalDate to, @Nullable String kind)
 			throws Exception {
 		var request = get(path).header("Authorization", "Bearer " + token)
@@ -413,6 +451,65 @@ class SeedDataTests {
 
 	@Test
 	@Transactional
+	void substitutionExamplesAreScopedAndPreserveWithdrawalsOnRerun() throws Exception {
+		String marek = seedGet(seedToken(2), "/api/v1/me/substitution-requests", true);
+		List<String> requests = JsonPath.read(marek, "$.items[*].id");
+		assertThat(requests).contains("22000000-0000-0000-0000-000000127002", "22000000-0000-0000-0000-000000127003")
+			.doesNotContain("22000000-0000-0000-0000-000000127004");
+		Map<String, Long> counts = rowCounts();
+		jdbc.sql("UPDATE substitution_request SET status='CANCELLED' WHERE id='22000000-0000-0000-0000-000000127002'").update();
+		var script = new ResourceDatabasePopulator(new ClassPathResource("db/seed/R__seed_18_substitutions.sql"));
+		script.execute(dataSource);
+		script.execute(dataSource);
+		assertThat(jdbc.sql("SELECT status FROM substitution_request WHERE id='22000000-0000-0000-0000-000000127002'")
+			.query(String.class).single()).isEqualTo("CANCELLED");
+		assertThat(rowCounts()).isEqualTo(counts);
+	}
+
+	@Test
+	@Transactional
+	void substitutionManagementExamplesCoverEligibilityAndKeepTesterDecisions() throws Exception {
+		String response = seedGet(seedToken(2), "/api/v1/me/substitution-offers", true);
+		List<Map<String,Object>> rows = JsonPath.read(response, "$.items");
+		var examples = rows.stream().collect(Collectors.toMap((r) -> r.get("id"), Function.identity()));
+		assertThat(examples.get("22000000-0000-0000-0000-000000019001").get("canClaim")).isEqualTo(true);
+		assertThat(examples.get("22000000-0000-0000-0000-000000019003").get("unavailableReason")).isEqualTo("UNAVAILABLE");
+		assertThat(examples.get("22000000-0000-0000-0000-000000019004").get("unavailableReason")).isEqualTo("UNAVAILABLE");
+		assertThat(examples.get("22000000-0000-0000-0000-000000019005").get("unavailableReason")).isEqualTo("NOT_QUALIFIED");
+		assertThat(examples).doesNotContainKeys("22000000-0000-0000-0000-000000019006", "22000000-0000-0000-0000-000000019002");
+		List<Map<String,Object>> mine = JsonPath.read(seedGet(seedToken(2), "/api/v1/me/substitution-offers?mine=true", true), "$.items");
+		assertThat(mine).anySatisfy(row -> {
+			assertThat(row.get("id")).isEqualTo("22000000-0000-0000-0000-000000019002");
+			assertThat(row.get("status")).isEqualTo("CLAIMED");
+		}).noneSatisfy(row -> assertThat(examples).containsKey(row.get("id")));
+		Map<String,Long> counts = rowCounts();
+		jdbc.sql("UPDATE substitution_request SET status='CANCELLED' WHERE id='22000000-0000-0000-0000-000000019001'").update();
+		jdbc.sql("UPDATE notification SET read_at=now() WHERE id='29000000-0000-0000-0000-000000019001'").update();
+		var script = new ResourceDatabasePopulator(new ClassPathResource("db/seed/R__seed_22_substitution_management.sql"));
+		script.execute(dataSource); script.execute(dataSource);
+		assertThat(jdbc.sql("SELECT status FROM substitution_request WHERE id='22000000-0000-0000-0000-000000019001'").query(String.class).single()).isEqualTo("CANCELLED");
+		assertThat(jdbc.sql("SELECT read_at IS NOT NULL FROM notification WHERE id='29000000-0000-0000-0000-000000019001'").query(Boolean.class).single()).isTrue();
+		assertThat(rowCounts()).isEqualTo(counts);
+	}
+
+	@Test
+	@Transactional
+	void studioCancellationReturnsAReservedEntryExactlyOnce() throws Exception {
+		String token=seedToken(10);
+		String path="/api/v1/schedule-events/19000000-0000-0000-0000-000000019001/cancel";
+		String json="{\"version\":0,\"reason\":\"Brak zastępcy\"}";
+		int before=jdbc.sql("SELECT entries_remaining FROM customer_pass WHERE id='28000000-0000-0000-0000-000000019001'").query(Integer.class).single();
+		mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post(path)
+			.header("Authorization","Bearer "+token).contentType("application/json").content(json)).andExpect(status().isOk());
+		assertThat(jdbc.sql("SELECT entries_remaining FROM customer_pass WHERE id='28000000-0000-0000-0000-000000019001'").query(Integer.class).single()).isEqualTo(before+1);
+		assertThat(jdbc.sql("SELECT status FROM reservation WHERE id='21000000-0000-0000-0000-000000019001'").query(String.class).single()).isEqualTo("CANCELLED");
+		mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post(path)
+			.header("Authorization","Bearer "+token).contentType("application/json").content(json)).andExpect(status().isConflict());
+		assertThat(jdbc.sql("SELECT count(*) FROM pass_ledger WHERE reservation_id='21000000-0000-0000-0000-000000019001' AND kind='ENTRY_RETURNED'").query(Integer.class).single()).isEqualTo(1);
+	}
+
+	@Test
+	@Transactional
 	void waitlistNotificationExamplesHaveBothModesAndKeepTesterChangesOnRerun() throws Exception {
 		String token = seedToken(6);
 		String parent = "/api/v1/me/profiles/07000000-0000-0000-0000-000000000003/group-classes/19000000-0000-0000-0000-00000001400";
@@ -441,6 +538,49 @@ class SeedDataTests {
 		assertThat(rowCounts()).isEqualTo(counts);
 		assertThat(jdbc.sql("SELECT * FROM waitlist_entry WHERE id = '31000000-0000-0000-0000-000000014004'").query().singleRow()).isEqualTo(waiting);
 		assertThat(jdbc.sql("SELECT * FROM notification WHERE id = '44000000-0000-0000-0000-000000014004'").query().singleRow()).isEqualTo(notification);
+	}
+
+	@Test
+	void annaReadsHerTraineesMakeupCreditsWithTheirOriginAndLimits() throws Exception {
+		String token = seedToken(1);
+		String piotr = seedGet(token, "/api/v1/me/trainees/07000000-0000-0000-0000-000000000005/makeup-credits", false);
+		assertThat(JsonPath.<Integer>read(piotr, "$.totalCount")).isEqualTo(2);
+		assertThat(JsonPath.<List<String>>read(piotr, "$.items[*].id"))
+			.containsExactly("33000000-0000-0000-0000-000000021001", "33000000-0000-0000-0000-000000021002");
+		assertThat(JsonPath.<String>read(piotr, "$.nearestExpiresAt")).isEqualTo(JsonPath.read(piotr, "$.items[0].expiresAt"));
+		assertThat(JsonPath.<String>read(piotr, "$.items[0].productName")).isEqualTo("Karnet Calisthenics - 8 wejść");
+		assertThat(JsonPath.<String>read(piotr, "$.items[0].policyName")).isEqualTo("Odrabianie 3 tygodnie");
+		assertThat(JsonPath.<String>read(piotr, "$.items[0].origin.title")).isEqualTo("Calisthenics");
+		assertThat(JsonPath.<String>read(piotr, "$.items[0].origin.reason")).isEqualTo("CANCELLED_IN_TIME");
+		assertThat(JsonPath.<String>read(piotr, "$.items[1].origin.reason")).isEqualTo("CANCELLED_BY_STUDIO");
+		assertThat(JsonPath.<List<String>>read(piotr, "$.items[0].services[*].name"))
+			.containsExactly("Calisthenics", "Warsztaty stretchingu");
+		assertThat(JsonPath.<List<Integer>>read(piotr, "$.limits[?(@.passId == '28000000-0000-0000-0000-000000021001')].granted"))
+			.containsExactly(2);
+		assertThat(JsonPath.<List<Boolean>>read(piotr, "$.limits[?(@.passId == '28000000-0000-0000-0000-000000021001')].reached"))
+			.containsExactly(false);
+
+		String julia = seedGet(token, "/api/v1/me/trainees/07000000-0000-0000-0000-000000000008/makeup-credits", false);
+		assertThat(JsonPath.<Integer>read(julia, "$.totalCount")).isEqualTo(1);
+		assertThat(JsonPath.<Object>read(julia, "$.items[0].origin")).isNull();
+		assertThat(JsonPath.<Boolean>read(julia, "$.limits[0].reached")).isTrue();
+		assertThat(JsonPath.<Integer>read(julia, "$.limits[0].max")).isEqualTo(2);
+
+		// Marek does not work with Piotr; nothing tells whether the participant exists.
+		mvc.perform(get("/api/v1/me/trainees/07000000-0000-0000-0000-000000000005/makeup-credits")
+			.header("Authorization", "Bearer " + seedToken(2))).andExpect(status().isNotFound());
+	}
+
+	@Test
+	void seededMakeupPoliciesIncludeAnInactiveOneAndTheirProducts() throws Exception {
+		String policies = seedGet(seedToken(10), "/api/v1/makeup-policies", false);
+		assertThat(JsonPath.<List<Boolean>>read(policies, "$.items[?(@.name == 'Odrabianie warsztatów')].isActive"))
+			.containsExactly(false);
+		assertThat(JsonPath.<List<Integer>>read(policies, "$.items[?(@.name == 'Odrabianie 3 tygodnie')].productCount"))
+			.containsExactly(1);
+		String products = seedGet(seedToken(10), "/api/v1/pass-products", false);
+		assertThat(JsonPath.<List<String>>read(products, "$.items[?(@.name == 'Karnet Calisthenics')].makeupPolicyName"))
+			.containsExactly("Odrabianie 3 tygodnie");
 	}
 
 	private Map<String, Long> rowCounts() {

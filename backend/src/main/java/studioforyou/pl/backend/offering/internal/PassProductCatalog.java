@@ -3,8 +3,10 @@ package studioforyou.pl.backend.offering.internal;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -32,11 +34,15 @@ public class PassProductCatalog {
 
 	private final ServiceTypeRepository serviceTypes;
 
+	private final MakeupPolicyLookup makeupPolicies;
+
 	private final Clock clock = Clock.systemUTC();
 
-	public PassProductCatalog(PassProductRepository products, ServiceTypeRepository serviceTypes) {
+	public PassProductCatalog(PassProductRepository products, ServiceTypeRepository serviceTypes,
+			MakeupPolicyLookup makeupPolicies) {
 		this.products = products;
 		this.serviceTypes = serviceTypes;
+		this.makeupPolicies = makeupPolicies;
 	}
 
 	/**
@@ -60,10 +66,12 @@ public class PassProductCatalog {
 
 	public PassProduct create(NewProduct command) {
 		requireAvailableServiceTypes(Set.of(), command.serviceTypeIds());
+		requireAvailableMakeupPolicy(null, command.makeupPolicyId());
 		PassProduct product = new PassProduct(command.name(), blankToNull(command.description()), command.kind(),
 				command.audience());
 		product.setSuspension(command.suspensionAllowed(), command.maxSuspensionDays());
 		product.setServiceTypeIds(command.serviceTypeIds());
+		product.setMakeupPolicyId(command.makeupPolicyId());
 		Instant now = clock.instant();
 		for (NewVariant variant : command.variants()) {
 			addVariant(product, variant, now);
@@ -96,6 +104,13 @@ public class PassProductCatalog {
 		if (changes.serviceTypeIds() != null) {
 			requireAvailableServiceTypes(product.getServiceTypeIds(), changes.serviceTypeIds());
 			product.setServiceTypeIds(changes.serviceTypeIds());
+		}
+		if (changes.removeMakeupPolicy()) {
+			product.setMakeupPolicyId(null);
+		}
+		else if (changes.makeupPolicyId() != null) {
+			requireAvailableMakeupPolicy(product.getMakeupPolicyId(), changes.makeupPolicyId());
+			product.setMakeupPolicyId(changes.makeupPolicyId());
 		}
 		products.flush();
 		return product;
@@ -205,12 +220,29 @@ public class PassProductCatalog {
 		}
 	}
 
+	/**
+	 * A policy newly linked to a product must exist and be active; the policy already linked may
+	 * stay even if it was deactivated since.
+	 */
+	private void requireAvailableMakeupPolicy(UUID current, UUID requested) {
+		if (requested != null && !requested.equals(current) && !makeupPolicies.isActive(requested)) {
+			throw new ApiException(ErrorCode.MAKEUP_POLICY_UNAVAILABLE, "The make-up policy must exist and be active.");
+		}
+	}
+
+	/** Names of the make-up policies the given products refer to. */
+	@Transactional(readOnly = true)
+	public Map<UUID, String> makeupPolicyNames(Collection<PassProduct> products) {
+		return makeupPolicies.names(products);
+	}
+
 	private static String blankToNull(String text) {
 		return (text == null || text.isBlank()) ? null : text;
 	}
 
 	public record NewProduct(String name, String description, PassProductKind kind, PassProductAudience audience,
-			boolean suspensionAllowed, Short maxSuspensionDays, Set<UUID> serviceTypeIds, List<NewVariant> variants) {
+			boolean suspensionAllowed, Short maxSuspensionDays, Set<UUID> serviceTypeIds, UUID makeupPolicyId,
+			List<NewVariant> variants) {
 	}
 
 	/**
@@ -220,7 +252,8 @@ public class PassProductCatalog {
 	}
 
 	public record ProductChanges(String name, String description, PassProductAudience audience,
-			Boolean suspensionAllowed, Short maxSuspensionDays, Set<UUID> serviceTypeIds) {
+			Boolean suspensionAllowed, Short maxSuspensionDays, Set<UUID> serviceTypeIds, UUID makeupPolicyId,
+			boolean removeMakeupPolicy) {
 	}
 
 }

@@ -144,6 +144,12 @@ class ScheduleEvent {
       ],
       roomIds: [
         for (final resource in json['resources'] as List)
+          if ((resource as Map<String, dynamic>)['resourceId']
+              case final String id)
+            id,
+      ],
+      roomIds: [
+        for (final resource in json['resources'] as List)
           (resource as Map<String, dynamic>)['resourceId'] as String,
       ],
       seriesChange: SeriesChange.fromJson(json['seriesChange']),
@@ -171,6 +177,12 @@ class ScheduleEvent {
   final int? capacity;
   final List<EventStaff> staff;
   final List<String> roomNames;
+
+  /// The rooms' ids, in the order of [roomNames].
+  final List<String> roomIds;
+
+  /// The version a change of the event is based on.
+  final int eventVersion;
 
   /// Ids of the event's rooms, in the order of [roomNames].
   final List<String> roomIds;
