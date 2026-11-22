@@ -841,7 +841,8 @@ class _MoveTrainingButtonState extends ConsumerState<_MoveTrainingButton> {
     navigator.pop();
     final moved = await navigator.push<ScheduleEvent>(
       MaterialPageRoute(
-        builder: (_) => RescheduleEventScreen(event: event, participantCount: 1),
+        builder: (_) =>
+            RescheduleEventScreen(event: event, participantCount: 1),
       ),
     );
     if (moved == null) return;
