@@ -106,3 +106,5 @@ Beata Lis has sent four announcements, visible in the panel under **Komunikacja 
 - *Zmiana sali w czwartek* to the group *Pole dance początkujący wt/czw 18:00* (Katarzyna, Monika).
 - *Promocja −20% na karnety*, marketing, to all clients: only Katarzyna accepted the consent to marketing notifications in the app, so 3 clients were skipped.
 - *Trening personalny w piątek* to Tomasz only.
+
+The same seed adds two automatic notifications to Monika whose push did not arrive (*Karnet wkrótce wygaśnie*, unregistered phone, and *Jutro: Pole dance początkujący*, two failed attempts), so **Komunikacja → Historia wysyłek** (#161) shows the "Błąd push" status.

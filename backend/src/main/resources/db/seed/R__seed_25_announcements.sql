@@ -59,3 +59,22 @@ INSERT INTO notification_delivery (id, notification_id, channel, status, provide
     ('45000000-0000-0000-0000-000000250005', '44000000-0000-0000-0000-000000250007', 'PUSH', 'SENT',      'seed-fcm-msg-2207', NULL, now() - interval '20 hours'),
     ('45000000-0000-0000-0000-000000250006', '44000000-0000-0000-0000-000000250008', 'PUSH', 'SENT',      'seed-fcm-msg-2208', NULL, now() - interval '2 hours')
 ON CONFLICT DO NOTHING;
+
+-- Send history (#161): two automatic notifications to Monika whose push did not arrive, so the
+-- "Błąd push" status filter in "Komunikacja → Historia wysyłek" has something to show.
+INSERT INTO notification (id, recipient_id, notification_type_id, recipient_role, category, title, body, dedup_key,
+                          scheduled_for, created_at)
+SELECT n.id::UUID, '03000000-0000-0000-0000-000000000006', t.id, 'CLIENT', 'TRANSACTIONAL', n.title, n.body,
+       'SEED_161:' || n.id, now() - n.ago, now() - n.ago
+FROM (VALUES
+    ('44000000-0000-0000-0000-000000250101', 'PASS_EXPIRING',  'Karnet wkrótce wygaśnie',      'Pole dance — 8 wejść · zostały 3 dni', interval '5 hours'),
+    ('44000000-0000-0000-0000-000000250102', 'CLASS_REMINDER', 'Jutro: Pole dance początkujący', 'czw, 18:00 · Sala 2',                 interval '2 days')
+) AS n(id, code, title, body, ago)
+JOIN notification_type t ON t.code = n.code
+ON CONFLICT DO NOTHING;
+
+INSERT INTO notification_delivery (id, notification_id, channel, status, error, attempted_at) VALUES
+    ('45000000-0000-0000-0000-000000250101', '44000000-0000-0000-0000-000000250101', 'PUSH', 'TOKEN_INVALID', 'UNREGISTERED', now() - interval '5 hours'),
+    ('45000000-0000-0000-0000-000000250102', '44000000-0000-0000-0000-000000250102', 'PUSH', 'FAILED',        'UNAVAILABLE',  now() - interval '2 days'),
+    ('45000000-0000-0000-0000-000000250103', '44000000-0000-0000-0000-000000250102', 'PUSH', 'FAILED',        'UNAVAILABLE',  now() - interval '47 hours')
+ON CONFLICT DO NOTHING;
