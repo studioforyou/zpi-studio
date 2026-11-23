@@ -121,7 +121,7 @@ class PlanPreviewSection extends StatelessWidget {
                 ? l10n.addClassConflictsSeries(preview.conflictCount)
                 : l10n.addClassConflicts,
           ),
-        for (final warning in preview.warnings) _IssueRow(issue: warning),
+        for (final warning in preview.warnings) PlanIssueRow(issue: warning),
         for (final occurrence in withIssues)
           _OccurrenceCard(
             occurrence: occurrence,
@@ -176,7 +176,7 @@ class _OccurrenceCard extends StatelessWidget {
             if (occurrence.excluded)
               Text(l10n.addClassExcluded)
             else
-              for (final issue in occurrence.issues) _IssueRow(issue: issue),
+              for (final issue in occurrence.issues) PlanIssueRow(issue: issue),
             if (recurring &&
                 (occurrence.excluded || occurrence.hasBlockingIssue))
               Align(
@@ -200,8 +200,8 @@ class _OccurrenceCard extends StatelessWidget {
 }
 
 /// A problem: red when it blocks saving, amber otherwise.
-class _IssueRow extends StatelessWidget {
-  const _IssueRow({required this.issue});
+class PlanIssueRow extends StatelessWidget {
+  const PlanIssueRow({super.key, required this.issue});
 
   final PlanIssue issue;
 

@@ -10,6 +10,7 @@ import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -34,6 +35,8 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
+import studioforyou.pl.backend.documents.DocumentRequirements;
+
 /**
  * The dev/stage seed ({@code db/seed}) applies on top of all migrations, fills every table
  * and can run again without errors or duplicates. The event publication registry is runtime
@@ -50,6 +53,9 @@ class SeedDataTests {
 
 	@Autowired
 	private DataSource dataSource;
+
+	@Autowired
+	private DocumentRequirements documentRequirements;
 
 	@Autowired
 	private MockMvc mvc;
@@ -232,6 +238,23 @@ class SeedDataTests {
 		assertThat(waiting).hasSize(1);
 		assertThat(waiting.getFirst()).containsEntry("trainerConfirmedAt", null).containsEntry("requiresAttention", true);
 		assertThat(waiting.getFirst().get("clientConfirmedAt")).isNotNull();
+	}
+
+	@Test
+	void personalPlanningSeedOffersTwoPassesWithoutStartingCooperation() {
+		assertThat(documentRequirements.hasMissing(UUID.fromString("07000000-0000-0000-0000-000000000009"),
+				UUID.fromString("10000000-0000-0000-0000-000000000004"), "ADULT")).isFalse();
+		assertThat(jdbc.sql("""
+				SELECT entries_remaining::INT FROM customer_pass
+				WHERE customer_id = '07000000-0000-0000-0000-000000000009'
+				  AND id IN ('28000000-0000-0000-0000-000000023001', '28000000-0000-0000-0000-000000023002')
+				ORDER BY id
+				""").query(Integer.class).list()).containsExactly(4, 1);
+		assertThat(jdbc.sql("""
+				SELECT count(*) FROM staff_assignment
+				WHERE customer_id = '07000000-0000-0000-0000-000000000009'
+				  AND staff_id = '08000000-0000-0000-0000-000000000002' AND ended_at IS NULL
+				""").query(Long.class).single()).isZero();
 	}
 
 	@Test
