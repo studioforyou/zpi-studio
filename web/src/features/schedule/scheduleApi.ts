@@ -25,6 +25,16 @@ export type EventVisibility = (typeof eventVisibilities)[number];
 
 export type StaffRole = 'LEAD' | 'ASSISTANT';
 
+export type StaffHistoryEntry = {
+  id: string;
+  occurredAt: string;
+  kind: 'MANUAL' | 'SERIES_RESTORED' | 'SUBSTITUTION' | 'AUTOMATIC_SUBSTITUTION';
+  actorAccountId: string | null;
+  actorName: string | null;
+  before: AssignedStaff[];
+  after: AssignedStaff[];
+};
+
 export type AssignedStaff = {
   staffId: string;
   displayName: string | null;
@@ -221,6 +231,7 @@ export const scheduleKeys = {
   all: ['schedule'] as const,
   events: (from: string, to: string) => [...scheduleKeys.all, 'events', from, to] as const,
   series: (id: string) => [...scheduleKeys.all, 'series', id] as const,
+  staffHistory: (id: string) => [...scheduleKeys.all, 'staff-history', id] as const,
   staff: ['schedule', 'staff'] as const,
   serviceTypes: ['schedule', 'service-types'] as const,
   trainingGroups: ['schedule', 'training-groups'] as const,
@@ -230,6 +241,13 @@ export const scheduleKeys = {
 export async function listScheduleEvents(from: string, to: string): Promise<ScheduleEvent[]> {
   const query = new URLSearchParams({ from, to });
   const response = await apiFetch<ListResponse<ScheduleEvent>>(`/api/v1/schedule-events?${query}`);
+  return response.items;
+}
+
+export async function getEventStaffHistory(eventId: string): Promise<StaffHistoryEntry[]> {
+  const response = await apiFetch<ListResponse<StaffHistoryEntry>>(
+    `/api/v1/schedule-events/${eventId}/staff-history`,
+  );
   return response.items;
 }
 

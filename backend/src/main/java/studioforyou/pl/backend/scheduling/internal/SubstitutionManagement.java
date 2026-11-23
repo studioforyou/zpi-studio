@@ -127,7 +127,7 @@ class SubstitutionManagement implements SubstitutionOffers {
 		requireStatus(row, "OPEN");
 		requireEligible(row, viewer);
 		boolean approval = this.studio.substitutionNeedsApproval();
-		if (!approval) transfer(event, row.originalStaffId(), viewer);
+		if (!approval) transfer(event, row, viewer, actor, true);
 		this.jdbc.sql("""
 				UPDATE substitution_request SET status = :status, substitute_staff_id = :staff,
 				claimed_at = now(), decided_by = :actor, decided_at = :decidedAt,
@@ -154,7 +154,7 @@ class SubstitutionManagement implements SubstitutionOffers {
 		UUID candidate = row.substituteStaffId();
 		if (candidate == null) throw new ApiException(ErrorCode.SUBSTITUTION_ALREADY_DECIDED, "No candidate.");
 		requireEligible(row, candidate);
-		transfer(event, row.originalStaffId(), candidate);
+		transfer(event, row, candidate, actor, false);
 		decide(row, actor, "APPROVED", candidate, input.note());
 		return response(row(id), null, null, true);
 	}
@@ -172,7 +172,7 @@ class SubstitutionManagement implements SubstitutionOffers {
 		Row row = lock(id, input.version());
 		if (!row.actionable()) throw new ApiException(ErrorCode.SUBSTITUTION_ALREADY_DECIDED, "Request closed.");
 		requireEligible(row, input.staffId());
-		transfer(event, row.originalStaffId(), input.staffId());
+		transfer(event, row, input.staffId(), actor, false);
 		decide(row, actor, "APPROVED", input.staffId(), input.note());
 		return response(row(id), null, null, true);
 	}
@@ -209,13 +209,14 @@ class SubstitutionManagement implements SubstitutionOffers {
 				"The trainer cannot take this event.", Map.of("reason", check == null ? "INACTIVE" : check.reason()));
 	}
 
-	private void transfer(ScheduleEvent event, UUID original, UUID candidate) {
+	private void transfer(ScheduleEvent event, Row row, UUID candidate, UUID actor, boolean automatic) {
 		var staff = new java.util.ArrayList<>(event.getStaff().stream()
-			.filter((s) -> !s.staffId().equals(original) && !s.staffId().equals(candidate))
+			.filter((s) -> !s.staffId().equals(row.originalStaffId()) && !s.staffId().equals(candidate))
 			.map((s) -> new StaffAssignmentRequest(s.staffId(), s.role())).toList());
 		staff.add(new StaffAssignmentRequest(candidate, StaffRole.LEAD));
 		var rooms = event.getResources().stream().map((r) -> new ResourceAssignmentRequest(r.resourceId(), r.blocksWholeRoom())).toList();
-		this.planner.changeAssignments(event.getId(), new ChangeAssignmentsRequest(event.getVersion(), AssignmentScope.THIS_EVENT, staff, rooms));
+		this.planner.changeAssignments(event.getId(), new ChangeAssignmentsRequest(event.getVersion(),
+				AssignmentScope.THIS_EVENT, staff, rooms), actor, row.id(), automatic);
 	}
 
 	private void closeAndReopen(Row row, UUID actor, String status, @Nullable String note) {

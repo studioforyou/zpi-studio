@@ -59,10 +59,14 @@ class ScheduleEventController {
 
 	private final OccurrenceChanges occurrenceChanges;
 
-	ScheduleEventController(ScheduleQueries queries, SchedulePlanner planner, OccurrenceChanges occurrenceChanges) {
+	private final EventStaffHistory staffHistory;
+
+	ScheduleEventController(ScheduleQueries queries, SchedulePlanner planner, OccurrenceChanges occurrenceChanges,
+			EventStaffHistory staffHistory) {
 		this.queries = queries;
 		this.planner = planner;
 		this.occurrenceChanges = occurrenceChanges;
+		this.staffHistory = staffHistory;
 	}
 
 	@GetMapping
@@ -114,6 +118,15 @@ class ScheduleEventController {
 			.orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "Event not found."));
 	}
 
+	@GetMapping("/{eventId}/staff-history")
+	@Operation(summary = "Read actual staff changes and approved substitutions of an event",
+			operationId = "getScheduleEventStaffHistory",
+			description = "Newest first, with staff before and after and the author. Pending and rejected requests "
+					+ "are not staff changes. Older approved substitutions are included without duplicating their audit entry.")
+	ListResponse<EventStaffHistory.Entry> staffHistory(@PathVariable UUID eventId) {
+		return new ListResponse<>(this.staffHistory.history(eventId));
+	}
+
 	@PostMapping
 	@Operation(summary = "Create a one-off event", operationId = "createScheduleEvent",
 			description = "Creates a scheduled event with its staff and rooms. A room or a staff member "
@@ -158,8 +171,8 @@ class ScheduleEventController {
 			+ "or SERVICE_NOT_ALLOWED_IN_ROOM.", content = @Content(mediaType = "application/problem+json",
 					schema = @Schema(implementation = ApiProblem.class)))
 	ScheduleEventResponse changeScheduleEventAssignments(@PathVariable UUID eventId,
-			@Valid @RequestBody ChangeAssignmentsRequest request) {
-		return this.planner.changeAssignments(eventId, request);
+			@Valid @RequestBody ChangeAssignmentsRequest request, Authentication authentication) {
+		return this.planner.changeAssignments(eventId, request, CurrentAccount.of(authentication).id());
 	}
 
 	@PutMapping("/{eventId}")
@@ -182,8 +195,8 @@ class ScheduleEventController {
 			content = @Content(mediaType = "application/problem+json",
 					schema = @Schema(implementation = ApiProblem.class)))
 	ScheduleEventResponse changeScheduleEvent(@PathVariable UUID eventId,
-			@Valid @RequestBody ChangeEventRequest request) {
-		return this.occurrenceChanges.change(eventId, request);
+			@Valid @RequestBody ChangeEventRequest request, Authentication authentication) {
+		return this.occurrenceChanges.change(eventId, request, CurrentAccount.of(authentication).id());
 	}
 
 	@PostMapping("/{eventId}/change-preview")
@@ -211,8 +224,8 @@ class ScheduleEventController {
 			+ "not scheduled or one whose series time has passed.", content = @Content(
 					mediaType = "application/problem+json", schema = @Schema(implementation = ApiProblem.class)))
 	ScheduleEventResponse restoreScheduleEventSeries(@PathVariable UUID eventId,
-			@Valid @RequestBody RestoreSeriesRequest request) {
-		return this.occurrenceChanges.restoreSeries(eventId, request);
+			@Valid @RequestBody RestoreSeriesRequest request, Authentication authentication) {
+		return this.occurrenceChanges.restoreSeries(eventId, request, CurrentAccount.of(authentication).id());
 	}
 
 }

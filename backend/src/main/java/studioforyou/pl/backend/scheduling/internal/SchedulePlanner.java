@@ -87,12 +87,14 @@ class SchedulePlanner {
 
 	private final ScheduleChangeNotices notices;
 
+	private final EventStaffHistory staffHistory;
+
 	private final Clock clock = Clock.systemUTC();
 
 	SchedulePlanner(ScheduleEventRepository events, RecurrenceSeriesRepository seriesRepository,
 			ResourceRepository resources, ServiceTypeResourceRepository roomRules, ScheduleQueries queries,
 			ScheduleConflicts conflicts, ScheduleLocks locks, ServiceTypes serviceTypes, StaffProfiles staffProfiles,
-			StudioSettings studio, ScheduleChangeNotices notices) {
+			StudioSettings studio, ScheduleChangeNotices notices, EventStaffHistory staffHistory) {
 		this.events = events;
 		this.seriesRepository = seriesRepository;
 		this.resources = resources;
@@ -103,6 +105,7 @@ class SchedulePlanner {
 		this.serviceTypes = serviceTypes;
 		this.staffProfiles = staffProfiles;
 		this.notices = notices;
+		this.staffHistory = staffHistory;
 		this.studio = studio;
 	}
 
@@ -208,7 +211,12 @@ class SchedulePlanner {
 	 * Replaces the staff and rooms of an event, or of the event and the later scheduled
 	 * occurrences of its series. A change of one occurrence marks it as an exception to its series.
 	 */
-	ScheduleEventResponse changeAssignments(UUID eventId, ChangeAssignmentsRequest request) {
+	ScheduleEventResponse changeAssignments(UUID eventId, ChangeAssignmentsRequest request, UUID actor) {
+		return changeAssignments(eventId, request, actor, null, false);
+	}
+
+	ScheduleEventResponse changeAssignments(UUID eventId, ChangeAssignmentsRequest request, UUID actor,
+			@Nullable UUID substitutionRequestId, boolean automatic) {
 		ScheduleEvent event = this.events.findByIdForUpdate(eventId)
 			.orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "Event not found."));
 		if (event.getVersion() != request.version()) {
@@ -237,6 +245,7 @@ class SchedulePlanner {
 
 		Map<UUID, ScheduleChangeNotices.Snapshot> before = this.notices
 			.snapshots(targets.stream().map(ScheduleEvent::getId).toList());
+		var staffBefore = this.staffHistory.snapshots(targets.stream().map(ScheduleEvent::getId).toList());
 		for (ScheduleEvent target : targets) {
 			boolean changed = target.replaceAssignments(assignments.staff(), assignments.resources());
 			if (changed && !following) {
@@ -248,6 +257,9 @@ class SchedulePlanner {
 				.ifPresent((series) -> series.setDefaults(assignments.leadStaffId(), assignments.mainResourceId()));
 		}
 		this.events.flush();
+		this.staffHistory.record(staffBefore, actor, substitutionRequestId == null ? EventStaffHistory.Kind.MANUAL
+				: automatic ? EventStaffHistory.Kind.AUTOMATIC_SUBSTITUTION : EventStaffHistory.Kind.SUBSTITUTION,
+				substitutionRequestId);
 		this.notices.record(before);
 		return this.queries.findEvent(eventId).orElseThrow();
 	}
