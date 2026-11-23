@@ -6,6 +6,7 @@ import 'package:mobile/features/schedule/presentation/widgets/schedule_calendar.
 import 'package:mobile/features/trainings/data/trainee_card_api.dart';
 import 'package:mobile/features/trainings/data/trainee_makeups_api.dart';
 import 'package:mobile/features/trainings/data/trainee_overview_api.dart';
+import 'package:mobile/features/trainings/data/trainee_profile_history_api.dart';
 import 'package:mobile/features/trainings/presentation/widgets/trainee_card_view.dart';
 import 'package:mobile/features/trainings/presentation/widgets/trainee_makeups_section.dart';
 import 'package:mobile/features/trainings/presentation/widgets/trainee_overview_widgets.dart';
@@ -64,6 +65,7 @@ class _OverviewScreenState extends ConsumerState<_OverviewScreen>
     // Another trainer of the trainee may have changed the shared card.
     ref.invalidate(traineeCardProvider(widget.query));
     ref.invalidate(traineeMakeupsProvider(widget.query));
+    ref.invalidate(traineeProfileHistoryProvider(widget.query));
     final calendar = _calendarQuery;
     if (calendar != null) ref.invalidate(traineeCalendarProvider(calendar));
     try {
