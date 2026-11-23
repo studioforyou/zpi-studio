@@ -63,7 +63,8 @@ public class CustomerProfileController {
 			content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ApiProblem.class)))
 	public CustomerProfileResponse update(AccountAuthentication authentication, @PathVariable UUID profileId,
 			@RequestBody UpdateCustomerProfileRequest request) {
-		return CustomerProfileResponse.from(details.update(actingFor(authentication, profileId), request));
+		return CustomerProfileResponse.from(details.update(actingFor(authentication, profileId), request,
+				authentication.requireActiveAccountId()));
 	}
 
 	private UUID actingFor(AccountAuthentication authentication, UUID profileId) {

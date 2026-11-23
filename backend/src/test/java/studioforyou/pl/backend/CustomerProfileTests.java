@@ -103,6 +103,7 @@ class CustomerProfileTests {
 			jdbc.sql("DELETE FROM customer_profile WHERE id IN (:ids)").param("ids", children).update();
 		}
 		jdbc.sql("DELETE FROM customer_profile WHERE account_id IN (" + accounts + ")").update();
+		jdbc.sql("DELETE FROM audit_log WHERE actor_account_id IN (" + accounts + ")").update();
 		jdbc.sql("DELETE FROM account_role WHERE account_id IN (" + accounts + ")").update();
 		jdbc.sql("DELETE FROM identity_link WHERE account_id IN (" + accounts + ")").update();
 		jdbc.sql("DELETE FROM account WHERE email LIKE 'customer-profile-%@example.com'").update();

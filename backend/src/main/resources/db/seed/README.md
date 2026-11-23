@@ -108,3 +108,12 @@ Beata Lis has sent four announcements, visible in the panel under **Komunikacja 
 - *Trening personalny w piątek* to Tomasz only.
 
 The same seed adds two automatic notifications to Monika whose push did not arrive (*Karnet wkrótce wygaśnie*, unregistered phone, and *Jutro: Pole dance początkujący*, two failed attempts), so **Komunikacja → Historia wysyłek** (#161) shows the "Błąd push" status.
+
+## Profile change history (seed 28)
+
+`R__seed_28_profile_history.sql` adds change history entries that end in the current seed values, for the trainer's "Historia zmian" screen:
+
+- **Katarzyna** (log in as Ewa): phone changed by herself, emergency contact changed by Beata in the panel, goals changed by Ewa, an injury note added by herself and archived by Ewa.
+- **Tomasz** (log in as Marek): sport experience filled in by Marek, birth date and phone changed by himself, his knee note added by himself.
+
+Health entries show only to a trainer with access to the participant's health data. New changes made in the app or the panel are added to the history automatically.

@@ -371,6 +371,18 @@ class SeedDataTests {
 		return mvc.perform(request).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 	}
 
+	@Test
+	void trainersSeeTheProfileHistoryOfTheirTrainees() throws Exception {
+		String history = seedGet(seedToken(3), "/api/v1/me/trainees/07000000-0000-0000-0000-000000000001/profile-history",
+				false);
+		assertThat((String) JsonPath.read(history, "$.healthAccess")).isEqualTo("GRANTED");
+		List<String> actions = JsonPath.read(history, "$.items[*].action");
+		assertThat(actions).containsExactly("PROFILE_UPDATED", "PROFILE_UPDATED", "HEALTH_NOTE_ARCHIVED", "CARD_UPDATED",
+				"HEALTH_NOTE_ADDED");
+		List<String> roles = JsonPath.read(history, "$.items[*].actor.role");
+		assertThat(roles).containsExactly("CLIENT", "ADMIN", "TRAINER", "TRAINER", "CLIENT");
+	}
+
 	private String seedToken(int accountNo) {
 		String uid = jdbc.sql("SELECT external_uid FROM identity_link WHERE account_id = CAST(:id AS UUID) AND provider = 'FIREBASE'")
 			.param("id", "03000000-0000-0000-0000-" + "%012d".formatted(accountNo)).query(String.class).single();
