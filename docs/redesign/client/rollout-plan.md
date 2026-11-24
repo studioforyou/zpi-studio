@@ -11,7 +11,7 @@ This plan sets the order in which the accepted client design ([prototype.html](p
 - **Separate PRs.** Each step below is one pull request to `main`, so it gets its own review and can be squashed without the others.
 - **No feature flags.** The client app changes tab by tab, and nothing switches back to the old design.
 - **Shared foundation first.** The theme and shared widgets come before any screen, so screens never carry their own colours or sizes.
-- **Client role only.** Trainer screens are not redesigned yet; see the open question at the end.
+- **Client role only.** The new theme is applied inside the client shell only. Trainer screens keep the current theme until their own redesign (decided 24.11.2026).
 - **Existing stories only.** Elements without a story are not built: "Zawieś", "Trenerzy prowadzący", "Wyświetl odwołane zajęcia", and the used / reserved legend split.
 
 ## Steps
@@ -22,6 +22,7 @@ This plan sets the order in which the accepted client design ([prototype.html](p
 - Theme tokens for light and dark (`ThemeExtension`).
 - Text styles.
 - Zero-radius, zero-elevation Material theme.
+- The new theme is wrapped around the client shell only (a `Theme` widget around the client `StatefulShellRoute` and the client sheets), so the trainer role keeps the current theme.
 - Theme mode stored per device. It defaults to the system mode; the switch itself is added to Profil in step 6.
 - Shared widgets: `AppButton`, `AppTabs`, `AppSegmented`, `AppRow`, `AppSwitch`, `StatusDot`, `Badge`, `InfoStrip`, `AppSheet` with its building blocks, `PickerSheet`, `PickerField`, `PageHeader`.
 - A widget gallery test (golden or widget tests) for each component in both themes.
@@ -114,9 +115,3 @@ Stories: #49, #50, #51, #141, #142, #146, #148.
 | #147 notification settings in Profil | backend gap 2 (preferences API) |
 | #121 phone calendar switch | backend gap 3 |
 | #74, #143, #149 | stories are still open and have no design yet |
-
-## Open question
-
-Should the trainer screens pick up the new font and colours in step 1 while keeping their current layouts?
-
-The recommended answer is no: apply the new theme only inside the client shell, and leave the trainer app unchanged until its own redesign. A half-restyled trainer app would look inconsistent, and keeping its theme avoids breaking trainer widget tests.
