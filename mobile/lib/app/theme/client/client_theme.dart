@@ -94,6 +94,9 @@ class ClientTextStyles {
       buttonLarge = _style(t, c, t.buttonLarge),
       buttonGhost = _style(t, c, t.buttonGhost),
       meta = _style(t, c, t.meta, c.muted),
+      warning = _style(t, c, t.warning, c.muted),
+      strip = _style(t, c, t.strip, c.orangeText),
+      rowValue = _style(t, c, t.rowValue, c.muted),
       caption = _style(t, c, t.caption, c.muted),
       lineValue = _style(t, c, t.lineValue),
       lineLabel = _style(t, c, t.lineLabel, c.muted),
@@ -156,6 +159,15 @@ class ClientTextStyles {
 
   /// In [ClientPalette.muted].
   final TextStyle meta;
+
+  /// In [ClientPalette.muted].
+  final TextStyle warning;
+
+  /// In [ClientPalette.orangeText].
+  final TextStyle strip;
+
+  /// In [ClientPalette.muted].
+  final TextStyle rowValue;
 
   /// In [ClientPalette.muted].
   final TextStyle caption;

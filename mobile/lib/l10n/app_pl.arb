@@ -176,6 +176,7 @@
   "customerProfileEmergencyPhoneRequired": "Podaj telefon osoby do kontaktu.",
   "logoutButton": "Wyloguj się",
   "placeholderComingSoon": "Wkrótce",
+  "clientSheetClose": "Zamknij",
   "pingTitle": "Test połączenia",
   "pingButton": "Wyślij ping",
   "pingIdle": "Naciśnij przycisk, aby połączyć z backendem",

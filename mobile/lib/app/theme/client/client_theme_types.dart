@@ -159,6 +159,9 @@ class ClientTypography {
     required this.buttonLarge,
     required this.buttonGhost,
     required this.meta,
+    required this.warning,
+    required this.strip,
+    required this.rowValue,
     required this.caption,
     required this.lineValue,
     required this.lineLabel,
@@ -245,6 +248,15 @@ class ClientTypography {
   /// Row subtitles, warnings, strips.
   final ClientTextSpec meta;
 
+  /// Plain warning text in a sheet (cancellation rules).
+  final ClientTextSpec warning;
+
+  /// Text of tinted strips and hints.
+  final ClientTextSpec strip;
+
+  /// Value on the right of a list row.
+  final ClientTextSpec rowValue;
+
   /// Key-value labels, sheet kicker, day headers.
   final ClientTextSpec caption;
 
@@ -314,6 +326,7 @@ class ClientSpacing {
     required this.sheetBottom,
     required this.rowVertical,
     required this.section,
+    required this.xxs,
     required this.xs,
     required this.s,
     required this.m,
@@ -336,6 +349,8 @@ class ClientSpacing {
   /// Gap between a strip or picker and the content below it.
   final double section;
 
+  /// The scale of gaps, from the smallest.
+  final double xxs;
   final double xs;
   final double s;
   final double m;
@@ -379,6 +394,7 @@ class ClientSizes {
     required this.avatar,
     required this.avatarSmall,
     required this.consequenceIcon,
+    required this.consequenceGlyph,
     required this.profileAvatar,
     required this.textFieldMinHeight,
     required this.weekStripHeight,
@@ -466,6 +482,9 @@ class ClientSizes {
 
   /// Framed icon in the cancellation consequences.
   final double consequenceIcon;
+
+  /// Icon inside [consequenceIcon].
+  final double consequenceGlyph;
 
   /// Large initials square on the profile tab.
   final double profileAvatar;
