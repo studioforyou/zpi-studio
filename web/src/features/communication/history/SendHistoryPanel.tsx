@@ -268,10 +268,15 @@ function PersonFilter({
     placeholderData: keepPreviousData,
   });
   const options = useMemo(() => {
-    const found = (people.data?.items ?? []).map((person) => ({
-      value: person.id,
-      label: person.displayName,
-    }));
+    // The search lists a guardian's children as extra rows with the guardian's account; their
+    // notifications go to that account, so only the account owner is offered, once.
+    const found = [
+      ...new Map(
+        (people.data?.items ?? [])
+          .filter((person) => !person.roles.includes('CHILD'))
+          .map((person) => [person.id, { value: person.id, label: person.displayName }]),
+      ).values(),
+    ];
     // The chosen person stays an option even when the current search no longer matches them.
     return value && !found.some((option) => option.value === value.value)
       ? [value, ...found]

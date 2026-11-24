@@ -96,7 +96,13 @@ function stubApi() {
         });
       }
       if (url.startsWith('/api/v1/accounts')) {
-        return json({ items: [], page: 0, size: 20, totalItems: 0, totalPages: 0 });
+        // A guardian comes back twice: as herself and as the row of her child.
+        const items = [
+          { id: 'acc-m', displayName: 'Monika Kowalska', roles: ['CLIENT'] },
+          { id: 'acc-m', displayName: 'Zosia Lis', roles: ['CHILD'] },
+          { id: 'acc-k', displayName: 'Katarzyna Wójcik', roles: ['CLIENT'] },
+        ];
+        return json({ items, page: 0, size: 20, totalItems: 3, totalPages: 1 });
       }
       return json({ items: [], page: 0, size: 20, totalItems: 0, totalPages: 0 });
     }),
@@ -196,4 +202,23 @@ test('shows an empty state when nothing matches', async () => {
   await screen.findByText('Pokazano 4 z 4');
   await pick('Rodzaj', 'Odwołanie zajęć');
   expect(await screen.findByText('Brak powiadomień dla tych filtrów')).toBeInTheDocument();
+});
+
+test('offers a guardian once in the person filter, without the rows of her children', async () => {
+  const urls = stubApi();
+  await openHistory();
+  await screen.findByText('Pokazano 4 z 4');
+
+  const select = screen.getByRole('combobox', { name: 'Odbiorca' });
+  await userEvent.click(select);
+  await waitFor(() => expect(select.getAttribute('aria-controls')).toBeTruthy());
+  const listbox = document.getElementById(select.getAttribute('aria-controls')!)!;
+  await waitFor(() =>
+    expect(within(listbox).getAllByRole('option', { hidden: true })).toHaveLength(2),
+  );
+  expect(within(listbox).queryByRole('option', { name: 'Zosia Lis', hidden: true })).toBeNull();
+  await userEvent.click(
+    within(listbox).getByRole('option', { name: 'Monika Kowalska', hidden: true }),
+  );
+  await waitFor(() => expect(urls.at(-1)).toContain('accountId=acc-m'));
 });
