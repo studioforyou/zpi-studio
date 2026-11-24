@@ -391,6 +391,41 @@ void main() {
       });
     }
 
+    testWidgets('CLASS_BOOKING_OPENED opens the class in the child profile', (
+      tester,
+    ) async {
+      final push = _Push();
+      final reads = <ClassQuery>[];
+      final notifications = _Notifications();
+      final container = await pumpApp(
+        tester,
+        push: push,
+        devices: _Devices(),
+        notifications: notifications,
+        classReads: reads,
+      );
+      await tester.tap(find.text('Anna').first);
+      await tester.pumpAndSettle();
+      push.opened.add(
+        const PushMessage(
+          data: {
+            'type': 'CLASS_BOOKING_OPENED',
+            'notificationId': 'opened-note',
+            'profileId': 'child-2',
+            'eventId': 'class-1',
+          },
+        ),
+      );
+      await tester.pumpAndSettle();
+      final session =
+          (container.read(authControllerProvider) as Authenticated).session;
+      expect(session.activeRole, AppRole.client);
+      expect(session.activeProfileId, 'child-2');
+      expect(location(container), clientClassDetailsLocation('class-1'));
+      expect(reads.last.scope.profileId, 'child-2');
+      expect(notifications.read, ['opened-note']);
+    });
+
     testWidgets(
       'a waitlist notification tapped before login opens after choosing the account',
       (tester) async {

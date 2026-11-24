@@ -122,7 +122,19 @@ public enum NotificationType {
 			new Placeholder(Placeholder.TIME, "Start time, e.g. \"18:00\""),
 			new Placeholder(Placeholder.ROOM, "Room names, or \"studio\" when no room is assigned"),
 			new Placeholder(Placeholder.BOOKED, "How many participants booked the class, e.g. \"2\""),
-			new Placeholder(Placeholder.MINIMUM, "How many participants the class needed, e.g. \"4\"")));
+			new Placeholder(Placeholder.MINIMUM, "How many participants the class needed, e.g. \"4\""))),
+
+	/**
+	 * Booking opened for a class the participant is interested in: they marked its service type, or
+	 * took part in a class of that type in the last 60 days. Sent when booking opens to those who
+	 * have not booked it or joined its waiting list (to a child's guardians), while it has a free
+	 * place.
+	 */
+	CLASS_BOOKING_OPENED((short) 14, false, List.of(
+			new Placeholder(Placeholder.CLASS, "Name of the class"),
+			new Placeholder(Placeholder.DAY, "Day of the class: \"dziś\", \"jutro\" or the weekday and date, e.g. \"wtorek 12.11\""),
+			new Placeholder(Placeholder.TIME, "Start time, e.g. \"18:00\""),
+			new Placeholder(Placeholder.ROOM, "Room names, or \"studio\" when no room is assigned")));
 
 	private final short id;
 

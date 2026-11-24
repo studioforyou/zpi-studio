@@ -127,7 +127,8 @@ class PushNotifications {
       return;
     }
     if ((data['type'] == 'WAITLIST_PLACE_OFFERED' ||
-            data['type'] == 'WAITLIST_PLACE_GRANTED') &&
+            data['type'] == 'WAITLIST_PLACE_GRANTED' ||
+            data['type'] == 'CLASS_BOOKING_OPENED') &&
         session.roles.contains(AppRole.client)) {
       final eventId = data['eventId'];
       final choice = session.choices

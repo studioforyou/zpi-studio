@@ -80,6 +80,17 @@ class JdbcBookingPolicies implements BookingPolicies {
 	}
 
 	@Override
+	@Transactional(readOnly = true)
+	public int longestBookingOpensDaysBefore() {
+		Integer longest = jdbc.sql("""
+				SELECT max(booking_opens_days_before) AS longest FROM booking_policy
+				WHERE valid_from <= now() AND (valid_to IS NULL OR valid_to > now())
+				""").query((rs, row) -> number(rs, "longest")).optional().orElse(null);
+		int studio = studioDefaults().bookingOpensDaysBefore();
+		return (longest == null) ? studio : Math.max(longest, studio);
+	}
+
+	@Override
 	public void replaceForService(ServiceContext service, Values overrides, UUID changedBy) {
 		Values resolved = effective(service, overrides, studioDefaults());
 		if (!service.groupRulesAllowed() && overrides != null) {
