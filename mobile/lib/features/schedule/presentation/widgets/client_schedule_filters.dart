@@ -51,7 +51,7 @@ class ClientScheduleFilterBar extends StatelessWidget {
                     ? l10n.scheduleFilters
                     : l10n.scheduleFiltersActive(filter.activeCount),
               ),
-              onPressed: () => _openSheet(context),
+              onPressed: () => open(context),
             ),
             if (filter.activeCount > 0)
               TextButton(
@@ -64,7 +64,8 @@ class ClientScheduleFilterBar extends StatelessWidget {
     );
   }
 
-  Future<void> _openSheet(BuildContext context) {
+  /// Opens the filter sheet.
+  Future<void> open(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     // The catalogue comes first; loaded classes and selected names fill in
     // when it is missing or a class uses a service that is no longer offered.
@@ -95,6 +96,7 @@ class ClientScheduleFilterBar extends StatelessWidget {
     );
     return showModalBottomSheet<void>(
       context: context,
+      useRootNavigator: true,
       isScrollControlled: true,
       showDragHandle: true,
       builder: (_) => _FilterSheet(

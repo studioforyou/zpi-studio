@@ -130,6 +130,12 @@ const _typography = ClientTypography(
     letterSpacingEm: -0.03,
     height: 1,
   ),
+  stripDay: ClientTextSpec(
+    22,
+    weight: FontWeight.w500,
+    letterSpacingEm: -0.03,
+    height: 1.1,
+  ),
   monthTitle: ClientTextSpec(
     24,
     weight: FontWeight.w600,
@@ -187,6 +193,12 @@ const _typography = ClientTypography(
   navLabel: ClientTextSpec(11, height: 1.1),
   badge: ClientTextSpec(10, weight: FontWeight.w600, height: 1),
   bigNumber: ClientTextSpec(34, weight: FontWeight.w600, height: 1),
+  placesNumber: ClientTextSpec(
+    20,
+    weight: FontWeight.w700,
+    letterSpacingEm: -0.02,
+    height: 1,
+  ),
   profileName: ClientTextSpec(
     30,
     weight: FontWeight.w600,

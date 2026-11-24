@@ -143,6 +143,7 @@ class ClientTypography {
     required this.heroUnit,
     required this.weekDaySelected,
     required this.weekDay,
+    required this.stripDay,
     required this.monthTitle,
     required this.nextClass,
     required this.when,
@@ -170,6 +171,7 @@ class ClientTypography {
     required this.navLabel,
     required this.badge,
     required this.bigNumber,
+    required this.placesNumber,
     required this.profileName,
     required this.avatarInitials,
   });
@@ -197,8 +199,11 @@ class ClientTypography {
   /// Selected day in the week strip.
   final ClientTextSpec weekDaySelected;
 
-  /// Other days in the week strip and the month grid.
+  /// Days in the month grid.
   final ClientTextSpec weekDay;
+
+  /// Other days in the week strip.
+  final ClientTextSpec stripDay;
 
   /// Month name above the month grid.
   final ClientTextSpec monthTitle;
@@ -280,6 +285,9 @@ class ClientTypography {
 
   /// Large numbers (waiting-list position, history summary).
   final ClientTextSpec bigNumber;
+
+  /// Free places in a class sheet and the day list.
+  final ClientTextSpec placesNumber;
 
   /// Name on the profile tab.
   final ClientTextSpec profileName;

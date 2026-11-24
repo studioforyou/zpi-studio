@@ -30,12 +30,11 @@ import 'package:mobile/features/schedule/presentation/add_consultation_screen.da
 import 'package:mobile/features/schedule/presentation/add_personal_training_screen.dart';
 import 'package:mobile/features/schedule/presentation/availability_screen.dart';
 import 'package:mobile/features/schedule/presentation/time_off_list_screen.dart';
-import 'package:mobile/features/schedule/presentation/schedule_screen.dart';
+import 'package:mobile/features/schedule/presentation/client/client_classes_screen.dart';
 import 'package:mobile/features/schedule/presentation/trainer_schedule_screen.dart';
 import 'package:mobile/features/schedule/presentation/substitution_offers_screen.dart';
 import 'package:mobile/features/trainings/presentation/new_cooperation_screen.dart';
 import 'package:mobile/features/trainings/presentation/new_client_account_screen.dart';
-import 'package:mobile/features/trainings/presentation/reservations_screen.dart';
 import 'package:mobile/features/trainings/presentation/group_class_details_screen.dart';
 import 'package:mobile/features/trainings/presentation/widgets/group_class_widgets.dart';
 import 'package:mobile/features/trainings/presentation/trainee_overview_screen.dart';
@@ -56,8 +55,8 @@ const invitePath = '/invite';
 const clientSchedulePath = '/client/schedule';
 const clientPassesPath = '/client/passes';
 
-/// The person's own classes.
-const clientReservationsPath = '$clientSchedulePath/mine';
+/// The person's own classes: the Zajęcia tab, which opens on them.
+const clientReservationsPath = clientSchedulePath;
 const clientClassDetailsSubPath = 'classes/:eventId';
 
 String clientClassDetailsLocation(String eventId) =>
@@ -168,11 +167,10 @@ StatefulShellRoute _clientShell() => _roleShell(client: true, [
   ),
   _tab(
     clientSchedulePath,
-    const ScheduleScreen(),
+    const ClientClassesScreen(),
     Icons.calendar_today_outlined,
     (l10n) => l10n.navClasses,
     routes: [
-      GoRoute(path: 'mine', builder: (_, _) => const ReservationsScreen()),
       GoRoute(
         path: clientClassDetailsSubPath,
         builder: (_, state) => Consumer(

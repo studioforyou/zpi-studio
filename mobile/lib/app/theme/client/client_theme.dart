@@ -78,6 +78,7 @@ class ClientTextStyles {
       heroUnit = _style(t, c, t.heroUnit, c.muted),
       weekDaySelected = _style(t, c, t.weekDaySelected),
       weekDay = _style(t, c, t.weekDay),
+      stripDay = _style(t, c, t.stripDay),
       monthTitle = _style(t, c, t.monthTitle),
       nextClass = _style(t, c, t.nextClass),
       when = _style(t, c, t.when),
@@ -105,6 +106,7 @@ class ClientTextStyles {
       navLabel = _style(t, c, t.navLabel, c.muted),
       badge = _style(t, c, t.badge, c.onBadge),
       bigNumber = _style(t, c, t.bigNumber),
+      placesNumber = _style(t, c, t.placesNumber),
       profileName = _style(t, c, t.profileName),
       avatarInitials = _style(t, c, t.avatarInitials),
       selectedWeight = t.selectedWeight,
@@ -139,6 +141,7 @@ class ClientTextStyles {
   final TextStyle heroUnit;
   final TextStyle weekDaySelected;
   final TextStyle weekDay;
+  final TextStyle stripDay;
   final TextStyle monthTitle;
   final TextStyle nextClass;
   final TextStyle when;
@@ -187,6 +190,7 @@ class ClientTextStyles {
   /// In [ClientPalette.onBadge].
   final TextStyle badge;
   final TextStyle bigNumber;
+  final TextStyle placesNumber;
   final TextStyle profileName;
   final TextStyle avatarInitials;
 
