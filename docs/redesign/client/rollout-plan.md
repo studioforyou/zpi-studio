@@ -22,7 +22,7 @@ This plan sets the order in which the accepted client design ([prototype.html](p
 - Theme tokens for light and dark (`ThemeExtension`).
 - Text styles.
 - Zero-radius, zero-elevation Material theme.
-- The new theme is wrapped around the client shell only (a `Theme` widget around the client `StatefulShellRoute` and the client sheets), so the trainer role keeps the current theme.
+- The app picks the theme from the signed-in role: the new theme for clients, sign-in and the role picker, the current theme for trainers. Every value of the new theme is in one file, `mobile/lib/app/theme/client/client_theme_config.dart`.
 - Theme mode stored per device. It defaults to the system mode; the switch itself is added to Profil in step 6.
 - Shared widgets: `AppButton`, `AppTabs`, `AppSegmented`, `AppRow`, `AppSwitch`, `StatusDot`, `Badge`, `InfoStrip`, `AppSheet` with its building blocks, `PickerSheet`, `PickerField`, `PageHeader`.
 - A widget gallery test (golden or widget tests) for each component in both themes.
