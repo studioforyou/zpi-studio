@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:mobile/app/shell/client_shell.dart';
 import 'package:mobile/core/auth/app_role.dart';
 import 'package:mobile/core/auth/auth_controller.dart';
 import 'package:mobile/core/auth/session.dart';
@@ -42,12 +43,9 @@ class ClientScheduleScreen extends ConsumerWidget {
     final session = clientSession(state);
     final scope = bookingScope(state);
     return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          reservationsOnly ? l10n.navMySchedule : l10n.classesOfferTitle,
-        ),
-        actions: actions,
-      ),
+      appBar: reservationsOnly
+          ? AppBar(title: Text(l10n.navMySchedule), actions: actions)
+          : ClientTabHeader(title: l10n.navClasses, actions: actions),
       body: scope == null || session == null
           ? ClassMessage(l10n.classesNoProfile)
           : _ClientCalendar(

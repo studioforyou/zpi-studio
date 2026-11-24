@@ -4,6 +4,8 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mobile/app/shell/client_shell.dart';
+import 'package:mobile/shared/widgets/client/client_widgets.dart';
 import 'package:mobile/features/schedule/data/series_changes.dart';
 import 'package:mobile/app/app.dart';
 import 'package:mobile/app/config/app_config.dart';
@@ -535,15 +537,15 @@ void main() {
       );
       await tester.tap(find.text('Anna').first);
       await tester.pumpAndSettle();
-      // The unread badge on the messages tab.
-      expect(
-        find.descendant(of: find.byType(Badge), matching: find.text('1')),
-        findsOneWidget,
-      );
 
       await tester.tap(find.text('Wiadomości'));
       await tester.pumpAndSettle();
-      // The messages screen does not list notifications; its bell opens them.
+      // The unread badge on the bell in the header.
+      expect(
+        find.descendant(of: find.byType(CountBadge), matching: find.text('1')),
+        findsOneWidget,
+      );
+      // The messages screen does not list notifications; the bell opens them.
       expect(
         find.text('Klient · Maria: Przypomnienie o zajęciach'),
         findsNothing,
@@ -560,19 +562,12 @@ void main() {
       await tester.tap(find.byTooltip('Oznacz wszystkie jako przeczytane'));
       await tester.pumpAndSettle();
       expect(notifications.readAll, ['CLIENT']);
-      expect(
-        find.descendant(of: find.byType(Badge), matching: find.text('1')),
-        findsNothing,
-      );
 
       // Back on the messages screen the bell has no number any more.
       await tester.tap(find.byType(BackButton));
       await tester.pumpAndSettle();
       expect(location(container), clientMessagesPath);
-      expect(
-        find.descendant(of: find.byType(Badge), matching: find.text('1')),
-        findsNothing,
-      );
+      expect(find.byType(CountBadge), findsNothing);
     });
 
     testWidgets(
@@ -789,7 +784,10 @@ void main() {
       );
       expect(find.text('Pokaż'), findsOneWidget);
       expect(
-        find.descendant(of: find.byType(Badge), matching: find.text('1')),
+        find.descendant(
+          of: find.byType(ClientTabHeader),
+          matching: find.text('1'),
+        ),
         findsOneWidget,
       );
     });
@@ -921,8 +919,9 @@ void main() {
       expect(notifications.read, ['n3', 'n4']);
     });
 
-    testWidgets('the messages tab counts a message once, the bell its '
-        'notification', (tester) async {
+    testWidgets('the messages tab counts messages, the bell notifications', (
+      tester,
+    ) async {
       // Three unread messages; two notifications: one about them, one other.
       final notifications = _Notifications(unread: 2)..unreadAboutMessages = 1;
       await pumpApp(
@@ -935,14 +934,17 @@ void main() {
       await tester.tap(find.text('Anna').first);
       await tester.pumpAndSettle();
       expect(
-        find.descendant(of: find.byType(Badge), matching: find.text('4')),
+        find.descendant(of: find.byType(AppNavBar), matching: find.text('3')),
         findsOneWidget,
       );
 
       await tester.tap(find.text('Wiadomości'));
       await tester.pumpAndSettle();
       expect(
-        find.descendant(of: find.byType(Badge), matching: find.text('2')),
+        find.descendant(
+          of: find.byType(ClientTabHeader),
+          matching: find.text('2'),
+        ),
         findsOneWidget,
       );
     });

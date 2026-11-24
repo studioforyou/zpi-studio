@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mobile/app/router/app_router.dart';
+import 'package:mobile/app/shell/client_shell.dart';
 import 'package:mobile/core/auth/app_role.dart';
 import 'package:mobile/core/auth/auth_controller.dart';
 import 'package:mobile/core/auth/auth_state.dart';
@@ -35,6 +36,14 @@ int watchUnreadInbox(WidgetRef ref) {
   final messages =
       ref.watch(unreadMessagesProvider(auth.session.accountId)).value ?? 0;
   return watchUnreadOtherNotifications(ref) + messages;
+}
+
+/// Unread messages, for the client messages tab badge; notifications have
+/// their own bell.
+int watchUnreadMessages(WidgetRef ref) {
+  final auth = ref.watch(authControllerProvider);
+  if (auth is! Authenticated) return 0;
+  return ref.watch(unreadMessagesProvider(auth.session.accountId)).value ?? 0;
 }
 
 /// How often the list is refreshed while it is shown.
@@ -91,22 +100,22 @@ class _MessagesScreenState extends ConsumerState<MessagesScreen> {
     final unreadNotifications = watchUnreadNotifications(ref);
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(l10n.navMessages),
-        actions: [
-          IconButton(
-            tooltip: l10n.notificationsOpen,
-            icon: Badge(
-              isLabelVisible: unreadNotifications > 0,
-              label: Text('$unreadNotifications'),
-              child: const Icon(Icons.notifications_outlined),
-            ),
-            onPressed: () => context.push(
-              isTrainer ? trainerNotificationsPath : clientNotificationsPath,
-            ),
-          ),
-        ],
-      ),
+      appBar: isTrainer
+          ? AppBar(
+              title: Text(l10n.navMessages),
+              actions: [
+                IconButton(
+                  tooltip: l10n.notificationsOpen,
+                  icon: Badge(
+                    isLabelVisible: unreadNotifications > 0,
+                    label: Text('$unreadNotifications'),
+                    child: const Icon(Icons.notifications_outlined),
+                  ),
+                  onPressed: () => context.push(trainerNotificationsPath),
+                ),
+              ],
+            )
+          : ClientTabHeader(title: l10n.navMessages),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => isTrainer
             ? _chooseNewMessage(context, session)

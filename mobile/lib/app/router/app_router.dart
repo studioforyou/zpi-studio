@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mobile/app/intro/login_intro.dart';
 import 'package:mobile/app/ping/ping_screen.dart';
+import 'package:mobile/app/shell/client_shell.dart';
 import 'package:mobile/app/shell/role_shell.dart';
 import 'package:mobile/app/splash/splash_screen.dart';
 import 'package:mobile/core/auth/app_role.dart';
@@ -51,23 +52,29 @@ const resetPasswordPath = '/reset-password';
 /// Opened from the invitation e-mail link, with the `token` query parameter.
 const invitePath = '/invite';
 
+/// The Zajęcia tab: the calendar of classes. The app opens on it.
 const clientSchedulePath = '/client/schedule';
 const clientPassesPath = '/client/passes';
-const clientReservationsPath = '/client/reservations';
+
+/// The person's own classes.
+const clientReservationsPath = '$clientSchedulePath/mine';
 const clientClassDetailsSubPath = 'classes/:eventId';
 
 String clientClassDetailsLocation(String eventId) =>
-    '$clientReservationsPath/classes/${Uri.encodeComponent(eventId)}';
+    '$clientSchedulePath/classes/${Uri.encodeComponent(eventId)}';
 const clientMessagesPath = '/client/messages';
 const notificationsSubPath = 'notifications';
-const clientNotificationsPath = '$clientMessagesPath/$notificationsSubPath';
+
+/// Opened with the bell in the header of every client tab; it covers the
+/// navigation bar.
+const clientNotificationsPath = '/client/notifications';
 const clientTrainerPickerSubPath = 'to-trainer';
 const clientProfilePath = '/client/profile';
 const clientProfileEditSubPath = 'edit';
 const clientDocumentsSubPath = 'documents';
 const clientTrainingHistorySubPath = 'history';
 const clientTrainingHistoryPath =
-    '$clientReservationsPath/$clientTrainingHistorySubPath';
+    '$clientSchedulePath/$clientTrainingHistorySubPath';
 
 const trainerSchedulePath = '/trainer/schedule';
 const trainerTrainingsPath = '/trainer/trainings';
@@ -93,9 +100,8 @@ const trainerAddPersonalTrainingPath =
 /// The tabs of each role's shell.
 const _roleTabs = {
   AppRole.client: [
-    clientSchedulePath,
     clientPassesPath,
-    clientReservationsPath,
+    clientSchedulePath,
     clientMessagesPath,
     clientProfilePath,
   ],
@@ -135,36 +141,38 @@ _Tab _tab(
 );
 
 /// One shell per role, with one branch per tab.
-StatefulShellRoute _roleShell(List<_Tab> tabs) {
+StatefulShellRoute _roleShell(List<_Tab> tabs, {bool client = false}) {
   final destinations = [for (final tab in tabs) tab.destination];
   return StatefulShellRoute.indexedStack(
-    builder: (_, _, navigationShell) =>
-        RoleShell(navigationShell: navigationShell, destinations: destinations),
+    builder: (_, _, navigationShell) => client
+        ? ClientShell(
+            navigationShell: navigationShell,
+            destinations: destinations,
+          )
+        : RoleShell(
+            navigationShell: navigationShell,
+            destinations: destinations,
+          ),
     branches: [
       for (final tab in tabs) StatefulShellBranch(routes: [tab.route]),
     ],
   );
 }
 
-StatefulShellRoute _clientShell() => _roleShell([
-  _tab(
-    clientSchedulePath,
-    const ScheduleScreen(),
-    Icons.calendar_month,
-    (l10n) => l10n.navClassOffer,
-  ),
+StatefulShellRoute _clientShell() => _roleShell(client: true, [
   _tab(
     clientPassesPath,
     const PassesScreen(),
-    Icons.card_membership,
+    Icons.confirmation_number_outlined,
     (l10n) => l10n.navPasses,
   ),
   _tab(
-    clientReservationsPath,
-    const ReservationsScreen(),
-    Icons.event_available,
-    (l10n) => l10n.navMySchedule,
+    clientSchedulePath,
+    const ScheduleScreen(),
+    Icons.calendar_today_outlined,
+    (l10n) => l10n.navClasses,
     routes: [
+      GoRoute(path: 'mine', builder: (_, _) => const ReservationsScreen()),
       GoRoute(
         path: clientClassDetailsSubPath,
         builder: (_, state) => Consumer(
@@ -190,22 +198,17 @@ StatefulShellRoute _clientShell() => _roleShell([
     Icons.chat_bubble_outline,
     (l10n) => l10n.navMessages,
     routes: [
-      // Opened with the bell on the messages screen.
-      GoRoute(
-        path: notificationsSubPath,
-        builder: (_, _) => const NotificationsScreen(),
-      ),
       GoRoute(
         path: clientTrainerPickerSubPath,
         builder: (_, _) => const TrainerPickerScreen(),
       ),
     ],
-    badge: watchUnreadInbox,
+    badge: watchUnreadMessages,
   ),
   _tab(
     clientProfilePath,
     const ProfileScreen(),
-    Icons.person,
+    Icons.person_outline,
     (l10n) => l10n.navProfile,
     routes: [
       GoRoute(
@@ -424,6 +427,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             conversationId: state.pathParameters['conversationId']!,
           ),
         ),
+      GoRoute(
+        path: clientNotificationsPath,
+        builder: (_, _) => const NotificationsScreen(),
+      ),
       _clientShell(),
       _trainerShell(),
     ],

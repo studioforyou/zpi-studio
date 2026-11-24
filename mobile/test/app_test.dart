@@ -17,6 +17,7 @@ import 'package:mobile/features/schedule/data/studio_trainers.dart';
 import 'package:mobile/features/communication/data/notifications_api.dart';
 import 'package:mobile/features/communication/data/conversations_api.dart';
 import 'package:mobile/features/trainings/data/group_classes_api.dart';
+import 'package:mobile/shared/widgets/client/app_nav_bar.dart';
 
 /// Starts with the demo user still signed in from an earlier run.
 class _SignedInAuthRepository extends FakeAuthRepository {
@@ -79,14 +80,8 @@ void main() {
   }
 
   void expectClientShell() {
-    final navigationBar = find.byType(NavigationBar);
-    for (final label in [
-      'Oferta',
-      'Karnety',
-      'Mój grafik',
-      'Wiadomości',
-      'Profil',
-    ]) {
+    final navigationBar = find.byType(AppNavBar);
+    for (final label in ['Karnety', 'Zajęcia', 'Wiadomości', 'Profil']) {
       expect(
         find.descendant(of: navigationBar, matching: find.text(label)),
         findsOneWidget,
@@ -117,6 +112,7 @@ void main() {
 
     expect(find.text('Wybierz profil:'), findsOneWidget);
     expect(find.byType(NavigationBar), findsNothing);
+    expect(find.byType(AppNavBar), findsNothing);
 
     await tester.tap(find.text('Jan'));
     await tester.pumpAndSettle();
