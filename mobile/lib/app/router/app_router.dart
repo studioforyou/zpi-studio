@@ -41,6 +41,7 @@ import 'package:mobile/features/trainings/presentation/trainee_overview_screen.d
 import 'package:mobile/features/trainings/presentation/training_history_screen.dart';
 import 'package:mobile/features/trainings/presentation/trainings_screen.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
+import 'package:mobile/shared/widgets/client/app_sheet.dart';
 
 const splashPath = '/splash';
 const loginPath = '/login';
@@ -158,76 +159,86 @@ StatefulShellRoute _roleShell(List<_Tab> tabs, {bool client = false}) {
   );
 }
 
-StatefulShellRoute _clientShell() => _roleShell(client: true, [
-  _tab(
-    clientPassesPath,
-    const PassesScreen(),
-    Icons.confirmation_number_outlined,
-    (l10n) => l10n.navPasses,
-  ),
-  _tab(
-    clientSchedulePath,
-    const ClientClassesScreen(),
-    Icons.calendar_today_outlined,
-    (l10n) => l10n.navClasses,
-    routes: [
-      GoRoute(
-        path: clientClassDetailsSubPath,
-        builder: (_, state) => Consumer(
-          builder: (_, ref, _) {
-            final scope = bookingScope(ref.watch(authControllerProvider));
-            if (scope == null) return const SizedBox.shrink();
-            return GroupClassDetailsScreen(
-              query: (scope: scope, eventId: state.pathParameters['eventId']!),
-            );
-          },
-        ),
+StatefulShellRoute _clientShell(GlobalKey<NavigatorState> root) =>
+    _roleShell(client: true, [
+      _tab(
+        clientPassesPath,
+        const PassesScreen(),
+        Icons.confirmation_number_outlined,
+        (l10n) => l10n.navPasses,
       ),
-      GoRoute(
-        path: clientTrainingHistorySubPath,
-        builder: (_, _) => const TrainingHistoryScreen(),
+      _tab(
+        clientSchedulePath,
+        const ClientClassesScreen(),
+        Icons.calendar_today_outlined,
+        (l10n) => l10n.navClasses,
+        routes: [
+          // The class sheet covers the navigation bar, over the calendar.
+          GoRoute(
+            path: clientClassDetailsSubPath,
+            parentNavigatorKey: root,
+            pageBuilder: (_, state) => AppSheetPage<GroupClassSheetResult>(
+              key: state.pageKey,
+              child: Consumer(
+                builder: (_, ref, _) {
+                  final scope = bookingScope(ref.watch(authControllerProvider));
+                  if (scope == null) return const SizedBox.shrink();
+                  return GroupClassDetailsScreen(
+                    query: (
+                      scope: scope,
+                      eventId: state.pathParameters['eventId']!,
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+          GoRoute(
+            path: clientTrainingHistorySubPath,
+            builder: (_, _) => const TrainingHistoryScreen(),
+          ),
+        ],
+        badge: watchOpenScheduleChanges,
       ),
-    ],
-    badge: watchOpenScheduleChanges,
-  ),
-  _tab(
-    clientMessagesPath,
-    const MessagesScreen(),
-    Icons.chat_bubble_outline,
-    (l10n) => l10n.navMessages,
-    routes: [
-      GoRoute(
-        path: clientTrainerPickerSubPath,
-        builder: (_, _) => const TrainerPickerScreen(),
-      ),
-    ],
-    badge: watchUnreadMessages,
-  ),
-  _tab(
-    clientProfilePath,
-    const ProfileScreen(),
-    Icons.person_outline,
-    (l10n) => l10n.navProfile,
-    routes: [
-      GoRoute(
-        path: clientProfileEditSubPath,
-        builder: (_, _) => const CustomerProfileEditScreen(),
-      ),
-      // Opened with context.push(documentsRoute).
-      GoRoute(
-        path: clientDocumentsSubPath,
-        builder: (_, _) => const DocumentsScreen(),
+      _tab(
+        clientMessagesPath,
+        const MessagesScreen(),
+        Icons.chat_bubble_outline,
+        (l10n) => l10n.navMessages,
         routes: [
           GoRoute(
-            path: ':documentId',
-            builder: (_, state) =>
-                DocumentScreen(documentId: state.pathParameters['documentId']!),
+            path: clientTrainerPickerSubPath,
+            builder: (_, _) => const TrainerPickerScreen(),
+          ),
+        ],
+        badge: watchUnreadMessages,
+      ),
+      _tab(
+        clientProfilePath,
+        const ProfileScreen(),
+        Icons.person_outline,
+        (l10n) => l10n.navProfile,
+        routes: [
+          GoRoute(
+            path: clientProfileEditSubPath,
+            builder: (_, _) => const CustomerProfileEditScreen(),
+          ),
+          // Opened with context.push(documentsRoute).
+          GoRoute(
+            path: clientDocumentsSubPath,
+            builder: (_, _) => const DocumentsScreen(),
+            routes: [
+              GoRoute(
+                path: ':documentId',
+                builder: (_, state) => DocumentScreen(
+                  documentId: state.pathParameters['documentId']!,
+                ),
+              ),
+            ],
           ),
         ],
       ),
-    ],
-  ),
-]);
+    ]);
 
 StatefulShellRoute _trainerShell() => _roleShell([
   _tab(
@@ -339,7 +350,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
   ref.listen(authControllerProvider, (_, _) => notifier.refresh());
   ref.listen(loginCoveredProvider, (_, _) => notifier.refresh());
 
+  final root = GlobalKey<NavigatorState>(debugLabel: 'root');
   final router = GoRouter(
+    navigatorKey: root,
     initialLocation: splashPath,
     refreshListenable: notifier,
     redirect: (context, state) {
@@ -429,7 +442,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: clientNotificationsPath,
         builder: (_, _) => const NotificationsScreen(),
       ),
-      _clientShell(),
+      _clientShell(root),
       _trainerShell(),
     ],
   );

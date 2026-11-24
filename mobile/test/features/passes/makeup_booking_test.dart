@@ -5,6 +5,8 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
+import 'package:mobile/app/router/app_router.dart';
 import 'package:mobile/core/auth/app_role.dart';
 import 'package:mobile/core/auth/auth_controller.dart';
 import 'package:mobile/core/auth/auth_state.dart';
@@ -16,6 +18,7 @@ import 'package:mobile/features/passes/presentation/makeup_credits_tab.dart';
 import 'package:mobile/features/trainings/data/group_classes_api.dart';
 import 'package:mobile/features/trainings/presentation/group_class_details_screen.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
+import 'package:mobile/shared/widgets/client/client_widgets.dart';
 
 Session _session({String account = 'account', String profile = 'self'}) =>
     Session(
@@ -206,10 +209,54 @@ Future<ProviderContainer> _pump(
     await tester.pumpWidget(const SizedBox());
     container.dispose();
   });
+  final router = GoRouter(
+    routes: [
+      GoRoute(
+        path: '/',
+        builder: (_, _) => Scaffold(
+          body: home
+              ? const MakeupCreditsTab()
+              : Builder(
+                  builder: (context) => TextButton(
+                    onPressed: () => Navigator.of(context).push<void>(
+                      MaterialPageRoute(
+                        builder: (_) => const MakeupBookingScreen(
+                          scope: (accountId: 'account', profileId: 'self'),
+                          creditId: 'credit',
+                        ),
+                      ),
+                    ),
+                    child: const Text('open'),
+                  ),
+                ),
+        ),
+      ),
+      GoRoute(
+        path: clientSchedulePath,
+        builder: (_, _) => const SizedBox(),
+        routes: [
+          GoRoute(
+            path: clientClassDetailsSubPath,
+            builder: (_, state) => Scaffold(
+              body: GroupClassDetailsScreen(
+                query: (
+                  scope: (accountId: 'account', profileId: 'self'),
+                  eventId: state.pathParameters['eventId']!,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    ],
+  );
+  addTearDown(router.dispose);
   await tester.pumpWidget(
     UncontrolledProviderScope(
       container: container,
-      child: MaterialApp(
+      child: MaterialApp.router(
+        routerConfig: router,
+        theme: buildClientTheme(Brightness.light),
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         locale: const Locale('pl'),
@@ -219,17 +266,29 @@ Future<ProviderContainer> _pump(
           ).copyWith(textScaler: TextScaler.linear(scale)),
           child: child!,
         ),
-        home: home
-            ? const Scaffold(body: MakeupCreditsTab())
-            : const MakeupBookingScreen(
-                scope: (accountId: 'account', profileId: 'self'),
-                creditId: 'credit',
-              ),
       ),
     ),
   );
+  if (!home) {
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('open'));
+  }
   if (settle) await tester.pumpAndSettle();
   return container;
+}
+
+/// Opens the confirmation of the class [title].
+Future<void> _choose(WidgetTester tester, [String title = 'Technika']) async {
+  await tester.ensureVisible(find.text(title));
+  await tester.pumpAndSettle();
+  await tester.tap(find.text(title));
+  await tester.pumpAndSettle();
+}
+
+/// Confirms the use of the credit.
+Future<void> _use(WidgetTester tester) async {
+  await tester.tap(find.widgetWithText(AppButton, 'Użyj odróbki'));
+  await tester.pumpAndSettle();
 }
 
 void main() {
@@ -237,14 +296,12 @@ void main() {
     'cancelling a make-up booking explains the credit return instead of a pass refund',
     (tester) async {
       await _pump(tester, _Api());
-      await tester.tap(find.text('Użyj odróbki').first);
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Użyj odróbki').last);
-      await tester.pumpAndSettle();
+      await _choose(tester);
+      await _use(tester);
       final l10n = AppLocalizations.of(
         tester.element(find.byType(GroupClassDetailsScreen)),
       );
-      await tester.tap(find.text(l10n.classesCancel));
+      await tester.tap(find.widgetWithText(AppButton, l10n.classesCancel));
       await tester.pumpAndSettle();
       expect(find.text(l10n.makeupCancelReturns), findsOneWidget);
       expect(find.text(l10n.classesCancelReturnsEntry), findsNothing);
@@ -257,10 +314,9 @@ void main() {
       final pending = Completer<ClassReservation>();
       final api = _Api()..pendingReserve = pending;
       await _pump(tester, api);
-      await tester.tap(find.text('Użyj odróbki').first);
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Użyj odróbki').last);
-      await tester.pumpAndSettle();
+      await _choose(tester);
+      await tester.tap(find.widgetWithText(AppButton, 'Użyj odróbki'));
+      await tester.pump();
       expect(api.bookings, hasLength(1));
       await tester.pumpWidget(const SizedBox());
       pending.complete(_reservation());
@@ -268,7 +324,6 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
-
   test(
     'GET scopes the exact credit and month; POST never sends a normal pass',
     () async {
@@ -310,23 +365,22 @@ void main() {
     expect(api.loads.single.creditId, 'credit');
     expect(api.loads.single.scope.profileId, 'self');
     expect(find.text('Technika'), findsOneWidget);
+    expect(find.textContaining('Poprzedni karnet'), findsOneWidget);
   });
   testWidgets(
-    'full classes are disabled and booking requires explicit confirmation',
+    'full classes cannot be chosen and booking requires explicit confirmation',
     (tester) async {
       final api = _Api();
       await _pump(tester, api);
-      final buttons = tester
-          .widgetList<FilledButton>(find.byType(FilledButton))
-          .toList();
-      expect(buttons.where((b) => b.onPressed == null), hasLength(1));
-      await tester.tap(find.text('Użyj odróbki').first);
-      await tester.pumpAndSettle();
+      await _choose(tester, 'Komplet');
+      expect(find.text('Rozliczenie: 1 odróbka'), findsNothing);
+      await _choose(tester);
       expect(find.text('Rozliczenie: 1 odróbka'), findsOneWidget);
       expect(api.bookings, isEmpty);
-      await tester.tap(find.text('Użyj odróbki').last);
-      await tester.pumpAndSettle();
+      await _use(tester);
       expect(api.bookings, hasLength(1));
+      // The booked class opens in place of the make-up mode.
+      expect(find.byType(MakeupBookingScreen), findsNothing);
       expect(find.text('Rezerwacja z odróbki'), findsOneWidget);
     },
   );
@@ -335,14 +389,13 @@ void main() {
     (tester) async {
       final api = _Api();
       final container = await _pump(tester, api);
-      await tester.tap(find.text('Użyj odróbki').first);
-      await tester.pumpAndSettle();
+      await _choose(tester);
       (container.read(authControllerProvider.notifier) as _Auth).replace(
         _session(profile: 'child'),
       );
       await tester.pumpAndSettle();
       expect(find.text('Rozliczenie: 1 odróbka'), findsNothing);
-      expect(find.text('Użyj odróbki'), findsNothing);
+      expect(find.widgetWithText(AppButton, 'Użyj odróbki'), findsNothing);
       expect(api.bookings, isEmpty);
     },
   );
@@ -352,12 +405,13 @@ void main() {
       final pending = Completer<MakeupOffer>();
       final api = _Api()..load = () => pending.future;
       final container = await _pump(tester, api, settle: false);
+      await tester.pump();
       (container.read(authControllerProvider.notifier) as _Auth).replace(
         _session(account: 'another'),
       );
       pending.complete(_offer());
       await tester.pumpAndSettle();
-      expect(find.text('Poprzedni karnet'), findsNothing);
+      expect(find.textContaining('Poprzedni karnet'), findsNothing);
       expect(find.text('Technika'), findsNothing);
     },
   );
@@ -366,13 +420,11 @@ void main() {
     (tester) async {
       final api = _Api()..conflict = true;
       await _pump(tester, api);
-      await tester.tap(find.text('Użyj odróbki').first);
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Użyj odróbki').last);
-      await tester.pumpAndSettle();
+      await _choose(tester);
+      await _use(tester);
       expect(
         find.text('Ta odróbka została już wykorzystana lub wygasła.'),
-        findsOneWidget,
+        findsWidgets,
       );
       expect(api.bookings, hasLength(1));
       expect(find.text('Rezerwacja z odróbki'), findsNothing);
@@ -391,7 +443,7 @@ void main() {
         DateTime(DateTime.now().year, DateTime.now().month + 1),
       );
       await tester.scrollUntilVisible(
-        find.text('Użyj odróbki').last,
+        find.text('Komplet'),
         150,
         scrollable: find.byType(Scrollable).last,
       );

@@ -28,6 +28,7 @@ import 'package:mobile/features/communication/data/open_conversation.dart';
 import 'package:mobile/features/schedule/data/schedule_service_types.dart';
 import 'package:mobile/features/schedule/data/studio_trainers.dart';
 import 'package:mobile/features/trainings/data/group_classes_api.dart';
+import 'package:mobile/features/trainings/data/personal_trainings_api.dart';
 import '../trainings/group_class_fixtures.dart';
 
 class _Push implements PushMessaging {
@@ -255,6 +256,9 @@ void main() {
           scheduleServiceTypesProvider.overrideWith((ref) async => const {}),
           studioTrainersProvider.overrideWith((ref) async => const []),
           ownPassesProvider.overrideWith((ref, profileId) async => const []),
+          personalTrainingsProvider.overrideWith(
+            (ref, query) async => const [],
+          ),
           pushMessagingProvider.overrideWithValue(push),
           devicesApiProvider.overrideWithValue(devices),
           notificationsApiProvider.overrideWithValue(notifications),

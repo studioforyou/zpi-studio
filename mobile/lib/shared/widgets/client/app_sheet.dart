@@ -24,6 +24,35 @@ Future<T?> showAppSheet<T>(
   );
 }
 
+/// A route page that shows [child] as a client bottom sheet, for sheets with
+/// their own address (a class opened from a notification or a link).
+class AppSheetPage<T> extends Page<T> {
+  const AppSheetPage({super.key, super.name, required this.child});
+
+  final Widget child;
+
+  @override
+  Route<T> createRoute(BuildContext context) {
+    final ct = context.ct;
+    return ModalBottomSheetRoute<T>(
+      settings: this,
+      builder: (_) => child,
+      capturedThemes: InheritedTheme.capture(
+        from: context,
+        to: Navigator.of(context).context,
+      ),
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: ct.colors.background,
+      modalBarrierColor: ct.colors.scrim,
+      elevation: 0,
+      shape: Border(top: ct.hairline),
+      clipBehavior: Clip.hardEdge,
+      barrierLabel: MaterialLocalizations.of(context).scrimLabel,
+    );
+  }
+}
+
 /// The frame of a client bottom sheet: grab handle, a kicker row with the
 /// close button, a title, the "when" line and then [children].
 class AppSheet extends StatelessWidget {
@@ -337,14 +366,16 @@ class ConsequenceList extends StatelessWidget {
     final c = ct.colors;
     final sp = ct.spacing;
     final size = ct.sizes.consequenceIcon;
-    return Padding(
-      padding: EdgeInsets.only(top: sp.l),
+    return Container(
+      margin: EdgeInsets.only(top: sp.l),
+      decoration: BoxDecoration(border: Border(bottom: ct.hairline)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           for (final item in items)
-            Padding(
-              padding: EdgeInsets.symmetric(vertical: sp.s),
+            Container(
+              padding: EdgeInsets.symmetric(vertical: sp.m),
+              decoration: BoxDecoration(border: Border(top: ct.hairline)),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -354,7 +385,7 @@ class ConsequenceList extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: item.positive ? c.primary : null,
                       border: Border.all(
-                        color: item.positive ? c.primary : c.ink,
+                        color: item.positive ? c.primary : c.line,
                         width: ct.shape.hairline,
                       ),
                     ),

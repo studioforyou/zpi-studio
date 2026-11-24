@@ -9,7 +9,7 @@ import 'package:mobile/features/schedule/data/schedule_api.dart';
 import 'package:mobile/features/schedule/data/schedule_service_types.dart';
 import 'package:mobile/features/schedule/data/series_changes.dart';
 import 'package:mobile/features/schedule/data/studio_trainers.dart';
-import 'package:mobile/features/schedule/presentation/client_schedule_screen.dart';
+import 'package:mobile/features/schedule/presentation/client/client_classes_screen.dart';
 import 'package:mobile/features/schedule/presentation/trainer_schedule_screen.dart';
 import 'package:mobile/features/schedule/presentation/widgets/series_change_widgets.dart';
 import 'package:mobile/features/schedule/presentation/widgets/series_changes_banner.dart';
@@ -19,7 +19,9 @@ import 'package:mobile/features/trainings/data/personal_trainings_api.dart';
 import 'package:mobile/features/trainings/data/trainee_overview_api.dart';
 import 'package:mobile/features/trainings/presentation/group_class_details_screen.dart';
 import 'package:mobile/features/trainings/presentation/trainer_event_details_screen.dart';
+import 'package:mobile/features/communication/data/notifications_api.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
+import 'package:mobile/shared/widgets/client/client_widgets.dart';
 
 import '../trainings/group_class_fixtures.dart';
 
@@ -321,7 +323,7 @@ void main() {
       WidgetTester tester,
       List<Map<String, dynamic>> classes, {
       Widget? home,
-      bool reservations = true,
+      bool all = false,
       _ChangesApi? changes,
     }) async {
       _tallView(tester);
@@ -341,17 +343,29 @@ void main() {
             personalTrainingsProvider.overrideWith(
               (ref, query) async => const [],
             ),
+            unreadCountProvider.overrideWith(
+              (ref, scope) async => UnreadNotifications.none,
+            ),
           ],
-          child: _app(
-            home ??
-                ClientScheduleScreen(
-                  reservationsOnly: reservations,
+          child: MaterialApp(
+            theme: buildClientTheme(Brightness.light),
+            locale: const Locale('pl'),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home:
+                home ??
+                ClientClassesScreen(
                   today: DateTime(2030, 11, 4),
+                  now: DateTime(2030, 11, 4, 8),
                 ),
           ),
         ),
       );
       await tester.pumpAndSettle();
+      if (all) {
+        await tester.tap(find.text('Wszystkie'));
+        await tester.pumpAndSettle();
+      }
     }
 
     testWidgets('a moved class shows its new time and the usual one', (
@@ -366,38 +380,38 @@ void main() {
         ),
       ]);
 
-      expect(find.text('Zmiana godziny i sali'), findsOneWidget);
-      expect(find.textContaining('18:30–19:30'), findsOneWidget);
-      expect(find.textContaining('17:00–18:00'), findsOneWidget);
-      expect(find.textContaining('Sala Zielona'), findsOneWidget);
-      // The usual slot keeps a placeholder that says where the class went.
-      expect(find.text('Pole dance, zwykle 17:00'), findsOneWidget);
-      expect(find.text('Przeniesione na 18:30'), findsOneWidget);
+      expect(find.text('18:30'), findsWidgets);
+      expect(find.text('Nowa godzina · zwykle 17:00'), findsOneWidget);
     });
 
-    testWidgets('a class moved to another week leaves its usual day a '
-        'placeholder', (tester) async {
+    testWidgets('a class moved to another week names its usual day', (
+      tester,
+    ) async {
       await pump(tester, [
         _changedClass(
           id: 'class-1',
           startsAt: DateTime(2030, 11, 12, 10),
           usualStart: usual,
+          reserved: false,
         ),
-      ], reservations: false);
+      ], all: true);
 
-      expect(find.text('Pole dance, zwykle 17:00'), findsOneWidget);
-      expect(find.text('Przeniesione na wt. 12.11, 10:00'), findsOneWidget);
-      // The class itself is in the week it moved to.
-      expect(find.text('Zmiana terminu'), findsNothing);
-
-      await tester.tap(find.text('Pole dance, zwykle 17:00'));
-      await tester.pumpAndSettle();
-      expect(find.byType(GroupClassDetailsScreen), findsOneWidget);
-      expect(find.text('Jednorazowa zmiana'), findsOneWidget);
-      expect(find.text('Termin'), findsOneWidget);
+      expect(find.text('Nowa godzina · zwykle wt. 5.11 17:00'), findsOneWidget);
     });
 
-    testWidgets('the details list what changed and the moved deadline', (
+    testWidgets('a substitution names the usual trainer', (tester) async {
+      await pump(tester, [
+        _changedClass(
+          id: 'class-1',
+          startsAt: usual,
+          usualInstructors: ['Beata Lis'],
+        ),
+      ]);
+
+      expect(find.text('Zastępstwo · zwykle Beata Lis'), findsOneWidget);
+    });
+
+    testWidgets('the class sheet lists what changed and the moved deadline', (
       tester,
     ) async {
       await pump(
@@ -410,16 +424,20 @@ void main() {
             usualInstructors: ['Beata Lis'],
           ),
         ],
-        home: const GroupClassDetailsScreen(
-          query: (scope: _scope, eventId: 'class-1'),
+        home: const Scaffold(
+          body: GroupClassDetailsScreen(
+            query: (scope: _scope, eventId: 'class-1'),
+          ),
         ),
       );
 
-      expect(find.text('Jednorazowa zmiana'), findsOneWidget);
-      expect(find.text('Godzina'), findsOneWidget);
-      expect(find.text('Prowadzący'), findsOneWidget);
-      // In the change card and crossed out in the summary.
-      expect(find.textContaining('Beata Lis'), findsNWidgets(2));
+      expect(
+        find.text(
+          'Nowa godzina · zwykle wt. 5.11 17:00\n'
+          'Zastępstwo · zwykle Beata Lis',
+        ),
+        findsOneWidget,
+      );
       expect(
         find.text(
           'Termin bezpłatnego odwołania przesunął się razem z zajęciami.',
@@ -437,11 +455,11 @@ void main() {
         },
       ]);
 
-      expect(find.byType(ChangeChip), findsNothing);
-      expect(find.byType(MovedAwayTile), findsNothing);
+      expect(find.text('Pole dance'), findsWidgets);
+      expect(find.textContaining('zwykle'), findsNothing);
     });
 
-    testWidgets('the banner lists the changes of booked classes until '
+    testWidgets('the strip lists the changes of booked classes until '
         'each is closed', (tester) async {
       final changes = _ChangesApi([
         _notice(
@@ -454,7 +472,6 @@ void main() {
       await pump(tester, const [], changes: changes);
 
       expect(find.text('Zmiana w Twoich zajęciach'), findsOneWidget);
-      expect(find.textContaining('Zmiana sali: Stretching'), findsOneWidget);
       await tester.tap(find.text('Pokaż'));
       await tester.pumpAndSettle();
       expect(find.text('Sala A → Sala B'), findsOneWidget);
@@ -462,7 +479,7 @@ void main() {
       await tester.tap(find.byTooltip('Zamknij'));
       await tester.pumpAndSettle();
       expect(changes.dismissed, ['n-1']);
-      expect(find.textContaining('Zmiana sali'), findsNothing);
+      expect(find.text('Zmiana w Twoich zajęciach'), findsNothing);
     });
   });
 

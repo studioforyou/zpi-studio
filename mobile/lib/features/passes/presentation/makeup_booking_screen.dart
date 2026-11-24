@@ -1,14 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:mobile/app/router/app_router.dart';
 import 'package:mobile/core/auth/auth_controller.dart';
 import 'package:mobile/features/passes/data/makeup_booking_api.dart';
 import 'package:mobile/features/passes/data/makeup_credits_api.dart';
+import 'package:mobile/features/schedule/presentation/client/class_day_list.dart';
 import 'package:mobile/features/trainings/data/group_classes_api.dart';
-import 'package:mobile/features/trainings/presentation/group_class_details_screen.dart';
 import 'package:mobile/features/trainings/presentation/widgets/group_class_widgets.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
+import 'package:mobile/shared/widgets/client/client_widgets.dart';
 
+/// The make-up mode (#281): the classes a make-up credit can be used for,
+/// under a dark bar that says what is being made up and until when.
 class MakeupBookingScreen extends ConsumerStatefulWidget {
   const MakeupBookingScreen({
     super.key,
@@ -31,6 +36,8 @@ class _MakeupBookingScreenState extends ConsumerState<MakeupBookingScreen>
       (scope: widget.scope, creditId: widget.creditId, month: _month);
   bool get _current =>
       makeupBookingScope(ref.read(authControllerProvider)) == widget.scope;
+
+  static final _time = DateFormat('HH:mm');
 
   @override
   void initState() {
@@ -56,214 +63,192 @@ class _MakeupBookingScreenState extends ConsumerState<MakeupBookingScreen>
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final ct = context.ct;
     final valid =
         makeupBookingScope(ref.watch(authControllerProvider)) == widget.scope;
-    final now = DateTime.now();
+    final offer = valid ? ref.watch(makeupBookingProvider(_query)) : null;
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.makeupBookingTitle)),
-      body: !valid
-          ? Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Text(l10n.classesProfileChanged),
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _Bar(
+            title: [l10n.makeupModeTitle, ?_participant()].join(' · '),
+            subtitle: switch (offer?.value) {
+              final MakeupOffer offer => l10n.makeupModeHint(
+                offer.productName,
+                DateFormat('d.MM', 'pl').format(offer.expiresAt),
               ),
-            )
-          : Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Row(
-                    children: [
-                      IconButton(
-                        tooltip: l10n.makeupPrevious,
-                        icon: const Icon(Icons.chevron_left),
-                        onPressed:
-                            _busy ||
-                                !_month.isAfter(DateTime(now.year, now.month))
-                            ? null
-                            : () => _move(-1),
-                      ),
-                      Expanded(
-                        child: Text(
-                          DateFormat('LLLL yyyy', 'pl').format(_month),
-                          textAlign: TextAlign.center,
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
-                      ),
-                      IconButton(
-                        tooltip: l10n.makeupNext,
-                        icon: const Icon(Icons.chevron_right),
-                        onPressed: _busy ? null : () => _move(1),
-                      ),
-                    ],
+              null => null,
+            },
+          ),
+          if (!valid)
+            Expanded(
+              child: Center(
+                child: Padding(
+                  padding: EdgeInsets.all(ct.spacing.xl),
+                  child: Text(
+                    l10n.classesProfileChanged,
+                    textAlign: TextAlign.center,
+                    style: ct.text.body,
                   ),
                 ),
-                Expanded(
-                  child: ref
-                      .watch(makeupBookingProvider(_query))
-                      .when(
-                        skipLoadingOnRefresh: false,
-                        skipLoadingOnReload: false,
-                        loading: () =>
-                            const Center(child: CircularProgressIndicator()),
-                        error: (error, _) => Center(
-                          child: SingleChildScrollView(
-                            padding: const EdgeInsets.all(24),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              spacing: 12,
-                              children: [
-                                Text(
-                                  _error(l10n, error),
-                                  textAlign: TextAlign.center,
-                                ),
-                                OutlinedButton(
-                                  onPressed: () => ref.invalidate(
-                                    makeupBookingProvider(_query),
-                                  ),
-                                  child: Text(l10n.passesRetryButton),
-                                ),
-                              ],
-                            ),
-                          ),
+              ),
+            )
+          else ...[
+            if (_message case final message?) ChangeStrip(message),
+            _monthRow(context),
+            Expanded(
+              child: offer!.when(
+                skipLoadingOnRefresh: false,
+                skipLoadingOnReload: false,
+                loading: () => const Center(child: CircularProgressIndicator()),
+                error: (error, _) => Center(
+                  child: SingleChildScrollView(
+                    padding: EdgeInsets.all(ct.spacing.xl),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      spacing: ct.spacing.m,
+                      children: [
+                        Text(
+                          _error(l10n, error),
+                          textAlign: TextAlign.center,
+                          style: ct.text.body,
                         ),
-                        data: (offer) => RefreshIndicator(
-                          onRefresh: () =>
-                              ref.refresh(makeupBookingProvider(_query).future),
-                          child: ListView(
-                            physics: const AlwaysScrollableScrollPhysics(),
-                            padding: const EdgeInsets.all(16),
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(14),
-                                decoration: BoxDecoration(
-                                  color: Theme.of(context)
-                                      .colorScheme
-                                      .primaryContainer
-                                      .withValues(alpha: .45),
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  spacing: 4,
-                                  children: [
-                                    if (_participant() case final name?)
-                                      Text(
-                                        name,
-                                        style: Theme.of(
-                                          context,
-                                        ).textTheme.titleSmall,
-                                      ),
-                                    Text(offer.productName),
-                                    Text(
-                                      l10n.makeupExpiresAt(
-                                        DateFormat(
-                                          'dd.MM.yyyy, HH:mm',
-                                        ).format(offer.expiresAt),
-                                      ),
-                                      style: Theme.of(
-                                        context,
-                                      ).textTheme.bodySmall,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              if (_message != null)
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 12,
-                                  ),
-                                  child: Text(
-                                    _message!,
-                                    style: TextStyle(
-                                      color: Theme.of(
-                                        context,
-                                      ).colorScheme.error,
-                                    ),
-                                  ),
-                                ),
-                              const SizedBox(height: 12),
-                              if (offer.items.isEmpty)
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 24,
-                                  ),
-                                  child: Text(l10n.makeupNoClasses),
-                                ),
-                              for (final event in offer.items)
-                                Card.outlined(
-                                  child: Padding(
-                                    padding: const EdgeInsets.all(14),
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      spacing: 8,
-                                      children: [
-                                        Text(
-                                          '${DateFormat('EEE, d MMM · HH:mm', 'pl').format(event.startsAt)}–${DateFormat('HH:mm').format(event.endsAt)}',
-                                          style: Theme.of(
-                                            context,
-                                          ).textTheme.titleSmall,
-                                        ),
-                                        Text(
-                                          event.name ?? l10n.classesTitle,
-                                          style: Theme.of(
-                                            context,
-                                          ).textTheme.titleMedium,
-                                        ),
-                                        if (event.staff.isNotEmpty ||
-                                            event.roomNames.isNotEmpty)
-                                          Text(
-                                            [
-                                              ...event.staff.map(
-                                                (person) => person.displayName,
-                                              ),
-                                              ...event.roomNames,
-                                            ].join(' · '),
-                                            style: Theme.of(
-                                              context,
-                                            ).textTheme.bodySmall,
-                                          ),
-                                        Wrap(
-                                          spacing: 12,
-                                          runSpacing: 8,
-                                          crossAxisAlignment:
-                                              WrapCrossAlignment.center,
-                                          children: [
-                                            Text(
-                                              event.booking.allowed
-                                                  ? classPlaces(l10n, event)
-                                                  : classReason(
-                                                      l10n,
-                                                      event.booking.reason,
-                                                    ),
-                                            ),
-                                            FilledButton.icon(
-                                              onPressed:
-                                                  _busy ||
-                                                      !event.booking.allowed
-                                                  ? null
-                                                  : () =>
-                                                        _reserve(offer, event),
-                                              icon: const Icon(
-                                                Icons.event_repeat_outlined,
-                                                size: 18,
-                                              ),
-                                              label: Text(l10n.makeupBook),
-                                            ),
-                                          ],
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                            ],
-                          ),
+                        AppButton(
+                          label: l10n.passesRetryButton,
+                          onPressed: () =>
+                              ref.invalidate(makeupBookingProvider(_query)),
                         ),
-                      ),
+                      ],
+                    ),
+                  ),
                 ),
-              ],
+                data: (offer) => RefreshIndicator(
+                  onRefresh: () =>
+                      ref.refresh(makeupBookingProvider(_query).future),
+                  child: _list(context, offer),
+                ),
+              ),
             ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _monthRow(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final ct = context.ct;
+    final now = DateTime.now();
+    final title = DateFormat('LLLL yyyy', 'pl').format(_month);
+    final canGoBack = !_busy && _month.isAfter(DateTime(now.year, now.month));
+    Widget arrow(IconData icon, String tooltip, VoidCallback? onPressed) =>
+        IconButton(
+          tooltip: tooltip,
+          icon: Icon(
+            icon,
+            size: ct.sizes.icon,
+            color: onPressed == null ? ct.colors.faint : ct.colors.muted,
+          ),
+          onPressed: onPressed,
+        );
+    return Padding(
+      padding: EdgeInsets.symmetric(
+        horizontal: ct.spacing.s,
+        vertical: ct.spacing.xs,
+      ),
+      child: Row(
+        children: [
+          arrow(
+            Icons.chevron_left,
+            l10n.makeupPrevious,
+            canGoBack ? () => _move(-1) : null,
+          ),
+          Expanded(
+            child: Text(
+              title.characters.first.toUpperCase() +
+                  title.characters.skip(1).toString(),
+              textAlign: TextAlign.center,
+              style: ct.text.monthTitle,
+            ),
+          ),
+          arrow(
+            Icons.chevron_right,
+            l10n.makeupNext,
+            _busy ? null : () => _move(1),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _list(BuildContext context, MakeupOffer offer) {
+    final l10n = AppLocalizations.of(context);
+    final ct = context.ct;
+    if (offer.items.isEmpty) {
+      return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: EdgeInsets.all(ct.spacing.page),
+        children: [
+          Text(
+            l10n.makeupNoClasses,
+            style: ct.text.body.copyWith(color: ct.colors.muted),
+          ),
+        ],
+      );
+    }
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final byDay = <DateTime, List<GroupClass>>{};
+    for (final event in offer.items) {
+      final start = event.startsAt.toLocal();
+      byDay
+          .putIfAbsent(DateTime(start.year, start.month, start.day), () => [])
+          .add(event);
+    }
+    final days = byDay.keys.toList()..sort();
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: EdgeInsets.only(bottom: ct.spacing.xl),
+      children: [
+        for (final day in days) ...[
+          DayHeader(day: day, today: today),
+          for (final (i, event) in byDay[day]!.indexed)
+            ClassEntryRow(
+              key: ValueKey(event.id),
+              entry: _entry(context, offer, event),
+              showStart:
+                  i == 0 ||
+                  !byDay[day]![i - 1].startsAt.isAtSameMomentAs(event.startsAt),
+            ),
+        ],
+      ],
+    );
+  }
+
+  ClassEntry _entry(BuildContext context, MakeupOffer offer, GroupClass event) {
+    final l10n = AppLocalizations.of(context);
+    final c = context.ct.colors;
+    final allowed = event.booking.allowed;
+    final people = [
+      for (final person in event.staff) ?person.displayName,
+    ].join(', ');
+    return ClassEntry(
+      key: event.id,
+      startsAt: event.startsAt.toLocal(),
+      endsAt: event.endsAt.toLocal(),
+      title: event.name ?? l10n.classesTitle,
+      color: classColor(event.calendarColor, c),
+      lines: [
+        if (people.isNotEmpty) people,
+        if (event.roomNames.isNotEmpty) event.roomNames.join(', '),
+        if (!allowed) classReason(l10n, event.booking.reason),
+      ],
+      aside: allowed && event.availablePlaces != null
+          ? PlacesAside(event.availablePlaces!)
+          : null,
+      dimmed: !allowed,
+      onTap: allowed && !_busy ? () => _reserve(offer, event) : null,
     );
   }
 
@@ -272,11 +257,67 @@ class _MakeupBookingScreenState extends ConsumerState<MakeupBookingScreen>
     _message = null;
   });
 
-  String? _participant() => clientSession(ref.read(authControllerProvider))
-      ?.profiles
-      .where((p) => p.id == widget.scope.profileId)
-      .firstOrNull
-      ?.displayName;
+  String? _participant() {
+    final session = clientSession(ref.read(authControllerProvider));
+    if (session == null || session.profiles.length < 2) return null;
+    return session.profiles
+        .where((p) => p.id == widget.scope.profileId)
+        .firstOrNull
+        ?.displayName;
+  }
+
+  Future<bool?> _confirm(GroupClass event) {
+    final l10n = AppLocalizations.of(context);
+    final start = event.startsAt.toLocal();
+    return showAppSheet<bool>(
+      context,
+      builder: (context) => Consumer(
+        builder: (context, ref, _) {
+          final valid =
+              mounted &&
+              makeupBookingScope(ref.watch(authControllerProvider)) ==
+                  widget.scope;
+          return AppSheet(
+            title: valid ? l10n.makeupConfirm : l10n.classesProfileChanged,
+            titleSmall: true,
+            subtitle: valid
+                ? [
+                    event.name ?? l10n.classesTitle,
+                    '${classDateTime(start)}–${_time.format(event.endsAt.toLocal())}',
+                    ?_participant(),
+                  ].join(' · ')
+                : null,
+            footer: AppButtonPair(
+              first: AppButton(
+                label: l10n.classesBack,
+                small: true,
+                onPressed: () => Navigator.of(context).pop(),
+              ),
+              second: valid
+                  ? AppButton(
+                      label: l10n.makeupBook,
+                      small: true,
+                      onPressed: () => Navigator.of(context).pop(true),
+                    )
+                  : null,
+            ),
+            children: [
+              if (valid)
+                ConsequenceList(
+                  items: [
+                    Consequence(
+                      icon: Icons.event_repeat_outlined,
+                      title: l10n.makeupCost,
+                      subtitle: l10n.makeupCancelReturns,
+                    ),
+                  ],
+                ),
+            ],
+          );
+        },
+      ),
+    );
+  }
 
   Future<void> _reserve(MakeupOffer offer, GroupClass event) async {
     if (_busy || !_current) return;
@@ -286,66 +327,21 @@ class _MakeupBookingScreenState extends ConsumerState<MakeupBookingScreen>
       _message = null;
     });
     try {
-      final confirmed = await showDialog<bool>(
-        context: context,
-        builder: (context) => Consumer(
-          builder: (context, ref, _) {
-            final valid =
-                mounted &&
-                makeupBookingScope(ref.watch(authControllerProvider)) ==
-                    widget.scope;
-            return AlertDialog(
-              title: Text(
-                valid ? l10n.makeupConfirm : l10n.classesProfileChanged,
-              ),
-              scrollable: true,
-              content: !valid
-                  ? null
-                  : Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      spacing: 8,
-                      children: [
-                        Text(event.name ?? l10n.classesTitle),
-                        Text(classDateTime(event.startsAt)),
-                        if (_participant() case final name?)
-                          Text(l10n.classesReserveFor(name)),
-                        Text(
-                          l10n.makeupCost,
-                          style: const TextStyle(fontWeight: FontWeight.w600),
-                        ),
-                      ],
-                    ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(false),
-                  child: Text(l10n.classesBack),
-                ),
-                if (valid)
-                  FilledButton(
-                    onPressed: () => Navigator.of(context).pop(true),
-                    child: Text(l10n.makeupBook),
-                  ),
-              ],
-            );
-          },
-        ),
-      );
+      final confirmed = await _confirm(event);
       if (confirmed != true || !mounted || !_current) return;
       await ref.read(makeupBookingApiProvider).reserve(_query, event.id);
       if (!mounted) return;
       ref.invalidate(makeupCreditsProvider);
       ref.invalidate(groupClassesProvider);
       ref.invalidate(classReservationsProvider);
-      final next = (scope: widget.scope, eventId: event.id);
-      ref.invalidate(groupClassProvider(next));
-      if (!mounted || !_current) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(l10n.classesBookingSuccess)));
-      Navigator.of(context).pushReplacement<void, void>(
-        MaterialPageRoute(builder: (_) => GroupClassDetailsScreen(query: next)),
+      ref.invalidate(
+        groupClassProvider((scope: widget.scope, eventId: event.id)),
       );
+      if (!mounted || !_current) return;
+      // The booked class opens in Zajęcia, over its day.
+      final router = GoRouter.of(context);
+      Navigator.of(context).pop();
+      router.go(clientClassDetailsLocation(event.id));
     } catch (error) {
       if (!mounted) return;
       ref.invalidate(makeupCreditsProvider);
@@ -367,4 +363,61 @@ class _MakeupBookingScreenState extends ConsumerState<MakeupBookingScreen>
     ),
     _ => l10n.makeupOfferError,
   };
+}
+
+/// The dark bar of the make-up mode, with a way out on the right.
+class _Bar extends StatelessWidget {
+  const _Bar({required this.title, this.subtitle});
+
+  final String title;
+  final String? subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final ct = context.ct;
+    final c = ct.colors;
+    final sp = ct.spacing;
+    return Material(
+      color: c.highlight,
+      child: SafeArea(
+        bottom: false,
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(sp.page, sp.m, sp.xs, sp.m),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Semantics(
+                  header: true,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    spacing: sp.xs,
+                    children: [
+                      Text(
+                        title,
+                        style: ct.text.button.copyWith(color: c.background),
+                      ),
+                      if (subtitle != null)
+                        Text(
+                          subtitle!,
+                          style: ct.text.meta.copyWith(
+                            color: c.background.withValues(alpha: 0.85),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+              IconButton(
+                tooltip: l10n.clientSheetClose,
+                onPressed: () => Navigator.of(context).maybePop(),
+                icon: Icon(Icons.close, color: c.background),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }

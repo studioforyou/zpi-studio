@@ -7,13 +7,29 @@ import 'package:intl/intl.dart';
 import 'package:mobile/core/auth/auth_controller.dart';
 import 'package:mobile/features/documents/presentation/documents_screen.dart';
 import 'package:mobile/features/passes/data/passes_api.dart';
-import 'package:mobile/features/schedule/presentation/widgets/series_change_widgets.dart';
 import 'package:mobile/features/trainings/data/group_classes_api.dart';
 import 'package:mobile/features/trainings/presentation/widgets/class_participants_section.dart';
-import 'package:mobile/features/trainings/presentation/widgets/group_class_summary.dart';
 import 'package:mobile/features/trainings/presentation/widgets/group_class_widgets.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
+import 'package:mobile/shared/widgets/client/client_widgets.dart';
 
+/// Opens the class sheet of [query] over the current screen.
+Future<GroupClassSheetResult?> showGroupClassSheet(
+  BuildContext context,
+  ClassQuery query,
+) => showAppSheet<GroupClassSheetResult>(
+  context,
+  builder: (_) => GroupClassDetailsScreen(query: query),
+);
+
+/// What the class sheet asks of the screen below when it closes.
+enum GroupClassSheetResult {
+  /// Show the full offer, to pick another class.
+  browse,
+}
+
+/// The class sheet (#281): what the class is, and booking, cancelling, the
+/// waiting list and a freed place for the selected participant.
 class GroupClassDetailsScreen extends ConsumerStatefulWidget {
   const GroupClassDetailsScreen({required this.query, super.key});
 
@@ -27,341 +43,516 @@ class GroupClassDetailsScreen extends ConsumerStatefulWidget {
 class _GroupClassDetailsScreenState
     extends ConsumerState<GroupClassDetailsScreen> {
   bool _busy = false;
-  bool _sending = false;
   String? _actionMessage;
-  final _scrollController = ScrollController();
 
-  @override
-  void dispose() {
-    _scrollController.dispose();
-    super.dispose();
-  }
+  /// The pass chosen in the sheet; the one that ends first until changed.
+  String? _passId;
+
+  /// The list of eligible passes is open.
+  bool _choosingPass = false;
+
+  static final _date = DateFormat('dd.MM.yyyy');
+  static final _time = DateFormat('HH:mm');
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final activeScope = bookingScope(ref.watch(authControllerProvider));
+    if (activeScope != widget.query.scope) {
+      return AppSheet(
+        title: l10n.classesDetails,
+        titleSmall: true,
+        footer: AppButton(
+          label: l10n.classesBack,
+          expand: true,
+          onPressed: () => Navigator.of(context).maybePop(),
+        ),
+        children: [SheetWarning(l10n.classesProfileChanged)],
+      );
+    }
     final provider = groupClassProvider(widget.query);
-    return Scaffold(
-      appBar: AppBar(title: Text(l10n.classesDetails)),
-      body: activeScope != widget.query.scope
-          ? Column(
-              children: [
-                ClassMessage(l10n.classesProfileChanged),
-                FilledButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: Text(l10n.classesBack),
-                ),
-              ],
-            )
-          : RefreshIndicator(
-              onRefresh: () => ref.refresh(provider.future),
-              child: ListView(
-                controller: _scrollController,
-                physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.all(16),
-                children: [
-                  if (_actionMessage case final message?)
-                    Card(
-                      color: Theme.of(context).colorScheme.errorContainer,
-                      child: Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: Text(message),
-                      ),
-                    ),
-                  ...ref
-                      .watch(provider)
-                      .when(
-                        skipLoadingOnRefresh: false,
-                        skipLoadingOnReload: false,
-                        loading: () => const [
-                          Padding(
-                            padding: EdgeInsets.all(48),
-                            child: Center(child: CircularProgressIndicator()),
-                          ),
-                        ],
-                        error: (_, _) => [
-                          ClassesLoadError(
-                            onRetry: () => ref.invalidate(provider),
-                          ),
-                        ],
-                        data: _details,
-                      ),
-                ],
+    return ref
+        .watch(provider)
+        .when(
+          skipLoadingOnRefresh: true,
+          skipLoadingOnReload: true,
+          loading: () => AppSheet(
+            kicker: l10n.classesTitle,
+            children: [
+              Padding(
+                padding: EdgeInsets.all(context.ct.spacing.xl * 2),
+                child: const Center(child: CircularProgressIndicator()),
               ),
-            ),
+            ],
+          ),
+          error: (_, _) => AppSheet(
+            kicker: l10n.classesTitle,
+            children: [
+              ClassesLoadError(onRetry: () => ref.invalidate(provider)),
+            ],
+          ),
+          data: _sheet,
+        );
+  }
+
+  Widget _sheet(GroupClass event) {
+    final l10n = AppLocalizations.of(context);
+    final participant = _participantName();
+    final kicker = [
+      event.serviceTypeName ?? l10n.classesTitle,
+      ?participant,
+    ].join(' · ');
+    final reservation = event.ownReservation;
+    final waiting = event.isWaitlisted ? event.waitlist.ownEntry : null;
+    final cancelled = event.status == 'CANCELLED';
+
+    final List<Widget> body;
+    final Widget? footer;
+    if (cancelled) {
+      final booked = reservation != null;
+      body = [
+        ChangeStrip(
+          booked && reservation.entryReturned == true
+              ? l10n.classesCancelledEntryBack
+              : l10n.classesCancelledStrip,
+        ),
+        ..._facts(event),
+      ];
+      // Back to the full offer, to pick another class instead.
+      footer = booked
+          ? AppButton.primary(
+              label: l10n.classesBrowseOther,
+              onPressed: () =>
+                  Navigator.of(context).pop(GroupClassSheetResult.browse),
+            )
+          : null;
+    } else if (event.isReserved && reservation != null) {
+      (body, footer) = _reserved(event, reservation);
+    } else if (waiting != null && waiting.isOffered) {
+      (body, footer) = _offered(event, waiting);
+    } else if (waiting != null) {
+      (body, footer) = _waiting(event, waiting);
+    } else if (event.booking.reason == 'CLASS_FULL' &&
+        event.waitlist.reason != 'WAITLIST_DISABLED') {
+      (body, footer) = _full(event);
+    } else {
+      (body, footer) = _bookable(event);
+    }
+
+    return AppSheet(
+      kicker: kicker,
+      title: event.name ?? l10n.classesTitle,
+      subtitle: _when(l10n, event),
+      footer: footer,
+      children: [
+        if (_actionMessage case final message?) ChangeStrip(message),
+        if (cancelled ? null : _change(l10n, event) case final change?)
+          ChangeStrip(change),
+        ...body,
+        // Who else comes is shown only to those who booked.
+        if (!cancelled && event.isReserved)
+          ClassParticipantsSection(query: widget.query),
+      ],
     );
   }
 
-  List<Widget> _details(GroupClass event) {
+  String _when(AppLocalizations l10n, GroupClass event) {
+    final now = DateTime.now();
+    final range =
+        '${_time.format(event.startsAt)}–${_time.format(event.endsAt)}';
+    final today =
+        event.startsAt.year == now.year &&
+        event.startsAt.month == now.month &&
+        event.startsAt.day == now.day;
+    return today
+        ? l10n.classesWhenToday(range)
+        : '${DateFormat('EEE d.MM', 'pl').format(event.startsAt)} $range';
+  }
+
+  String? _change(AppLocalizations l10n, GroupClass event) {
+    final change = event.seriesChange;
+    if (change == null) return null;
+    return [
+      if (change.usualStartsAt case final usual?)
+        l10n.classesChangeTime(
+          DateFormat('EEE d.MM HH:mm', 'pl').format(usual),
+        ),
+      if (change.usualInstructors case final names? when names.isNotEmpty)
+        l10n.classesChangeSubstitution(names.join(', ')),
+      if (change.usualRooms case final rooms? when rooms.isNotEmpty)
+        l10n.classesChangeRoom(rooms.join(', ')),
+    ].join('\n');
+  }
+
+  /// Who runs the class, where and how many places are free.
+  List<Widget> _facts(GroupClass event, {bool placeHeld = false}) {
     final l10n = AppLocalizations.of(context);
-    final participant = _participantName();
-    final reservation = event.ownReservation;
-    // The studio may book a place without a pass entry; cancelling it costs nothing.
-    final withoutPass =
-        reservation != null &&
-        reservation.customerPassId == null &&
-        reservation.makeupCreditId == null;
-    final isReserved = event.isReserved;
-    final waiting = event.isWaitlisted ? event.waitlist.ownEntry : null;
+    final ct = context.ct;
+    final leads = [
+      for (final person in event.staff)
+        if (person.isLead && person.displayName != null) person.displayName!,
+    ];
+    final places = event.availablePlaces;
+    return [
+      SheetKeyValues(
+        entries: [
+          SheetKeyValues.text(
+            l10n.classesInstructor,
+            leads.isEmpty ? l10n.classesInstructorPending : leads.join(', '),
+          ),
+          SheetKeyValues.text(
+            l10n.classesRoom,
+            event.roomNames.isEmpty
+                ? l10n.classesRoomPending
+                : event.roomNames.join(', '),
+          ),
+          (
+            l10n.classesPlacesLabel,
+            placeHeld
+                ? Text(l10n.classesPlaceWaiting, style: ct.text.body)
+                : places == null || event.capacity == null
+                ? Text(l10n.classesPlacesOpen, style: ct.text.body)
+                : Text.rich(
+                    TextSpan(
+                      children: [
+                        TextSpan(
+                          text: '${math.max(places, 0)} ',
+                          style: ct.text.placesNumber,
+                        ),
+                        TextSpan(
+                          text: l10n.classesPlacesOf(event.capacity!),
+                          style: ct.text.body,
+                        ),
+                      ],
+                    ),
+                  ),
+          ),
+        ],
+      ),
+    ];
+  }
+
+  String _passName(EligibleClassPass pass) {
+    final l10n = AppLocalizations.of(context);
+    return pass.entriesRemaining == null
+        ? l10n.classesPassUnlimited(pass.productName)
+        : l10n.classesPassLeft(
+            pass.productName,
+            math.max(pass.entriesRemaining! - 1, 0),
+          );
+  }
+
+  /// The pass line; with several eligible passes, "Zmień" opens the choice.
+  List<Widget> _passChoice(GroupClass event, {bool later = false}) {
+    final l10n = AppLocalizations.of(context);
+    final ct = context.ct;
+    final passes = event.booking.eligiblePasses;
+    if (passes.isEmpty) return const [];
+    final selected = _selectedPass(event);
+    final pass = passes.firstWhere((pass) => pass.id == selected);
+    if (!_choosingPass || passes.length == 1) {
+      return [
+        SheetLine(
+          label: l10n.classesFromPass,
+          value: later
+              ? l10n.classesPassLater(pass.productName)
+              : _passName(pass),
+          actionLabel: passes.length > 1 ? l10n.classesPassChange : null,
+          onAction: () => setState(() => _choosingPass = true),
+        ),
+      ];
+    }
+    return [
+      Container(
+        padding: EdgeInsets.only(top: ct.spacing.m, bottom: ct.spacing.s),
+        decoration: BoxDecoration(border: Border(top: ct.hairline)),
+        child: Text(l10n.classesFromPass, style: ct.text.lineLabel),
+      ),
+      ChoiceOptions<String>(
+        options: [
+          for (final pass in passes)
+            ChoiceOption(
+              value: pass.id,
+              title: pass.productName,
+              subtitle: l10n.classesPassOption(
+                pass.entriesRemaining == null
+                    ? l10n.passEntriesUnlimited
+                    : l10n.classesPassEntries(pass.entriesRemaining!),
+                pass.validUntil == null ? '—' : _date.format(pass.validUntil!),
+              ),
+            ),
+        ],
+        selected: selected,
+        onChanged: (id) => setState(() {
+          _passId = id;
+          _choosingPass = false;
+        }),
+      ),
+    ];
+  }
+
+  /// The chosen pass; until one is chosen, the one that ends first.
+  String? _selectedPass(GroupClass event) {
+    final passes = event.booking.eligiblePasses;
+    if (passes.any((pass) => pass.id == _passId)) return _passId;
+    if (passes.isEmpty) return null;
+    final far = DateTime(9999);
+    return passes
+        .reduce(
+          (a, b) => (b.validUntil ?? far).isBefore(a.validUntil ?? far) ? b : a,
+        )
+        .id;
+  }
+
+  (List<Widget>, Widget?) _bookable(GroupClass event) {
+    final l10n = AppLocalizations.of(context);
     final canReserve =
         event.booking.allowed && event.booking.eligiblePasses.isNotEmpty;
-    final change = event.status == 'CANCELLED' ? null : event.seriesChange;
-    return [
-      if (change != null) ...[
-        SeriesChangeCard(
-          change: change,
-          startsAt: event.startsAt,
-          endsAt: event.endsAt,
-          instructors: [
-            for (final person in event.staff)
-              if (person.isLead && person.displayName != null)
-                person.displayName!,
-          ],
-          rooms: event.roomNames,
-        ),
-        const SizedBox(height: 12),
+    final reason = event.booking.reason ?? 'NO_ELIGIBLE_PASS';
+    return (
+      [
+        ..._facts(event),
+        ..._passChoice(event),
+        if (!canReserve) SheetWarning(classReason(l10n, reason)),
+        if (!canReserve && reason == 'REQUIRED_DOCUMENTS_MISSING')
+          _documentsButton(l10n),
       ],
-      GroupClassSummary(event: event, participant: participant),
-      const SizedBox(height: 16),
-      if (isReserved && reservation != null) ...[
-        ClassInfoLine(Icons.check_circle_outline, l10n.classesReserved),
-        if (reservation.makeupCreditId != null) ...[
-          const SizedBox(height: 12),
-          ClassInfoLine(Icons.replay, l10n.makeupReservation),
-        ],
-        if (withoutPass) ...[
-          const SizedBox(height: 12),
-          Text(l10n.classesReservedWithoutPass),
-        ],
+      AppButton.primary(
+        label: l10n.classesReserve,
+        loading: _busy,
+        onPressed: canReserve ? () => _reserve(event) : null,
+      ),
+    );
+  }
+
+  (List<Widget>, Widget?) _reserved(
+    GroupClass event,
+    ClassReservation reservation,
+  ) {
+    final l10n = AppLocalizations.of(context);
+    // The studio may book a place without a pass entry; cancelling it costs
+    // nothing.
+    final withoutPass =
+        reservation.customerPassId == null &&
+        reservation.makeupCreditId == null;
+    final funding = reservation.cancellation.passConsequence;
+    final change = event.seriesChange;
+    return (
+      [
+        ..._facts(event),
+        SheetLine(
+          label: l10n.classesReservedWith,
+          value: reservation.makeupCreditId != null
+              ? l10n.makeupReservation
+              : withoutPass
+              ? l10n.classesReservedWithoutPass
+              : funding?.productName ?? l10n.classesReservedFromPass,
+        ),
         if (reservation.freeCancelUntil case final deadline?
             when reservation.cancellation.allowed &&
                 reservation.cancellation.entryReturned == true) ...[
-          const SizedBox(height: 12),
-          Text(l10n.classesFreeCancelUntil(classDateTime(deadline))),
-          if (change?.moved ?? false) ...[
-            const SizedBox(height: 4),
-            Text(
-              l10n.changeFreeCancelMoved,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ],
+          SheetWarning(l10n.classesFreeCancelUntil(classDateTime(deadline))),
+          if (change?.moved ?? false) SheetWarning(l10n.changeFreeCancelMoved),
         ],
         if (!reservation.cancellation.allowed ||
-            (!withoutPass &&
-                reservation.cancellation.entryReturned != true)) ...[
-          const SizedBox(height: 12),
-          Text(
+            (!withoutPass && reservation.cancellation.entryReturned != true))
+          SheetWarning(
             reservation.cancellation.allowed
                 ? reservation.makeupCreditId != null
                       ? l10n.makeupCancelForfeits
                       : _forfeitedEntry(l10n, reservation)
                 : classReason(l10n, reservation.cancellation.reason),
           ),
-        ],
-        const SizedBox(height: 16),
-        OutlinedButton.icon(
-          onPressed: _busy || !reservation.cancellation.allowed
-              ? null
-              : () => _cancel(event, reservation),
-          icon: const Icon(Icons.event_busy_outlined),
-          label: Text(l10n.classesCancel),
-        ),
-      ] else if (waiting != null)
-        ..._waitlistEntry(event, waiting, canReserve: canReserve)
-      else if (event.booking.reason == 'CLASS_FULL' &&
-          event.waitlist.reason != 'WAITLIST_DISABLED')
-        ..._waitlistOffer(event)
-      else ...[
-        if (!canReserve) ...[
-          Text(classReason(l10n, event.booking.reason ?? 'NO_ELIGIBLE_PASS')),
-          if (event.booking.reason == 'REQUIRED_DOCUMENTS_MISSING') ...[
-            const SizedBox(height: 8),
-            _documentsButton(l10n),
-          ],
-          const SizedBox(height: 16),
-        ],
-        FilledButton.icon(
-          onPressed: _busy || !canReserve ? null : () => _reserve(event),
-          icon: const Icon(Icons.add_task),
-          label: Text(l10n.classesReserve),
-        ),
       ],
-      if (_sending)
-        const Padding(
-          padding: EdgeInsets.all(12),
-          child: Center(child: CircularProgressIndicator()),
-        ),
-      ClassParticipantsSection(query: widget.query, hasReservation: isReserved),
-    ];
-  }
-
-  /// The participant waits for a place: their position, whether a freed
-  /// place would be given to them now, and a way out of the queue.
-  List<Widget> _waitlistEntry(
-    GroupClass event,
-    ClassWaitlistEntry entry, {
-    required bool canReserve,
-  }) {
-    final l10n = AppLocalizations.of(context);
-    if (entry.isOffered) return _waitlistOfferToConfirm(event, entry);
-    final blocked = entry.promotionBlockedReason;
-    final confirmMinutes = event.waitlist.confirmationMinutes;
-    return [
-      ClassInfoLine(Icons.hourglass_top_outlined, l10n.classesWaitlistJoined),
-      if (entry.position case final position?) ...[
-        const SizedBox(height: 12),
-        Text(
-          l10n.classesWaitlistPosition(
-            position,
-            // A count read a moment apart never shows "3 of 2".
-            math.max(position, event.waitlist.waitingCount),
-          ),
-        ),
-      ],
-      const SizedBox(height: 12),
-      if (blocked != null) ...[
-        ClassInfoLine(Icons.warning_amber_outlined, switch (blocked) {
-          'BOOKING_CLOSED' ||
-          'EVENT_NOT_BOOKABLE' => l10n.classesWaitlistClosed,
-          _ => l10n.classesWaitlistBlocked(classReason(l10n, blocked)),
-        }),
-        if (blocked == 'REQUIRED_DOCUMENTS_MISSING') ...[
-          const SizedBox(height: 8),
-          _documentsButton(l10n),
-        ],
-      ] else
-        // Places are given only when a reservation is cancelled. One that is
-        // free now was skipped by the queue, so the participant books it.
-        Text(
-          canReserve
-              ? l10n.classesWaitlistPlaceFreed
-              : confirmMinutes > 0
-              ? l10n.classesWaitlistConfirmNotice(confirmMinutes)
-              : l10n.classesWaitlistAutoBooking,
-        ),
-      const SizedBox(height: 16),
-      if (canReserve) ...[
-        FilledButton.icon(
-          onPressed: _busy ? null : () => _reserve(event),
-          icon: const Icon(Icons.add_task),
-          label: Text(l10n.classesReserve),
-        ),
-        const SizedBox(height: 8),
-      ],
-      OutlinedButton.icon(
-        onPressed: _busy ? null : () => _leaveWaitlist(event, entry),
-        icon: const Icon(Icons.playlist_remove),
-        label: Text(l10n.classesWaitlistLeave),
+      AppButton(
+        label: l10n.classesCancel,
+        expand: true,
+        loading: _busy,
+        onPressed: reservation.cancellation.allowed
+            ? () => _cancel(event, reservation)
+            : null,
       ),
-    ];
-  }
-
-  /// A freed place held for the participant: confirm it before the deadline
-  /// or give it to the next one on the list.
-  List<Widget> _waitlistOfferToConfirm(
-    GroupClass event,
-    ClassWaitlistEntry entry,
-  ) {
-    final l10n = AppLocalizations.of(context);
-    final blocked = entry.promotionBlockedReason;
-    final deadline = entry.offerExpiresAt;
-    final open = deadline == null || DateTime.now().isBefore(deadline);
-    return [
-      ClassInfoLine(
-        Icons.event_available_outlined,
-        l10n.classesWaitlistOffered,
-      ),
-      const SizedBox(height: 12),
-      Text(
-        open
-            ? l10n.classesWaitlistOfferDeadline(
-                deadline == null ? '' : classDateTime(deadline),
-              )
-            : l10n.classesWaitlistOfferExpired,
-      ),
-      if (blocked != null && open) ...[
-        const SizedBox(height: 12),
-        ClassInfoLine(
-          Icons.warning_amber_outlined,
-          l10n.classesWaitlistOfferBlocked(classReason(l10n, blocked)),
-        ),
-        if (blocked == 'REQUIRED_DOCUMENTS_MISSING') ...[
-          const SizedBox(height: 8),
-          _documentsButton(l10n),
-        ],
-      ],
-      const SizedBox(height: 16),
-      FilledButton.icon(
-        onPressed: _busy || !open || blocked != null
-            ? null
-            : () => _confirmOffer(event, entry),
-        icon: const Icon(Icons.check),
-        label: Text(l10n.classesWaitlistConfirmOffer),
-      ),
-      const SizedBox(height: 8),
-      OutlinedButton.icon(
-        onPressed: _busy || !open ? null : () => _declineOffer(event, entry),
-        icon: const Icon(Icons.close),
-        label: Text(l10n.classesWaitlistDecline),
-      ),
-    ];
+    );
   }
 
   /// A full class with a waiting list: an invitation to join it, or why the
   /// participant cannot.
-  List<Widget> _waitlistOffer(GroupClass event) {
+  (List<Widget>, Widget?) _full(GroupClass event) {
     final l10n = AppLocalizations.of(context);
     final waitlist = event.waitlist;
     final canJoin = waitlist.allowed && event.booking.eligiblePasses.isNotEmpty;
     final reason = waitlist.reason ?? 'NO_ELIGIBLE_PASS';
-    return [
-      Text(l10n.classesWaitlistNoPlaces),
-      const SizedBox(height: 8),
-      if (canJoin) ...[
-        Text(
-          waitlist.confirmationMinutes > 0
-              ? l10n.classesWaitlistInviteConfirm(waitlist.confirmationMinutes)
-              : l10n.classesWaitlistInvite,
+    return (
+      [
+        ..._facts(event),
+        SheetLine(
+          label: l10n.classesWaitlistLabel,
+          value: waitlist.waitingCount > 0
+              ? l10n.classesWaitlistWaitingCount(waitlist.waitingCount)
+              : l10n.classesWaitlistNobody,
         ),
-        if (waitlist.waitingCount > 0) ...[
-          const SizedBox(height: 8),
-          Text(l10n.classesWaitlistWaitingCount(waitlist.waitingCount)),
-        ],
-      ] else ...[
-        Text(classReason(l10n, reason)),
-        if (reason == 'REQUIRED_DOCUMENTS_MISSING') ...[
-          const SizedBox(height: 8),
-          _documentsButton(l10n),
+        if (canJoin) ...[
+          ..._passChoice(event, later: true),
+          SheetWarning(
+            waitlist.confirmationMinutes > 0
+                ? l10n.classesWaitlistJoinInfoConfirm(
+                    waitlist.confirmationMinutes,
+                  )
+                : l10n.classesWaitlistJoinInfo,
+          ),
+          SheetWarning(l10n.classesWaitlistJoinFallback),
+        ] else ...[
+          SheetWarning(classReason(l10n, reason)),
+          if (reason == 'REQUIRED_DOCUMENTS_MISSING') _documentsButton(l10n),
         ],
       ],
-      const SizedBox(height: 16),
-      FilledButton.icon(
-        onPressed: _busy || !canJoin ? null : () => _joinWaitlist(event),
-        icon: const Icon(Icons.playlist_add),
-        label: Text(l10n.classesWaitlistJoin),
+      AppButton.primary(
+        label: l10n.classesWaitlistJoin,
+        loading: _busy,
+        onPressed: canJoin ? () => _joinWaitlist(event) : null,
       ),
-    ];
+    );
   }
 
-  Widget _documentsButton(AppLocalizations l10n) => OutlinedButton.icon(
-    onPressed: () => context.push(documentsRoute),
-    icon: const Icon(Icons.description_outlined),
-    label: Text(l10n.classesOpenDocuments),
+  /// The participant waits for a place: their position, whether a freed
+  /// place would be given to them now, and a way out of the queue.
+  (List<Widget>, Widget?) _waiting(GroupClass event, ClassWaitlistEntry entry) {
+    final l10n = AppLocalizations.of(context);
+    final canReserve =
+        event.booking.allowed && event.booking.eligiblePasses.isNotEmpty;
+    final blocked = entry.promotionBlockedReason;
+    final confirmMinutes = event.waitlist.confirmationMinutes;
+    final position = entry.position;
+    return (
+      [
+        WaitlistBox(
+          number: position == null
+              ? '–'
+              : l10n.classesWaitlistPositionNumber(position),
+          title: l10n.classesWaitlistJoined,
+          subtitle: position == null
+              ? null
+              : l10n.classesWaitlistPosition(
+                  position,
+                  // A count read a moment apart never shows "3 of 2".
+                  math.max(position, event.waitlist.waitingCount),
+                ),
+        ),
+        ..._facts(event),
+        if (blocked != null) ...[
+          SheetWarning(switch (blocked) {
+            'BOOKING_CLOSED' ||
+            'EVENT_NOT_BOOKABLE' => l10n.classesWaitlistClosed,
+            _ => l10n.classesWaitlistBlocked(classReason(l10n, blocked)),
+          }),
+          if (blocked == 'REQUIRED_DOCUMENTS_MISSING') _documentsButton(l10n),
+        ] else
+          // Places are given only when a reservation is cancelled. One that
+          // is free now was skipped by the queue, so the participant books it.
+          SheetWarning(
+            canReserve
+                ? l10n.classesWaitlistPlaceFreed
+                : confirmMinutes > 0
+                ? l10n.classesWaitlistConfirmNotice(confirmMinutes)
+                : l10n.classesWaitlistAutoBooking,
+          ),
+        if (canReserve) ..._passChoice(event),
+      ],
+      Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        spacing: context.ct.spacing.s,
+        children: [
+          if (canReserve)
+            AppButton.primary(
+              label: l10n.classesReserve,
+              loading: _busy,
+              onPressed: () => _reserve(event),
+            ),
+          Center(
+            child: AppButton(
+              label: l10n.classesWaitlistLeave,
+              onPressed: _busy ? null : () => _leaveWaitlist(event, entry),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// A freed place held for the participant: confirm it before the deadline
+  /// or give it to the next one on the list.
+  (List<Widget>, Widget?) _offered(GroupClass event, ClassWaitlistEntry entry) {
+    final l10n = AppLocalizations.of(context);
+    final blocked = entry.promotionBlockedReason;
+    final deadline = entry.offerExpiresAt;
+    final open = deadline == null || DateTime.now().isBefore(deadline);
+    final passes = event.booking.eligiblePasses;
+    final chosen = passes
+        .where((pass) => pass.id == entry.customerPassId)
+        .firstOrNull;
+    return (
+      [
+        ChangeStrip(
+          open
+              ? '${l10n.classesWaitlistOffered}. '
+                    '${l10n.classesWaitlistOfferDeadline(deadline == null ? '' : classDateTime(deadline))}'
+              : l10n.classesWaitlistOfferExpired,
+        ),
+        ..._facts(event, placeHeld: open),
+        if (chosen != null)
+          SheetLine(label: l10n.classesFromPass, value: _passName(chosen)),
+        if (blocked != null && open) ...[
+          SheetWarning(
+            l10n.classesWaitlistOfferBlocked(classReason(l10n, blocked)),
+          ),
+          if (blocked == 'REQUIRED_DOCUMENTS_MISSING') _documentsButton(l10n),
+        ],
+      ],
+      Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        spacing: context.ct.spacing.s,
+        children: [
+          AppButton.primary(
+            label: l10n.classesWaitlistConfirmOffer,
+            loading: _busy,
+            onPressed: !open || blocked != null
+                ? null
+                : () => _confirmOffer(event, entry),
+          ),
+          Center(
+            child: AppButton(
+              label: l10n.classesWaitlistDecline,
+              onPressed: _busy || !open
+                  ? null
+                  : () => _declineOffer(event, entry),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _documentsButton(AppLocalizations l10n) => Padding(
+    padding: EdgeInsets.only(top: context.ct.spacing.m),
+    child: Align(
+      alignment: Alignment.centerLeft,
+      child: AppButton(
+        label: l10n.classesOpenDocuments,
+        small: true,
+        icon: Icons.description_outlined,
+        onPressed: () => context.push(documentsRoute),
+      ),
+    ),
   );
 
   Future<void> _reserve(GroupClass event) async {
-    if (event.booking.eligiblePasses.isEmpty) return;
+    final passId = _selectedPass(event);
+    if (passId == null) return;
     final l10n = AppLocalizations.of(context);
     await _act(
-      ask: () => _choosePass(
-        event,
-        title: l10n.classesReserveTitle,
-        confirm: l10n.classesReserve,
-        entryNote: l10n.classesReserveEntry,
-      ),
+      ask: () async => passId,
       send: (passId) =>
           ref.read(groupClassesApiProvider).reserve(widget.query, passId),
       success: l10n.classesBookingSuccess,
@@ -369,20 +560,11 @@ class _GroupClassDetailsScreenState
   }
 
   Future<void> _joinWaitlist(GroupClass event) async {
-    if (event.booking.eligiblePasses.isEmpty) return;
+    final passId = _selectedPass(event);
+    if (passId == null) return;
     final l10n = AppLocalizations.of(context);
-    final confirmMinutes = event.waitlist.confirmationMinutes;
     await _act(
-      ask: () => _choosePass(
-        event,
-        title: l10n.classesWaitlistJoinTitle,
-        confirm: l10n.classesWaitlistJoinConfirm,
-        note: confirmMinutes > 0
-            ? l10n.classesWaitlistJoinInfoConfirm(confirmMinutes)
-            : l10n.classesWaitlistJoinInfo,
-        entryNote: l10n.classesWaitlistJoinEntry,
-        footnote: l10n.classesWaitlistJoinFallback,
-      ),
+      ask: () async => passId,
       send: (passId) =>
           ref.read(groupClassesApiProvider).joinWaitlist(widget.query, passId),
       success: l10n.classesWaitlistJoinSuccess,
@@ -395,7 +577,7 @@ class _GroupClassDetailsScreenState
       ask: () => _confirm(
         event,
         title: l10n.classesCancelTitle,
-        consequence: _cancellationConsequence(l10n, reservation),
+        consequences: _cancellationConsequences(l10n, reservation),
         keep: l10n.classesKeepReservation,
         confirm: l10n.classesCancel,
       ),
@@ -415,7 +597,12 @@ class _GroupClassDetailsScreenState
       ask: () => _confirm(
         event,
         title: l10n.classesWaitlistLeaveTitle,
-        consequence: l10n.classesWaitlistLeaveConsequence,
+        consequences: [
+          Consequence(
+            icon: Icons.playlist_remove,
+            title: l10n.classesWaitlistLeaveConsequence,
+          ),
+        ],
         keep: l10n.classesWaitlistStay,
         confirm: l10n.classesWaitlistLeaveConfirm,
       ),
@@ -429,13 +616,7 @@ class _GroupClassDetailsScreenState
   Future<void> _confirmOffer(GroupClass event, ClassWaitlistEntry entry) async {
     final l10n = AppLocalizations.of(context);
     await _act(
-      ask: () => _confirm(
-        event,
-        title: l10n.classesWaitlistConfirmTitle,
-        consequence: l10n.classesWaitlistConfirmConsequence,
-        keep: l10n.classesDismiss,
-        confirm: l10n.classesWaitlistConfirmOffer,
-      ),
+      ask: () async => true,
       send: (_) => ref
           .read(groupClassesApiProvider)
           .confirmWaitlistOffer(widget.query.scope, entry),
@@ -449,7 +630,12 @@ class _GroupClassDetailsScreenState
       ask: () => _confirm(
         event,
         title: l10n.classesWaitlistDeclineTitle,
-        consequence: l10n.classesWaitlistDeclineConsequence,
+        consequences: [
+          Consequence(
+            icon: Icons.east,
+            title: l10n.classesWaitlistDeclineConsequence,
+          ),
+        ],
         keep: l10n.classesDismiss,
         confirm: l10n.classesWaitlistDecline,
       ),
@@ -460,19 +646,17 @@ class _GroupClassDetailsScreenState
     );
   }
 
-  /// Sends one action for the screen's participant once [ask] returns a
+  /// Sends one action for the sheet's participant once [ask] returns a
   /// value (`null` dismisses it). The selected profile may change while a
-  /// dialog is open, so nothing is sent for a participant no longer chosen.
+  /// confirmation is open, so nothing is sent for a participant no longer
+  /// chosen.
   Future<void> _act<T extends Object>({
     required Future<T?> Function() ask,
     required Future<void> Function(T value) send,
     required String success,
   }) async {
     if (_busy || !isCurrentBookingScope(ref, widget.query.scope)) return;
-    setState(() {
-      _busy = true;
-      _actionMessage = null;
-    });
+    setState(() => _actionMessage = null);
     try {
       final value = await ask();
       if (value == null ||
@@ -480,139 +664,53 @@ class _GroupClassDetailsScreenState
           !isCurrentBookingScope(ref, widget.query.scope)) {
         return;
       }
-      setState(() => _sending = true);
+      setState(() => _busy = true);
       await send(value);
       _refreshAfterMutation();
       if (mounted && isCurrentBookingScope(ref, widget.query.scope)) {
-        ScaffoldMessenger.of(
+        ScaffoldMessenger.maybeOf(
           context,
-        ).showSnackBar(SnackBar(content: Text(success)));
+        )?.showSnackBar(SnackBar(content: Text(success)));
       }
     } catch (error) {
       _onActionError(error);
     } finally {
-      if (mounted) {
-        setState(() {
-          _busy = false;
-          _sending = false;
-        });
-      }
+      if (mounted) setState(() => _busy = false);
     }
-  }
-
-  /// The pass for a booking or for a place from the waiting list: a single
-  /// eligible pass is preselected, several require an explicit choice.
-  Future<String?> _choosePass(
-    GroupClass event, {
-    required String title,
-    required String confirm,
-    required String entryNote,
-    String? note,
-    String? footnote,
-  }) {
-    final l10n = AppLocalizations.of(context);
-    final participant = _participantName();
-    final passes = event.booking.eligiblePasses;
-    String? selectedPass = passes.length == 1 ? passes.single.id : null;
-    return showDialog<String>(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: Text(title),
-          scrollable: true,
-          content: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            spacing: 12,
-            children: [
-              Text(event.name ?? l10n.classesTitle),
-              Text(classDateTime(event.startsAt)),
-              if (participant != null)
-                Text(l10n.classesReserveFor(participant)),
-              if (passes.length == 1)
-                Text(_passLabel(l10n, passes.single))
-              else
-                DropdownButtonFormField<String>(
-                  isExpanded: true,
-                  decoration: InputDecoration(
-                    labelText: l10n.classesChoosePass,
-                    border: const OutlineInputBorder(),
-                  ),
-                  items: [
-                    for (final pass in passes)
-                      DropdownMenuItem(
-                        value: pass.id,
-                        child: Text(
-                          _passLabel(l10n, pass),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                  ],
-                  onChanged: (id) => setDialogState(() => selectedPass = id),
-                ),
-              if (note != null) Text(note),
-              if (passes
-                      .where((pass) => pass.id == selectedPass)
-                      .firstOrNull
-                      ?.entriesRemaining !=
-                  null)
-                Text(entryNote),
-              if (footnote != null) Text(footnote),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: Text(l10n.classesDismiss),
-            ),
-            FilledButton(
-              onPressed: selectedPass == null
-                  ? null
-                  : () => Navigator.of(context).pop(selectedPass),
-              child: Text(confirm),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 
   /// Confirms giving up a place: `true` confirms, `null` keeps the place.
   Future<bool?> _confirm(
     GroupClass event, {
     required String title,
-    required String consequence,
+    required List<Consequence> consequences,
     required String keep,
     required String confirm,
   }) {
     final l10n = AppLocalizations.of(context);
-    return showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(title),
-        scrollable: true,
-        content: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          spacing: 12,
-          children: [
-            Text(event.name ?? l10n.classesTitle),
-            Text(classDateTime(event.startsAt)),
-            if (_participantName() case final participant?)
-              Text(l10n.classesReserveFor(participant)),
-            Text(consequence),
-          ],
-        ),
-        actions: [
-          TextButton(
+    return showAppSheet<bool>(
+      context,
+      builder: (context) => AppSheet(
+        title: title,
+        titleSmall: true,
+        subtitle: [
+          event.name ?? l10n.classesTitle,
+          classDateTime(event.startsAt),
+          ?_participantName(),
+        ].join(' · '),
+        footer: AppButtonPair(
+          first: AppButton(
+            label: keep,
+            small: true,
             onPressed: () => Navigator.of(context).pop(),
-            child: Text(keep),
           ),
-          FilledButton(
+          second: AppButton(
+            label: confirm,
+            small: true,
             onPressed: () => Navigator.of(context).pop(true),
-            child: Text(confirm),
           ),
-        ],
+        ),
+        children: [ConsequenceList(items: consequences)],
       ),
     );
   }
@@ -642,23 +740,11 @@ class _GroupClassDetailsScreenState
         _ => l10n.classesActionFailed,
       };
     });
-    if (_scrollController.hasClients) _scrollController.jumpTo(0);
-  }
-
-  String _passLabel(AppLocalizations l10n, EligibleClassPass pass) {
-    return [
-      pass.productName,
-      pass.entriesRemaining == null
-          ? l10n.passEntriesUnlimited
-          : l10n.classesPassEntries(pass.entriesRemaining!),
-      if (pass.validUntil != null)
-        l10n.passValidUntil(DateFormat('dd.MM.yyyy').format(pass.validUntil!)),
-    ].join(' · ');
   }
 
   /// What cancelling does to the pass or make-up credit, as the server
   /// forecasts it. The server checks it again when the participant confirms.
-  String _cancellationConsequence(
+  List<Consequence> _cancellationConsequences(
     AppLocalizations l10n,
     ClassReservation reservation,
   ) {
@@ -666,30 +752,64 @@ class _GroupClassDetailsScreenState
     final funding = reservation.cancellation.passConsequence;
     if (reservation.makeupCreditId != null) {
       return [
-        if (funding != null)
-          l10n.classesCancelMakeupCredit(funding.productName),
-        if (funding?.expiresAt case final expiresAt?)
-          l10n.makeupExpiresAt(DateFormat('dd.MM.yyyy').format(expiresAt)),
-        returned ? l10n.makeupCancelReturns : l10n.makeupCancelForfeits,
-      ].join('\n');
+        Consequence(
+          icon: returned ? Icons.check : Icons.close,
+          positive: returned,
+          title: returned
+              ? l10n.makeupCancelReturns
+              : l10n.makeupCancelForfeits,
+          subtitle: [
+            if (funding != null)
+              l10n.classesCancelMakeupCredit(funding.productName),
+            if (funding?.expiresAt case final expiresAt?)
+              l10n.makeupExpiresAt(_date.format(expiresAt)),
+          ].join('\n').nullIfEmpty,
+        ),
+      ];
     }
     if (reservation.customerPassId == null) {
-      return l10n.classesCancelWithoutPass;
+      return [
+        Consequence(
+          icon: Icons.check,
+          positive: true,
+          title: l10n.classesCancelWithoutPass,
+        ),
+      ];
     }
+    final deadline = reservation.freeCancelUntil;
     return [
-      if (funding != null) l10n.classesCancelPass(funding.productName),
-      returned
-          ? l10n.classesCancelReturnsEntry
-          : _forfeitedEntry(l10n, reservation),
+      Consequence(
+        icon: returned ? Icons.check : Icons.close,
+        positive: returned,
+        title: returned
+            ? l10n.classesConsequenceOnTime
+            : l10n.classesConsequenceLate,
+        subtitle: returned
+            ? (deadline == null
+                  ? l10n.classesCancelReturnsEntry
+                  : l10n.classesFreeCancelUntil(classDateTime(deadline)))
+            : _forfeitedEntry(l10n, reservation),
+      ),
       if (funding != null)
-        if (funding.isUnlimitedPass)
-          l10n.classesCancelUnlimitedPass
-        else if ((funding.entriesRemaining, funding.entriesAfterCancellation)
-            case (final now?, final after?))
-          l10n.classesCancelEntriesBalance(now, after),
-      if (funding?.validUntil case final validUntil?)
-        l10n.passValidUntil(DateFormat('dd.MM.yyyy').format(validUntil)),
-    ].join('\n');
+        Consequence(
+          icon: Icons.confirmation_number_outlined,
+          title: funding.isUnlimitedPass
+              ? l10n.classesCancelUnlimitedPass
+              : switch ((
+                  funding.entriesRemaining,
+                  funding.entriesAfterCancellation,
+                )) {
+                  (final now?, final after?) =>
+                    l10n.classesCancelEntriesBalance(now, after),
+                  _ => l10n.classesCancelPass(funding.productName),
+                },
+          subtitle: [
+            l10n.classesCancelPass(funding.productName),
+            if (funding.validUntil case final validUntil?)
+              l10n.passValidUntil(_date.format(validUntil)),
+          ].join(' · '),
+        ),
+    ];
   }
 
   /// A forfeited entry is explained by the free cancellation deadline that
@@ -701,9 +821,17 @@ class _GroupClassDetailsScreenState
         : l10n.classesCancelForfeitsEntry;
   }
 
-  String? _participantName() => clientSession(ref.read(authControllerProvider))
-      ?.profiles
-      .where((profile) => profile.id == widget.query.scope.profileId)
-      .firstOrNull
-      ?.displayName;
+  String? _participantName() {
+    final session = clientSession(ref.read(authControllerProvider));
+    // Only a family account names whose class it is.
+    if (session == null || session.profiles.length < 2) return null;
+    return session.profiles
+        .where((profile) => profile.id == widget.query.scope.profileId)
+        .firstOrNull
+        ?.displayName;
+  }
+}
+
+extension on String {
+  String? get nullIfEmpty => isEmpty ? null : this;
 }

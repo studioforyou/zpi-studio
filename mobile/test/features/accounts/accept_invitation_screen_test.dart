@@ -17,6 +17,7 @@ import 'package:mobile/features/schedule/data/studio_trainers.dart';
 import 'package:mobile/features/communication/data/notifications_api.dart';
 import 'package:mobile/features/communication/data/conversations_api.dart';
 import 'package:mobile/features/trainings/data/group_classes_api.dart';
+import 'package:mobile/features/trainings/data/personal_trainings_api.dart';
 
 const _session = Session(
   accountId: 'a1',
@@ -109,6 +110,8 @@ void main() {
         authRepositoryProvider.overrideWithValue(auth ?? _AuthRepository()),
         invitationApiProvider.overrideWithValue(api),
         groupClassesProvider.overrideWith((ref, query) async => const []),
+        classReservationsProvider.overrideWith((ref, query) async => const []),
+        personalTrainingsProvider.overrideWith((ref, query) async => const []),
         scheduleServiceTypesProvider.overrideWith((ref) async => const {}),
         studioTrainersProvider.overrideWith((ref) async => const []),
         unreadCountProvider.overrideWith(
@@ -305,6 +308,8 @@ void main() {
         ),
         invitationApiProvider.overrideWithValue(api),
         groupClassesProvider.overrideWith((ref, query) async => const []),
+        classReservationsProvider.overrideWith((ref, query) async => const []),
+        personalTrainingsProvider.overrideWith((ref, query) async => const []),
         scheduleServiceTypesProvider.overrideWith((ref) async => const {}),
         studioTrainersProvider.overrideWith((ref) async => const []),
         unreadCountProvider.overrideWith(

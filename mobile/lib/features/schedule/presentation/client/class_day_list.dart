@@ -3,6 +3,14 @@ import 'package:intl/intl.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
 import 'package:mobile/shared/widgets/client/client_widgets.dart';
 
+/// The colour of a class type from its `#RRGGBB` calendar colour.
+Color classColor(String? hex, ClientPalette c) {
+  if (hex != null && RegExp(r'^#[0-9a-fA-F]{6}$').hasMatch(hex)) {
+    return Color(0xff000000 | int.parse(hex.substring(1), radix: 16));
+  }
+  return c.classFallback;
+}
+
 /// What the right column of a [ClassEntry] says.
 sealed class EntryAside {
   const EntryAside();

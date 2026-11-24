@@ -24,6 +24,7 @@ import 'package:mobile/features/trainings/data/group_classes_api.dart';
 import 'package:mobile/features/trainings/data/personal_trainings_api.dart';
 import 'package:mobile/features/trainings/presentation/personal_training_screen.dart';
 import 'package:mobile/features/trainings/presentation/widgets/group_class_widgets.dart';
+import 'package:mobile/features/trainings/presentation/group_class_details_screen.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
 import 'package:mobile/shared/widgets/client/client_widgets.dart';
 
@@ -91,7 +92,7 @@ class _Classes extends ConsumerStatefulWidget {
 const _initialWeeks = 2;
 
 class _ClassesState extends ConsumerState<_Classes> {
-  late DateTime _today = _dateOnly(widget.today ?? DateTime.now());
+  late final DateTime _today = _dateOnly(widget.today ?? DateTime.now());
   late DateTime _selected = _today;
   late DateTime _rangeStart = weekStart(_today);
   int _weeks = _initialWeeks;
@@ -192,7 +193,8 @@ class _ClassesState extends ConsumerState<_Classes> {
     ProviderListenable<AsyncValue<List<ScheduleEvent>>> Function(ScheduleWindow)
     provider,
   ) {
-    final events = <ScheduleEvent>[];
+    // A class moved to another week comes in both weeks: once is enough.
+    final events = <String, ScheduleEvent>{};
     Object? error;
     var loading = false;
     for (final window in windows) {
@@ -200,13 +202,15 @@ class _ClassesState extends ConsumerState<_Classes> {
       if (value.hasError && !value.hasValue) {
         error ??= value.error;
       } else if (value.value case final list?) {
-        events.addAll(list);
+        for (final event in list) {
+          events.putIfAbsent(event.id, () => event);
+        }
       } else {
         loading = true;
       }
     }
     if (error != null) return (events: null, error: error);
-    return (events: loading ? null : events, error: null);
+    return (events: loading ? null : events.values.toList(), error: null);
   }
 
   Future<void> _refresh() async {
@@ -290,12 +294,22 @@ class _ClassesState extends ConsumerState<_Classes> {
         .choose(SessionChoice(role: AppRole.client, profile: profile));
   }
 
-  void _openClass(String eventId, {Profile? owner}) {
+  void _setMode(ClassesMode mode) {
+    setState(() => _mode = mode);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToSelected());
+  }
+
+  Future<void> _openClass(String eventId, {Profile? owner}) async {
     if (!isCurrentBookingScope(ref, widget.scope)) return;
     if (owner != null && owner.id != widget.scope.profileId) {
       _chooseProfile(owner);
     }
-    context.push(clientClassDetailsLocation(eventId));
+    final result = await context.push<GroupClassSheetResult>(
+      clientClassDetailsLocation(eventId),
+    );
+    if (result == GroupClassSheetResult.browse && mounted) {
+      _setMode(ClassesMode.all);
+    }
   }
 
   void _openPersonal(PersonalSession session, {Profile? owner}) {
@@ -366,12 +380,7 @@ class _ClassesState extends ConsumerState<_Classes> {
                     AppSegment(ClassesMode.all, l10n.classesAll),
                   ],
                   selected: _mode,
-                  onChanged: (mode) {
-                    setState(() => _mode = mode);
-                    WidgetsBinding.instance.addPostFrameCallback(
-                      (_) => _scrollToSelected(),
-                    );
-                  },
+                  onChanged: _setMode,
                 ),
               ),
               HeaderIconButton(
@@ -422,7 +431,7 @@ class _ClassesState extends ConsumerState<_Classes> {
           owner: ParticipantChanges(widget.scope),
           onOpen: (eventId) => _openClass(eventId),
         ),
-        if (next != null) next,
+        ?next,
         Expanded(
           child: KeyedSubtree(
             key: _listKey,
@@ -656,7 +665,7 @@ class _ClassesState extends ConsumerState<_Classes> {
       startsAt: event.startsAt,
       endsAt: event.endsAt,
       title: event.name ?? l10n.classesTitle,
-      color: _color(event.calendarColor, c),
+      color: classColor(event.calendarColor, c),
       lines: cancelled
           ? [l10n.classesCancelledLine]
           : [
@@ -708,13 +717,6 @@ class _ClassesState extends ConsumerState<_Classes> {
       cancelled: cancelled,
       onTap: () => _openPersonal(event, owner: owner),
     );
-  }
-
-  static Color _color(String? hex, ClientPalette c) {
-    if (hex != null && RegExp(r'^#[0-9a-fA-F]{6}$').hasMatch(hex)) {
-      return Color(0xff000000 | int.parse(hex.substring(1), radix: 16));
-    }
-    return c.classFallback;
   }
 }
 
