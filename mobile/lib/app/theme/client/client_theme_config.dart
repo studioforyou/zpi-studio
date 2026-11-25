@@ -52,6 +52,8 @@ const _light = ClientPalette(
   onChatAvatar: Color(0xFFFFFFFF),
   switchKnobOn: Color(0xFF193A43),
   classFallback: Color(0xFF76878A),
+  profileBanner: Color(0xFF449C9E),
+  onProfileBanner: Color(0xE6FFFFFF), // white at 90 %
 );
 
 const _dark = ClientPalette(
@@ -80,6 +82,8 @@ const _dark = ClientPalette(
   onChatAvatar: Color(0xFFFFFFFF),
   switchKnobOn: Color(0xFFECF3F2),
   classFallback: Color(0xFF7E9396),
+  profileBanner: Color(0xFF2E8A90),
+  onProfileBanner: Color(0xE6FFFFFF), // white at 90 %
 );
 
 // ---------------------------------------------------------------------------
@@ -208,6 +212,12 @@ const _typography = ClientTypography(
     letterSpacingEm: -0.04,
     height: 1,
   ),
+  profileMonogram: ClientTextSpec(
+    64,
+    weight: FontWeight.w600,
+    letterSpacingEm: -0.02,
+    height: 1,
+  ),
   placesNumber: ClientTextSpec(
     20,
     weight: FontWeight.w700,
@@ -215,7 +225,7 @@ const _typography = ClientTypography(
     height: 1,
   ),
   profileName: ClientTextSpec(
-    30,
+    36,
     weight: FontWeight.w600,
     letterSpacingEm: -0.035,
     height: 1.05,
@@ -310,6 +320,7 @@ const _sizes = ClientSizes(
   checkbox: 20,
   checkboxGlyph: 15,
   offerBuyWidth: 64,
+  profileBanner: 200,
 );
 
 // ---------------------------------------------------------------------------

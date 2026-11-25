@@ -31,6 +31,8 @@ class ClientPalette {
     required this.onChatAvatar,
     required this.switchKnobOn,
     required this.classFallback,
+    required this.profileBanner,
+    required this.onProfileBanner,
   });
 
   /// Page, sheet and navigation bar background.
@@ -108,6 +110,13 @@ class ClientPalette {
   /// Class colour when the service type has none.
   final Color classFallback;
 
+  /// The band behind the large initials on the profile tab; it fades out to
+  /// the left.
+  final Color profileBanner;
+
+  /// The initials on [profileBanner].
+  final Color onProfileBanner;
+
   Color get orangeTint => orange.withValues(alpha: orangeTintOpacity);
 }
 
@@ -177,6 +186,7 @@ class ClientTypography {
     required this.entryChange,
     required this.offerPrice,
     required this.checkoutPrice,
+    required this.profileMonogram,
     required this.profileName,
     required this.avatarInitials,
   });
@@ -308,6 +318,9 @@ class ClientTypography {
 
   /// Price on the checkout screen.
   final ClientTextSpec checkoutPrice;
+
+  /// Large initials on the profile tab.
+  final ClientTextSpec profileMonogram;
 
   /// Name on the profile tab.
   final ClientTextSpec profileName;
@@ -441,6 +454,7 @@ class ClientSizes {
     required this.checkbox,
     required this.checkboxGlyph,
     required this.offerBuyWidth,
+    required this.profileBanner,
   });
 
   /// Secondary button standing alone.
@@ -552,6 +566,9 @@ class ClientSizes {
 
   /// Width of the "Kup" button and of its empty slot in the pass offer.
   final double offerBuyWidth;
+
+  /// Width and minimum height of the initials band on the profile tab.
+  final double profileBanner;
 }
 
 /// Durations of animations.

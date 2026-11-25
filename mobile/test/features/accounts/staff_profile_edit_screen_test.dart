@@ -16,8 +16,6 @@ import 'package:mobile/core/auth/session.dart';
 import 'package:mobile/core/network/dio_provider.dart';
 import 'package:mobile/features/accounts/data/staff_profile_api.dart';
 import 'package:mobile/features/accounts/presentation/staff_profile_edit_screen.dart';
-import 'package:mobile/features/accounts/presentation/widgets/choice_tile.dart';
-import 'package:mobile/features/accounts/presentation/widgets/profile_header.dart';
 import 'package:mobile/features/communication/data/notifications_api.dart';
 import 'package:mobile/features/communication/data/conversations_api.dart';
 import 'package:mobile/features/schedule/data/schedule_api.dart';
@@ -253,13 +251,7 @@ void main() {
       expect(find.text('Child Name'), findsOneWidget);
       // The child's details editor, not the trainer's.
       expect(find.text('Dane osobowe'), findsOneWidget);
-      final active = tester.widget<ChoiceTile>(
-        find.descendant(
-          of: find.byType(ProfileHeader),
-          matching: find.byType(ChoiceTile),
-        ),
-      );
-      expect(active.labels, (name: 'Child', role: 'Dziecko'));
+      expect(find.text('Dziecko'), findsOneWidget);
     },
   );
 

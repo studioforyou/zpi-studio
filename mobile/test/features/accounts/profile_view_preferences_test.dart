@@ -8,7 +8,9 @@ import 'package:mobile/core/auth/auth_state.dart';
 import 'package:mobile/core/auth/session.dart';
 import 'package:mobile/features/accounts/data/profile_view_preferences.dart';
 import 'package:mobile/features/accounts/presentation/profile_screen.dart';
+import 'package:mobile/features/communication/data/notifications_api.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
+import 'package:mobile/shared/widgets/client/client_widgets.dart';
 
 const _parent = (accountId: 'parent', profileId: 'monika');
 const _child = (accountId: 'parent', profileId: 'zosia');
@@ -76,7 +78,12 @@ void main() {
     tester,
   ) async {
     final container = ProviderContainer(
-      overrides: [authControllerProvider.overrideWith(_Auth.new)],
+      overrides: [
+        authControllerProvider.overrideWith(_Auth.new),
+        unreadCountProvider.overrideWith(
+          (ref, scope) async => UnreadNotifications.none,
+        ),
+      ],
     );
     addTearDown(container.dispose);
     await tester.pumpWidget(
@@ -91,9 +98,13 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    final toggle = find.byType(SwitchListTile);
+    final toggle = find.byWidgetPredicate(
+      (widget) =>
+          widget is AppSwitch &&
+          widget.semanticLabel == 'Pokaż powiązane profile',
+    );
     await tester.ensureVisible(toggle);
-    expect(tester.widget<SwitchListTile>(toggle).value, isTrue);
+    expect(tester.widget<AppSwitch>(toggle).value, isTrue);
     await tester.tap(toggle);
     await tester.pumpAndSettle();
     expect(

@@ -112,6 +112,7 @@ class ClientTextStyles {
       entryChange = _style(t, c, t.entryChange),
       offerPrice = _style(t, c, t.offerPrice),
       checkoutPrice = _style(t, c, t.checkoutPrice),
+      profileMonogram = _style(t, c, t.profileMonogram),
       profileName = _style(t, c, t.profileName),
       avatarInitials = _style(t, c, t.avatarInitials),
       selectedWeight = t.selectedWeight,
@@ -201,6 +202,7 @@ class ClientTextStyles {
   final TextStyle entryChange;
   final TextStyle offerPrice;
   final TextStyle checkoutPrice;
+  final TextStyle profileMonogram;
   final TextStyle profileName;
   final TextStyle avatarInitials;
 
