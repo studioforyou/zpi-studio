@@ -108,3 +108,7 @@ Beata Lis has sent four announcements, visible in the panel under **Komunikacja 
 - *Trening personalny w piątek* to Tomasz only.
 
 The same seed adds two automatic notifications to Monika whose push did not arrive (*Karnet wkrótce wygaśnie*, unregistered phone, and *Jutro: Pole dance początkujący*, two failed attempts), so **Komunikacja → Historia wysyłek** (#161) shows the "Błąd push" status.
+
+## Announcement templates (seed 26)
+
+Beata Lis has three announcement templates under **Komunikacja → Komunikaty → Szablony** (#160): *Zamknięcie studia w święto* and *Zmiana sali* (studio messages) and *Promocja na karnety* (an offer). In **Nowy komunikat** the field **Szablon** fills the title, text and kind from them.

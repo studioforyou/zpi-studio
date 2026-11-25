@@ -35,6 +35,11 @@ import {
   type Audience,
   type AudienceInput,
 } from './announcementsApi';
+import {
+  announcementTemplateKeys,
+  listAnnouncementTemplates,
+  type AnnouncementTemplate,
+} from './announcementTemplatesApi';
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -43,7 +48,10 @@ type Props = {
   onClose: () => void;
 };
 
-/** Writes and sends an announcement; sending to every client asks for confirmation first. */
+/**
+ * Writes and sends an announcement, optionally starting from a template; sending to every client
+ * asks for confirmation first.
+ */
 export function NewAnnouncementModal({ opened, onClose }: Props) {
   const texts = pl.communication.announcements.form;
   return (
@@ -66,6 +74,16 @@ function AnnouncementForm({ onClose }: { onClose: () => void }) {
   const [body, setBody] = useState('');
   const [touched, setTouched] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  const [templateId, setTemplateId] = useState<string | null>(null);
+
+  /** Fills title, text and kind from the template; the administrator can still change them. */
+  function applyTemplate(template: AnnouncementTemplate | undefined) {
+    setTemplateId(template?.id ?? null);
+    if (!template) return;
+    setTitle(template.title);
+    setBody(template.body);
+    setMarketing(template.marketing);
+  }
 
   const input: AudienceInput = { audience, accountId, trainingGroupId, eventId, marketing };
   const ready = hasTarget(input);
@@ -136,6 +154,7 @@ function AnnouncementForm({ onClose }: { onClose: () => void }) {
         <GroupPicker value={trainingGroupId} onChange={setTrainingGroupId} />
       )}
       {audience === 'EVENT' && <EventPicker value={eventId} onChange={setEventId} />}
+      <TemplatePicker value={templateId} onChange={applyTemplate} />
       <TextInput
         label={texts.messageTitle}
         value={title}
@@ -211,6 +230,35 @@ function sendError(error: unknown): string {
 }
 
 type PickerProps = { value: string | null; onChange: (value: string | null) => void };
+
+/** Shown only when the studio has templates. */
+function TemplatePicker({
+  value,
+  onChange,
+}: {
+  value: string | null;
+  onChange: (template: AnnouncementTemplate | undefined) => void;
+}) {
+  const texts = pl.communication.announcements.form;
+  const templates = useQuery({
+    queryKey: announcementTemplateKeys.all,
+    queryFn: listAnnouncementTemplates,
+  });
+  if (!templates.data || templates.data.length === 0) return null;
+  return (
+    <Select
+      label={texts.template}
+      description={texts.templateHint}
+      placeholder={texts.templatePlaceholder}
+      searchable
+      clearable
+      data={templates.data.map((template) => ({ value: template.id, label: template.name }))}
+      value={value}
+      nothingFoundMessage={texts.nothingFound}
+      onChange={(id) => onChange(templates.data.find((template) => template.id === id))}
+    />
+  );
+}
 
 function PersonPicker({ value, onChange }: PickerProps) {
   const texts = pl.communication.announcements.form;

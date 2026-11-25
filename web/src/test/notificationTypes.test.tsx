@@ -12,6 +12,8 @@ const reminder = {
   leadTimesMinutes: [1440, 120],
   title: 'Przypomnienie o zajęciach',
   body: '{{zajęcia}}: {{dzień}}, godz. {{godzina}}. Sala: {{sala}}.',
+  defaultTitle: 'Przypomnienie o zajęciach',
+  defaultBody: '{{zajęcia}}: {{dzień}}, godz. {{godzina}}. Sala: {{sala}}.',
   placeholders: [
     { name: 'zajęcia', description: 'Name of the class or training' },
     { name: 'dzień', description: 'Day' },
@@ -31,12 +33,14 @@ function json(body: unknown, status = 200) {
   });
 }
 
+let reminderOverride: Partial<Record<keyof typeof reminder, unknown>> = {};
+
 function stubApi() {
   let current = { ...reminder };
   const patches: Record<string, unknown>[] = [];
   const fetchMock = vi.fn(async (url: string, init: RequestInit) => {
     if (url === '/api/v1/notification-types' && init.method === 'GET') {
-      return json({ items: [current] });
+      return json({ items: [{ ...current, ...reminderOverride }] });
     }
     if (url === '/api/v1/notification-types/CLASS_REMINDER' && init.method === 'PATCH') {
       const patch = JSON.parse(init.body as string);
@@ -142,6 +146,45 @@ test('edits reminder times and content, and rejects unknown placeholders', async
     },
   ]);
   expect(await screen.findByText('30 min przed')).toBeInTheDocument();
+});
+
+test('restores the default content and saves it with the other changes', async () => {
+  const patches = stubApi();
+  await openNotificationsTab();
+  await userEvent.click(await screen.findByRole('button', { name: 'Edytuj' }));
+  const dialog = await screen.findByRole('dialog');
+  const restore = within(dialog).getByRole('button', { name: 'Przywróć domyślną treść' });
+  expect(restore).toBeDisabled();
+
+  const title = within(dialog).getByRole('textbox', { name: /^Tytuł/ });
+  await userEvent.clear(title);
+  await userEvent.type(title, 'Nie zapomnij!');
+  expect(restore).toBeEnabled();
+  await userEvent.click(restore);
+  expect(title).toHaveValue('Przypomnienie o zajęciach');
+  expect(restore).toBeDisabled();
+
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Zapisz' }));
+  await vi.waitFor(() => expect(patches).toHaveLength(1));
+  expect(patches[0]).toMatchObject({
+    title: 'Przypomnienie o zajęciach',
+    body: '{{zajęcia}}: {{dzień}}, godz. {{godzina}}. Sala: {{sala}}.',
+  });
+});
+
+test('offers no restore for a type without default content', async () => {
+  stubApi();
+  reminderOverride = { defaultTitle: null, defaultBody: null };
+  try {
+    await openNotificationsTab();
+    await userEvent.click(await screen.findByRole('button', { name: 'Edytuj' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(
+      within(dialog).queryByRole('button', { name: 'Przywróć domyślną treść' }),
+    ).not.toBeInTheDocument();
+  } finally {
+    reminderOverride = {};
+  }
 });
 
 test('inserts a field into the title when the title was used last', async () => {
