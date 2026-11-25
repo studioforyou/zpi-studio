@@ -99,19 +99,34 @@ class SeedDataTests {
 
 	@Test
 	@Transactional
-	void staffHistoryExamplesDoNotResetLaterEditsOrDuplicateHistoryOnRerun() {
+	void eventHistoryExamplesDoNotResetLaterEditsOrDuplicateHistoryOnRerun() {
 		UUID event = UUID.fromString("19000000-0000-0000-0000-000000024001");
 		assertThat(jdbc.sql("SELECT count(*) FROM audit_log WHERE entity_type='schedule_event' AND entity_id=:event")
 			.param("event", event).query(Integer.class).single()).isEqualTo(2);
 		jdbc.sql("UPDATE schedule_event SET title='Zmieniony trening' WHERE id=:event").param("event", event).update();
 		jdbc.sql("DELETE FROM event_staff WHERE event_id=:event AND role='ASSISTANT'").param("event", event).update();
 		Map<String, Long> counts = rowCounts();
-		new ResourceDatabasePopulator(new ClassPathResource("db/seed/R__seed_24_event_staff_history.sql")).execute(dataSource);
+		new ResourceDatabasePopulator(new ClassPathResource("db/seed/R__seed_24_event_history.sql")).execute(dataSource);
 		assertThat(rowCounts()).isEqualTo(counts);
 		assertThat(jdbc.sql("SELECT title FROM schedule_event WHERE id=:event").param("event", event).query(String.class).single())
 			.isEqualTo("Zmieniony trening");
 		assertThat(jdbc.sql("SELECT count(*) FROM event_staff WHERE event_id=:event").param("event", event).query(Integer.class).single())
 			.isEqualTo(1);
+	}
+
+	@Test
+	@Transactional
+	void generalEventHistoryExampleKeepsItsCompleteTimelineOnRerun() {
+		UUID event = UUID.fromString("19000000-0000-0000-0000-000000024003");
+		assertThat(jdbc.sql("SELECT count(*) FROM audit_log WHERE entity_type='schedule_event' AND entity_id=:event")
+			.param("event",event).query(Integer.class).single()).isEqualTo(3);
+		Map<String,Long> counts=rowCounts();
+		var state=jdbc.sql("SELECT title,starts_at,ends_at,capacity,status,created_at FROM schedule_event WHERE id=:event")
+			.param("event",event).query().singleRow();
+		new ResourceDatabasePopulator(new ClassPathResource("db/seed/R__seed_24_event_history.sql")).execute(dataSource);
+		assertThat(rowCounts()).isEqualTo(counts);
+		assertThat(jdbc.sql("SELECT title,starts_at,ends_at,capacity,status,created_at FROM schedule_event WHERE id=:event")
+			.param("event",event).query().singleRow()).isEqualTo(state);
 	}
 
 	@Test

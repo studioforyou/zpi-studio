@@ -59,14 +59,14 @@ class ScheduleEventController {
 
 	private final OccurrenceChanges occurrenceChanges;
 
-	private final EventStaffHistory staffHistory;
+	private final EventHistory history;
 
 	ScheduleEventController(ScheduleQueries queries, SchedulePlanner planner, OccurrenceChanges occurrenceChanges,
-			EventStaffHistory staffHistory) {
+			EventHistory history) {
 		this.queries = queries;
 		this.planner = planner;
 		this.occurrenceChanges = occurrenceChanges;
-		this.staffHistory = staffHistory;
+		this.history = history;
 	}
 
 	@GetMapping
@@ -118,13 +118,12 @@ class ScheduleEventController {
 			.orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "Event not found."));
 	}
 
-	@GetMapping("/{eventId}/staff-history")
-	@Operation(summary = "Read actual staff changes and approved substitutions of an event",
-			operationId = "getScheduleEventStaffHistory",
-			description = "Newest first, with staff before and after and the author. Pending and rejected requests "
-					+ "are not staff changes. Older approved substitutions are included without duplicating their audit entry.")
-	ListResponse<EventStaffHistory.Entry> staffHistory(@PathVariable UUID eventId) {
-		return new ListResponse<>(this.staffHistory.history(eventId));
+	@GetMapping("/{eventId}/history")
+	@Operation(summary = "Read the history of one calendar occurrence", operationId = "getScheduleEventHistory",
+			description = "Newest first: creation, changed settings, substitutions, completion, cancellations and force-run decisions. "
+					+ "Each entry includes only changed values and its author. Older saved records remain readable.")
+	ListResponse<EventHistory.Entry> history(@PathVariable UUID eventId) {
+		return new ListResponse<>(this.history.history(eventId));
 	}
 
 	@PostMapping

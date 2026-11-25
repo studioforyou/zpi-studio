@@ -1,4 +1,4 @@
--- Seed 24: event staff history (#138), DEV/STAGE only.
+-- Seed 24: occurrence history (#138), DEV/STAGE only.
 -- A personal session has an approved substitution followed by adding an assistant.
 -- A group class has an older approved substitution without a staff audit entry.
 -- All related examples are inserted only with their new event: reruns preserve later edits.
@@ -10,12 +10,12 @@ WITH examples(id, kind, service, title, hour, room, lead) AS (VALUES
      '10000000-0000-0000-0000-000000000001'::UUID, 'Pole dance — historia zastępstwa', '22:00'::TIME,
      '15000000-0000-0000-0000-000000000001'::UUID, '08000000-0000-0000-0000-000000000003'::UUID)
 ), inserted_events AS (
-    INSERT INTO schedule_event(id,kind,service_type_id,title,starts_at,ends_at,capacity,visibility,status,created_by)
+    INSERT INTO schedule_event(id,kind,service_type_id,title,starts_at,ends_at,capacity,visibility,status,created_by,created_at)
     SELECT id,kind,service,title,
            (((CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Warsaw')::DATE-1)+hour) AT TIME ZONE 'Europe/Warsaw',
            ((((CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Warsaw')::DATE-1)+hour) AT TIME ZONE 'Europe/Warsaw')+INTERVAL '1 hour',
            CASE WHEN kind='CLASS' THEN 10 ELSE 1 END, CASE WHEN kind='CLASS' THEN 'PUBLIC' ELSE 'PRIVATE' END,
-           'COMPLETED','03000000-0000-0000-0000-000000000010'
+           'COMPLETED','03000000-0000-0000-0000-000000000010',CURRENT_TIMESTAMP-INTERVAL '6 days'
     FROM examples ON CONFLICT DO NOTHING RETURNING id,starts_at
 ), inserted_staff AS (
     INSERT INTO event_staff(event_id,staff_id,role)
@@ -58,3 +58,51 @@ SELECT e.starts_at-INTERVAL '2 days','03000000-0000-0000-0000-000000000010'::UUI
 FROM inserted_events e CROSS JOIN members marek CROSS JOIN members ewa
 WHERE e.id='19000000-0000-0000-0000-000000024001'
   AND marek.id='08000000-0000-0000-0000-000000000002' AND ewa.id='08000000-0000-0000-0000-000000000003';
+
+-- Older versions of this fixture backdated decisions but used now() for creation.
+-- Repair only that impossible creation order; do not move sessions or change user decisions.
+UPDATE schedule_event e SET created_at=first_change.at-INTERVAL '1 day'
+FROM (SELECT entity_id,min(occurred_at) AS at FROM (
+          SELECT entity_id,occurred_at FROM audit_log WHERE module='scheduling' AND entity_type='schedule_event'
+          UNION ALL SELECT event_id,decided_at FROM substitution_request WHERE status='APPROVED' AND decided_at IS NOT NULL
+      ) changes WHERE entity_id IN ('19000000-0000-0000-0000-000000024001','19000000-0000-0000-0000-000000024002')
+      GROUP BY entity_id) first_change
+WHERE e.id=first_change.entity_id AND e.created_at>first_change.at;
+
+-- A single occurrence shows a combined edit, a force-run decision and cancellation.
+WITH inserted AS (
+    INSERT INTO schedule_event(id,kind,service_type_id,title,starts_at,ends_at,capacity,visibility,status,
+                               created_by,created_at,force_run,cancel_reason,cancel_note,cancelled_by,cancelled_at)
+    SELECT '19000000-0000-0000-0000-000000024003','CLASS','10000000-0000-0000-0000-000000000003',
+           'Calisthenics — historia zajęć',
+           (((CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Warsaw')::DATE-1)+TIME '18:30') AT TIME ZONE 'Europe/Warsaw',
+           (((CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Warsaw')::DATE-1)+TIME '19:45') AT TIME ZONE 'Europe/Warsaw',
+           8,'PUBLIC','CANCELLED','03000000-0000-0000-0000-000000000010',CURRENT_TIMESTAMP-INTERVAL '6 days',
+           TRUE,'OTHER','Prace w sali','03000000-0000-0000-0000-000000000010',CURRENT_TIMESTAMP-INTERVAL '2 days'
+    ON CONFLICT DO NOTHING RETURNING id,starts_at,ends_at
+), assigned AS (
+    INSERT INTO event_staff(event_id,staff_id,role)
+    SELECT id,'08000000-0000-0000-0000-000000000002','LEAD' FROM inserted RETURNING event_id
+), rooms AS (
+    INSERT INTO event_resource(event_id,resource_id,blocks_whole_room)
+    SELECT id,'15000000-0000-0000-0000-000000000003',TRUE FROM inserted RETURNING event_id
+), room_values AS (
+    SELECT jsonb_build_array(jsonb_build_object('resourceId',r.id,'name',r.name,'kind',r.kind,'blocksWholeRoom',TRUE)) AS value,r.id
+    FROM resource r WHERE id IN ('15000000-0000-0000-0000-000000000002','15000000-0000-0000-0000-000000000003')
+)
+INSERT INTO audit_log(occurred_at,actor_account_id,module,entity_type,entity_id,action,changes,reason)
+SELECT now()-INTERVAL '4 days','03000000-0000-0000-0000-000000000010'::UUID,'scheduling','schedule_event',e.id,
+       'EVENT_MANUAL',jsonb_build_object(
+           'time',jsonb_build_object('old',jsonb_build_object('startsAt',e.starts_at-INTERVAL '90 minutes','endsAt',e.starts_at-INTERVAL '30 minutes'),
+                                    'new',jsonb_build_object('startsAt',e.starts_at,'endsAt',e.ends_at)),
+           'resources',jsonb_build_object('old',old_room.value,'new',new_room.value),
+           'title',jsonb_build_object('old','Calisthenics — trening grupowy','new','Calisthenics — historia zajęć'),
+           'capacity',jsonb_build_object('old',10,'new',8)),NULL
+FROM inserted e CROSS JOIN room_values old_room CROSS JOIN room_values new_room
+WHERE old_room.id='15000000-0000-0000-0000-000000000002' AND new_room.id='15000000-0000-0000-0000-000000000003'
+UNION ALL
+SELECT now()-INTERVAL '3 days','03000000-0000-0000-0000-000000000010'::UUID,'scheduling','schedule_event',id,
+       'EVENT_FORCE_RUN_CHANGED','{"forceRun":{"old":false,"new":true}}'::jsonb,NULL FROM inserted
+UNION ALL
+SELECT now()-INTERVAL '2 days','03000000-0000-0000-0000-000000000010'::UUID,'scheduling','schedule_event',id,
+       'CANCELLED','{"status":{"old":"SCHEDULED","new":"CANCELLED"}}'::jsonb,'Prace w sali' FROM inserted;

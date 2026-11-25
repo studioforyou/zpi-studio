@@ -87,14 +87,14 @@ class SchedulePlanner {
 
 	private final ScheduleChangeNotices notices;
 
-	private final EventStaffHistory staffHistory;
+	private final EventHistory history;
 
 	private final Clock clock = Clock.systemUTC();
 
 	SchedulePlanner(ScheduleEventRepository events, RecurrenceSeriesRepository seriesRepository,
 			ResourceRepository resources, ServiceTypeResourceRepository roomRules, ScheduleQueries queries,
 			ScheduleConflicts conflicts, ScheduleLocks locks, ServiceTypes serviceTypes, StaffProfiles staffProfiles,
-			StudioSettings studio, ScheduleChangeNotices notices, EventStaffHistory staffHistory) {
+			StudioSettings studio, ScheduleChangeNotices notices, EventHistory history) {
 		this.events = events;
 		this.seriesRepository = seriesRepository;
 		this.resources = resources;
@@ -105,7 +105,7 @@ class SchedulePlanner {
 		this.serviceTypes = serviceTypes;
 		this.staffProfiles = staffProfiles;
 		this.notices = notices;
-		this.staffHistory = staffHistory;
+		this.history = history;
 		this.studio = studio;
 	}
 
@@ -245,7 +245,7 @@ class SchedulePlanner {
 
 		Map<UUID, ScheduleChangeNotices.Snapshot> before = this.notices
 			.snapshots(targets.stream().map(ScheduleEvent::getId).toList());
-		var staffBefore = this.staffHistory.snapshots(targets.stream().map(ScheduleEvent::getId).toList());
+		var historyBefore = this.history.snapshots(targets.stream().map(ScheduleEvent::getId).toList());
 		for (ScheduleEvent target : targets) {
 			boolean changed = target.replaceAssignments(assignments.staff(), assignments.resources());
 			if (changed && !following) {
@@ -257,8 +257,8 @@ class SchedulePlanner {
 				.ifPresent((series) -> series.setDefaults(assignments.leadStaffId(), assignments.mainResourceId()));
 		}
 		this.events.flush();
-		this.staffHistory.record(staffBefore, actor, substitutionRequestId == null ? EventStaffHistory.Kind.MANUAL
-				: automatic ? EventStaffHistory.Kind.AUTOMATIC_SUBSTITUTION : EventStaffHistory.Kind.SUBSTITUTION,
+		this.history.record(historyBefore, actor, substitutionRequestId == null ? EventHistory.Kind.MANUAL
+				: automatic ? EventHistory.Kind.AUTOMATIC_SUBSTITUTION : EventHistory.Kind.SUBSTITUTION,
 				substitutionRequestId);
 		this.notices.record(before);
 		return this.queries.findEvent(eventId).orElseThrow();

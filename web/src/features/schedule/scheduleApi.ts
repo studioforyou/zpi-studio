@@ -25,14 +25,36 @@ export type EventVisibility = (typeof eventVisibilities)[number];
 
 export type StaffRole = 'LEAD' | 'ASSISTANT';
 
-export type StaffHistoryEntry = {
+type HistoryChange<T> = { old: T; new: T };
+export type EventHistoryChanges = {
+  time?: HistoryChange<{ startsAt: string; endsAt: string }>;
+  title?: HistoryChange<string | null>;
+  capacity?: HistoryChange<number | null>;
+  staff?: HistoryChange<AssignedStaff[]>;
+  resources?: HistoryChange<AssignedResource[]>;
+  visibility?: HistoryChange<EventVisibility>;
+  status?: HistoryChange<EventStatus>;
+  guestName?: HistoryChange<string | null>;
+  blockReason?: HistoryChange<string | null>;
+  forceRun?: HistoryChange<boolean>;
+};
+
+export type EventHistoryEntry = {
   id: string;
   occurredAt: string;
-  kind: 'MANUAL' | 'SERIES_RESTORED' | 'SUBSTITUTION' | 'AUTOMATIC_SUBSTITUTION';
+  kind:
+    | 'CREATED'
+    | 'MANUAL'
+    | 'SERIES_RESTORED'
+    | 'SUBSTITUTION'
+    | 'AUTOMATIC_SUBSTITUTION'
+    | 'CANCELLED'
+    | 'COMPLETED'
+    | 'FORCE_RUN_CHANGED';
   actorAccountId: string | null;
   actorName: string | null;
-  before: AssignedStaff[];
-  after: AssignedStaff[];
+  changes: EventHistoryChanges;
+  reason: string | null;
 };
 
 export type AssignedStaff = {
@@ -231,7 +253,7 @@ export const scheduleKeys = {
   all: ['schedule'] as const,
   events: (from: string, to: string) => [...scheduleKeys.all, 'events', from, to] as const,
   series: (id: string) => [...scheduleKeys.all, 'series', id] as const,
-  staffHistory: (id: string) => [...scheduleKeys.all, 'staff-history', id] as const,
+  history: (id: string) => [...scheduleKeys.all, 'history', id] as const,
   staff: ['schedule', 'staff'] as const,
   serviceTypes: ['schedule', 'service-types'] as const,
   trainingGroups: ['schedule', 'training-groups'] as const,
@@ -244,9 +266,9 @@ export async function listScheduleEvents(from: string, to: string): Promise<Sche
   return response.items;
 }
 
-export async function getEventStaffHistory(eventId: string): Promise<StaffHistoryEntry[]> {
-  const response = await apiFetch<ListResponse<StaffHistoryEntry>>(
-    `/api/v1/schedule-events/${eventId}/staff-history`,
+export async function getEventHistory(eventId: string): Promise<EventHistoryEntry[]> {
+  const response = await apiFetch<ListResponse<EventHistoryEntry>>(
+    `/api/v1/schedule-events/${eventId}/history`,
   );
   return response.items;
 }
