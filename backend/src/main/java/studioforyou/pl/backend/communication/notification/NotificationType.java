@@ -123,10 +123,8 @@ public enum NotificationType {
 			new Placeholder(Placeholder.ROOM, "Room names, or \"studio\" when no room is assigned"),
 			new Placeholder(Placeholder.BOOKED, "How many participants booked the class, e.g. \"2\""),
 			new Placeholder(Placeholder.MINIMUM, "How many participants the class needed, e.g. \"4\""))),
-			
-	/**
-	 * A message the administrator wrote; its title and text come from the announcement, not a template.
-	 */
+
+	/** A message the administrator wrote; its title and text come from the announcement, not a template. */
 	ANNOUNCEMENT((short) 14, false, List.of()),
 
 	/**
@@ -135,7 +133,7 @@ public enum NotificationType {
 	 * have not booked it or joined its waiting list (to a child's guardians), while it has a free
 	 * place.
 	 */
-	CLASS_BOOKING_OPENED((short) 14, false, List.of(
+	CLASS_BOOKING_OPENED((short) 15, false, List.of(
 			new Placeholder(Placeholder.CLASS, "Name of the class"),
 			new Placeholder(Placeholder.DAY, "Day of the class: \"dziś\", \"jutro\" or the weekday and date, e.g. \"wtorek 12.11\""),
 			new Placeholder(Placeholder.TIME, "Start time, e.g. \"18:00\""),
