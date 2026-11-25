@@ -127,7 +127,7 @@ public enum NotificationType {
 	/**
 	 * A message the administrator wrote; its title and text come from the announcement, not a template.
 	 */
-	ANNOUNCEMENT((short) 14, false, List.of());
+	ANNOUNCEMENT((short) 14, false, List.of()),
 
 	/**
 	 * Booking opened for a class the participant is interested in: they marked its service type, or
