@@ -362,6 +362,31 @@ void main() {
       expect(find.text('Pole dance wt/czw'), findsNothing);
     });
 
+    testWidgets('a client switches tabs between private and group chats', (
+      tester,
+    ) async {
+      api.summaries = [
+        _summary('1', 'Ewa Wiśniewska', ConversationKind.direct, unread: 2),
+        _summary('2', 'Pole dance wt/czw', ConversationKind.group),
+      ];
+      await pump(tester, session: _client, initialLocation: '/client/messages');
+
+      expect(find.text('Ewa Wiśniewska'), findsOneWidget);
+      expect(find.text('EW'), findsOneWidget);
+      expect(find.text('2'), findsOneWidget);
+      expect(find.byType(FilterChip), findsNothing);
+
+      await tester.tap(find.text('Grupowe'));
+      await tester.pumpAndSettle();
+      expect(find.text('Ewa Wiśniewska'), findsNothing);
+      expect(find.text('Pole dance wt/czw'), findsOneWidget);
+
+      await tester.tap(find.text('Prywatne'));
+      await tester.pumpAndSettle();
+      expect(find.text('Ewa Wiśniewska'), findsOneWidget);
+      expect(find.text('Pole dance wt/czw'), findsNothing);
+    });
+
     testWidgets('the trainer chooses what kind of chat to start', (
       tester,
     ) async {
@@ -446,7 +471,7 @@ void main() {
       ];
       await pump(tester, session: _client, initialLocation: '/client/messages');
 
-      await tester.tap(find.byType(FloatingActionButton));
+      await tester.tap(find.text('Napisz do trenera'));
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextField), 'wro');
       await tester.pumpAndSettle();

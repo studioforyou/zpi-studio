@@ -6,8 +6,8 @@ import 'package:mobile/core/auth/auth_state.dart';
 import 'package:mobile/core/auth/session.dart';
 import 'package:mobile/features/accounts/presentation/widgets/choice_tile.dart';
 import 'package:mobile/features/accounts/presentation/widgets/profile_styles.dart';
-import 'package:mobile/features/accounts/presentation/widgets/text_action.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
+import 'package:mobile/shared/widgets/client/client_widgets.dart';
 
 /// Shown after signing in, and from the profile tab, when the account can use
 /// the app in more than one way: as a client for itself or for a child, or as
@@ -121,11 +121,12 @@ class RolePickerScreen extends ConsumerWidget {
                     bottom: RolePickerStyle.backBottomMargin,
                   ),
                   child: Center(
-                    child: TextAction(
+                    child: AppButton(
                       label: switchingRole
                           ? l10n.rolePickerBackToProfile
                           : l10n.rolePickerBackToLogin,
-                      onTap: back,
+                      small: true,
+                      onPressed: back,
                     ),
                   ),
                 ),

@@ -183,6 +183,7 @@ class ClientTypography {
     required this.placesNumber,
     required this.statNumber,
     required this.historyDate,
+    required this.kicker,
     required this.entryChange,
     required this.offerPrice,
     required this.checkoutPrice,
@@ -309,6 +310,9 @@ class ClientTypography {
 
   /// Day and month in a history row ("21.11").
   final ClientTextSpec historyDate;
+
+  /// The small line above a notification's title ("Zmiana zajęć").
+  final ClientTextSpec kicker;
 
   /// Change of the entry balance in an entry history row ("−1", "+8").
   final ClientTextSpec entryChange;

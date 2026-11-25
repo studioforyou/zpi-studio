@@ -199,6 +199,7 @@ const _typography = ClientTypography(
   bigNumber: ClientTextSpec(34, weight: FontWeight.w600, height: 1),
   statNumber: ClientTextSpec(22, weight: FontWeight.w600, height: 1.1),
   historyDate: ClientTextSpec(18, weight: FontWeight.w600, height: 1.1),
+  kicker: ClientTextSpec(12.5, weight: FontWeight.w600, height: 1.2),
   entryChange: ClientTextSpec(18, weight: FontWeight.w600, height: 1.2),
   offerPrice: ClientTextSpec(
     20,

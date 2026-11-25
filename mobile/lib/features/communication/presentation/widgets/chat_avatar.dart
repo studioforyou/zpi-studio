@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mobile/features/communication/data/conversations_api.dart';
+import 'package:mobile/shared/widgets/client/client_widgets.dart';
 
 /// Colours of people's avatars; a person always gets the same one.
 const _personColors = [
@@ -110,3 +111,51 @@ String initials(String name) => name
     .take(2)
     .map((part) => part[0].toUpperCase())
     .join();
+
+/// The square avatar of a conversation in the client app (#281): a person's
+/// initials, or the icon of a group or a class chat.
+class ClientConversationAvatar extends StatelessWidget {
+  const ClientConversationAvatar(this.conversation, {super.key, this.size});
+
+  final ConversationSummary conversation;
+
+  /// Defaults to [ClientSizes.avatar].
+  final double? size;
+
+  @override
+  Widget build(BuildContext context) {
+    final ct = context.ct;
+    final c = ct.colors;
+    final dimension = size ?? ct.sizes.avatar;
+    final person = conversation.counterpart;
+    if (conversation.kind == ConversationKind.direct && person != null) {
+      return SquareAvatar(
+        initials: SquareAvatar.initialsOf(conversation.title),
+        background: clientAvatarColor(context, person.accountId),
+        foreground: c.onChatAvatar,
+        size: dimension,
+      );
+    }
+    final isEvent = conversation.kind == ConversationKind.event;
+    return ExcludeSemantics(
+      child: Container(
+        width: dimension,
+        height: dimension,
+        color: isEvent ? c.primarySoft : c.primary,
+        alignment: Alignment.center,
+        child: Icon(
+          isEvent ? Icons.calendar_today_outlined : Icons.group_outlined,
+          size: ct.sizes.icon,
+          color: c.ink,
+        ),
+      ),
+    );
+  }
+}
+
+/// A person's avatar colour from [ClientPalette.chatAvatars]; a person always
+/// gets the same one.
+Color clientAvatarColor(BuildContext context, String seed) {
+  final colors = context.ct.colors.chatAvatars;
+  return colors[seed.hashCode.abs() % colors.length];
+}

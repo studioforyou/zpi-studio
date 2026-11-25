@@ -49,11 +49,15 @@ class SubPageHeader extends StatelessWidget {
     required this.backLabel,
     required this.title,
     this.actions = const [],
+    this.backTrailing,
   });
 
   final String backLabel;
   final String title;
   final List<Widget> actions;
+
+  /// On the right of the back link, e.g. "Oznacz jako przeczytane".
+  final Widget? backTrailing;
 
   @override
   Widget build(BuildContext context) {
@@ -66,28 +70,37 @@ class SubPageHeader extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Semantics(
-              button: true,
-              label: backLabel,
-              excludeSemantics: true,
-              child: InkWell(
-                onTap: () => Navigator.of(context).maybePop(),
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(minHeight: ct.sizes.tapTarget),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.chevron_left,
-                        size: ct.sizes.icon,
-                        color: ct.colors.ink,
+            Row(
+              children: [
+                Semantics(
+                  button: true,
+                  label: backLabel,
+                  excludeSemantics: true,
+                  child: InkWell(
+                    onTap: () => Navigator.of(context).maybePop(),
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        minHeight: ct.sizes.tapTarget,
                       ),
-                      SizedBox(width: sp.xxs),
-                      Text(backLabel, style: ct.text.body),
-                    ],
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.chevron_left,
+                            size: ct.sizes.icon,
+                            color: ct.colors.ink,
+                          ),
+                          SizedBox(width: sp.xxs),
+                          Text(backLabel, style: ct.text.body),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
-              ),
+                const Spacer(),
+                if (backTrailing case final trailing?)
+                  Flexible(flex: 2, child: trailing),
+              ],
             ),
             Row(
               children: [

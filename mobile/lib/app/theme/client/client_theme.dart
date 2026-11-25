@@ -109,6 +109,7 @@ class ClientTextStyles {
       placesNumber = _style(t, c, t.placesNumber),
       statNumber = _style(t, c, t.statNumber),
       historyDate = _style(t, c, t.historyDate),
+      kicker = _style(t, c, t.kicker),
       entryChange = _style(t, c, t.entryChange),
       offerPrice = _style(t, c, t.offerPrice),
       checkoutPrice = _style(t, c, t.checkoutPrice),
@@ -199,6 +200,7 @@ class ClientTextStyles {
   final TextStyle placesNumber;
   final TextStyle statNumber;
   final TextStyle historyDate;
+  final TextStyle kicker;
   final TextStyle entryChange;
   final TextStyle offerPrice;
   final TextStyle checkoutPrice;

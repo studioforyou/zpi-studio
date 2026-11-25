@@ -4,10 +4,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:mobile/app/push/push_notifications.dart';
+import 'package:mobile/core/auth/app_role.dart';
 import 'package:mobile/core/auth/auth_controller.dart';
 import 'package:mobile/core/auth/auth_state.dart';
 import 'package:mobile/features/communication/data/notifications_api.dart';
+import 'package:mobile/features/communication/presentation/chat_format.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
+import 'package:mobile/shared/widgets/client/client_widgets.dart';
 
 /// The number of unread notifications for the active role, for the tab badge.
 int watchUnreadNotifications(WidgetRef ref) {
@@ -52,6 +55,13 @@ class NotificationsScreen extends ConsumerWidget {
     final unread = scope == null
         ? 0
         : ref.watch(unreadCountProvider(scope)).value?.count ?? 0;
+    if (session?.activeRole == AppRole.client && scope != null) {
+      return _ClientNotifications(
+        scope: scope,
+        unread: unread,
+        onMarkAllRead: () => _markAllRead(context, ref, scope),
+      );
+    }
     return Scaffold(
       appBar: AppBar(
         title: Text(
@@ -112,9 +122,12 @@ class NotificationsScreen extends ConsumerWidget {
 }
 
 class _Inbox extends ConsumerStatefulWidget {
-  const _Inbox({super.key, required this.scope});
+  const _Inbox({super.key, required this.scope, this.client = false});
 
   final InboxScope scope;
+
+  /// The client's look (#281): sections and flat rows.
+  final bool client;
 
   @override
   ConsumerState<_Inbox> createState() => _InboxState();
@@ -154,6 +167,7 @@ class _InboxState extends ConsumerState<_Inbox> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.client) return _buildClient(context);
     final l10n = AppLocalizations.of(context);
     return ref
         .watch(inboxProvider(_query))
@@ -225,6 +239,107 @@ class _InboxState extends ConsumerState<_Inbox> with WidgetsBindingObserver {
               ],
             ),
           ),
+        );
+  }
+
+  Widget _buildClient(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final ct = context.ct;
+    final sp = ct.spacing;
+    return ref
+        .watch(inboxProvider(_query))
+        .when(
+          skipLoadingOnRefresh: false,
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (_, _) => ListView(
+            padding: EdgeInsets.all(sp.page),
+            children: [
+              Text(l10n.notificationsLoadError, style: ct.text.body),
+              SizedBox(height: sp.l),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: AppButton(
+                  label: l10n.notificationsRetry,
+                  small: true,
+                  onPressed: _refresh,
+                ),
+              ),
+            ],
+          ),
+          data: (result) {
+            final fresh = result.items.where((n) => n.isUnread).toList();
+            final earlier = result.items.where((n) => !n.isUnread).toList();
+            final now = DateTime.now();
+            return RefreshIndicator(
+              onRefresh: _refresh,
+              child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: EdgeInsets.only(bottom: sp.xl),
+                children: [
+                  if (result.items.isEmpty)
+                    Padding(
+                      padding: EdgeInsets.all(sp.page),
+                      child: Text(
+                        l10n.notificationsEmpty,
+                        style: ct.text.body.copyWith(color: ct.colors.muted),
+                      ),
+                    ),
+                  for (final (label, items) in [
+                    (l10n.notificationsSectionNew, fresh),
+                    (l10n.notificationsSectionEarlier, earlier),
+                  ])
+                    if (items.isNotEmpty) ...[
+                      SectionLabel(label),
+                      DecoratedBox(
+                        decoration: BoxDecoration(
+                          border: Border(top: ct.hairline),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            for (final notification in items)
+                              _ClientNotificationRow(
+                                notification: notification,
+                                now: now,
+                              ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  if (result.totalPages > 1 || _page > 0)
+                    Padding(
+                      padding: EdgeInsets.symmetric(horizontal: sp.page),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          AppButton.ghost(
+                            label: l10n.notificationsNewer,
+                            onPressed: _page > 0
+                                ? () => setState(() => _page--)
+                                : null,
+                          ),
+                          Text(
+                            l10n.notificationsPage(
+                              result.page + 1,
+                              result.totalPages,
+                            ),
+                            style: ct.text.meta.copyWith(
+                              color: ct.colors.muted,
+                            ),
+                          ),
+                          AppButton.ghost(
+                            label: l10n.notificationsOlder,
+                            onPressed: _page + 1 < result.totalPages
+                                ? () => setState(() => _page++)
+                                : null,
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            );
+          },
         );
   }
 }
@@ -494,4 +609,288 @@ class _NotificationTile extends ConsumerWidget {
     }
     return DateFormat('d.MM.yyyy, HH:mm').format(at);
   }
+}
+
+/// The client's inbox (#281): "‹ Wstecz" with "Oznacz jako przeczytane",
+/// the title, then new and earlier notifications.
+class _ClientNotifications extends StatelessWidget {
+  const _ClientNotifications({
+    required this.scope,
+    required this.unread,
+    required this.onMarkAllRead,
+  });
+
+  final InboxScope scope;
+  final int unread;
+  final VoidCallback onMarkAllRead;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final ct = context.ct;
+    final c = ct.colors;
+    final sp = ct.spacing;
+    return Scaffold(
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SubPageHeader(
+            backLabel: l10n.commonBack,
+            title: l10n.notificationsTitle,
+            backTrailing: Semantics(
+              button: true,
+              enabled: unread > 0,
+              label: l10n.notificationsMarkAllRead,
+              excludeSemantics: true,
+              child: InkWell(
+                onTap: unread > 0 ? onMarkAllRead : null,
+                child: Container(
+                  constraints: BoxConstraints(minHeight: ct.sizes.tapTarget),
+                  padding: EdgeInsets.symmetric(horizontal: sp.s),
+                  alignment: Alignment.centerRight,
+                  child: Text(
+                    l10n.notificationsMarkAllReadShort,
+                    style: ct.text.meta.copyWith(
+                      color: unread > 0 ? c.ink : c.faint,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            actions: [
+              HeaderIconButton(
+                icon: Icons.info_outline,
+                tooltip: l10n.notificationsAbout,
+                onPressed: () => showAppSheet<void>(
+                  context,
+                  builder: (sheetContext) => AppSheet(
+                    title: l10n.notificationsAbout,
+                    titleSmall: true,
+                    children: [
+                      SizedBox(height: sp.m),
+                      Text(l10n.notificationsAboutBody, style: ct.text.body),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          Expanded(
+            child: _Inbox(key: ValueKey(scope), scope: scope, client: true),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// One notification in the client's inbox: what it is about, the title with
+/// an unread mark, two lines of text, a deadline to confirm a place and the
+/// time. Tapping opens what it is about, or the full text when there is
+/// nothing to open; a long press always shows the full text.
+class _ClientNotificationRow extends ConsumerWidget {
+  const _ClientNotificationRow({required this.notification, required this.now});
+
+  final AppNotification notification;
+  final DateTime now;
+
+  Map<String, String> get _data => {
+    ...notification.data,
+    'notificationId': notification.id,
+    'type': notification.type,
+  };
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
+    final ct = context.ct;
+    final c = ct.colors;
+    final sp = ct.spacing;
+    final type = notification.type;
+    final (kicker, attention) = switch (type) {
+      'WAITLIST_PLACE_OFFERED' => (l10n.notificationsKindOffer, true),
+      'WAITLIST_PLACE_GRANTED' => (l10n.notificationsKindGranted, true),
+      'CLASS_CHANGED' => (l10n.notificationsKindChanged, true),
+      'CLASS_CANCELLED' => (l10n.notificationsKindCancelled, true),
+      'CLASS_REMINDER' => (l10n.notificationsKindReminder, false),
+      'PASS_EXPIRING' ||
+      'PASS_LAST_ENTRY_USED' => (l10n.notificationsKindPass, false),
+      'NEW_MESSAGE' => (l10n.notificationsKindMessage, false),
+      _ => (l10n.notificationsKindStudio, false),
+    };
+    final deadline = type == 'WAITLIST_PLACE_OFFERED'
+        ? DateTime.tryParse(
+            notification.data['offerExpiresAt'] ?? '',
+          )?.toLocal()
+        : null;
+    final opens = clientNotificationOpensScreen(_data);
+    final push = ref.read(pushNotificationsProvider);
+    return InkWell(
+      onTap: opens
+          ? () => push.open(_data)
+          : () => _showClientFullText(context, ref, notification, now),
+      onLongPress: () => _showClientFullText(context, ref, notification, now),
+      child: Container(
+        padding: EdgeInsets.fromLTRB(sp.page, sp.l - sp.xxs, sp.page, sp.l),
+        decoration: BoxDecoration(border: Border(bottom: ct.hairline)),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    kicker,
+                    style: ct.text.kicker.copyWith(
+                      color: attention ? c.orange : c.muted,
+                    ),
+                  ),
+                  SizedBox(height: sp.xxs + 1),
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          notification.title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: ct.text.rowTitle,
+                        ),
+                      ),
+                      if (notification.isUnread) ...[
+                        SizedBox(width: sp.s),
+                        SizedBox.square(
+                          dimension: ct.sizes.unreadDot,
+                          child: ColoredBox(color: c.orange),
+                        ),
+                      ],
+                    ],
+                  ),
+                  SizedBox(height: sp.xxs + 1),
+                  Text(
+                    notification.body,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: ct.text.meta.copyWith(color: c.muted),
+                  ),
+                  if (deadline != null) ...[
+                    SizedBox(height: sp.s),
+                    _DeadlineTag(at: deadline, now: now),
+                  ],
+                ],
+              ),
+            ),
+            SizedBox(width: sp.m),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  formatListTime(notification.createdAt, l10n, now),
+                  style: ct.text.caption.copyWith(color: c.muted),
+                ),
+                if (opens) ...[
+                  SizedBox(height: sp.s),
+                  Icon(
+                    Icons.chevron_right,
+                    size: ct.sizes.icon,
+                    color: c.faint,
+                  ),
+                ],
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// "Potwierdź do 16:54" in orange, or the past deadline in gray.
+class _DeadlineTag extends StatelessWidget {
+  const _DeadlineTag({required this.at, required this.now});
+
+  final DateTime at;
+  final DateTime now;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final ct = context.ct;
+    final c = ct.colors;
+    final upcoming = at.isAfter(now);
+    final sameDay =
+        at.year == now.year && at.month == now.month && at.day == now.day;
+    final time = DateFormat(sameDay ? 'HH:mm' : 'd.MM, HH:mm').format(at);
+    final color = upcoming ? c.orange : c.muted;
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: ct.spacing.s,
+        vertical: ct.spacing.xxs,
+      ),
+      decoration: BoxDecoration(
+        border: Border.all(color: color, width: ct.shape.hairline),
+      ),
+      child: Text(
+        upcoming
+            ? l10n.notificationsConfirmBy(time)
+            : l10n.notificationsDeadlineAt(time),
+        style: ct.text.kicker.copyWith(color: color),
+      ),
+    );
+  }
+}
+
+/// The whole notification in a sheet; reading it marks it as read.
+void _showClientFullText(
+  BuildContext context,
+  WidgetRef ref,
+  AppNotification notification,
+  DateTime now,
+) {
+  final push = ref.read(pushNotificationsProvider);
+  final l10n = AppLocalizations.of(context);
+  if (notification.isUnread) unawaited(push.markRead(notification.id));
+  final opens = clientNotificationOpensScreen({
+    ...notification.data,
+    'type': notification.type,
+  });
+  showAppSheet<void>(
+    context,
+    builder: (sheetContext) {
+      final ct = sheetContext.ct;
+      final sp = ct.spacing;
+      return AppSheet(
+        kicker: l10n.notificationsFullText,
+        title: notification.title,
+        titleSmall: true,
+        children: [
+          SizedBox(height: sp.m),
+          Text(notification.body, style: ct.text.body),
+          SizedBox(height: sp.m),
+          Text(
+            _NotificationTile._when(l10n, notification.createdAt),
+            style: ct.text.meta.copyWith(color: ct.colors.muted),
+          ),
+          if (opens) ...[
+            SizedBox(height: sp.l),
+            AppButton.primary(
+              label: switch (notification.type) {
+                'NEW_MESSAGE' => l10n.notificationsOpenConversation,
+                'PASS_EXPIRING' ||
+                'PASS_LAST_ENTRY_USED' => l10n.notificationsOpenPasses,
+                _ => l10n.notificationsOpenClass,
+              },
+              onPressed: () {
+                Navigator.of(sheetContext).pop();
+                push.open({
+                  ...notification.data,
+                  'notificationId': notification.id,
+                  'type': notification.type,
+                });
+              },
+            ),
+          ],
+        ],
+      );
+    },
+  );
 }

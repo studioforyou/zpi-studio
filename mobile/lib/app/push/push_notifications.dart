@@ -295,3 +295,14 @@ final pushNotificationsProvider = Provider<PushNotifications>((ref) {
   ref.onDispose(notifications._dispose);
   return notifications;
 });
+
+/// Whether opening a client notification with [data] leads to another screen
+/// (a class, a conversation, the passes) rather than back to the inbox.
+bool clientNotificationOpensScreen(Map<String, String> data) {
+  final type = data['type'];
+  if (type == newMessageType) return data['conversationId'] != null;
+  if (type == 'WAITLIST_PLACE_OFFERED' || type == 'WAITLIST_PLACE_GRANTED') {
+    return data['eventId']?.isNotEmpty ?? false;
+  }
+  return PushNotifications._clientPaths.containsKey(type);
+}

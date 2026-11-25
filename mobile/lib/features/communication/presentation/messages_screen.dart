@@ -14,6 +14,7 @@ import 'package:mobile/features/communication/presentation/chat_format.dart';
 import 'package:mobile/features/communication/presentation/notifications_screen.dart';
 import 'package:mobile/features/communication/presentation/widgets/chat_avatar.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
+import 'package:mobile/shared/widgets/client/client_widgets.dart';
 
 /// The conversation screen, pushed above the role's shell.
 String conversationLocation(AppRole role, String conversationId) =>
@@ -97,6 +98,7 @@ class _MessagesScreenState extends ConsumerState<MessagesScreen> {
     }
     final isTrainer = session.activeRole == AppRole.trainer;
     final provider = conversationsProvider(session.accountId);
+    if (!isTrainer) return _clientList(context, session);
     final unreadNotifications = watchUnreadNotifications(ref);
 
     return Scaffold(
@@ -142,17 +144,7 @@ class _MessagesScreenState extends ConsumerState<MessagesScreen> {
                   onRefresh: () => ref.refresh(provider.future),
                 );
               }
-              final shown = [
-                for (final conversation in conversations)
-                  if (switch (_filter) {
-                    _Filter.all => true,
-                    _Filter.private =>
-                      conversation.kind == ConversationKind.direct,
-                    _Filter.group =>
-                      conversation.kind != ConversationKind.direct,
-                  })
-                    conversation,
-              ];
+              final shown = conversations.where(_shown).toList();
               final now = DateTime.now();
               return RefreshIndicator(
                 onRefresh: () => ref.refresh(provider.future),
@@ -175,23 +167,115 @@ class _MessagesScreenState extends ConsumerState<MessagesScreen> {
                       _ConversationTile(
                         conversation,
                         now: now,
-                        onTap: () async {
-                          await context.push(
-                            conversationLocation(
-                              session.activeRole,
-                              conversation.id,
-                            ),
-                          );
-                          if (mounted) {
-                            ref.invalidate(provider);
-                          }
-                        },
+                        onTap: () => _open(session, conversation),
                       ),
                   ],
                 ),
               );
             },
           ),
+    );
+  }
+
+  bool _shown(ConversationSummary conversation) => switch (_filter) {
+    _Filter.all => true,
+    _Filter.private => conversation.kind == ConversationKind.direct,
+    _Filter.group => conversation.kind != ConversationKind.direct,
+  };
+
+  Future<void> _open(Session session, ConversationSummary conversation) async {
+    await context.push(
+      conversationLocation(session.activeRole, conversation.id),
+    );
+    if (mounted) ref.invalidate(conversationsProvider(session.accountId));
+  }
+
+  /// The client's list (#281): tabs instead of chips, square avatars, and
+  /// "Napisz do trenera" pinned at the bottom.
+  Widget _clientList(BuildContext context, Session session) {
+    final l10n = AppLocalizations.of(context);
+    final ct = context.ct;
+    final sp = ct.spacing;
+    final provider = conversationsProvider(session.accountId);
+    final filters = _Filter.values;
+    return Scaffold(
+      appBar: ClientTabHeader(title: l10n.navMessages),
+      bottomNavigationBar: SafeArea(
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(sp.page, sp.s, sp.page, sp.s),
+          child: Row(
+            children: [
+              const Spacer(),
+              Expanded(
+                child: AppButton(
+                  label: l10n.messagesWriteToTrainer,
+                  icon: Icons.edit_outlined,
+                  expand: true,
+                  onPressed: () => _startConversation(
+                    context,
+                    session,
+                    trainerPickerLocation,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          AppTabs(
+            labels: [
+              l10n.messagesFilterAll,
+              l10n.messagesFilterPrivate,
+              l10n.messagesFilterGroup,
+            ],
+            selected: filters.indexOf(_filter),
+            onChanged: (i) => setState(() => _filter = filters[i]),
+          ),
+          Expanded(
+            child: ref
+                .watch(provider)
+                .when(
+                  skipLoadingOnRefresh: true,
+                  skipLoadingOnReload: true,
+                  loading: () =>
+                      const Center(child: CircularProgressIndicator()),
+                  error: (error, _) => _ClientNote(
+                    text: messagesErrorMessage(error, l10n, loading: true),
+                    actionLabel: l10n.messagesRetry,
+                    onAction: () => ref.invalidate(provider),
+                  ),
+                  data: (conversations) {
+                    final shown = conversations.where(_shown).toList();
+                    final now = DateTime.now();
+                    return RefreshIndicator(
+                      onRefresh: () => ref.refresh(provider.future),
+                      child: shown.isEmpty
+                          ? _ClientNote(
+                              text: conversations.isEmpty
+                                  ? l10n.messagesEmptyClient
+                                  : l10n.messagesEmptyFilter,
+                              scrollable: true,
+                            )
+                          : ListView(
+                              padding: EdgeInsets.only(bottom: sp.xl),
+                              children: [
+                                for (final conversation in shown)
+                                  _ClientConversationRow(
+                                    conversation,
+                                    now: now,
+                                    onTap: () => _open(session, conversation),
+                                  ),
+                              ],
+                            ),
+                    );
+                  },
+                ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -418,35 +502,173 @@ class _ConversationTile extends StatelessWidget {
     );
   }
 
-  static String _title(ConversationSummary conversation) {
-    final startsAt = conversation.eventStartsAt;
-    if (conversation.kind == ConversationKind.event && startsAt != null) {
-      return '${conversation.title} · ${formatClassStart(startsAt)}';
-    }
-    return conversation.title;
-  }
+  static String _title(ConversationSummary conversation) =>
+      conversationListTitle(conversation);
 
   static String _preview(
     ConversationSummary conversation,
     AppLocalizations l10n,
-  ) {
-    if (conversation.hasLeft) {
-      return l10n.messagesLeftPreview;
-    }
+  ) => conversationPreview(conversation, l10n);
+}
+
+/// The title of a conversation in a list; a class chat adds its start.
+String conversationListTitle(ConversationSummary conversation) {
+  final startsAt = conversation.eventStartsAt;
+  if (conversation.kind == ConversationKind.event && startsAt != null) {
+    return '${conversation.title} · ${formatClassStart(startsAt)}';
+  }
+  return conversation.title;
+}
+
+/// The last message of a conversation in a list, or why there is none.
+String conversationPreview(
+  ConversationSummary conversation,
+  AppLocalizations l10n,
+) {
+  if (conversation.hasLeft) {
+    return l10n.messagesLeftPreview;
+  }
+  final last = conversation.lastMessage;
+  if (last == null) {
+    return conversation.isClosed
+        ? l10n.messagesClosedPreview
+        : l10n.messagesNoMessagesYet;
+  }
+  final text = last.isDeleted ? l10n.messagesDeleted : last.body ?? '';
+  if (last.isMine) {
+    return l10n.messagesYou(text);
+  }
+  final sender = last.senderName;
+  return conversation.kind != ConversationKind.direct && sender != null
+      ? l10n.messagesFrom(sender, text)
+      : text;
+}
+
+/// A conversation in the client's list.
+class _ClientConversationRow extends StatelessWidget {
+  const _ClientConversationRow(
+    this.conversation, {
+    required this.now,
+    required this.onTap,
+  });
+
+  final ConversationSummary conversation;
+  final DateTime now;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final ct = context.ct;
+    final c = ct.colors;
+    final sp = ct.spacing;
+    final unread = conversation.unreadCount > 0;
+    final dim = conversation.hasLeft || conversation.isClosed;
     final last = conversation.lastMessage;
-    if (last == null) {
-      return conversation.isClosed
-          ? l10n.messagesClosedPreview
-          : l10n.messagesNoMessagesYet;
-    }
-    final text = last.isDeleted ? l10n.messagesDeleted : last.body ?? '';
-    if (last.isMine) {
-      return l10n.messagesYou(text);
-    }
-    final sender = last.senderName;
-    return conversation.kind != ConversationKind.direct && sender != null
-        ? l10n.messagesFrom(sender, text)
-        : text;
+    final time = last?.createdAt;
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        padding: EdgeInsets.symmetric(horizontal: sp.page, vertical: sp.l),
+        decoration: BoxDecoration(border: Border(bottom: ct.hairline)),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ClientConversationAvatar(conversation),
+            SizedBox(width: sp.m + sp.xxs),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    conversationListTitle(conversation),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: ct.text.rowTitle.copyWith(
+                      color: dim ? c.muted : c.ink,
+                    ),
+                  ),
+                  SizedBox(height: sp.xxs),
+                  Text(
+                    conversationPreview(conversation, l10n),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: ct.text.meta.copyWith(
+                      color: unread && !dim ? c.ink : c.muted,
+                      fontWeight: unread && !dim ? FontWeight.w500 : null,
+                      fontStyle: last?.isDeleted == true
+                          ? FontStyle.italic
+                          : null,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            SizedBox(width: sp.m),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                if (time != null)
+                  Text(
+                    formatListTime(time, l10n, now),
+                    style: ct.text.caption.copyWith(color: c.muted),
+                  ),
+                SizedBox(height: sp.s),
+                if (unread)
+                  CountBadge(count: conversation.unreadCount)
+                else if (dim)
+                  Icon(
+                    conversation.hasLeft ? Icons.logout : Icons.lock_outline,
+                    size: ct.sizes.badge,
+                    color: c.muted,
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A short note in place of the client's list, with an optional action.
+class _ClientNote extends StatelessWidget {
+  const _ClientNote({
+    required this.text,
+    this.actionLabel,
+    this.onAction,
+    this.scrollable = false,
+  });
+
+  final String text;
+  final String? actionLabel;
+  final VoidCallback? onAction;
+
+  /// Keeps pull to refresh working on an empty list.
+  final bool scrollable;
+
+  @override
+  Widget build(BuildContext context) {
+    final ct = context.ct;
+    final sp = ct.spacing;
+    return ListView(
+      physics: scrollable ? null : const NeverScrollableScrollPhysics(),
+      padding: EdgeInsets.fromLTRB(sp.page, sp.xl, sp.page, sp.xl),
+      children: [
+        Text(text, style: ct.text.body.copyWith(color: ct.colors.muted)),
+        if (actionLabel != null) ...[
+          SizedBox(height: sp.l),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: AppButton(
+              label: actionLabel!,
+              small: true,
+              onPressed: onAction,
+            ),
+          ),
+        ],
+      ],
+    );
   }
 }
 

@@ -575,19 +575,19 @@ void main() {
         findsOneWidget,
       );
 
-      await tester.tap(find.byTooltip('Oznacz wszystkie jako przeczytane'));
+      await tester.tap(find.text('Oznacz jako przeczytane'));
       await tester.pumpAndSettle();
       expect(notifications.readAll, ['CLIENT']);
 
       // Back on the messages screen the bell has no number any more.
-      await tester.tap(find.byType(BackButton));
+      await tester.tap(find.text('Wstecz'));
       await tester.pumpAndSettle();
       expect(location(container), clientMessagesPath);
       expect(find.byType(CountBadge), findsNothing);
     });
 
     testWidgets(
-      'an offer separates its key details and keeps the full text behind info',
+      'an offer shows what it is, its deadline and the full text on long press',
       (tester) async {
         const body =
             'Pole dance: zajęcia w sali Duża. Potwierdź miejsce przed '
@@ -627,12 +627,13 @@ void main() {
         await tester.tap(find.byTooltip('Powiadomienia'));
         await tester.pumpAndSettle();
 
-        expect(find.text('Pole dance'), findsOneWidget);
+        expect(find.text('Zwolniło się miejsce'), findsOneWidget);
         expect(find.textContaining('Potwierdź do'), findsOneWidget);
-        expect(find.text(body), findsNothing);
-        await tester.tap(find.byTooltip('Pełna treść'));
-        await tester.pumpAndSettle();
         expect(find.text(body), findsOneWidget);
+        await tester.longPress(find.text(body));
+        await tester.pumpAndSettle();
+        expect(find.text('Pełna treść'), findsOneWidget);
+        expect(find.text(body), findsNWidgets(2));
         expect(location(container), clientNotificationsPath);
         expect(notifications.read, ['structured-offer']);
         expect(reads, isEmpty);
@@ -689,7 +690,9 @@ void main() {
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
 
-        await tester.tap(find.byTooltip('Pełna treść'));
+        await tester.longPress(
+          find.text('Maria: Masz już zarezerwowane miejsce na zajęciach'),
+        );
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
         await tester.scrollUntilVisible(
@@ -744,10 +747,12 @@ void main() {
           findsOneWidget,
         );
         expect(notifications.read, isEmpty);
-        await tester.tap(find.text('Zamknij'));
+        await tester.tap(find.byTooltip('Zamknij'));
         await tester.pumpAndSettle();
-        await tester.tap(find.byTooltip('Pełna treść').first);
+        // An announcement opens nothing else, so a tap shows its full text.
+        await tester.tap(find.text('Promocja -20% na karnety'));
         await tester.pumpAndSettle();
+        expect(find.text('Pełna treść'), findsOneWidget);
         expect(
           find.text('Dodatkowa treść: Promocja -20% na karnety'),
           findsWidgets,
@@ -755,7 +760,7 @@ void main() {
         expect(notifications.read, ['SEED_ANNOUNCEMENT']);
         expect(notifications.unread, 2);
         expect(location(container), clientNotificationsPath);
-        await tester.tap(find.text('Zamknij'));
+        await tester.tap(find.byTooltip('Zamknij'));
         await tester.pumpAndSettle();
         expect(find.text('Promocja -20% na karnety'), findsOneWidget);
         await tester.tap(find.text('Karnet wkrótce wygaśnie'));
