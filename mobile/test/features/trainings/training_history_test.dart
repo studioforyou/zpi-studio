@@ -343,14 +343,28 @@ void main() {
         expect(api.queries.last.scope.profileId, 'child');
         await tester.tap(find.text('Wejścia'));
         await tester.pumpAndSettle();
-        expect(find.text('Wszystkie karnety'), findsOneWidget);
         expect(find.text('Historia treningów'), findsOneWidget);
-        expect(usageQueries.last.profileId, 'child');
-        expect(find.text('Jan Klient'), findsOneWidget);
-        await tester.tap(find.text('Wyczyść filtry'));
+        expect(
+          find.text('W tym miesiącu nie było rozliczeń wejść.'),
+          findsOneWidget,
+        );
+        final entries = usageQueries.last;
+        expect(entries.profileId, 'child');
+        expect(entries.passId, isNull);
+        expect(entries.includeUpcoming, isFalse);
+        expect(entries.from, isNotNull);
+        expect(entries.to, isNotNull);
+        expect(find.textContaining('Jan Klient'), findsOneWidget);
+        await tester.tap(find.byType(PickerField));
+        await tester.pumpAndSettle();
+        await tester.tap(
+          find.descendant(
+            of: find.byType(PickerSheet<String>),
+            matching: find.text('Wszyscy uczestnicy'),
+          ),
+        );
         await tester.pumpAndSettle();
         expect(usageQueries.last.profileId, isNull);
-        expect(find.text('Wszyscy uczestnicy'), findsOneWidget);
         await tester.tap(
           find.descendant(
             of: find.byType(AppTabs),
@@ -406,7 +420,10 @@ void main() {
       expect(tester.takeException(), isNull);
       await tester.tap(find.text('Wejścia'));
       await tester.pumpAndSettle();
-      expect(find.text('Wszystkie karnety'), findsOneWidget);
+      expect(
+        find.text('W tym miesiącu nie było rozliczeń wejść.'),
+        findsOneWidget,
+      );
       expect(tester.takeException(), isNull);
     });
   });

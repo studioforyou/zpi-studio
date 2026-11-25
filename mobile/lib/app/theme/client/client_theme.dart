@@ -75,7 +75,7 @@ class ClientTextStyles {
       sheetTitle = _style(t, c, t.sheetTitle),
       sheetTitleSmall = _style(t, c, t.sheetTitleSmall),
       hero = _style(t, c, t.hero),
-      heroUnit = _style(t, c, t.heroUnit, c.muted),
+      heroUnit = _style(t, c, t.heroUnit),
       weekDaySelected = _style(t, c, t.weekDaySelected),
       weekDay = _style(t, c, t.weekDay),
       stripDay = _style(t, c, t.stripDay),
@@ -109,6 +109,9 @@ class ClientTextStyles {
       placesNumber = _style(t, c, t.placesNumber),
       statNumber = _style(t, c, t.statNumber),
       historyDate = _style(t, c, t.historyDate),
+      entryChange = _style(t, c, t.entryChange),
+      offerPrice = _style(t, c, t.offerPrice),
+      checkoutPrice = _style(t, c, t.checkoutPrice),
       profileName = _style(t, c, t.profileName),
       avatarInitials = _style(t, c, t.avatarInitials),
       selectedWeight = t.selectedWeight,
@@ -195,6 +198,9 @@ class ClientTextStyles {
   final TextStyle placesNumber;
   final TextStyle statNumber;
   final TextStyle historyDate;
+  final TextStyle entryChange;
+  final TextStyle offerPrice;
+  final TextStyle checkoutPrice;
   final TextStyle profileName;
   final TextStyle avatarInitials;
 

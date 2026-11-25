@@ -23,6 +23,7 @@ import 'package:mobile/core/push/push_device.dart';
 import 'package:mobile/core/push/push_messaging.dart';
 import 'package:mobile/features/communication/data/conversations_api.dart';
 import 'package:mobile/features/communication/data/notifications_api.dart';
+import 'package:mobile/features/passes/data/makeup_credits_api.dart';
 import 'package:mobile/features/passes/data/passes_api.dart';
 import 'package:mobile/features/communication/data/open_conversation.dart';
 import 'package:mobile/features/schedule/data/schedule_service_types.dart';
@@ -256,6 +257,17 @@ void main() {
           scheduleServiceTypesProvider.overrideWith((ref) async => const {}),
           studioTrainersProvider.overrideWith((ref) async => const []),
           ownPassesProvider.overrideWith((ref, profileId) async => const []),
+          passOfferProvider.overrideWith(
+            (ref) async => const PassOffer(products: [], serviceNames: {}),
+          ),
+          makeupCreditsProvider.overrideWith(
+            (ref, query) async => const MakeupCreditPage(
+              items: [],
+              page: 0,
+              totalItems: 0,
+              totalPages: 0,
+            ),
+          ),
           personalTrainingsProvider.overrideWith(
             (ref, query) async => const [],
           ),

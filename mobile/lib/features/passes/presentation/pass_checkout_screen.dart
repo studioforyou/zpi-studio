@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mobile/features/passes/data/passes_api.dart';
 import 'package:mobile/features/passes/presentation/pass_format.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
+import 'package:mobile/shared/widgets/client/client_widgets.dart';
 
 /// Buying one pass variant for a customer profile: the first day, the terms
 /// and the payment. The payment is simulated until a payment provider is
@@ -15,6 +16,7 @@ class PassCheckoutScreen extends ConsumerStatefulWidget {
     required this.product,
     required this.variant,
     this.renewedPass,
+    this.backLabel,
   });
 
   final String profileId;
@@ -26,6 +28,9 @@ class PassCheckoutScreen extends ConsumerStatefulWidget {
 
   /// The pass being renewed with the same variant, if any.
   final OwnPass? renewedPass;
+
+  /// The screen it was opened from, for the back link; "Karnety" by default.
+  final String? backLabel;
 
   @override
   ConsumerState<PassCheckoutScreen> createState() => _PassCheckoutScreenState();
@@ -45,108 +50,130 @@ class _PassCheckoutScreenState extends ConsumerState<PassCheckoutScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final textTheme = Theme.of(context).textTheme;
+    final ct = context.ct;
+    final sp = ct.spacing;
     final variant = widget.variant;
     final followed = widget.renewedPass ?? _latestRunningPass();
     final afterCurrent = followed != null && (_startAfterCurrent ?? true);
     final validFrom = afterCurrent ? _dayAfter(followed) : _startsOn;
     final validUntil = validFrom.add(Duration(days: variant.validityDays - 1));
+    final locked = _submitting || _placedOrderId != null;
+    final strong = ct.text.body.copyWith(fontWeight: ct.text.selectedWeight);
 
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.checkoutTitle)),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                spacing: 4,
-                children: [
-                  Text(widget.product.name, style: textTheme.titleMedium),
-                  Text(
-                    '${switch (variant.entriesCount) {
-                      null => l10n.passVariantUnlimited,
-                      final count => l10n.passVariantEntries(count),
-                    }}, ${l10n.passVariantValidity(variant.validityDays)}',
+          SubPageHeader(
+            backLabel: widget.backLabel ?? l10n.navPasses,
+            title: l10n.checkoutTitle,
+          ),
+          Expanded(
+            child: ListView(
+              children: [
+                Container(
+                  padding: EdgeInsets.fromLTRB(sp.page, sp.l, sp.page, sp.page),
+                  decoration: BoxDecoration(
+                    border: Border(bottom: ct.hairline),
                   ),
-                  if (widget.profileName case final name?)
-                    Text(l10n.checkoutFor(name)),
-                  Text(formatMoney(variant.price), style: textTheme.titleLarge),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 8),
-          if (followed != null)
-            CheckboxListTile(
-              key: const Key('checkout-start-after-current'),
-              contentPadding: EdgeInsets.zero,
-              value: afterCurrent,
-              onChanged: _submitting || _placedOrderId != null
-                  ? null
-                  : (value) => setState(() => _startAfterCurrent = value),
-              title: Text(l10n.checkoutStartAfterCurrent),
-              subtitle: followed.validUntil == null
-                  ? null
-                  : Text(
-                      l10n.checkoutStartAfterCurrentHint(
-                        followed.productName,
-                        formatPassDate(followed.validUntil!),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(widget.product.name, style: ct.text.nextClass),
+                      SizedBox(height: sp.xs),
+                      Text(
+                        '${switch (variant.entriesCount) {
+                          null => l10n.passVariantUnlimited,
+                          final count => l10n.passVariantEntries(count),
+                        }}, ${l10n.passVariantValidity(variant.validityDays)}',
+                        style: ct.text.meta,
                       ),
+                      if (widget.profileName case final name?) ...[
+                        SizedBox(height: sp.xxs),
+                        Text(l10n.checkoutFor(name), style: ct.text.meta),
+                      ],
+                      SizedBox(height: sp.section),
+                      Text(
+                        formatMoney(variant.price),
+                        style: ct.text.checkoutPrice,
+                      ),
+                    ],
+                  ),
+                ),
+                if (followed != null)
+                  AppCheckRow(
+                    key: const Key('checkout-start-after-current'),
+                    value: afterCurrent,
+                    title: l10n.checkoutStartAfterCurrent,
+                    hint: followed.validUntil == null
+                        ? null
+                        : l10n.checkoutStartAfterCurrentHint(
+                            followed.productName,
+                            formatPassDate(followed.validUntil!),
+                          ),
+                    onChanged: locked
+                        ? null
+                        : (value) => setState(() => _startAfterCurrent = value),
+                  ),
+                if (!afterCurrent)
+                  AppRow(
+                    key: const Key('checkout-start-date'),
+                    leading: Icon(
+                      Icons.calendar_today_outlined,
+                      color: ct.colors.muted,
+                      size: ct.sizes.icon,
                     ),
-            ),
-          if (!afterCurrent)
-            ListTile(
-              key: const Key('checkout-start-date'),
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.event),
-              title: Text(l10n.checkoutStartDate),
-              subtitle: Text(formatPassDate(_startsOn)),
-              onTap: _submitting || _placedOrderId != null
-                  ? null
-                  : _pickStartDate,
-            ),
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Text(
-              l10n.passValidFromUntil(
-                formatPassDate(validFrom),
-                formatPassDate(validUntil),
-              ),
-              style: textTheme.bodyLarge,
+                    title: l10n.checkoutStartDate,
+                    subtitle: formatPassDate(_startsOn),
+                    topLine: false,
+                    bottomLine: true,
+                    onTap: locked ? null : _pickStartDate,
+                  ),
+                Container(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: sp.page,
+                    vertical: sp.l,
+                  ),
+                  decoration: BoxDecoration(
+                    border: Border(bottom: ct.hairline),
+                  ),
+                  child: Text(
+                    l10n.passValidFromUntil(
+                      formatPassDate(validFrom),
+                      formatPassDate(validUntil),
+                    ),
+                    style: strong,
+                  ),
+                ),
+                AppCheckRow(
+                  key: const Key('checkout-terms'),
+                  value: _termsAccepted,
+                  title: l10n.checkoutTermsAccept,
+                  onChanged: _submitting
+                      ? null
+                      : (value) => setState(() => _termsAccepted = value),
+                ),
+                if (_failed)
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(sp.page, sp.l, sp.page, 0),
+                    child: SheetWarning(l10n.checkoutError),
+                  ),
+              ],
             ),
           ),
-          CheckboxListTile(
-            key: const Key('checkout-terms'),
-            contentPadding: EdgeInsets.zero,
-            controlAffinity: ListTileControlAffinity.leading,
-            value: _termsAccepted,
-            onChanged: _submitting
-                ? null
-                : (value) => setState(() => _termsAccepted = value ?? false),
-            title: Text(l10n.checkoutTermsAccept),
-          ),
-          if (_failed)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Text(
-                l10n.checkoutError,
-                style: TextStyle(color: Theme.of(context).colorScheme.error),
+          SafeArea(
+            top: false,
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(sp.page, sp.m, sp.page, sp.section),
+              child: AppButton.primary(
+                key: const Key('checkout-pay'),
+                label: l10n.checkoutPay(formatMoney(variant.price)),
+                loading: _submitting,
+                onPressed: _termsAccepted
+                    ? () => _pay(afterCurrent ? followed : null)
+                    : null,
               ),
             ),
-          FilledButton(
-            key: const Key('checkout-pay'),
-            onPressed: _termsAccepted && !_submitting
-                ? () => _pay(afterCurrent ? followed : null)
-                : null,
-            child: _submitting
-                ? const SizedBox.square(
-                    dimension: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : Text(l10n.checkoutPay(formatMoney(variant.price))),
           ),
         ],
       ),

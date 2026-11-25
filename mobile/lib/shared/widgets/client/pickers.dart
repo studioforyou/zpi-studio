@@ -10,6 +10,7 @@ class PickerOption<T> {
     required this.title,
     this.subtitle,
     this.initials,
+    this.trailing,
   });
 
   final T value;
@@ -18,6 +19,9 @@ class PickerOption<T> {
 
   /// Starts the row with an initials square (person picker).
   final String? initials;
+
+  /// Shown before the tick, such as a pass status.
+  final Widget? trailing;
 }
 
 /// Opens a [PickerSheet] and returns the picked value, or `null` when the
@@ -111,6 +115,11 @@ class PickerSheet<T> extends StatelessWidget {
                               ],
                             ),
                           ),
+                          if (option.trailing != null) ...[
+                            SizedBox(width: sp.m),
+                            option.trailing!,
+                          ],
+                          SizedBox(width: sp.m),
                           SizedBox(
                             width: ct.sizes.icon,
                             child: option.value == selected
@@ -134,8 +143,8 @@ class PickerSheet<T> extends StatelessWidget {
   }
 }
 
-/// A framed field that opens a picker: the chosen name, a subtitle, an
-/// optional status and a chevron.
+/// A framed field that opens a picker: the chosen name with a subtitle under
+/// it, an optional status on the right and a chevron.
 class PickerField extends StatelessWidget {
   const PickerField({
     super.key,
@@ -176,17 +185,74 @@ class PickerField extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: ct.text.nextClass,
                     ),
-                    if (subtitle != null || status != null) ...[
+                    if (subtitle != null) ...[
                       SizedBox(height: sp.xxs + 1),
-                      Wrap(
-                        spacing: sp.m,
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        children: [
-                          if (subtitle != null)
-                            Text(subtitle!, style: ct.text.caption),
-                          ?status,
-                        ],
+                      Text(subtitle!, style: ct.text.caption),
+                    ],
+                  ],
+                ),
+              ),
+              if (status != null) ...[
+                SizedBox(width: sp.m),
+                Flexible(flex: 0, child: status!),
+              ],
+              if (onTap != null) ...[
+                SizedBox(width: sp.xs),
+                Icon(Icons.expand_more, color: c.muted, size: ct.sizes.icon),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A low framed field that opens the person picker: a person icon, the
+/// name, a short note ("Ty", "Dziecko") and a chevron.
+class PersonPickerField extends StatelessWidget {
+  const PersonPickerField({
+    super.key,
+    required this.name,
+    this.note,
+    required this.onTap,
+  });
+
+  final String name;
+  final String? note;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final ct = context.ct;
+    final c = ct.colors;
+    final sp = ct.spacing;
+    return Semantics(
+      button: onTap != null,
+      child: InkWell(
+        onTap: onTap,
+        child: Container(
+          constraints: BoxConstraints(minHeight: ct.sizes.tapTarget),
+          padding: EdgeInsets.symmetric(horizontal: sp.m),
+          decoration: BoxDecoration(border: Border.fromBorderSide(ct.hairline)),
+          child: Row(
+            children: [
+              Icon(Icons.person_outline, color: c.muted, size: ct.sizes.icon),
+              SizedBox(width: sp.s + sp.xxs),
+              Expanded(
+                child: Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: ct.text.consequenceTitle,
                       ),
+                    ),
+                    if (note != null) ...[
+                      SizedBox(width: sp.s),
+                      Text(note!, style: ct.text.caption),
                     ],
                   ],
                 ),

@@ -12,9 +12,10 @@ import 'package:mobile/core/auth/auth_state.dart';
 import 'package:mobile/core/auth/session.dart';
 import 'package:mobile/core/network/api_exception.dart';
 import 'package:mobile/features/passes/data/pass_usage_api.dart';
-import 'package:mobile/features/passes/presentation/pass_usage_screen.dart';
+import 'package:mobile/features/passes/presentation/pass_entries.dart';
 import 'package:mobile/features/accounts/presentation/profile_screen.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
+import 'package:mobile/shared/widgets/client/client_widgets.dart';
 
 Session _session({
   String account = 'account',
@@ -157,13 +158,25 @@ class _Adapter implements HttpClientAdapter {
   void close({bool force = false}) {}
 }
 
+PassUsageQuery _query(int page, {String account = 'account'}) => (
+  accountId: account,
+  profileId: null,
+  productId: null,
+  passId: 'pass',
+  from: null,
+  to: null,
+  includeUpcoming: true,
+  page: page,
+);
+
 Future<ProviderContainer> _pump(
   WidgetTester tester,
   _Api api, {
   bool settle = true,
-  double width = 600,
+  double width = 390,
   double scale = 1,
   bool profileHome = false,
+  bool showPass = false,
 }) async {
   tester.view.physicalSize = Size(width, 1300);
   tester.view.devicePixelRatio = 1;
@@ -184,6 +197,7 @@ Future<ProviderContainer> _pump(
     UncontrolledProviderScope(
       container: container,
       child: MaterialApp(
+        theme: buildClientTheme(Brightness.light),
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         locale: const Locale('pl'),
@@ -195,7 +209,18 @@ Future<ProviderContainer> _pump(
         ),
         home: profileHome
             ? const ProfileScreen()
-            : const PassUsageScreen(accountId: 'account'),
+            : Scaffold(
+                body: ListView(
+                  children: [
+                    PassEntryList(
+                      queryFor: _query,
+                      emptyText: 'Nie ma jeszcze historii wejść.',
+                      showPass: showPass,
+                      showPerson: showPass,
+                    ),
+                  ],
+                ),
+              ),
       ),
     ),
   );
@@ -204,22 +229,6 @@ Future<ProviderContainer> _pump(
 }
 
 void main() {
-  testWidgets(
-    'hides participant options in an open filter after an account change',
-    (tester) async {
-      final container = await _pump(tester, _Api());
-      await tester.tap(find.text('Wszyscy uczestnicy'));
-      await tester.pumpAndSettle();
-      expect(find.text('Jan'), findsOneWidget);
-      (container.read(authControllerProvider.notifier) as _Auth).replace(
-        _session(account: 'new-account'),
-      );
-      await tester.pumpAndSettle();
-      expect(find.text('Jan'), findsNothing);
-      expect(find.text('Karnet Pole Dance'), findsNothing);
-    },
-  );
-
   testWidgets('profile does not duplicate the schedule history', (
     tester,
   ) async {
@@ -230,135 +239,126 @@ void main() {
   });
 
   testWidgets(
-    'combines participant, product and inclusive day filters and clears them together',
+    'shows what happened to each entry and the change of the balance',
     (tester) async {
-      final api = _Api()
-        ..load = (query) async =>
-            query.profileId != null && query.productId != null
-            ? _page(total: 0, pages: 0, items: [])
-            : _page();
-      await _pump(tester, api);
-      await tester.tap(find.text('Wszyscy uczestnicy'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Jan').last);
-      await tester.pumpAndSettle();
-      expect(api.calls.last.profileId, 'child');
-      await tester.tap(find.text('Wszystkie karnety'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Pole Dance'));
-      await tester.pumpAndSettle();
-      expect(api.calls.last.productId, 'pole');
-      expect(find.text('Brak wpisów dla wybranych filtrów.'), findsOneWidget);
-      await tester.tap(find.text('Okres'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Ostatnie 30 dni'));
-      await tester.pumpAndSettle();
-      final now = DateTime.now();
-      expect(
-        DateTime.parse(api.calls.last.from!).toLocal(),
-        DateTime(now.year, now.month, now.day - 29),
-      );
-      expect(
-        DateTime.parse(api.calls.last.to!).toLocal(),
-        DateTime(now.year, now.month, now.day + 1),
-      );
-      await tester.tap(find.text('Wyczyść filtry'));
-      await tester.pumpAndSettle();
-      expect(api.calls.last.profileId, isNull);
-      expect(api.calls.last.productId, isNull);
-      expect(api.calls.last.from, isNull);
-      expect(api.calls.last.to, isNull);
-      expect(api.calls.last.page, 0);
+      await _pump(tester, _Api());
       expect(find.text('Zarezerwowane'), findsOneWidget);
+      expect(find.text('Wykorzystane'), findsOneWidget);
+      expect(find.text('Zwrócone · zajęcia odwołane'), findsOneWidget);
+      expect(find.text('Korekta salda'), findsOneWidget);
+      expect(find.text('2 wejścia'), findsOneWidget);
+      expect(find.text('czw. 5.11, 18:00'), findsNWidgets(3));
+      expect(find.text('pt. 6.11'), findsOneWidget);
+      expect(find.text('−1'), findsNWidgets(2));
+      expect(find.text('±0'), findsOneWidget);
+      expect(find.text('+2'), findsOneWidget);
+      expect(find.byType(EntryTile), findsNWidgets(4));
+      expect(
+        [
+          for (final tile in tester.widgetList<EntryTile>(
+            find.byType(EntryTile),
+          ))
+            tile.kind,
+        ],
+        [
+          EntryTileKind.reserved,
+          EntryTileKind.used,
+          EntryTileKind.returned,
+          EntryTileKind.added,
+        ],
+      );
     },
   );
 
-  testWidgets('changing a filter from a later page starts at page zero', (
+  testWidgets('a list of every pass names the pass and the person', (
     tester,
   ) async {
     final api = _Api()
-      ..load = (query) async => _page(
-        page: query.page,
-        total: 40,
-        pages: 2,
-        items: [_entry('CONSUMED')],
+      ..load = (_) async => _page(
+        total: 1,
+        items: [_entry('CONSUMED', change: null, profile: 'child')],
       );
-    await _pump(tester, api);
-    await tester.tap(find.text('Następne'));
-    await tester.pumpAndSettle();
-    expect(api.calls.last.page, 1);
-    await tester.tap(find.text('Wszyscy uczestnicy'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Jan').last);
-    await tester.pumpAndSettle();
-    expect(api.calls.last.page, 0);
-    expect(api.calls.last.profileId, 'child');
+    await _pump(tester, api, showPass: true);
+    expect(find.text('Karnet Pole Dance · Jan'), findsOneWidget);
+    expect(find.text('—'), findsOneWidget, reason: 'unlimited pass');
   });
 
-  testWidgets(
-    'upcoming reservations are opt-in and changing the switch resets paging',
-    (tester) async {
-      final api = _Api()
-        ..load = (query) async => _page(
-          page: query.page,
-          total: 40,
-          pages: 2,
-          items: [
-            _entry(
-              query.includeUpcoming ? 'RESERVED' : 'CONSUMED',
-              title: query.includeUpcoming
-                  ? 'Przyszły trening'
-                  : 'Miniony trening',
-            ),
-          ],
+  testWidgets('loads more entries page by page', (tester) async {
+    final api = _Api()
+      ..load = (query) async => _page(
+        page: query.page,
+        total: 3,
+        pages: 3,
+        items: [_entry('CONSUMED', title: 'Strona ${query.page}')],
+      );
+    await _pump(tester, api);
+    expect(find.text('Strona 0'), findsOneWidget);
+    await tester.tap(find.text('Pokaż więcej'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Pokaż więcej'));
+    await tester.pumpAndSettle();
+    expect(find.text('Strona 0'), findsOneWidget);
+    expect(find.text('Strona 1'), findsOneWidget);
+    expect(find.text('Strona 2'), findsOneWidget);
+    expect(find.text('Pokaż więcej'), findsNothing);
+    expect([for (final call in api.calls) call.page], [0, 1, 2]);
+  });
+
+  testWidgets('distinguishes a failed request, retry and an empty history', (
+    tester,
+  ) async {
+    final api = _Api()..fails = true;
+    await _pump(tester, api);
+    expect(find.text('Nie udało się pobrać historii wejść.'), findsOneWidget);
+    api
+      ..fails = false
+      ..load = (_) async => _page(total: 0, pages: 0, items: []);
+    await tester.tap(find.text('Spróbuj ponownie'));
+    await tester.pumpAndSettle();
+    expect(find.text('Nie ma jeszcze historii wejść.'), findsOneWidget);
+    expect(find.text('Pokaż więcej'), findsNothing);
+  });
+
+  for (final rolePicker in [false, true]) {
+    testWidgets(
+      'removes pass data after changing account or opening role picker ($rolePicker)',
+      (tester) async {
+        final container = await _pump(tester, _Api());
+        expect(find.text('Wykorzystane'), findsOneWidget);
+        (container.read(authControllerProvider.notifier) as _Auth).replace(
+          _session(account: rolePicker ? 'account' : 'new-account'),
+          choosingRole: rolePicker,
         );
-      await _pump(tester, api);
-      expect(api.calls.single.includeUpcoming, isFalse);
-      expect(find.text('Miniony trening'), findsOneWidget);
-      expect(find.text('Przyszły trening'), findsNothing);
-      await tester.tap(find.text('Następne'));
-      await tester.pumpAndSettle();
-      expect(api.calls.last.page, 1);
-      await tester.tap(find.byType(SwitchListTile));
-      await tester.pumpAndSettle();
-      expect(api.calls.last.includeUpcoming, isTrue);
-      expect(api.calls.last.page, 0);
-      expect(find.text('Przyszły trening'), findsOneWidget);
-      await tester.tap(find.text('Wyczyść filtry'));
-      await tester.pumpAndSettle();
-      expect(api.calls.last.includeUpcoming, isFalse);
-      expect(find.text('Przyszły trening'), findsNothing);
-      expect(find.text('Miniony trening'), findsOneWidget);
-    },
-  );
+        await tester.pumpAndSettle();
+        expect(find.text('Wykorzystane'), findsNothing);
+        expect(find.text('Pole dance CONSUMED'), findsNothing);
+      },
+    );
+  }
 
-  testWidgets(
-    'uses a table on a wide screen and separates accounting dates from class dates',
-    (tester) async {
-      await _pump(tester, _Api(), width: 1000, scale: 1.6);
-      expect(find.byType(Table), findsOneWidget);
-      expect(find.text('Data wpisu'), findsOneWidget);
-      expect(find.textContaining('Termin: 5 lis 2026'), findsNWidgets(3));
-      expect(tester.takeException(), isNull);
-    },
-  );
-
-  testWidgets(
-    'account history remains available after changing the active participant on the same account',
-    (tester) async {
-      final container = await _pump(tester, _Api());
-      (container.read(authControllerProvider.notifier) as _Auth).replace(
-        _session(profile: 'child'),
+  testWidgets('keeps long names and corrections readable on a narrow screen', (
+    tester,
+  ) async {
+    final api = _Api()
+      ..load = (_) async => _page(
+        total: 3,
+        pages: 2,
+        items: [
+          _entry(
+            'CONSUMED',
+            title: 'Długi trening personalny z ćwiczeniami technicznymi',
+          ),
+          _entry('CORRECTION', change: -2),
+          _entry('REVIEW', change: null),
+        ],
       );
-      await tester.pumpAndSettle();
-      expect(find.text('Wszyscy uczestnicy'), findsOneWidget);
-      expect(find.text('Pole dance CONSUMED'), findsOneWidget);
-      expect(
-        find.text('Zmieniono konto. Otwórz ponownie historię wejść.'),
-        findsNothing,
-      );
-    },
-  );
+    await _pump(tester, api, width: 320, scale: 1.6);
+    expect(tester.takeException(), isNull);
+    expect(find.text('−2'), findsOneWidget);
+    expect(find.text('Do sprawdzenia ze studiem'), findsOneWidget);
+    await tester.scrollUntilVisible(find.text('Pokaż więcej'), 100);
+    expect(find.text('Pokaż więcej').hitTestable(), findsOneWidget);
+  });
 
   test(
     'GET sends account filters and pagination and preserves unlimited usage',
@@ -397,135 +397,6 @@ void main() {
       expect(result.totalItems, 45);
       adapter.status = 503;
       await expectLater(api.fetch(query), throwsA(isA<ApiException>()));
-    },
-  );
-
-  testWidgets(
-    'shows the three accounting states and a separate signed correction without an extra charge',
-    (tester) async {
-      final api = _Api();
-      await _pump(tester, api);
-      expect(find.text('Zarezerwowane'), findsOneWidget);
-      expect(find.text('Wykorzystane'), findsOneWidget);
-      expect(find.text('Zwrócone'), findsOneWidget);
-      expect(find.text('Korekta salda'), findsOneWidget);
-      expect(find.text('+2 wejścia'), findsOneWidget);
-      expect(find.text('Odwołane'), findsOneWidget);
-      expect(find.textContaining('18:00–19:00'), findsNWidgets(3));
-      expect(find.textContaining('−1'), findsNothing);
-      expect(api.calls.single.profileId, isNull);
-      expect(api.calls.single.passId, isNull);
-    },
-  );
-
-  testWidgets(
-    'pages through the selected pass and refreshes on resume back to page one',
-    (tester) async {
-      final api = _Api()
-        ..load = (query) async => _page(
-          page: query.page,
-          total: 40,
-          pages: 2,
-          items: [_entry('CONSUMED', title: 'Strona ${query.page}')],
-        );
-      await _pump(tester, api);
-      await tester.tap(find.text('Następne'));
-      await tester.pumpAndSettle();
-      expect(find.text('Strona 1'), findsOneWidget);
-      expect(api.calls.last.page, 1);
-      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
-      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
-      await tester.pumpAndSettle();
-      expect(find.text('Strona 0'), findsOneWidget);
-      expect(api.calls.last.page, 0);
-      expect(api.calls, hasLength(3));
-    },
-  );
-
-  testWidgets('distinguishes a failed request, retry and an empty history', (
-    tester,
-  ) async {
-    final api = _Api()..fails = true;
-    await _pump(tester, api);
-    expect(find.text('Nie udało się pobrać historii wejść.'), findsOneWidget);
-    api.fails = false;
-    api.load = (_) async => _page(total: 0, pages: 0, items: []);
-    await tester.tap(find.text('Spróbuj ponownie'));
-    await tester.pumpAndSettle();
-    expect(find.text('Nie ma jeszcze historii wejść.'), findsOneWidget);
-    expect(find.text('Następne'), findsNothing);
-    expect(api.calls, hasLength(2));
-  });
-
-  testWidgets(
-    'a late response cannot show the previous accounts history after switching accounts',
-    (tester) async {
-      final late = Completer<PassUsagePage>();
-      final api = _Api()..load = (_) => late.future;
-      final container = await _pump(tester, api, settle: false);
-      await tester.pump();
-      (container.read(authControllerProvider.notifier) as _Auth).replace(
-        _session(account: 'new-account'),
-      );
-      await tester.pumpAndSettle();
-      late.complete(_page());
-      await tester.pumpAndSettle();
-      expect(
-        find.text('Zmieniono konto. Otwórz ponownie historię wejść.'),
-        findsOneWidget,
-      );
-      expect(find.text('Karnet Pole Dance'), findsNothing);
-      expect(find.text('Pole dance CONSUMED'), findsNothing);
-      expect(api.calls, hasLength(1));
-    },
-  );
-
-  for (final rolePicker in [false, true]) {
-    testWidgets(
-      'removes pass data after changing account or opening role picker ($rolePicker)',
-      (tester) async {
-        final api = _Api();
-        final container = await _pump(tester, api);
-        final auth = container.read(authControllerProvider.notifier) as _Auth;
-        auth.replace(
-          _session(account: rolePicker ? 'account' : 'new-account'),
-          choosingRole: rolePicker,
-        );
-        await tester.pumpAndSettle();
-        expect(find.text('Karnet Pole Dance'), findsNothing);
-        expect(find.text('Pole dance CONSUMED'), findsNothing);
-      },
-    );
-  }
-
-  testWidgets(
-    'keeps long session names, negative corrections and paging readable on a narrow screen',
-    (tester) async {
-      final api = _Api()
-        ..load = (_) async => _page(
-          total: 40,
-          pages: 2,
-          items: [
-            _entry(
-              'CONSUMED',
-              title: 'Długi trening personalny z ćwiczeniami technicznymi',
-              change: null,
-            ),
-            _entry('CORRECTION', change: -2),
-            _entry('REVIEW', change: null),
-          ],
-        );
-      await _pump(tester, api, width: 320, scale: 1.6);
-      expect(find.text('−2 wejścia'), findsOneWidget);
-      expect(find.text('Do sprawdzenia ze studiem'), findsOneWidget);
-      await tester.scrollUntilVisible(
-        find.text('Następne'),
-        150,
-        scrollable: find.byType(Scrollable).last,
-      );
-      await tester.pumpAndSettle();
-      expect(find.text('Następne').hitTestable(), findsOneWidget);
-      expect(tester.takeException(), isNull);
     },
   );
 }

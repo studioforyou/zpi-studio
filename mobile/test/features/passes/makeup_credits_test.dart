@@ -12,8 +12,11 @@ import 'package:mobile/core/auth/auth_state.dart';
 import 'package:mobile/core/auth/session.dart';
 import 'package:mobile/core/network/api_exception.dart';
 import 'package:mobile/features/passes/data/makeup_credits_api.dart';
-import 'package:mobile/features/passes/presentation/makeup_credits_tab.dart';
+import 'package:mobile/features/passes/data/makeup_booking_api.dart';
+import 'package:mobile/features/passes/presentation/makeup_booking_screen.dart';
+import 'package:mobile/features/passes/presentation/makeup_credits.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
+import 'package:mobile/shared/widgets/client/client_widgets.dart';
 
 Session _session({String account = 'account', String? profile = 'self'}) =>
     Session(
@@ -114,6 +117,10 @@ void main() {
       overrides: [
         authControllerProvider.overrideWith(() => _Auth(session ?? _session())),
         makeupCreditsApiProvider.overrideWithValue(api),
+        makeupBookingProvider.overrideWith(
+          (ref, query) async =>
+              throw const ApiException(statusCode: 500, message: 'Failed'),
+        ),
       ],
     );
     addTearDown(() async {
@@ -123,16 +130,33 @@ void main() {
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
-        child: const MaterialApp(
+        child: MaterialApp(
+          theme: buildClientTheme(Brightness.light),
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
-          locale: Locale('pl'),
-          home: Scaffold(body: MakeupCreditsTab()),
+          locale: const Locale('pl'),
+          home: Scaffold(
+            body: Consumer(
+              builder: (context, ref, _) {
+                final scope = makeupBookingScope(
+                  ref.watch(authControllerProvider),
+                );
+                return scope == null
+                    ? const Text('no profile')
+                    : MakeupStrip(key: ValueKey(scope), scope: scope);
+              },
+            ),
+          ),
         ),
       ),
     );
     if (settle) await tester.pumpAndSettle();
     return container;
+  }
+
+  Future<void> openSheet(WidgetTester tester) async {
+    await tester.tap(find.text('Dowiedz się więcej'));
+    await tester.pumpAndSettle();
   }
 
   test(
@@ -155,59 +179,56 @@ void main() {
     },
   );
 
-  testWidgets('shows the full count, participant and exact local expiry', (
+  testWidgets('the strip shows the full count and the sheet each make-up', (
     tester,
   ) async {
     await pump(tester, _Api((_, _) async => _page(total: 21, pages: 2)));
-    expect(find.text('Anna'), findsOneWidget);
-    expect(find.text('21'), findsOneWidget);
-    expect(find.text('zajęć do odrobienia'), findsOneWidget);
+    expect(find.text('Masz 21 zajęć do odrobienia'), findsOneWidget);
+    await openSheet(tester);
+    expect(find.text('Do odrobienia'), findsOneWidget);
     expect(find.text('Pole dance'), findsOneWidget);
-    expect(find.text('Do 17.11.2035, 18:43'), findsOneWidget);
-    expect(find.textContaining('Możliwość wykorzystania'), findsNothing);
-  });
-
-  testWidgets('keeps the explanation behind an accessible information button', (
-    tester,
-  ) async {
-    await pump(tester, _Api((_, _) async => _page()));
-    expect(find.textContaining('Jedna odróbka'), findsNothing);
-    await tester.tap(find.byTooltip('Jak działa odrabianie?'));
-    await tester.pumpAndSettle();
-    expect(find.text('Jak działa odrabianie?'), findsOneWidget);
+    expect(find.text('wykorzystaj do 17.11'), findsOneWidget);
+    expect(find.text('Wybierz nowe zajęcia'), findsOneWidget);
     expect(find.textContaining('Jedna odróbka'), findsOneWidget);
-    expect(find.textContaining('Nazwa karnetu'), findsOneWidget);
-    await tester.tap(find.byIcon(Icons.close));
-    await tester.pumpAndSettle();
-    expect(find.textContaining('Jedna odróbka'), findsNothing);
-    expect(find.text('Pole dance'), findsOneWidget);
   });
 
-  testWidgets('refreshes an empty list without showing old credits', (
+  testWidgets('no strip without make-ups or while they fail to load', (
     tester,
   ) async {
-    var result = _page(total: 0);
-    final api = _Api((_, _) async => result);
-    await pump(tester, api);
-    expect(find.text('0'), findsOneWidget);
-    expect(find.byIcon(Icons.event_repeat_outlined), findsNothing);
-    result = _page();
-    await tester.drag(find.byType(ListView), const Offset(0, 350));
+    var fails = true;
+    final api = _Api((_, _) async {
+      if (fails) throw const ApiException(statusCode: 500, message: 'Failed');
+      return _page(total: 0);
+    });
+    final container = await pump(tester, api);
+    expect(find.byType(InfoStrip), findsNothing);
+    fails = false;
+    container.invalidate(makeupCreditsProvider);
     await tester.pumpAndSettle();
-    expect(find.text('1'), findsOneWidget);
-    expect(find.text('zajęcie do odrobienia'), findsOneWidget);
-    expect(api.calls.length, greaterThan(1));
+    expect(find.byType(InfoStrip), findsNothing);
+    expect(api.calls.length, 2);
   });
 
-  testWidgets('retries a failed request', (tester) async {
+  testWidgets('shows more make-ups page by page and retries a failed page', (
+    tester,
+  ) async {
     var fails = true;
-    await pump(
-      tester,
-      _Api((_, _) async {
-        if (fails) throw const ApiException(statusCode: 500, message: 'Failed');
-        return _page();
-      }),
-    );
+    final api = _Api((_, page) async {
+      if (page == 1 && fails) {
+        throw const ApiException(statusCode: 500, message: 'Failed');
+      }
+      return _page(
+        name: page == 0 ? 'First page' : 'Second page',
+        page: page,
+        total: 21,
+        pages: 2,
+      );
+    });
+    await pump(tester, api);
+    await openSheet(tester);
+    expect(find.text('First page'), findsOneWidget);
+    await tester.tap(find.text('Pokaż więcej'));
+    await tester.pumpAndSettle();
     expect(
       find.text('Nie udało się pobrać odróbek. Spróbuj ponownie.'),
       findsOneWidget,
@@ -215,30 +236,25 @@ void main() {
     fails = false;
     await tester.tap(find.text('Spróbuj ponownie'));
     await tester.pumpAndSettle();
-    expect(find.text('Pole dance'), findsOneWidget);
+    expect(find.text('First page'), findsOneWidget);
+    expect(find.text('Second page'), findsOneWidget);
+    expect(find.text('Pokaż więcej'), findsNothing);
+    expect(api.calls, contains(('self', 1)));
   });
 
-  testWidgets('pages forward and back while keeping the full count', (
+  testWidgets('choosing new classes opens the make-up mode for the credit', (
     tester,
   ) async {
-    final api = _Api(
-      (_, page) async => _page(
-        name: page == 0 ? 'First page' : 'Second page',
-        page: page,
-        total: 21,
-        pages: 2,
-      ),
+    await pump(tester, _Api((_, _) async => _page()));
+    await openSheet(tester);
+    await tester.tap(find.text('Wybierz nowe zajęcia'));
+    await tester.pumpAndSettle();
+    final screen = tester.widget<MakeupBookingScreen>(
+      find.byType(MakeupBookingScreen),
     );
-    await pump(tester, api);
-    await tester.tap(find.text('Następne'));
-    await tester.pumpAndSettle();
-    expect(find.text('Second page'), findsOneWidget);
-    expect(find.text('2 z 2'), findsOneWidget);
-    expect(find.text('21'), findsOneWidget);
-    await tester.tap(find.text('Poprzednie'));
-    await tester.pumpAndSettle();
-    expect(find.text('First page'), findsOneWidget);
-    expect(api.calls, contains(('self', 1)));
+    expect(screen.creditId, 'Pole dance-0');
+    expect(screen.scope, (accountId: 'account', profileId: 'self'));
+    expect(find.text('Do odrobienia'), findsNothing);
   });
 
   testWidgets('ignores a late response from the previous participant', (
@@ -248,39 +264,19 @@ void main() {
     final api = _Api(
       (profile, _) => profile == 'self'
           ? late.future
-          : Future.value(_page(name: 'Child credit')),
+          : Future.value(_page(name: 'Child credit', total: 2)),
     );
     final container = await pump(tester, api, settle: false);
     (container.read(authControllerProvider.notifier) as _Auth).replace(
       _session(profile: 'child'),
     );
     await tester.pumpAndSettle();
-    late.complete(_page(name: 'Parent credit'));
+    late.complete(_page(name: 'Parent credit', total: 5));
     await tester.pumpAndSettle();
+    expect(find.text('Masz 2 zajęcia do odrobienia'), findsOneWidget);
+    await openSheet(tester);
     expect(find.text('Child credit'), findsOneWidget);
     expect(find.text('Parent credit'), findsNothing);
-    expect(find.text('Jan'), findsOneWidget);
-  });
-
-  testWidgets('resets pagination and cache when the login changes', (
-    tester,
-  ) async {
-    var name = 'First login';
-    final api = _Api(
-      (_, page) async => _page(name: name, page: page, total: 21, pages: 2),
-    );
-    final container = await pump(tester, api);
-    await tester.tap(find.text('Następne'));
-    await tester.pumpAndSettle();
-    name = 'Second login';
-    (container.read(authControllerProvider.notifier) as _Auth).replace(
-      _session(account: 'second'),
-    );
-    await tester.pumpAndSettle();
-    expect(find.text('Second login'), findsOneWidget);
-    expect(find.text('First login'), findsNothing);
-    expect(find.text('1 z 2'), findsOneWidget);
-    expect(api.calls.last, ('self', 0));
   });
 
   testWidgets('refreshes when a credit expires while the view stays open', (
@@ -289,11 +285,11 @@ void main() {
     var result = _page(expiry: DateTime.now().add(const Duration(seconds: 2)));
     final api = _Api((_, _) async => result);
     await pump(tester, api);
+    expect(find.byType(InfoStrip), findsOneWidget);
     result = _page(total: 0);
     await tester.pump(const Duration(seconds: 4));
     await tester.pumpAndSettle();
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('Pole dance'), findsNothing);
+    expect(find.byType(InfoStrip), findsNothing);
   });
 
   testWidgets('does not request credits without a participant profile', (
@@ -302,9 +298,6 @@ void main() {
     final api = _Api((_, _) async => _page());
     await pump(tester, api, session: _session(profile: null));
     expect(api.calls, isEmpty);
-    expect(
-      find.textContaining('To konto nie ma profilu klienta'),
-      findsOneWidget,
-    );
+    expect(find.text('no profile'), findsOneWidget);
   });
 }

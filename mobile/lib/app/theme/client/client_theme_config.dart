@@ -195,6 +195,19 @@ const _typography = ClientTypography(
   bigNumber: ClientTextSpec(34, weight: FontWeight.w600, height: 1),
   statNumber: ClientTextSpec(22, weight: FontWeight.w600, height: 1.1),
   historyDate: ClientTextSpec(18, weight: FontWeight.w600, height: 1.1),
+  entryChange: ClientTextSpec(18, weight: FontWeight.w600, height: 1.2),
+  offerPrice: ClientTextSpec(
+    20,
+    weight: FontWeight.w600,
+    letterSpacingEm: -0.02,
+    height: 1.1,
+  ),
+  checkoutPrice: ClientTextSpec(
+    44,
+    weight: FontWeight.w600,
+    letterSpacingEm: -0.04,
+    height: 1,
+  ),
   placesNumber: ClientTextSpec(
     20,
     weight: FontWeight.w700,
@@ -226,6 +239,8 @@ const _shape = ClientShape(
   selectedDayUnderline: 4,
   monthSelectedUnderline: 3,
   focusOutline: 1,
+  entryOutline: 1.5,
+  checkboxBorder: 1.5,
 );
 
 // ---------------------------------------------------------------------------
@@ -289,6 +304,12 @@ const _sizes = ClientSizes(
   textFieldMinHeight: 96,
   weekStripHeight: 84,
   monthRowHeight: 50,
+  entryTileWidth: 16,
+  entryTileHeight: 8,
+  entryBarMaxSegments: 30,
+  checkbox: 20,
+  checkboxGlyph: 15,
+  offerBuyWidth: 64,
 );
 
 // ---------------------------------------------------------------------------

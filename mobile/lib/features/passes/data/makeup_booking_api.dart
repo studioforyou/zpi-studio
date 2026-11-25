@@ -21,6 +21,16 @@ MakeupScope? makeupBookingScope(AuthState auth) => switch (auth) {
   _ => null,
 };
 
+/// Whether [scope] still belongs to the signed-in client: same login and a
+/// profile the account acts for (the parent books make-ups for a child too).
+bool isMakeupScopeCurrent(AuthState auth, MakeupScope scope) => switch (auth) {
+  Authenticated(:final session, choosingRole: false)
+      when session.activeRole == AppRole.client &&
+          session.accountId == scope.accountId =>
+    session.profiles.any((profile) => profile.id == scope.profileId),
+  _ => false,
+};
+
 class MakeupOffer {
   const MakeupOffer({
     required this.productName,
@@ -92,8 +102,10 @@ final makeupBookingApiProvider = Provider<MakeupBookingApi>(
 );
 final makeupBookingProvider = FutureProvider.autoDispose
     .family<MakeupOffer, MakeupBookingQuery>((ref, query) {
-      if (makeupBookingScope(ref.watch(authControllerProvider)) !=
-          query.scope) {
+      if (!isMakeupScopeCurrent(
+        ref.watch(authControllerProvider),
+        query.scope,
+      )) {
         throw const ClassBookingException(statusCode: 403);
       }
       return ref.watch(makeupBookingApiProvider).fetch(query);

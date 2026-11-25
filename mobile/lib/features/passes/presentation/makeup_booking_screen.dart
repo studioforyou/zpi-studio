@@ -35,7 +35,7 @@ class _MakeupBookingScreenState extends ConsumerState<MakeupBookingScreen>
   MakeupBookingQuery get _query =>
       (scope: widget.scope, creditId: widget.creditId, month: _month);
   bool get _current =>
-      makeupBookingScope(ref.read(authControllerProvider)) == widget.scope;
+      isMakeupScopeCurrent(ref.read(authControllerProvider), widget.scope);
 
   static final _time = DateFormat('HH:mm');
 
@@ -64,8 +64,10 @@ class _MakeupBookingScreenState extends ConsumerState<MakeupBookingScreen>
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final ct = context.ct;
-    final valid =
-        makeupBookingScope(ref.watch(authControllerProvider)) == widget.scope;
+    final valid = isMakeupScopeCurrent(
+      ref.watch(authControllerProvider),
+      widget.scope,
+    );
     final offer = valid ? ref.watch(makeupBookingProvider(_query)) : null;
     return Scaffold(
       body: Column(
@@ -275,8 +277,10 @@ class _MakeupBookingScreenState extends ConsumerState<MakeupBookingScreen>
         builder: (context, ref, _) {
           final valid =
               mounted &&
-              makeupBookingScope(ref.watch(authControllerProvider)) ==
-                  widget.scope;
+              isMakeupScopeCurrent(
+                ref.watch(authControllerProvider),
+                widget.scope,
+              );
           return AppSheet(
             title: valid ? l10n.makeupConfirm : l10n.classesProfileChanged,
             titleSmall: true,
@@ -338,10 +342,17 @@ class _MakeupBookingScreenState extends ConsumerState<MakeupBookingScreen>
         groupClassProvider((scope: widget.scope, eventId: event.id)),
       );
       if (!mounted || !_current) return;
-      // The booked class opens in Zajęcia, over its day.
+      // The booked class opens in Zajęcia, over its day. The class sheet
+      // speaks for the active profile, so a make-up booked for another
+      // person opens Zajęcia without it.
       final router = GoRouter.of(context);
+      final active = makeupBookingScope(ref.read(authControllerProvider));
       Navigator.of(context).pop();
-      router.go(clientClassDetailsLocation(event.id));
+      router.go(
+        active == widget.scope
+            ? clientClassDetailsLocation(event.id)
+            : clientSchedulePath,
+      );
     } catch (error) {
       if (!mounted) return;
       ref.invalidate(makeupCreditsProvider);

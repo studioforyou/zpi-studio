@@ -5,7 +5,7 @@ import 'package:mobile/core/auth/auth_controller.dart';
 import 'package:mobile/core/auth/auth_state.dart';
 import 'package:mobile/core/auth/session.dart';
 import 'package:mobile/features/passes/data/pass_usage_api.dart';
-import 'package:mobile/features/passes/presentation/pass_usage_screen.dart';
+import 'package:mobile/features/passes/presentation/pass_entries.dart';
 import 'package:mobile/features/trainings/data/training_history_api.dart';
 import 'package:mobile/features/trainings/presentation/widgets/group_class_widgets.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
@@ -18,7 +18,6 @@ class TrainingHistoryScreen extends ConsumerStatefulWidget {
     this.today,
     this.initialTab = 0,
     this.initialProfileId,
-    this.initialPassId,
     this.backLabel,
     super.key,
   });
@@ -26,7 +25,6 @@ class TrainingHistoryScreen extends ConsumerStatefulWidget {
   final DateTime? today;
   final int initialTab;
   final String? initialProfileId;
-  final String? initialPassId;
 
   /// The screen it was opened from, for the back link; "Zajęcia" by default.
   final String? backLabel;
@@ -38,13 +36,9 @@ class TrainingHistoryScreen extends ConsumerStatefulWidget {
 
 class _TrainingHistoryScreenState extends ConsumerState<TrainingHistoryScreen> {
   late String? _profileId = widget.initialProfileId;
-  late String? _passId = widget.initialPassId;
   late int _tab = widget.initialTab;
 
-  void _selectProfile(String? id) => setState(() {
-    _profileId = id;
-    _passId = null;
-  });
+  void _selectProfile(String? id) => setState(() => _profileId = id);
 
   /// The person picker is open; it closes when the account changes.
   bool _picking = false;
@@ -157,28 +151,13 @@ class _TrainingHistoryScreenState extends ConsumerState<TrainingHistoryScreen> {
             ),
           SizedBox(height: ct.spacing.s),
           Expanded(
-            child: _tab == 0
-                ? _MonthlyHistory(
-                    session: session,
-                    profileId: _profileId,
-                    today: widget.today ?? DateTime.now(),
-                    tabs: _tabs(l10n),
-                  )
-                : Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _tabs(l10n),
-                      Expanded(
-                        child: PassUsageScreen(
-                          accountId: accountId,
-                          initialProfileId: _profileId,
-                          initialPassId: _passId,
-                          onProfileChanged: _selectProfile,
-                          embedded: true,
-                        ),
-                      ),
-                    ],
-                  ),
+            child: _MonthlyHistory(
+              session: session,
+              profileId: _profileId,
+              today: widget.today ?? DateTime.now(),
+              tab: _tab,
+              tabs: _tabs(l10n),
+            ),
           ),
         ],
       ),
@@ -196,12 +175,16 @@ class _MonthlyHistory extends ConsumerStatefulWidget {
   const _MonthlyHistory({
     required this.session,
     required this.today,
+    required this.tab,
     required this.tabs,
     this.profileId,
   });
 
   final Session session;
   final DateTime today;
+
+  /// 0: the classes of the month, 1: the entries settled in it.
+  final int tab;
   final Widget tabs;
   final String? profileId;
 
@@ -276,42 +259,69 @@ class _MonthlyHistoryState extends ConsumerState<_MonthlyHistory>
             ]),
           ),
           SliverToBoxAdapter(child: widget.tabs),
-          ...history.when(
-            skipLoadingOnRefresh: false,
-            skipLoadingOnReload: false,
-            loading: () => [
-              const SliverFillRemaining(
-                hasScrollBody: false,
-                child: Center(child: CircularProgressIndicator()),
-              ),
-            ],
-            error: (_, _) => [
-              SliverToBoxAdapter(
-                child: ClassesLoadError(
-                  onRetry: () => ref.invalidate(provider),
+          if (widget.tab == 1)
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: EdgeInsets.symmetric(
+                  horizontal: context.ct.spacing.page,
                 ),
-              ),
-            ],
-            data: (entries) => [
-              if (entries.isEmpty)
-                SliverToBoxAdapter(
-                  child: ClassMessage(
-                    l10n.trainingHistoryEmpty,
-                    icon: Icons.history,
+                child: PassEntryList(
+                  queryFor: (page) => (
+                    accountId: widget.session.accountId,
+                    profileId: widget.profileId,
+                    productId: null,
+                    passId: null,
+                    from: _month.toUtc().toIso8601String(),
+                    to: DateTime(
+                      _month.year,
+                      _month.month + 1,
+                    ).toUtc().toIso8601String(),
+                    includeUpcoming: false,
+                    page: page,
                   ),
-                )
-              else
-                SliverList.list(
-                  children: [
-                    for (final entry in entries)
-                      _HistoryRow(
-                        entry.training,
-                        names ? entry.profileName : null,
-                      ),
-                  ],
+                  emptyText: l10n.passEntriesEmptyMonth,
+                  showPass: true,
+                  showPerson: names,
                 ),
-            ],
-          ),
+              ),
+            )
+          else
+            ...history.when(
+              skipLoadingOnRefresh: false,
+              skipLoadingOnReload: false,
+              loading: () => [
+                const SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: Center(child: CircularProgressIndicator()),
+                ),
+              ],
+              error: (_, _) => [
+                SliverToBoxAdapter(
+                  child: ClassesLoadError(
+                    onRetry: () => ref.invalidate(provider),
+                  ),
+                ),
+              ],
+              data: (entries) => [
+                if (entries.isEmpty)
+                  SliverToBoxAdapter(
+                    child: ClassMessage(
+                      l10n.trainingHistoryEmpty,
+                      icon: Icons.history,
+                    ),
+                  )
+                else
+                  SliverList.list(
+                    children: [
+                      for (final entry in entries)
+                        _HistoryRow(
+                          entry.training,
+                          names ? entry.profileName : null,
+                        ),
+                    ],
+                  ),
+              ],
+            ),
         ],
       ),
     );

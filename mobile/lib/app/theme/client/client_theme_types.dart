@@ -174,6 +174,9 @@ class ClientTypography {
     required this.placesNumber,
     required this.statNumber,
     required this.historyDate,
+    required this.entryChange,
+    required this.offerPrice,
+    required this.checkoutPrice,
     required this.profileName,
     required this.avatarInitials,
   });
@@ -297,6 +300,15 @@ class ClientTypography {
   /// Day and month in a history row ("21.11").
   final ClientTextSpec historyDate;
 
+  /// Change of the entry balance in an entry history row ("−1", "+8").
+  final ClientTextSpec entryChange;
+
+  /// Price of a variant in the pass offer.
+  final ClientTextSpec offerPrice;
+
+  /// Price on the checkout screen.
+  final ClientTextSpec checkoutPrice;
+
   /// Name on the profile tab.
   final ClientTextSpec profileName;
 
@@ -313,6 +325,8 @@ class ClientShape {
     required this.selectedDayUnderline,
     required this.monthSelectedUnderline,
     required this.focusOutline,
+    required this.entryOutline,
+    required this.checkboxBorder,
   });
 
   /// Corner radius of every box. The style has sharp corners: 0.
@@ -332,6 +346,12 @@ class ClientShape {
 
   /// Frame of a focused text field or a selected option.
   final double focusOutline;
+
+  /// Frame of a reserved-entry tile in the entry history.
+  final double entryOutline;
+
+  /// Frame of a checkbox.
+  final double checkboxBorder;
 }
 
 /// Gaps and paddings.
@@ -415,6 +435,12 @@ class ClientSizes {
     required this.textFieldMinHeight,
     required this.weekStripHeight,
     required this.monthRowHeight,
+    required this.entryTileWidth,
+    required this.entryTileHeight,
+    required this.entryBarMaxSegments,
+    required this.checkbox,
+    required this.checkboxGlyph,
+    required this.offerBuyWidth,
   });
 
   /// Secondary button standing alone.
@@ -512,6 +538,20 @@ class ClientSizes {
 
   /// Height of one row of the month grid.
   final double monthRowHeight;
+
+  /// Tile that marks the kind of an entry history row.
+  final double entryTileWidth;
+  final double entryTileHeight;
+
+  /// A pass with more entries shows no segmented bar.
+  final int entryBarMaxSegments;
+
+  /// Side of a checkbox and of its tick.
+  final double checkbox;
+  final double checkboxGlyph;
+
+  /// Width of the "Kup" button and of its empty slot in the pass offer.
+  final double offerBuyWidth;
 }
 
 /// Durations of animations.

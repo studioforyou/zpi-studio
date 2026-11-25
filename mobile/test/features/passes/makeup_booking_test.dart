@@ -14,7 +14,7 @@ import 'package:mobile/core/auth/session.dart';
 import 'package:mobile/features/passes/data/makeup_booking_api.dart';
 import 'package:mobile/features/passes/data/makeup_credits_api.dart';
 import 'package:mobile/features/passes/presentation/makeup_booking_screen.dart';
-import 'package:mobile/features/passes/presentation/makeup_credits_tab.dart';
+import 'package:mobile/features/passes/presentation/makeup_credits.dart';
 import 'package:mobile/features/trainings/data/group_classes_api.dart';
 import 'package:mobile/features/trainings/presentation/group_class_details_screen.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
@@ -185,6 +185,7 @@ Future<ProviderContainer> _pump(
   WidgetTester tester,
   _Api api, {
   bool home = false,
+  String profileId = 'self',
   bool settle = true,
   double width = 500,
   double scale = 1,
@@ -215,13 +216,15 @@ Future<ProviderContainer> _pump(
         path: '/',
         builder: (_, _) => Scaffold(
           body: home
-              ? const MakeupCreditsTab()
+              ? const MakeupStrip(
+                  scope: (accountId: 'account', profileId: 'self'),
+                )
               : Builder(
                   builder: (context) => TextButton(
                     onPressed: () => Navigator.of(context).push<void>(
                       MaterialPageRoute(
-                        builder: (_) => const MakeupBookingScreen(
-                          scope: (accountId: 'account', profileId: 'self'),
+                        builder: (_) => MakeupBookingScreen(
+                          scope: (accountId: 'account', profileId: profileId),
                           creditId: 'credit',
                         ),
                       ),
@@ -233,7 +236,7 @@ Future<ProviderContainer> _pump(
       ),
       GoRoute(
         path: clientSchedulePath,
-        builder: (_, _) => const SizedBox(),
+        builder: (_, _) => const Text('Zajęcia'),
         routes: [
           GoRoute(
             path: clientClassDetailsSubPath,
@@ -360,13 +363,30 @@ void main() {
   ) async {
     final api = _Api();
     await _pump(tester, api, home: true);
-    await tester.tap(find.text('Wybierz zajęcia'));
+    await tester.tap(find.text('Dowiedz się więcej'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Wybierz nowe zajęcia'));
     await tester.pumpAndSettle();
     expect(api.loads.single.creditId, 'credit');
     expect(api.loads.single.scope.profileId, 'self');
     expect(find.text('Technika'), findsOneWidget);
     expect(find.textContaining('Poprzedni karnet'), findsOneWidget);
   });
+  testWidgets(
+    'a make-up booked for a child returns to Zajęcia without the class sheet',
+    (tester) async {
+      final api = _Api();
+      await _pump(tester, api, profileId: 'child');
+      expect(find.textContaining('Zosia'), findsWidgets);
+      await _choose(tester);
+      await _use(tester);
+      expect(api.bookings, hasLength(1));
+      expect(api.loads.last.scope.profileId, 'child');
+      expect(find.byType(MakeupBookingScreen), findsNothing);
+      expect(find.text('Zajęcia'), findsOneWidget);
+      expect(find.text('Rezerwacja z odróbki'), findsNothing);
+    },
+  );
   testWidgets(
     'full classes cannot be chosen and booking requires explicit confirmation',
     (tester) async {
@@ -385,7 +405,7 @@ void main() {
     },
   );
   testWidgets(
-    'switching participants while confirming cannot book the old participants credit',
+    'switching the active profile keeps the make-up for its own person',
     (tester) async {
       final api = _Api();
       final container = await _pump(tester, api);
@@ -394,9 +414,11 @@ void main() {
         _session(profile: 'child'),
       );
       await tester.pumpAndSettle();
-      expect(find.text('Rozliczenie: 1 odróbka'), findsNothing);
-      expect(find.widgetWithText(AppButton, 'Użyj odróbki'), findsNothing);
-      expect(api.bookings, isEmpty);
+      expect(find.textContaining('Monika'), findsWidgets);
+      await _use(tester);
+      expect(api.bookings.single.$1.scope.profileId, 'self');
+      // The class sheet speaks for the active profile, so it stays closed.
+      expect(find.text('Zajęcia'), findsOneWidget);
     },
   );
   testWidgets(
