@@ -15,6 +15,7 @@ import 'package:mobile/features/trainings/data/group_classes_api.dart';
 import 'package:mobile/features/trainings/data/training_history_api.dart';
 import 'package:mobile/features/trainings/presentation/training_history_screen.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
+import 'package:mobile/shared/widgets/client/client_widgets.dart';
 
 Map<String, dynamic> _entryJson({
   String id = 'reservation-1',
@@ -249,19 +250,19 @@ void main() {
       ));
       expect(find.text('Listopad 2030'), findsOneWidget);
       expect(find.text('Wszyscy uczestnicy'), findsOneWidget);
-      expect(find.text('Frekwencja: 75%'), findsOneWidget);
+      expect(find.text('75%'), findsOneWidget);
       expect(
         find.text('2'),
         findsOneWidget,
       ); // Late cancellation and studio cancellation.
       expect(find.text('Obecność'), findsNWidgets(3));
       expect(find.text('Nieobecność'), findsOneWidget);
-      expect(find.text('Odwołano po terminie'), findsOneWidget);
+      expect(find.text('Odwołane po terminie'), findsOneWidget);
       expect(
         find.text('Wejście z karnetu nie zostało zwrócone.'),
         findsOneWidget,
       );
-      expect(find.text('Zajęcia odwołane przez studio'), findsOneWidget);
+      expect(find.text('Odwołane przez studio'), findsOneWidget);
     });
 
     testWidgets('moves between past months but not into the future', (
@@ -320,39 +321,44 @@ void main() {
             ),
           ];
         await pump(tester, api);
-        expect(find.text('Frekwencja: 50%'), findsOneWidget);
-        expect(find.text('Anna Klient'), findsOneWidget);
-        expect(find.text('Jan Klient'), findsOneWidget);
+        expect(find.text('50%'), findsOneWidget);
+        expect(find.textContaining('Anna Klient'), findsOneWidget);
+        expect(find.textContaining('Jan Klient'), findsOneWidget);
         expect(
           tester.getTopLeft(find.text('Zajęcia dziecka')).dy,
           lessThan(tester.getTopLeft(find.text('Zajęcia rodzica')).dy),
         );
-        await tester.tap(find.byType(PopupMenuButton<String>));
+        await tester.tap(find.byType(PickerField));
         await tester.pumpAndSettle();
         await tester.tap(
           find.descendant(
-            of: find.byType(PopupMenuItem<String>),
+            of: find.byType(PickerSheet<String>),
             matching: find.text('Jan Klient'),
           ),
         );
         await tester.pumpAndSettle();
         expect(find.text('Zajęcia rodzica'), findsNothing);
         expect(find.text('Zajęcia dziecka'), findsOneWidget);
-        expect(find.text('Frekwencja: 0%'), findsOneWidget);
+        expect(find.text('0%'), findsOneWidget);
         expect(api.queries.last.scope.profileId, 'child');
         await tester.tap(find.text('Wejścia'));
         await tester.pumpAndSettle();
         expect(find.text('Wszystkie karnety'), findsOneWidget);
-        expect(find.text('Historia'), findsOneWidget);
+        expect(find.text('Historia treningów'), findsOneWidget);
         expect(usageQueries.last.profileId, 'child');
         expect(find.text('Jan Klient'), findsOneWidget);
         await tester.tap(find.text('Wyczyść filtry'));
         await tester.pumpAndSettle();
         expect(usageQueries.last.profileId, isNull);
         expect(find.text('Wszyscy uczestnicy'), findsOneWidget);
-        await tester.tap(find.text('Zajęcia'));
+        await tester.tap(
+          find.descendant(
+            of: find.byType(AppTabs),
+            matching: find.text('Zajęcia'),
+          ),
+        );
         await tester.pumpAndSettle();
-        expect(find.text('Frekwencja: 50%'), findsOneWidget);
+        expect(find.text('50%'), findsOneWidget);
       },
     );
 
@@ -365,7 +371,7 @@ void main() {
             query.scope.accountId == 'parent' ? await late.future : [];
       final container = await pump(tester, api, settle: false);
       await tester.pump();
-      await tester.tap(find.byType(PopupMenuButton<String>));
+      await tester.tap(find.byType(PickerField));
       await tester.pump(const Duration(milliseconds: 300));
       (container.read(authControllerProvider.notifier) as _Auth).replace(
         const Session(

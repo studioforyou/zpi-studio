@@ -320,13 +320,10 @@ class _ClassesState extends ConsumerState<_Classes> {
     if (owner != null && owner.id != widget.scope.profileId) {
       _chooseProfile(owner);
     }
-    Navigator.of(context, rootNavigator: true).push<void>(
-      MaterialPageRoute(
-        builder: (_) => PersonalTrainingScreen(
-          query: (scope: scope, reservationId: session.reservationId),
-        ),
-      ),
-    );
+    showPersonalTrainingSheet(context, (
+      scope: scope,
+      reservationId: session.reservationId,
+    ));
   }
 
   @override

@@ -172,6 +172,8 @@ class ClientTypography {
     required this.badge,
     required this.bigNumber,
     required this.placesNumber,
+    required this.statNumber,
+    required this.historyDate,
     required this.profileName,
     required this.avatarInitials,
   });
@@ -288,6 +290,12 @@ class ClientTypography {
 
   /// Free places in a class sheet and the day list.
   final ClientTextSpec placesNumber;
+
+  /// Numbers of the history summary ("5 obecności").
+  final ClientTextSpec statNumber;
+
+  /// Day and month in a history row ("21.11").
+  final ClientTextSpec historyDate;
 
   /// Name on the profile tab.
   final ClientTextSpec profileName;

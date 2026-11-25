@@ -9,14 +9,17 @@ import 'package:mobile/features/passes/presentation/pass_usage_screen.dart';
 import 'package:mobile/features/trainings/data/training_history_api.dart';
 import 'package:mobile/features/trainings/presentation/widgets/group_class_widgets.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
+import 'package:mobile/shared/widgets/client/client_widgets.dart';
 
-/// One place for attendance and pass accounting, with pass-card shortcuts.
+/// Historia treningów (#281): attendance by month and pass entries, for one
+/// person or the whole family.
 class TrainingHistoryScreen extends ConsumerStatefulWidget {
   const TrainingHistoryScreen({
     this.today,
     this.initialTab = 0,
     this.initialProfileId,
     this.initialPassId,
+    this.backLabel,
     super.key,
   });
 
@@ -24,6 +27,9 @@ class TrainingHistoryScreen extends ConsumerStatefulWidget {
   final int initialTab;
   final String? initialProfileId;
   final String? initialPassId;
+
+  /// The screen it was opened from, for the back link; "Zajęcia" by default.
+  final String? backLabel;
 
   @override
   ConsumerState<TrainingHistoryScreen> createState() =>
@@ -33,27 +39,44 @@ class TrainingHistoryScreen extends ConsumerStatefulWidget {
 class _TrainingHistoryScreenState extends ConsumerState<TrainingHistoryScreen> {
   late String? _profileId = widget.initialProfileId;
   late String? _passId = widget.initialPassId;
+  late int _tab = widget.initialTab;
 
   void _selectProfile(String? id) => setState(() {
     _profileId = id;
     _passId = null;
   });
 
-  Widget _participantLabel(String accountId, String? profileId) => Consumer(
-    builder: (context, ref, _) {
-      final auth = ref.watch(authControllerProvider);
-      if (passUsageAccount(auth) != accountId) return const SizedBox.shrink();
-      if (profileId == null) {
-        return Text(AppLocalizations.of(context).passUsageAllPeople);
-      }
-      final profile = (auth as Authenticated).session.profiles
-          .where((profile) => profile.id == profileId)
-          .firstOrNull;
-      return profile == null
-          ? const SizedBox.shrink()
-          : Text(profile.displayName);
-    },
-  );
+  /// The person picker is open; it closes when the account changes.
+  bool _picking = false;
+
+  Future<void> _pickProfile(Session session) async {
+    final l10n = AppLocalizations.of(context);
+    _picking = true;
+    final choice = await showPickerSheet<String>(
+      context,
+      kicker: l10n.trainingHistoryTitle,
+      title: l10n.passUsagePerson,
+      options: [
+        PickerOption(value: '', title: l10n.passUsageAllPeople),
+        for (final profile in session.profiles)
+          PickerOption(
+            value: profile.id,
+            title: profile.displayName,
+            initials: SquareAvatar.initialsOf(profile.displayName),
+          ),
+      ],
+      selected: _profileId ?? '',
+    );
+    _picking = false;
+    if (choice == null || !mounted) return;
+    final auth = ref.read(authControllerProvider);
+    if (passUsageAccount(auth) != session.accountId) return;
+    if (choice.isNotEmpty &&
+        !(auth as Authenticated).session.profiles.any((p) => p.id == choice)) {
+      return;
+    }
+    _selectProfile(choice.isEmpty ? null : choice);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -65,134 +88,121 @@ class _TrainingHistoryScreenState extends ConsumerState<TrainingHistoryScreen> {
               !next.session.profiles.any(
                 (profile) => profile.id == selectedProfile,
               ));
-      if (previous != null &&
-          (passUsageAccount(previous) != passUsageAccount(next) ||
-              selectionRemoved)) {
+      final accountChanged =
+          previous != null &&
+          passUsageAccount(previous) != passUsageAccount(next);
+      if (accountChanged && _picking) {
+        // The open picker lists the people of the previous account.
+        Navigator.of(context, rootNavigator: true).maybePop();
+      }
+      if (accountChanged || (previous != null && selectionRemoved)) {
         _selectProfile(null);
       }
     });
     final l10n = AppLocalizations.of(context);
+    final ct = context.ct;
     final state = ref.watch(authControllerProvider);
     final accountId = passUsageAccount(state);
+    final header = SubPageHeader(
+      backLabel: widget.backLabel ?? l10n.navClasses,
+      title: l10n.trainingHistoryTitle,
+      actions: [
+        HeaderIconButton(
+          icon: Icons.info_outline,
+          tooltip: l10n.trainingHistoryHelpTitle,
+          onPressed: () => showAppSheet<void>(
+            context,
+            builder: (_) => AppSheet(
+              title: l10n.trainingHistoryHelpTitle,
+              titleSmall: true,
+              children: [SheetWarning(l10n.trainingHistoryHelp)],
+            ),
+          ),
+        ),
+      ],
+    );
     if (accountId == null) {
       return Scaffold(
-        appBar: AppBar(title: Text(l10n.trainingHistoryTitle)),
-        body: ClassMessage(l10n.classesNoProfile),
+        body: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            header,
+            Expanded(child: ClassMessage(l10n.classesNoProfile)),
+          ],
+        ),
       );
     }
     final session = (state as Authenticated).session;
-    return DefaultTabController(
+    final person = session.profiles
+        .where((profile) => profile.id == _profileId)
+        .firstOrNull;
+    return Scaffold(
       key: ValueKey(accountId),
-      length: 2,
-      initialIndex: widget.initialTab,
-      child: Scaffold(
-        appBar: AppBar(
-          title: Text(l10n.trainingHistoryTitle),
-          actions: [
-            IconButton(
-              tooltip: l10n.trainingHistoryHelpTitle,
-              icon: const Icon(Icons.info_outline),
-              onPressed: () => showModalBottomSheet<void>(
-                context: context,
-                showDragHandle: true,
-                builder: (context) => SafeArea(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
-                    child: Text(l10n.trainingHistoryHelp),
-                  ),
-                ),
-              ),
-            ),
-          ],
-          bottom: TabBar(
-            tabs: [
-              Tab(text: l10n.trainingHistoryClassesTab),
-              Tab(text: l10n.trainingHistoryEntriesTab),
-            ],
-          ),
-        ),
-        body: Column(
-          children: [
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          header,
+          if (session.profiles.length > 1)
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-              child: PopupMenuButton<String>(
-                tooltip: l10n.passUsagePerson,
-                initialValue: _profileId ?? '',
-                onSelected: (value) {
-                  final auth = ref.read(authControllerProvider);
-                  if (passUsageAccount(auth) == accountId &&
-                      (value.isEmpty ||
-                          (auth as Authenticated).session.profiles.any(
-                            (profile) => profile.id == value,
-                          ))) {
-                    _selectProfile(value.isEmpty ? null : value);
-                  }
-                },
-                itemBuilder: (context) => [
-                  PopupMenuItem(
-                    value: '',
-                    child: _participantLabel(accountId, null),
-                  ),
-                  for (final profile in session.profiles)
-                    PopupMenuItem(
-                      value: profile.id,
-                      child: _participantLabel(accountId, profile.id),
-                    ),
-                ],
-                child: Chip(
-                  avatar: const Icon(Icons.people_outline, size: 18),
-                  label: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Flexible(
-                        child: Text(
-                          session.profiles
-                                  .where((profile) => profile.id == _profileId)
-                                  .firstOrNull
-                                  ?.displayName ??
-                              l10n.passUsageAllPeople,
-                        ),
-                      ),
-                      const Icon(Icons.arrow_drop_down, size: 18),
-                    ],
-                  ),
-                ),
+              padding: EdgeInsets.fromLTRB(
+                ct.spacing.page,
+                ct.spacing.m,
+                ct.spacing.page,
+                0,
+              ),
+              child: PickerField(
+                title: person?.displayName ?? l10n.passUsageAllPeople,
+                onTap: () => _pickProfile(session),
               ),
             ),
-            Expanded(
-              child: TabBarView(
-                children: [
-                  _MonthlyHistory(
+          SizedBox(height: ct.spacing.s),
+          Expanded(
+            child: _tab == 0
+                ? _MonthlyHistory(
                     session: session,
                     profileId: _profileId,
                     today: widget.today ?? DateTime.now(),
+                    tabs: _tabs(l10n),
+                  )
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _tabs(l10n),
+                      Expanded(
+                        child: PassUsageScreen(
+                          accountId: accountId,
+                          initialProfileId: _profileId,
+                          initialPassId: _passId,
+                          onProfileChanged: _selectProfile,
+                          embedded: true,
+                        ),
+                      ),
+                    ],
                   ),
-                  PassUsageScreen(
-                    accountId: accountId,
-                    initialProfileId: _profileId,
-                    initialPassId: _passId,
-                    onProfileChanged: _selectProfile,
-                    embedded: true,
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
+
+  Widget _tabs(AppLocalizations l10n) => AppTabs(
+    labels: [l10n.trainingHistoryClassesTab, l10n.trainingHistoryEntriesTab],
+    selected: _tab,
+    onChanged: (tab) => setState(() => _tab = tab),
+  );
 }
 
 class _MonthlyHistory extends ConsumerStatefulWidget {
   const _MonthlyHistory({
     required this.session,
     required this.today,
+    required this.tabs,
     this.profileId,
   });
 
   final Session session;
   final DateTime today;
+  final Widget tabs;
   final String? profileId;
 
   @override
@@ -200,13 +210,8 @@ class _MonthlyHistory extends ConsumerStatefulWidget {
 }
 
 class _MonthlyHistoryState extends ConsumerState<_MonthlyHistory>
-    with
-        WidgetsBindingObserver,
-        AutomaticKeepAliveClientMixin<_MonthlyHistory> {
+    with WidgetsBindingObserver {
   late DateTime _month = DateTime(widget.today.year, widget.today.month);
-
-  @override
-  bool get wantKeepAlive => true;
 
   AccountTrainingHistoryQuery get _query => (
     accountId: widget.session.accountId,
@@ -243,77 +248,77 @@ class _MonthlyHistoryState extends ConsumerState<_MonthlyHistory>
 
   @override
   Widget build(BuildContext context) {
-    super.build(context);
     final l10n = AppLocalizations.of(context);
-    final theme = Theme.of(context);
     final provider = accountTrainingHistoryProvider(_query);
-    final monthLabel = DateFormat('LLLL yyyy', 'pl').format(_month);
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          child: Row(
-            children: [
-              IconButton(
-                icon: const Icon(Icons.chevron_left),
-                tooltip: l10n.trainingHistoryPreviousMonth,
-                onPressed: () => _shift(-1),
-              ),
-              Expanded(
-                child: Text(
-                  '${monthLabel[0].toUpperCase()}${monthLabel.substring(1)}',
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.titleMedium,
-                ),
-              ),
-              IconButton(
-                icon: const Icon(Icons.chevron_right),
-                tooltip: l10n.trainingHistoryNextMonth,
-                onPressed: _isCurrentMonth ? null : () => _shift(1),
+    final history = ref.watch(provider);
+    final entries = history.value;
+    // The whole family shows each person's name on their rows.
+    final names =
+        widget.profileId == null && widget.session.profiles.length > 1;
+    return RefreshIndicator(
+      onRefresh: () => ref.refresh(provider.future),
+      child: CustomScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        slivers: [
+          SliverToBoxAdapter(
+            child: MonthNav(
+              month: _month,
+              previousTooltip: l10n.trainingHistoryPreviousMonth,
+              nextTooltip: l10n.trainingHistoryNextMonth,
+              onPrevious: () => _shift(-1),
+              onNext: _isCurrentMonth ? null : () => _shift(1),
+            ),
+          ),
+          SliverToBoxAdapter(
+            child: _HistorySummary([
+              for (final entry in entries ?? const <ParticipantTraining>[])
+                entry.training,
+            ]),
+          ),
+          SliverToBoxAdapter(child: widget.tabs),
+          ...history.when(
+            skipLoadingOnRefresh: false,
+            skipLoadingOnReload: false,
+            loading: () => [
+              const SliverFillRemaining(
+                hasScrollBody: false,
+                child: Center(child: CircularProgressIndicator()),
               ),
             ],
-          ),
-        ),
-        Expanded(
-          child: ref
-              .watch(provider)
-              .when(
-                skipLoadingOnRefresh: false,
-                skipLoadingOnReload: false,
-                loading: () => const Center(child: CircularProgressIndicator()),
-                error: (_, _) => Center(
-                  child: ClassesLoadError(
-                    onRetry: () => ref.invalidate(provider),
-                  ),
-                ),
-                data: (entries) => RefreshIndicator(
-                  onRefresh: () => ref.refresh(provider.future),
-                  child: ListView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                    children: [
-                      if (entries.isEmpty)
-                        ClassMessage(
-                          l10n.trainingHistoryEmpty,
-                          icon: Icons.history,
-                        )
-                      else ...[
-                        _HistorySummary([
-                          for (final entry in entries) entry.training,
-                        ]),
-                        for (final entry in entries)
-                          _HistoryTile(entry.training, entry.profileName),
-                      ],
-                    ],
-                  ),
+            error: (_, _) => [
+              SliverToBoxAdapter(
+                child: ClassesLoadError(
+                  onRetry: () => ref.invalidate(provider),
                 ),
               ),
-        ),
-      ],
+            ],
+            data: (entries) => [
+              if (entries.isEmpty)
+                SliverToBoxAdapter(
+                  child: ClassMessage(
+                    l10n.trainingHistoryEmpty,
+                    icon: Icons.history,
+                  ),
+                )
+              else
+                SliverList.list(
+                  children: [
+                    for (final entry in entries)
+                      _HistoryRow(
+                        entry.training,
+                        names ? entry.profileName : null,
+                      ),
+                  ],
+                ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }
 
+/// Four numbers in hairline cells: present, absent, cancelled, attendance.
 class _HistorySummary extends StatelessWidget {
   const _HistorySummary(this.entries);
 
@@ -325,7 +330,7 @@ class _HistorySummary extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final theme = Theme.of(context);
+    final ct = context.ct;
     final present = _count({TrainingOutcome.present});
     final absent = _count({TrainingOutcome.absent});
     final cancelled = _count({
@@ -333,69 +338,83 @@ class _HistorySummary extends StatelessWidget {
       TrainingOutcome.lateCancelled,
       TrainingOutcome.classCancelled,
     });
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
+    final rate = present + absent == 0
+        ? null
+        : (present * 100 / (present + absent)).round();
+    Widget cell(String value, String label, {bool last = false}) => Expanded(
+      child: Container(
+        padding: EdgeInsets.fromLTRB(
+          ct.spacing.page,
+          ct.spacing.m,
+          ct.spacing.xs,
+          ct.spacing.m,
+        ),
+        decoration: BoxDecoration(
+          border: last ? null : Border(right: ct.hairline),
+        ),
         child: Column(
-          spacing: 12,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                _Stat(present, l10n.trainingHistoryPresent),
-                _Stat(absent, l10n.trainingHistoryAbsent),
-                _Stat(cancelled, l10n.trainingHistoryCancelled),
-              ],
+            Text(value, style: ct.text.statNumber),
+            SizedBox(height: ct.spacing.xs),
+            Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: ct.text.caption,
             ),
-            if (present + absent > 0)
-              Text(
-                l10n.trainingHistoryAttendanceRate(
-                  (present * 100 / (present + absent)).round(),
-                ),
-                style: theme.textTheme.labelLarge,
-              ),
           ],
+        ),
+      ),
+    );
+    return Semantics(
+      label: rate == null ? null : l10n.trainingHistoryAttendanceRate(rate),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          border: Border(top: ct.hairline, bottom: ct.hairline),
+        ),
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              cell('$present', l10n.historyStatPresent),
+              cell('$absent', l10n.historyStatAbsent),
+              cell('$cancelled', l10n.historyStatCancelled),
+              cell(
+                rate == null ? '–' : '$rate%',
+                l10n.historyStatRate,
+                last: true,
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 }
 
-class _Stat extends StatelessWidget {
-  const _Stat(this.value, this.label);
-
-  final int value;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Expanded(
-      child: Column(
-        children: [
-          Text('$value', style: theme.textTheme.headlineSmall),
-          Text(
-            label,
-            textAlign: TextAlign.center,
-            style: theme.textTheme.bodySmall,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _HistoryTile extends StatelessWidget {
-  const _HistoryTile(this.entry, this.participantName);
+/// One training: the date on the left, what it was in the middle and how it
+/// ended on the right.
+class _HistoryRow extends StatelessWidget {
+  const _HistoryRow(this.entry, this.participantName);
 
   final TrainingHistoryEntry entry;
-  final String participantName;
+
+  /// Whose training it was, in the family view.
+  final String? participantName;
+
+  static final _date = DateFormat('d.MM');
+  static final _weekday = DateFormat('EEE', 'pl');
+  static final _time = DateFormat('HH:mm');
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final theme = Theme.of(context);
-    final (icon, label, color) = _outcome(l10n, theme, entry.outcome);
-    final crossedOut = switch (entry.outcome) {
+    final ct = context.ct;
+    final c = ct.colors;
+    final sp = ct.spacing;
+    final (label, tone) = _outcome(l10n, entry.outcome);
+    final cancelled = switch (entry.outcome) {
       TrainingOutcome.cancelled ||
       TrainingOutcome.lateCancelled ||
       TrainingOutcome.classCancelled => true,
@@ -405,124 +424,95 @@ class _HistoryTile extends StatelessWidget {
         .where((person) => person.isLead && person.displayName != null)
         .map((person) => person.displayName!)
         .join(', ');
-    final time = DateFormat('HH:mm');
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      child: IntrinsicHeight(
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Container(
-              width: 6,
-              color: serviceColor(entry.calendarColor, theme.colorScheme),
-            ),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  spacing: 6,
-                  children: [
-                    Text(
-                      participantName,
-                      style: theme.textTheme.labelMedium?.copyWith(
-                        color: theme.colorScheme.primary,
-                      ),
-                    ),
-                    Text(
-                      '${classDate(entry.startsAt)}, '
-                      '${time.format(entry.startsAt)}–'
-                      '${time.format(entry.endsAt)}',
-                      style: theme.textTheme.labelLarge,
-                    ),
-                    Text(
-                      entry.name ?? l10n.classesTitle,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        decoration: crossedOut
-                            ? TextDecoration.lineThrough
-                            : null,
-                      ),
-                    ),
-                    if (teachers.isNotEmpty || entry.roomNames.isNotEmpty)
-                      Text(
-                        [
-                          if (teachers.isNotEmpty) teachers,
-                          ...entry.roomNames,
-                        ].join(' · '),
-                        style: theme.textTheme.bodySmall,
-                      ),
-                    Row(
-                      children: [
-                        Icon(icon, size: 16, color: color),
-                        const SizedBox(width: 6),
-                        Flexible(
-                          child: Text(
-                            label,
-                            style: theme.textTheme.labelMedium?.copyWith(
-                              color: color,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    if (entry.cancellationEffect == 'MAKEUP_GRANTED' ||
-                        entry.cancellationEffect == 'MAKEUP_RETURNED')
-                      Text(
-                        entry.cancellationEffect == 'MAKEUP_GRANTED'
-                            ? l10n.personalMakeupGranted
-                            : l10n.personalMakeupReturned,
-                        style: theme.textTheme.bodySmall,
-                      )
-                    else if (entry.outcome == TrainingOutcome.lateCancelled &&
-                        entry.entryReturned == false)
-                      Text(
-                        l10n.trainingHistoryEntryNotReturned,
-                        style: theme.textTheme.bodySmall,
-                      ),
-                  ],
+    final note =
+        entry.cancellationEffect == 'MAKEUP_GRANTED' ||
+            entry.cancellationEffect == 'MAKEUP_RETURNED'
+        ? (entry.cancellationEffect == 'MAKEUP_GRANTED'
+              ? l10n.personalMakeupGranted
+              : l10n.personalMakeupReturned)
+        : entry.outcome == TrainingOutcome.lateCancelled &&
+              entry.entryReturned == false
+        ? l10n.trainingHistoryEntryNotReturned
+        : null;
+    return Container(
+      padding: EdgeInsets.fromLTRB(sp.page, sp.m, sp.page, sp.m),
+      decoration: BoxDecoration(border: Border(bottom: ct.hairline)),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: ct.sizes.timeColumn,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(_date.format(entry.startsAt), style: ct.text.historyDate),
+                SizedBox(height: sp.xxs),
+                Text(
+                  '${_weekday.format(entry.startsAt)} · '
+                  '${_time.format(entry.startsAt)}',
+                  style: ct.text.caption,
                 ),
-              ),
+              ],
             ),
-          ],
-        ),
+          ),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  entry.name ?? l10n.classesTitle,
+                  style: ct.text.rowTitle.copyWith(
+                    color: cancelled ? c.muted : c.ink,
+                  ),
+                ),
+                SizedBox(height: sp.xxs),
+                Text(
+                  [
+                    ?participantName,
+                    if (teachers.isNotEmpty) teachers,
+                    ...entry.roomNames,
+                  ].join(' · '),
+                  style: ct.text.meta.copyWith(color: c.muted),
+                ),
+                if (note != null)
+                  Text(note, style: ct.text.meta.copyWith(color: c.muted)),
+              ],
+            ),
+          ),
+          SizedBox(width: sp.s),
+          Padding(
+            padding: EdgeInsets.only(top: sp.xxs),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: ct.sizes.timeColumn * 1.6),
+              child: StatusDot(label: label, tone: tone),
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  static (IconData, String, Color) _outcome(
+  static (String, StatusTone) _outcome(
     AppLocalizations l10n,
-    ThemeData theme,
     TrainingOutcome outcome,
   ) => switch (outcome) {
-    TrainingOutcome.present => (
-      Icons.check_circle_outline,
-      l10n.trainingOutcomePresent,
-      Colors.green.shade700,
-    ),
-    TrainingOutcome.absent => (
-      Icons.cancel_outlined,
-      l10n.trainingOutcomeAbsent,
-      theme.colorScheme.error,
-    ),
+    TrainingOutcome.present => (l10n.trainingOutcomePresent, StatusTone.ok),
+    TrainingOutcome.absent => (l10n.trainingOutcomeAbsent, StatusTone.warning),
     TrainingOutcome.unmarked => (
-      Icons.help_outline,
-      l10n.trainingOutcomeUnmarked,
-      theme.colorScheme.onSurfaceVariant,
+      l10n.trainingOutcomeUnmarkedShort,
+      StatusTone.scheduled,
     ),
     TrainingOutcome.cancelled => (
-      Icons.event_busy_outlined,
-      l10n.trainingOutcomeCancelled,
-      theme.colorScheme.onSurfaceVariant,
+      l10n.trainingOutcomeCancelledShort,
+      StatusTone.off,
     ),
     TrainingOutcome.lateCancelled => (
-      Icons.event_busy_outlined,
-      l10n.trainingOutcomeLateCancelled,
-      Colors.orange.shade800,
+      l10n.trainingOutcomeLateCancelledShort,
+      StatusTone.warning,
     ),
     TrainingOutcome.classCancelled => (
-      Icons.block,
-      l10n.trainingOutcomeClassCancelled,
-      theme.colorScheme.error,
+      l10n.trainingOutcomeClassCancelledShort,
+      StatusTone.off,
     ),
   };
 }

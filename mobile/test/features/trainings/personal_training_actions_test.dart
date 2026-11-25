@@ -12,13 +12,17 @@ import 'package:mobile/core/auth/auth_state.dart';
 import 'package:mobile/core/auth/session.dart';
 import 'package:mobile/features/accounts/data/profile_view_preferences.dart';
 import 'package:mobile/features/schedule/data/schedule_api.dart';
-import 'package:mobile/features/schedule/presentation/client_schedule_screen.dart';
+import 'package:mobile/features/schedule/presentation/client/client_classes_screen.dart';
 import 'package:mobile/features/schedule/data/client_schedule_api.dart';
-import 'package:mobile/features/schedule/presentation/widgets/schedule_calendar.dart';
+import 'package:mobile/features/communication/data/notifications_api.dart';
+import 'package:mobile/features/schedule/data/schedule_service_types.dart';
+import 'package:mobile/features/schedule/data/series_changes.dart';
+import 'package:mobile/features/schedule/data/studio_trainers.dart';
 import 'package:mobile/features/trainings/data/group_classes_api.dart';
 import 'package:mobile/features/trainings/data/personal_trainings_api.dart';
 import 'package:mobile/features/trainings/presentation/personal_training_screen.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
+import 'package:mobile/shared/widgets/client/client_widgets.dart';
 
 const _scope = (accountId: 'account', profileId: 'self');
 Session _account({String account = 'account', String profile = 'self'}) =>
@@ -229,14 +233,19 @@ void main() {
         ? const Size(360, 700)
         : const Size(800, 1800);
     tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.reset);
     final container = ProviderContainer(
       retry: (_, _) => null,
       overrides: [
         authControllerProvider.overrideWith(_Auth.new),
         personalTrainingsApiProvider.overrideWithValue(api),
         groupClassesApiProvider.overrideWithValue(_Groups()),
+        scheduleServiceTypesProvider.overrideWith((ref) async => const {}),
+        studioTrainersProvider.overrideWith((ref) async => const []),
+        scheduleChangesProvider.overrideWith((ref, owner) => Stream.value([])),
+        unreadCountProvider.overrideWith(
+          (ref, scope) async => UnreadNotifications.none,
+        ),
       ],
     );
     addTearDown(container.dispose);
@@ -244,6 +253,7 @@ void main() {
       UncontrolledProviderScope(
         container: container,
         child: MaterialApp(
+          theme: buildClientTheme(Brightness.light),
           locale: const Locale('pl'),
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
@@ -256,12 +266,14 @@ void main() {
                 )
               : null,
           home: calendar
-              ? ClientScheduleScreen(
-                  reservationsOnly: true,
+              ? ClientClassesScreen(
                   today: DateTime(2030, 11, 5),
+                  now: DateTime(2030, 11, 5, 8),
                 )
-              : const PersonalTrainingScreen(
-                  query: (scope: _scope, reservationId: 'reservation'),
+              : const Scaffold(
+                  body: PersonalTrainingScreen(
+                    query: (scope: _scope, reservationId: 'reservation'),
+                  ),
                 ),
         ),
       ),
@@ -274,10 +286,14 @@ void main() {
     return container;
   }
 
-  Finder dialogButton(String label) => find.descendant(
-    of: find.byType(AlertDialog),
-    matching: find.widgetWithText(FilledButton, label),
-  );
+  Finder button(String label) => find.widgetWithText(AppButton, label);
+
+  Future<void> tap(WidgetTester tester, Finder finder) async {
+    await tester.ensureVisible(finder.last);
+    await tester.pumpAndSettle();
+    await tester.tap(finder.last);
+    await tester.pumpAndSettle();
+  }
 
   test(
     'API scopes the participant and submits the exact version and confirmed consequence',
@@ -310,40 +326,42 @@ void main() {
   );
 
   testWidgets(
-    'one calendar contains both group classes and reserved personal sessions',
+    'Moje lists group classes and personal sessions; a session opens its sheet',
     (tester) async {
       await pump(tester, _Api(), calendar: true);
-      expect(find.textContaining('Zajęcia grupowe'), findsOneWidget);
-      expect(find.textContaining('Trening indywidualny'), findsOneWidget);
-      expect(find.text('18:00–19:00'), findsOneWidget);
-      expect(find.text('Marek'), findsOneWidget);
-      expect(find.text('Sala'), findsOneWidget);
-      expect(find.text('Zaplanowany'), findsOneWidget);
-      await tester.tap(find.textContaining('Trening indywidualny'));
-      await tester.pumpAndSettle();
+      expect(find.text('Zajęcia grupowe'), findsWidgets);
+      expect(find.text('Trening indywidualny'), findsWidgets);
+      await tap(tester, find.text('Trening indywidualny'));
+      expect(find.byType(PersonalTrainingScreen), findsOneWidget);
       expect(find.text('Pakiet PT'), findsOneWidget);
-      expect(find.text('Odwołaj trening'), findsOneWidget);
+      expect(find.text('Marek'), findsWidgets);
+      expect(button('Odwołaj trening'), findsOneWidget);
+      expect(button('Napisz'), findsOneWidget);
     },
   );
 
   testWidgets(
-    'cancellation shows its consequence before sending and requires confirmation',
+    'cancellation shows its consequences before sending and requires confirmation',
     (tester) async {
       final api = _Api();
       await pump(tester, api);
-      await tester.tap(find.text('Odwołaj trening'));
-      await tester.pumpAndSettle();
+      expect(
+        find.textContaining('Możesz odwołać trening bez utraty wejścia do'),
+        findsOneWidget,
+      );
+      await tap(tester, button('Odwołaj trening'));
+      expect(find.text('Odwołać trening?'), findsOneWidget);
+      expect(find.text('Odwołanie w terminie'), findsOneWidget);
       expect(find.text('+1 odróbka'), findsOneWidget);
+      expect(find.text('Odróbka będzie ważna przez 30 dni.'), findsOneWidget);
       expect(api.cancellations, isEmpty);
-      await tester.tap(find.text('Zachowaj rezerwację'));
-      await tester.pumpAndSettle();
+      await tap(tester, button('Zachowaj trening'));
       expect(api.cancellations, isEmpty);
-      await tester.tap(find.text('Odwołaj trening'));
-      await tester.pumpAndSettle();
-      await tester.tap(dialogButton('Odwołaj trening'));
-      await tester.pumpAndSettle();
+      await tap(tester, button('Odwołaj trening'));
+      await tap(tester, button('Odwołaj trening'));
       expect(api.cancellations, [_scope]);
-      expect(find.text('Odwołane'), findsOneWidget);
+      expect(find.textContaining('Odwołane'), findsOneWidget);
+      expect(button('Odwołaj trening'), findsNothing);
     },
   );
 
@@ -353,132 +371,68 @@ void main() {
       final api = _Api()
         ..session = _session(effect: 'ENTRY_FORFEITED', late: true);
       await pump(tester, api);
-      await tester.tap(find.text('Odwołaj trening'));
-      await tester.pumpAndSettle();
+      await tap(tester, button('Odwołaj trening'));
       expect(find.text('Wejście przepada'), findsOneWidget);
-      expect(find.textContaining('Termin minął:'), findsNWidgets(2));
-      expect(api.cancellations, isEmpty);
-      await tester.tap(dialogButton('Odwołaj trening'));
-      await tester.pumpAndSettle();
+      expect(find.text('Odwołanie po terminie'), findsOneWidget);
+      expect(find.textContaining('Termin minął:'), findsOneWidget);
+      await tap(tester, button('Odwołaj trening'));
       expect(api.cancellations, [_scope]);
-      expect(find.text('Wejście przepadło'), findsOneWidget);
-      expect(find.text('Odwołane'), findsOneWidget);
+      expect(find.textContaining('Wejście przepadło'), findsOneWidget);
     },
   );
 
-  testWidgets(
-    'family schedule keeps both participants even in the same group event',
-    (tester) async {
-      final api = _Api()..family = true;
-      await pump(tester, api, calendar: true);
-      expect(find.byType(DropdownButtonFormField<String>), findsNothing);
-      await tester.tap(find.text('Wszyscy'));
-      await tester.pumpAndSettle();
-      expect(api.reads, containsAll(['self', 'child']));
-      expect(find.textContaining('Trening Zosi'), findsOneWidget);
-      expect(find.textContaining('Trening indywidualny'), findsOneWidget);
-      expect(find.text('Zajęcia grupowe'), findsNWidgets(2));
-      expect(find.text('Monika'), findsAtLeastNWidgets(2));
-      expect(find.text('Zosia'), findsAtLeastNWidgets(2));
-      await tester.tap(find.byKey(const ValueKey('schedule-profile-child')));
-      await tester.pumpAndSettle();
-      expect(find.textContaining('Trening Zosi'), findsOneWidget);
-      expect(find.textContaining('Trening indywidualny'), findsNothing);
-      expect(find.text('Zajęcia grupowe'), findsOneWidget);
-    },
-  );
+  testWidgets('family view keeps both participants and narrows to one person', (
+    tester,
+  ) async {
+    final api = _Api()..family = true;
+    await pump(tester, api, calendar: true);
+    await tap(tester, find.text('Wszyscy'));
+    expect(api.reads, containsAll(['self', 'child']));
+    expect(find.text('Trening Zosi'), findsOneWidget);
+    expect(find.text('Trening indywidualny'), findsOneWidget);
+    expect(find.text('Zosia'), findsWidgets);
+    expect(find.text('Monika'), findsWidgets);
+    await tap(tester, find.text('Zosia').first);
+    expect(find.text('Trening Zosi'), findsOneWidget);
+    expect(find.text('Trening indywidualny'), findsNothing);
+  });
 
   testWidgets(
-    'a child action from the combined schedule never cancels the parent reservation',
+    'a child action from the family view never cancels the parent reservation',
     (tester) async {
       final api = _Api()..family = true;
       await pump(tester, api, calendar: true);
-      await tester.tap(find.text('Wszyscy'));
-      await tester.pumpAndSettle();
-      await tester.ensureVisible(find.textContaining('Trening Zosi'));
-      await tester.tap(find.textContaining('Trening Zosi'));
-      await tester.pumpAndSettle();
+      await tap(tester, find.text('Wszyscy'));
+      await tap(tester, find.text('Trening Zosi'));
       expect(api.detailScopes.last, (accountId: 'account', profileId: 'child'));
-      expect(find.text('Zosia'), findsOneWidget);
-      await tester.tap(find.text('Odwołaj trening'));
-      await tester.pumpAndSettle();
-      await tester.tap(dialogButton('Odwołaj trening'));
-      await tester.pumpAndSettle();
+      await tap(tester, button('Odwołaj trening'));
+      await tap(tester, button('Odwołaj trening'));
       expect(api.cancellations, [(accountId: 'account', profileId: 'child')]);
       expect(api.session.status, EventStatus.scheduled);
-      Navigator.of(tester.element(find.byType(PersonalTrainingScreen))).pop();
-      await tester.pumpAndSettle();
-      expect(find.textContaining('Trening Zosi'), findsOneWidget);
-      expect(find.textContaining('Trening indywidualny'), findsOneWidget);
     },
   );
 
-  testWidgets(
-    'family choices remain usable on a narrow screen with large text',
-    (tester) async {
-      await pump(tester, _Api()..family = true, calendar: true, large: true);
-      await tester.tap(find.text('Wszyscy'));
-      await tester.pumpAndSettle();
-      expect(tester.takeException(), isNull);
-      expect(find.byTooltip('Grafik: Monika'), findsOneWidget);
-      expect(find.byTooltip('Grafik: Zosia'), findsOneWidget);
-    },
-  );
-
-  testWidgets(
-    'hiding linked profiles immediately limits a combined calendar to the active person',
-    (tester) async {
-      final api = _Api()..family = true;
-      final container = await pump(tester, api, calendar: true);
-      await tester.tap(find.text('Wszyscy'));
-      await tester.pumpAndSettle();
-      expect(find.textContaining('Trening Zosi'), findsOneWidget);
-      await container
-          .read(profileViewPreferencesProvider(_scope).notifier)
-          .setShowRelated(false);
-      await tester.pumpAndSettle();
-      expect(find.text('Wszyscy'), findsNothing);
-      expect(
-        find.byKey(const ValueKey('schedule-profile-child')),
-        findsNothing,
-      );
-      expect(find.textContaining('Trening Zosi'), findsNothing);
-      expect(find.textContaining('Trening indywidualny'), findsOneWidget);
-      // Changing the active profile elsewhere still works and uses that person's own setting.
-      (container.read(authControllerProvider.notifier) as _Auth).replace(
-        _account(profile: 'child'),
-      );
-      await tester.pumpAndSettle();
-      expect(find.text('Wszyscy'), findsOneWidget);
-    },
-  );
-
-  testWidgets(
-    'switching family profiles preserves the month and selected view',
-    (tester) async {
-      final api = _Api()..family = true;
-      await pump(tester, api, calendar: true);
-      await tester.tap(find.text('Miesiąc'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.byTooltip('Następny'));
-      await tester.pumpAndSettle();
-      expect(find.text('Grudzień 2030'), findsOneWidget);
-      await tester.tap(find.byKey(const ValueKey('schedule-profile-child')));
-      await tester.pumpAndSettle();
-      expect(find.text('Grudzień 2030'), findsOneWidget);
-      expect(
-        tester
-            .widget<SegmentedButton<ScheduleView>>(
-              find.byType(SegmentedButton<ScheduleView>),
-            )
-            .selected,
-        {ScheduleView.month},
-      );
-      await tester.tap(find.text('Wszyscy'));
-      await tester.pumpAndSettle();
-      expect(find.text('Grudzień 2030'), findsOneWidget);
-    },
-  );
+  testWidgets('hiding linked profiles limits the view to the active person', (
+    tester,
+  ) async {
+    final api = _Api()..family = true;
+    final container = await pump(tester, api, calendar: true);
+    await tap(tester, find.text('Wszyscy'));
+    expect(find.text('Trening Zosi'), findsOneWidget);
+    await container
+        .read(profileViewPreferencesProvider(_scope).notifier)
+        .setShowRelated(false);
+    await tester.pumpAndSettle();
+    expect(find.text('Wszyscy'), findsNothing);
+    expect(find.text('Trening Zosi'), findsNothing);
+    expect(find.text('Trening indywidualny'), findsWidgets);
+    // Another active profile uses that person's own setting.
+    (container.read(authControllerProvider.notifier) as _Auth).replace(
+      _account(profile: 'child'),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Wszyscy'), findsOneWidget);
+  });
 
   test('family data cannot be reused by another account', () async {
     final api = _Api()..family = true;
@@ -516,25 +470,23 @@ void main() {
   testWidgets('unlimited sessions show no extra makeup credit', (tester) async {
     final api = _Api()..session = _session(effect: 'NO_ENTRY');
     await pump(tester, api);
-    await tester.tap(find.text('Odwołaj trening'));
-    await tester.pumpAndSettle();
+    await tap(tester, button('Odwołaj trening'));
     expect(find.text('Bez zmiany liczby wejść'), findsOneWidget);
     expect(find.text('+1 odróbka'), findsNothing);
   });
 
   testWidgets(
-    'a participant switch while confirming prevents cancellation of the previous profile',
+    'a participant switch while confirming prevents cancelling the previous profile',
     (tester) async {
       final api = _Api();
       final container = await pump(tester, api);
-      await tester.tap(find.text('Odwołaj trening'));
-      await tester.pumpAndSettle();
+      await tap(tester, button('Odwołaj trening'));
       (container.read(authControllerProvider.notifier) as _Auth).replace(
         _account(profile: 'child'),
       );
       await tester.pumpAndSettle();
-      expect(dialogButton('Odwołaj trening'), findsNothing);
       expect(find.text('+1 odróbka'), findsNothing);
+      expect(button('Odwołaj trening'), findsNothing);
       expect(api.cancellations, isEmpty);
     },
   );
@@ -554,20 +506,30 @@ void main() {
     },
   );
 
+  testWidgets('a held session shows attendance and the dispute deadline', (
+    tester,
+  ) async {
+    await pump(tester, _Api()..session = _session(held: true));
+    expect(find.text('Odbyty'), findsOneWidget);
+    expect(find.text('Obecność'), findsOneWidget);
+    expect(
+      find.textContaining('Coś się nie zgadza? Możesz zgłosić niezgodność'),
+      findsOneWidget,
+    );
+    expect(button('Odwołaj trening'), findsNothing);
+  });
+
   testWidgets(
     'a dispute requires a reason and leaves a pending review instead of changing the package',
     (tester) async {
       final api = _Api()..session = _session(held: true);
       await pump(tester, api);
-      await tester.tap(find.text('Zgłoś niezgodność'));
-      await tester.pumpAndSettle();
-      await tester.tap(dialogButton('Wyślij zgłoszenie'));
-      await tester.pumpAndSettle();
+      await tap(tester, button('Zgłoś niezgodność'));
+      await tap(tester, button('Wyślij zgłoszenie'));
       expect(find.text('Opisz krótko niezgodność.'), findsOneWidget);
       expect(api.disputes, isEmpty);
       await tester.enterText(find.byType(TextField), 'Nie było treningu.');
-      await tester.tap(dialogButton('Wyślij zgłoszenie'));
-      await tester.pumpAndSettle();
+      await tap(tester, button('Wyślij zgłoszenie'));
       expect(api.disputes, ['Nie było treningu.']);
       expect(
         find.text(
@@ -575,7 +537,7 @@ void main() {
         ),
         findsOneWidget,
       );
-      expect(find.text('Zgłoś niezgodność'), findsNothing);
+      expect(button('Zgłoś niezgodność'), findsNothing);
     },
   );
 
@@ -584,9 +546,8 @@ void main() {
     (tester) async {
       final api = _Api()..pendingCancel = Completer<PersonalSession>();
       await pump(tester, api);
-      await tester.tap(find.text('Odwołaj trening'));
-      await tester.pumpAndSettle();
-      await tester.tap(dialogButton('Odwołaj trening'));
+      await tap(tester, button('Odwołaj trening'));
+      await tester.tap(button('Odwołaj trening').last);
       await tester.pump();
       await tester.pumpWidget(const SizedBox());
       api.pendingCancel!.complete(_session(cancelled: true));
@@ -599,14 +560,7 @@ void main() {
     tester,
   ) async {
     await pump(tester, _Api(), large: true);
-    await tester.scrollUntilVisible(
-      find.text('Odwołaj trening'),
-      120,
-      scrollable: find.byType(Scrollable).first,
-    );
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Odwołaj trening'));
-    await tester.pumpAndSettle();
+    await tap(tester, button('Odwołaj trening'));
     expect(find.text('+1 odróbka'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });

@@ -107,6 +107,8 @@ class ClientTextStyles {
       badge = _style(t, c, t.badge, c.onBadge),
       bigNumber = _style(t, c, t.bigNumber),
       placesNumber = _style(t, c, t.placesNumber),
+      statNumber = _style(t, c, t.statNumber),
+      historyDate = _style(t, c, t.historyDate),
       profileName = _style(t, c, t.profileName),
       avatarInitials = _style(t, c, t.avatarInitials),
       selectedWeight = t.selectedWeight,
@@ -191,6 +193,8 @@ class ClientTextStyles {
   final TextStyle badge;
   final TextStyle bigNumber;
   final TextStyle placesNumber;
+  final TextStyle statNumber;
+  final TextStyle historyDate;
   final TextStyle profileName;
   final TextStyle avatarInitials;
 

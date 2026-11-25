@@ -193,6 +193,8 @@ const _typography = ClientTypography(
   navLabel: ClientTextSpec(11, height: 1.1),
   badge: ClientTextSpec(10, weight: FontWeight.w600, height: 1),
   bigNumber: ClientTextSpec(34, weight: FontWeight.w600, height: 1),
+  statNumber: ClientTextSpec(22, weight: FontWeight.w600, height: 1.1),
+  historyDate: ClientTextSpec(18, weight: FontWeight.w600, height: 1.1),
   placesNumber: ClientTextSpec(
     20,
     weight: FontWeight.w700,

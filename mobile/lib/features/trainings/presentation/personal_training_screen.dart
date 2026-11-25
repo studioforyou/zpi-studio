@@ -1,15 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:mobile/core/auth/app_role.dart';
 import 'package:mobile/core/auth/auth_controller.dart';
+import 'package:mobile/features/communication/data/conversations_api.dart';
+import 'package:mobile/features/communication/presentation/messages_screen.dart';
 import 'package:mobile/features/passes/data/makeup_credits_api.dart';
 import 'package:mobile/features/schedule/data/schedule_api.dart';
-import 'package:mobile/features/schedule/presentation/widgets/client_schedule_event_tile.dart';
 import 'package:mobile/features/trainings/data/group_classes_api.dart';
 import 'package:mobile/features/trainings/data/personal_trainings_api.dart';
 import 'package:mobile/features/trainings/data/training_history_api.dart';
 import 'package:mobile/features/trainings/presentation/widgets/group_class_widgets.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
+import 'package:mobile/shared/widgets/client/client_widgets.dart';
 
 String personalEffect(AppLocalizations l10n, String? effect) =>
     switch (effect) {
@@ -32,48 +36,17 @@ String personalStatus(AppLocalizations l10n, PersonalSession session) =>
     ? l10n.personalAwaitingTrainer
     : l10n.personalHeld;
 
-class PersonalTrainingTile extends StatelessWidget {
-  const PersonalTrainingTile({
-    super.key,
-    required this.session,
-    required this.onTap,
-    this.participant,
-  });
-  final PersonalSession session;
-  final VoidCallback onTap;
-  final Widget? participant;
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final theme = Theme.of(context);
-    final cancelled = session.status == EventStatus.cancelled;
-    final trainers = session.staff
-        .map((p) => p.displayName)
-        .nonNulls
-        .join(', ');
-    return ClientScheduleCard(
-      color: cancelled ? theme.colorScheme.error : theme.colorScheme.primary,
-      time:
-          '${DateFormat('HH:mm').format(session.startsAt)}–${DateFormat('HH:mm').format(session.endsAt)}',
-      title: session.name ?? l10n.personalTitle,
-      trainer: trainers.isEmpty ? l10n.classesInstructorPending : trainers,
-      room: session.roomNames.isEmpty
-          ? l10n.classesRoomPending
-          : session.roomNames.join(', '),
-      cancelled: cancelled,
-      participant: participant,
-      onTap: onTap,
-      footer: [
-        ScheduleEventMarker(
-          cancelled ? Icons.cancel_outlined : Icons.person_outline,
-          personalStatus(l10n, session),
-          color: cancelled ? theme.colorScheme.error : null,
-        ),
-      ],
-    );
-  }
-}
+/// Opens the personal training sheet of [query] over the current screen.
+Future<void> showPersonalTrainingSheet(
+  BuildContext context,
+  PersonalSessionQuery query,
+) => showAppSheet<void>(
+  context,
+  builder: (_) => PersonalTrainingScreen(query: query),
+);
 
+/// The personal training sheet (#281): when and with whom, the package, and
+/// cancelling, reporting a mismatch or writing to the trainer.
 class PersonalTrainingScreen extends ConsumerStatefulWidget {
   const PersonalTrainingScreen({super.key, required this.query});
   final PersonalSessionQuery query;
@@ -86,9 +59,13 @@ class _PersonalTrainingScreenState extends ConsumerState<PersonalTrainingScreen>
     with WidgetsBindingObserver {
   bool _busy = false;
   String? _error;
+
+  static final _time = DateFormat('HH:mm');
+
   bool get _current =>
       personalTrainingScope(ref.read(authControllerProvider)) ==
       widget.query.scope;
+
   @override
   void initState() {
     super.initState();
@@ -114,280 +91,295 @@ class _PersonalTrainingScreenState extends ConsumerState<PersonalTrainingScreen>
     final valid =
         personalTrainingScope(ref.watch(authControllerProvider)) ==
         widget.query.scope;
-    final profile = clientSession(
-      ref.watch(authControllerProvider),
-    )?.profiles.where((p) => p.id == widget.query.scope.profileId).firstOrNull;
-    return Scaffold(
-      appBar: AppBar(title: Text(l10n.personalTitle)),
-      body: !valid
-          ? ClassMessage(l10n.classesProfileChanged)
-          : ref
-                .watch(personalSessionProvider(widget.query))
-                .when(
-                  skipLoadingOnRefresh: false,
-                  loading: () =>
-                      const Center(child: CircularProgressIndicator()),
-                  error: (error, _) => Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(_failure(l10n, error)),
-                        TextButton(
-                          onPressed: () => ref.invalidate(
-                            personalSessionProvider(widget.query),
-                          ),
-                          child: Text(l10n.passesRetryButton),
-                        ),
-                      ],
-                    ),
-                  ),
-                  data: (session) => RefreshIndicator(
-                    onRefresh: () => ref.refresh(
-                      personalSessionProvider(widget.query).future,
-                    ),
-                    child: ListView(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      padding: const EdgeInsets.all(16),
-                      children: [
-                        if (profile != null) ...[
-                          Text(
-                            profile.displayName,
-                            style: Theme.of(context).textTheme.labelMedium,
-                          ),
-                          const SizedBox(height: 6),
-                        ],
-                        Text(
-                          session.name ?? l10n.personalTitle,
-                          style: Theme.of(context).textTheme.titleLarge,
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          '${classDateTime(session.startsAt)}–${DateFormat('HH:mm').format(session.endsAt)}',
-                        ),
-                        Text(
-                          session.staff
-                              .map((p) => p.displayName)
-                              .nonNulls
-                              .join(', '),
-                        ),
-                        if (session.roomNames.isNotEmpty)
-                          Text(session.roomNames.join(', ')),
-                        const SizedBox(height: 12),
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: Chip(
-                            label: Text(personalStatus(l10n, session)),
-                          ),
-                        ),
-                        Card.outlined(
-                          child: ListTile(
-                            leading: const Icon(
-                              Icons.confirmation_number_outlined,
-                            ),
-                            title: Text(
-                              session.passName ?? l10n.personalNoPass,
-                            ),
-                            subtitle: session.cancellationEffect == null
-                                ? null
-                                : Text(switch (session.cancellationEffect) {
-                                    'ENTRY_FORFEITED' =>
-                                      l10n.personalEntryWasForfeited,
-                                    'MAKEUP_GRANTED' =>
-                                      l10n.personalMakeupWasGranted,
-                                    _ => personalEffect(
-                                      l10n,
-                                      session.cancellationEffect,
-                                    ),
-                                  }),
-                          ),
-                        ),
-                        if (_error != null)
-                          Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            child: Text(
-                              _error!,
-                              style: TextStyle(
-                                color: Theme.of(context).colorScheme.error,
-                              ),
-                            ),
-                          ),
-                        if (session.cancellation.allowed) ...[
-                          const SizedBox(height: 12),
-                          if (session.cancellation.freeCancelUntil
-                              case final deadline?)
-                            Text(
-                              session.cancellation.late
-                                  ? l10n.personalCancelDeadlinePassed(
-                                      classDateTime(deadline),
-                                    )
-                                  : l10n.personalCancelDeadline(
-                                      classDateTime(deadline),
-                                    ),
-                              style: Theme.of(context).textTheme.bodySmall
-                                  ?.copyWith(
-                                    color: session.cancellation.late
-                                        ? Theme.of(context).colorScheme.error
-                                        : null,
-                                  ),
-                            ),
-                          const SizedBox(height: 8),
-                          OutlinedButton.icon(
-                            onPressed: _busy ? null : () => _cancel(session),
-                            icon: const Icon(Icons.event_busy_outlined),
-                            label: Text(l10n.personalCancel),
-                          ),
-                        ] else if (session.status == EventStatus.scheduled)
-                          Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            child: Text(
-                              classReason(l10n, session.cancellation.reason),
-                            ),
-                          ),
-                        if (session.dispute case final dispute?) ...[
-                          const SizedBox(height: 12),
-                          Card.outlined(
-                            child: Padding(
-                              padding: const EdgeInsets.all(14),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                spacing: 8,
-                                children: [
-                                  Text(
-                                    dispute.status == 'OPEN'
-                                        ? l10n.personalDisputed
-                                        : l10n.personalDisputeResolved,
-                                    style: Theme.of(
-                                      context,
-                                    ).textTheme.titleSmall,
-                                  ),
-                                  Text(dispute.reason),
-                                  if (dispute.resolutionNote case final note?)
-                                    Text(note),
-                                  if (dispute.status == 'OPEN')
-                                    Text(
-                                      l10n.personalDisputePending,
-                                      style: Theme.of(
-                                        context,
-                                      ).textTheme.bodySmall,
-                                    ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ] else if (session.canDispute) ...[
-                          const SizedBox(height: 12),
-                          if (session.disputeClosesAt case final deadline?)
-                            Text(
-                              l10n.personalDisputeDeadline(
-                                classDateTime(deadline),
-                              ),
-                              style: Theme.of(context).textTheme.bodySmall,
-                            ),
-                          OutlinedButton.icon(
-                            onPressed: _busy ? null : () => _dispute(session),
-                            icon: const Icon(Icons.report_problem_outlined),
-                            label: Text(l10n.personalReport),
-                          ),
-                        ] else if (session.disputeReason ==
-                            'DISPUTE_WINDOW_CLOSED')
-                          Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            child: Text(l10n.personalDisputeClosed),
-                          ),
-                        if (_busy) const LinearProgressIndicator(),
-                      ],
-                    ),
-                  ),
+    if (!valid) {
+      return AppSheet(
+        title: l10n.personalTitle,
+        titleSmall: true,
+        footer: AppButton(
+          label: l10n.classesBack,
+          expand: true,
+          onPressed: () => Navigator.of(context).maybePop(),
+        ),
+        children: [SheetWarning(l10n.classesProfileChanged)],
+      );
+    }
+    final provider = personalSessionProvider(widget.query);
+    return ref
+        .watch(provider)
+        .when(
+          skipLoadingOnRefresh: true,
+          skipLoadingOnReload: true,
+          loading: () => AppSheet(
+            kicker: l10n.personalTitle,
+            children: [
+              Padding(
+                padding: EdgeInsets.all(context.ct.spacing.xl * 2),
+                child: const Center(child: CircularProgressIndicator()),
+              ),
+            ],
+          ),
+          error: (error, _) => AppSheet(
+            kicker: l10n.personalTitle,
+            children: [
+              SheetWarning(_failure(l10n, error)),
+              Padding(
+                padding: EdgeInsets.only(top: context.ct.spacing.m),
+                child: AppButton(
+                  label: l10n.passesRetryButton,
+                  onPressed: () => ref.invalidate(provider),
                 ),
+              ),
+            ],
+          ),
+          data: _sheet,
+        );
+  }
+
+  String? _participantName() {
+    final session = clientSession(ref.read(authControllerProvider));
+    if (session == null || session.profiles.length < 2) return null;
+    return session.profiles
+        .where((p) => p.id == widget.query.scope.profileId)
+        .firstOrNull
+        ?.displayName;
+  }
+
+  String _when(PersonalSession session) {
+    final start = session.startsAt.toLocal();
+    final range = '${_time.format(start)}–${_time.format(session.endsAt)}';
+    final now = DateTime.now();
+    final today =
+        start.year == now.year &&
+        start.month == now.month &&
+        start.day == now.day;
+    return today
+        ? AppLocalizations.of(context).classesWhenToday(range)
+        : '${DateFormat('EEE d.MM', 'pl').format(start)} $range';
+  }
+
+  Widget _sheet(PersonalSession session) {
+    final l10n = AppLocalizations.of(context);
+    final cancelled = session.status == EventStatus.cancelled;
+    final scheduled = session.status == EventStatus.scheduled;
+    final trainers = [
+      for (final person in session.staff) ?person.displayName,
+    ].join(', ');
+    final dispute = session.dispute;
+    return AppSheet(
+      kicker: [
+        session.serviceTypeName ?? l10n.personalTitle,
+        ?_participantName(),
+      ].join(' · '),
+      title: session.name ?? l10n.personalTitle,
+      subtitle: _when(session),
+      footer: _footer(session),
+      children: [
+        if (_error case final error?) ChangeStrip(error),
+        if (cancelled)
+          ChangeStrip(
+            [
+              l10n.eventStatusCancelled,
+              if (session.cancellationEffect case final effect?)
+                switch (effect) {
+                  'ENTRY_FORFEITED' => l10n.personalEntryWasForfeited,
+                  'MAKEUP_GRANTED' => l10n.personalMakeupWasGranted,
+                  _ => personalEffect(l10n, effect),
+                },
+            ].join(' · '),
+          )
+        else if (!scheduled)
+          _StatusLine(session: session),
+        SheetKeyValues(
+          entries: [
+            SheetKeyValues.text(
+              l10n.classesInstructor,
+              trainers.isEmpty ? l10n.classesInstructorPending : trainers,
+            ),
+            SheetKeyValues.text(
+              l10n.classesRoom,
+              session.roomNames.isEmpty
+                  ? l10n.classesRoomPending
+                  : session.roomNames.join(', '),
+            ),
+            SheetKeyValues.text(
+              l10n.personalPackage,
+              session.passName ?? l10n.personalNoPass,
+            ),
+          ],
+        ),
+        if (scheduled && session.cancellation.allowed)
+          if (session.cancellation.freeCancelUntil case final deadline?)
+            SheetWarning(
+              session.cancellation.late
+                  ? l10n.personalCancelLate(classDateTime(deadline))
+                  : l10n.personalCancelUntil(classDateTime(deadline)),
+            ),
+        if (scheduled && !session.cancellation.allowed)
+          SheetWarning(classReason(l10n, session.cancellation.reason)),
+        if (dispute != null) ...[
+          SheetLine(
+            label: dispute.status == 'OPEN'
+                ? l10n.personalDisputed
+                : l10n.personalDisputeResolved,
+            value: dispute.reason,
+          ),
+          if (dispute.resolutionNote case final note?) SheetWarning(note),
+          if (dispute.status == 'OPEN')
+            SheetWarning(l10n.personalDisputePending),
+        ] else if (session.canDispute) ...[
+          if (session.disputeClosesAt case final deadline?)
+            SheetWarning(l10n.personalDisputeUntil(classDateTime(deadline))),
+        ] else if (session.disputeReason == 'DISPUTE_WINDOW_CLOSED')
+          SheetWarning(l10n.personalDisputeClosed),
+      ],
     );
+  }
+
+  Widget? _footer(PersonalSession session) {
+    final l10n = AppLocalizations.of(context);
+    final scheduled = session.status == EventStatus.scheduled;
+    final trainer = session.staff
+        .where((person) => person.displayName != null)
+        .firstOrNull;
+    final write = trainer == null || !scheduled
+        ? null
+        : AppButton(
+            label: l10n.personalWrite,
+            small: true,
+            icon: Icons.chat_bubble_outline,
+            onPressed: _busy ? null : () => _write(trainer.staffId),
+          );
+    final cancel = scheduled && session.cancellation.allowed
+        ? AppButton(
+            label: l10n.personalCancel,
+            small: true,
+            loading: _busy,
+            onPressed: _busy ? null : () => _cancel(session),
+          )
+        : null;
+    final report = session.dispute == null && session.canDispute
+        ? AppButton(
+            label: l10n.personalReport,
+            small: true,
+            loading: _busy,
+            onPressed: _busy ? null : () => _dispute(session),
+          )
+        : null;
+    final buttons = [?write, ?cancel, ?report];
+    if (buttons.isEmpty) return null;
+    return AppButtonPair(
+      first: buttons.first,
+      second: buttons.length > 1 ? buttons[1] : null,
+    );
+  }
+
+  Future<void> _write(String staffId) async {
+    if (_busy || !_current) return;
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      final conversation = await ref
+          .read(conversationsApiProvider)
+          .startWithTrainer(staffId);
+      if (!mounted) return;
+      final router = GoRouter.of(context);
+      Navigator.of(context).pop();
+      await router.push(conversationLocation(AppRole.client, conversation.id));
+    } catch (_) {
+      if (mounted) {
+        setState(() => _error = AppLocalizations.of(context).personalLoadError);
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
   Future<void> _cancel(PersonalSession session) async {
     if (_busy || !_current) return;
     final l10n = AppLocalizations.of(context);
-    final confirmed = await showDialog<bool>(
-      context: context,
+    final cancellation = session.cancellation;
+    final effect = cancellation.effect;
+    final positive = effect == 'MAKEUP_GRANTED' || effect == 'MAKEUP_RETURNED';
+    final trainers = [
+      for (final person in session.staff) ?person.displayName,
+    ].join(', ');
+    final confirmed = await showAppSheet<bool>(
+      context,
       builder: (context) => Consumer(
         builder: (context, ref, _) {
           final valid =
               personalTrainingScope(ref.watch(authControllerProvider)) ==
               widget.query.scope;
-          final positive =
-              session.cancellation.effect == 'MAKEUP_GRANTED' ||
-              session.cancellation.effect == 'MAKEUP_RETURNED';
-          return AlertDialog(
-            scrollable: true,
-            title: Text(
-              valid ? l10n.personalCancelConfirm : l10n.classesProfileChanged,
-            ),
-            content: !valid
-                ? null
-                : Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    spacing: 12,
-                    children: [
-                      Text(classDateTime(session.startsAt)),
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: positive
-                              ? Colors.green.shade50
-                              : Theme.of(context).colorScheme.errorContainer,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(
-                              positive
-                                  ? Icons.event_repeat
-                                  : Icons.info_outline,
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                personalEffect(
-                                  l10n,
-                                  session.cancellation.effect,
-                                ),
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      if (session.cancellation.validityDays case final days?)
-                        Text(l10n.personalMakeupValidity(days)),
-                      if (session.cancellation.late &&
-                          session.cancellation.freeCancelUntil != null)
-                        Text(
-                          l10n.personalCancelDeadlinePassed(
-                            classDateTime(
-                              session.cancellation.freeCancelUntil!,
-                            ),
-                          ),
-                        ),
-                      if (session.cancellation.effect == 'MAKEUP_RETURNED')
-                        Text(l10n.personalOriginalExpiry),
-                      if (session.cancellation.consequenceReason ==
-                          'MAKEUP_LIMIT_REACHED')
-                        Text(l10n.personalMakeupLimit),
-                      if (session.cancellation.consequenceReason ==
-                          'MAKEUP_NOT_GRANTED')
-                        Text(l10n.personalMakeupUnavailable),
-                    ],
-                  ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(false),
-                child: Text(l10n.classesKeepReservation),
+          return AppSheet(
+            title: valid
+                ? l10n.personalCancelConfirm
+                : l10n.classesProfileChanged,
+            subtitle: valid
+                ? [
+                    classDateTime(session.startsAt),
+                    if (trainers.isNotEmpty) trainers,
+                    ?_participantName(),
+                  ].join(' · ')
+                : null,
+            footer: AppButtonPair(
+              first: AppButton(
+                label: l10n.personalKeep,
+                small: true,
+                onPressed: () => Navigator.of(context).pop(),
               ),
+              second: valid
+                  ? AppButton(
+                      label: l10n.personalCancel,
+                      small: true,
+                      onPressed: () => Navigator.of(context).pop(true),
+                    )
+                  : null,
+            ),
+            children: [
               if (valid)
-                FilledButton(
-                  onPressed: () => Navigator.of(context).pop(true),
-                  child: Text(l10n.personalCancel),
+                ConsequenceList(
+                  items: [
+                    Consequence(
+                      icon: cancellation.late ? Icons.close : Icons.check,
+                      positive: !cancellation.late,
+                      title: cancellation.late
+                          ? l10n.classesConsequenceLate
+                          : l10n.classesConsequenceOnTime,
+                      subtitle: switch (cancellation.freeCancelUntil) {
+                        final deadline? =>
+                          cancellation.late
+                              ? l10n.personalCancelDeadlinePassed(
+                                  classDateTime(deadline),
+                                )
+                              : l10n.personalCancelUntil(
+                                  classDateTime(deadline),
+                                ),
+                        null => null,
+                      },
+                    ),
+                    Consequence(
+                      icon: positive
+                          ? Icons.add
+                          : Icons.confirmation_number_outlined,
+                      title: personalEffect(l10n, effect),
+                      subtitle: [
+                        if (cancellation.validityDays case final days?)
+                          l10n.personalMakeupValidity(days),
+                        if (effect == 'MAKEUP_RETURNED')
+                          l10n.personalOriginalExpiry,
+                        if (cancellation.consequenceReason ==
+                            'MAKEUP_LIMIT_REACHED')
+                          l10n.personalMakeupLimit,
+                        if (cancellation.consequenceReason ==
+                            'MAKEUP_NOT_GRANTED')
+                          l10n.personalMakeupUnavailable,
+                        if (effect == null || effect == 'NONE')
+                          ?session.passName,
+                      ].join('\n').nullIfEmpty,
+                    ),
+                  ],
                 ),
             ],
           );
@@ -404,9 +396,13 @@ class _PersonalTrainingScreenState extends ConsumerState<PersonalTrainingScreen>
 
   Future<void> _dispute(PersonalSession session) async {
     if (_busy || !_current) return;
-    final reason = await showDialog<String>(
-      context: context,
-      builder: (_) => _DisputeDialog(query: widget.query),
+    final kicker = [
+      session.name ?? AppLocalizations.of(context).personalTitle,
+      classDateTime(session.startsAt),
+    ].join(' · ');
+    final reason = await showAppSheet<String>(
+      context,
+      builder: (_) => _DisputeSheet(query: widget.query, kicker: kicker),
     );
     if (reason == null || !mounted || !_current) return;
     await _send(
@@ -452,14 +448,58 @@ class _PersonalTrainingScreenState extends ConsumerState<PersonalTrainingScreen>
   };
 }
 
-class _DisputeDialog extends ConsumerStatefulWidget {
-  const _DisputeDialog({required this.query});
-  final PersonalSessionQuery query;
+/// "Status: Odbyty" with the attendance on the right.
+class _StatusLine extends StatelessWidget {
+  const _StatusLine({required this.session});
+
+  final PersonalSession session;
+
   @override
-  ConsumerState<_DisputeDialog> createState() => _DisputeDialogState();
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final ct = context.ct;
+    final attendance = switch (session.attendance) {
+      'PRESENT' => StatusDot(
+        label: l10n.trainingOutcomePresent,
+        tone: StatusTone.ok,
+      ),
+      'ABSENT' => StatusDot(
+        label: l10n.trainingOutcomeAbsent,
+        tone: StatusTone.warning,
+      ),
+      _ => null,
+    };
+    return Padding(
+      padding: EdgeInsets.only(top: ct.spacing.m, bottom: ct.spacing.m),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(l10n.personalStatusLabel, style: ct.text.lineLabel),
+                Text(personalStatus(l10n, session), style: ct.text.lineValue),
+              ],
+            ),
+          ),
+          ?attendance,
+        ],
+      ),
+    );
+  }
 }
 
-class _DisputeDialogState extends ConsumerState<_DisputeDialog> {
+/// "Zgłoś niezgodność": what does not match, sent to the studio.
+class _DisputeSheet extends ConsumerStatefulWidget {
+  const _DisputeSheet({required this.query, required this.kicker});
+  final PersonalSessionQuery query;
+  final String kicker;
+  @override
+  ConsumerState<_DisputeSheet> createState() => _DisputeSheetState();
+}
+
+class _DisputeSheetState extends ConsumerState<_DisputeSheet> {
   final _reason = TextEditingController();
   bool _submitted = false;
   @override
@@ -471,50 +511,63 @@ class _DisputeDialogState extends ConsumerState<_DisputeDialog> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final ct = context.ct;
     final valid =
         personalTrainingScope(ref.watch(authControllerProvider)) ==
         widget.query.scope;
-    return AlertDialog(
-      scrollable: true,
-      title: Text(valid ? l10n.personalReport : l10n.classesProfileChanged),
-      content: valid
-          ? Column(
-              mainAxisSize: MainAxisSize.min,
-              spacing: 12,
-              children: [
-                Text(l10n.personalDisputePending),
-                TextField(
-                  controller: _reason,
-                  autofocus: true,
-                  minLines: 2,
-                  maxLines: 4,
-                  maxLength: 1000,
-                  decoration: InputDecoration(
-                    labelText: l10n.personalDisputeReason,
-                    errorText: _submitted && _reason.text.trim().isEmpty
-                        ? l10n.personalReasonRequired
-                        : null,
-                  ),
-                ),
-              ],
-            )
-          : null,
-      actions: [
-        TextButton(
+    final missing = _submitted && _reason.text.trim().isEmpty;
+    return AppSheet(
+      kicker: widget.kicker,
+      title: valid ? l10n.personalReport : l10n.classesProfileChanged,
+      footer: AppButtonPair(
+        first: AppButton(
+          label: l10n.personalDisputeBack,
+          small: true,
           onPressed: () => Navigator.of(context).pop(),
-          child: Text(l10n.personalBack),
         ),
-        if (valid)
-          FilledButton(
-            onPressed: () {
-              setState(() => _submitted = true);
-              if (_reason.text.trim().isNotEmpty) {
-                Navigator.of(context).pop(_reason.text.trim());
-              }
-            },
-            child: Text(l10n.personalSend),
+        second: valid
+            ? AppButton(
+                label: l10n.personalSend,
+                small: true,
+                onPressed: () {
+                  setState(() => _submitted = true);
+                  if (_reason.text.trim().isNotEmpty) {
+                    Navigator.of(context).pop(_reason.text.trim());
+                  }
+                },
+              )
+            : null,
+      ),
+      children: [
+        if (valid) ...[
+          Padding(
+            padding: EdgeInsets.only(top: ct.spacing.m, bottom: ct.spacing.s),
+            child: Text(l10n.personalDisputeReason, style: ct.text.lineLabel),
           ),
+          AppTextArea(
+            controller: _reason,
+            autofocus: true,
+            maxLength: 1000,
+            hint: l10n.personalDisputeHint,
+            onChanged: (_) {
+              if (_submitted) setState(() {});
+            },
+          ),
+          if (missing)
+            Padding(
+              padding: EdgeInsets.only(top: ct.spacing.xs),
+              child: Text(
+                l10n.personalReasonRequired,
+                style: ct.text.meta.copyWith(color: ct.colors.orangeText),
+              ),
+            ),
+          SheetWarning(l10n.personalDisputePending),
+        ],
       ],
     );
   }
+}
+
+extension on String {
+  String? get nullIfEmpty => isEmpty ? null : this;
 }
