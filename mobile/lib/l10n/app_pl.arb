@@ -131,6 +131,7 @@
   "notificationsKindPass": "Karnet",
   "notificationsKindMessage": "Wiadomość",
   "notificationsKindStudio": "Studio",
+  "changeNoticeDismiss": "Zamknij informację",
   "notificationsOpenConversation": "Przejdź do rozmowy",
   "notificationsOpenPasses": "Przejdź do karnetów",
   "personalDetailsEditTitle": "Dane osobowe",

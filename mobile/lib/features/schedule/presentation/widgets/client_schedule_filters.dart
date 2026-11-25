@@ -6,6 +6,7 @@ import 'package:mobile/features/schedule/presentation/service_type_filter_labels
 import 'package:mobile/features/schedule/presentation/widgets/schedule_filter_sheet.dart';
 import 'package:mobile/features/trainings/data/group_classes_api.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
+import 'package:mobile/shared/widgets/client/client_widgets.dart';
 
 /// The filter button of the class offer and its bottom sheet.
 class ClientScheduleFilterBar extends StatelessWidget {
@@ -155,7 +156,8 @@ class _FilterSheetState extends State<_FilterSheet> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final textTheme = Theme.of(context).textTheme;
+    final ct = context.ct;
+    final sp = ct.spacing;
     return ScheduleFilterSheet(
       onClear: () => _update(const ClientScheduleFilter()),
       children: [
@@ -166,16 +168,13 @@ class _FilterSheetState extends State<_FilterSheet> {
           onChanged: (services) =>
               _update(_filter.copyWith(services: services)),
         ),
-        if (widget.levels.isNotEmpty) ...[
-          const SizedBox(height: 8),
+        if (widget.levels.isNotEmpty)
           ScheduleFilterChecklist(
             title: l10n.scheduleFilterLevel,
             options: widget.levels,
             selected: _filter.levels,
             onChanged: (levels) => _update(_filter.copyWith(levels: levels)),
           ),
-        ],
-        const SizedBox(height: 8),
         ScheduleFilterChecklist(
           title: l10n.classesSelectInstructor,
           options: widget.instructors,
@@ -184,38 +183,37 @@ class _FilterSheetState extends State<_FilterSheet> {
               _update(_filter.copyWith(instructors: instructors)),
         ),
         if (widget.ageGroups.isNotEmpty) ...[
-          const SizedBox(height: 16),
-          Text(l10n.scheduleFilterAgeGroup, style: textTheme.titleSmall),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 4,
-            children: [
-              for (final group in widget.ageGroups)
-                FilterChip(
-                  label: Text(ageGroupLabel(l10n, group)),
-                  selected: _filter.ageGroups.contains(group),
-                  onSelected: (selected) => _update(
-                    _filter.copyWith(
-                      ageGroups: selected
-                          ? {..._filter.ageGroups, group}
-                          : ({..._filter.ageGroups}..remove(group)),
+          SectionLabel(l10n.scheduleFilterAgeGroup),
+          Container(
+            padding: EdgeInsets.fromLTRB(sp.page, 0, sp.page, sp.m),
+            decoration: BoxDecoration(border: Border(bottom: ct.hairline)),
+            child: Wrap(
+              spacing: sp.s,
+              runSpacing: sp.xs,
+              children: [
+                for (final group in widget.ageGroups)
+                  FilterChip(
+                    label: Text(ageGroupLabel(l10n, group)),
+                    selected: _filter.ageGroups.contains(group),
+                    onSelected: (selected) => _update(
+                      _filter.copyWith(
+                        ageGroups: selected
+                            ? {..._filter.ageGroups, group}
+                            : ({..._filter.ageGroups}..remove(group)),
+                      ),
                     ),
                   ),
-                ),
-            ],
+              ],
+            ),
           ),
         ],
-        const SizedBox(height: 8),
-        SwitchListTile.adaptive(
-          contentPadding: EdgeInsets.zero,
-          title: Text(l10n.classesAvailableOnly),
+        ScheduleFilterSwitchRow(
+          title: l10n.classesAvailableOnly,
           value: _filter.availableOnly,
           onChanged: (value) => _update(_filter.copyWith(availableOnly: value)),
         ),
-        SwitchListTile.adaptive(
-          contentPadding: EdgeInsets.zero,
-          title: Text(l10n.scheduleFilterShowCancelled),
+        ScheduleFilterSwitchRow(
+          title: l10n.scheduleFilterShowCancelled,
           value: _filter.showCancelled,
           onChanged: (value) => _update(_filter.copyWith(showCancelled: value)),
         ),

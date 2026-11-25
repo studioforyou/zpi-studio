@@ -186,7 +186,7 @@ void main() {
   /// Ticks [label] in the collapsible [section] of the filter sheet.
   Future<void> check(WidgetTester tester, String section, String label) async {
     await tap(tester, inSheet(find.textContaining(section)));
-    await tap(tester, find.widgetWithText(CheckboxListTile, label));
+    await tap(tester, find.widgetWithText(AppCheckRow, label));
   }
 
   testWidgets('Moje lists booked classes, Wszystkie the whole offer', (

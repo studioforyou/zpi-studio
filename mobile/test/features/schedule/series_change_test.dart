@@ -476,7 +476,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Sala A → Sala B'), findsOneWidget);
 
-      await tester.tap(find.byTooltip('Zamknij'));
+      await tester.tap(find.byTooltip('Zamknij informację'));
       await tester.pumpAndSettle();
       expect(changes.dismissed, ['n-1']);
       expect(find.text('Zmiana w Twoich zajęciach'), findsNothing);

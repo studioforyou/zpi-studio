@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:mobile/features/schedule/data/series_changes.dart';
 import 'package:mobile/features/schedule/presentation/widgets/series_change_widgets.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
+import 'package:mobile/shared/widgets/client/client_widgets.dart';
 
 String _shortDay(DateTime date) => DateFormat('EEE d.MM', 'pl').format(date);
 
@@ -215,6 +216,7 @@ class ScheduleChangesSheet extends ConsumerWidget {
     final notices =
         ref.watch(scheduleChangesProvider(owner)).value ??
         const <ScheduleChangeNotice>[];
+    if (context.inClientTheme) return _client(context, ref, l10n, notices);
     return SafeArea(
       child: SingleChildScrollView(
         padding: const EdgeInsets.only(bottom: 16),
@@ -289,6 +291,106 @@ class ScheduleChangesSheet extends ConsumerWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+extension on ScheduleChangesSheet {
+  /// The client's look (#281): the sheet frame, then one row per notice with
+  /// its day on an orange tint.
+  Widget _client(
+    BuildContext context,
+    WidgetRef ref,
+    AppLocalizations l10n,
+    List<ScheduleChangeNotice> notices,
+  ) {
+    final ct = context.ct;
+    final c = ct.colors;
+    final sp = ct.spacing;
+    return AppSheet(
+      title: l10n.changeSheetTitle,
+      titleSmall: true,
+      children: [
+        SizedBox(height: sp.s),
+        Text(
+          l10n.changeSheetHint,
+          style: ct.text.meta.copyWith(color: c.muted),
+        ),
+        SizedBox(height: sp.l),
+        DecoratedBox(
+          decoration: BoxDecoration(border: Border(top: ct.hairline)),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (final notice in notices)
+                InkWell(
+                  key: ValueKey(notice.id),
+                  onTap: notice.kind == NoticeKind.unassigned
+                      ? null
+                      : () => onOpen(notice.eventId),
+                  child: Container(
+                    padding: EdgeInsets.symmetric(vertical: sp.m),
+                    decoration: BoxDecoration(
+                      border: Border(bottom: ct.hairline),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: ct.sizes.avatar,
+                          height: ct.sizes.avatar,
+                          color: c.orangeTint,
+                          alignment: Alignment.center,
+                          child: Text(
+                            '${DateFormat('EEE', 'pl').format(notice.startsAt)}\n'
+                            '${DateFormat('d.MM').format(notice.startsAt)}',
+                            textAlign: TextAlign.center,
+                            style: ct.text.kicker.copyWith(color: c.orangeText),
+                          ),
+                        ),
+                        SizedBox(width: sp.m + sp.xxs),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                noticeHeadline(l10n, notice),
+                                style: ct.text.rowTitle,
+                              ),
+                              SizedBox(height: sp.xxs),
+                              Text(
+                                noticeDetails(l10n, notice),
+                                style: ct.text.meta.copyWith(color: c.muted),
+                              ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: l10n.changeNoticeDismiss,
+                          icon: Icon(Icons.close, color: c.muted),
+                          onPressed: () =>
+                              dismissScheduleChange(ref, owner, notice.id),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        if (notices.length > 1) ...[
+          SizedBox(height: sp.s),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: AppButton.ghost(
+              label: l10n.changeSheetCloseAll,
+              onPressed: () async {
+                await dismissAllScheduleChanges(ref, owner);
+                if (context.mounted) Navigator.of(context).pop();
+              },
+            ),
+          ),
+        ],
+      ],
     );
   }
 }
