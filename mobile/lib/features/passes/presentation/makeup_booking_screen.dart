@@ -140,47 +140,14 @@ class _MakeupBookingScreenState extends ConsumerState<MakeupBookingScreen>
 
   Widget _monthRow(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final ct = context.ct;
     final now = DateTime.now();
-    final title = DateFormat('LLLL yyyy', 'pl').format(_month);
     final canGoBack = !_busy && _month.isAfter(DateTime(now.year, now.month));
-    Widget arrow(IconData icon, String tooltip, VoidCallback? onPressed) =>
-        IconButton(
-          tooltip: tooltip,
-          icon: Icon(
-            icon,
-            size: ct.sizes.icon,
-            color: onPressed == null ? ct.colors.faint : ct.colors.muted,
-          ),
-          onPressed: onPressed,
-        );
-    return Padding(
-      padding: EdgeInsets.symmetric(
-        horizontal: ct.spacing.s,
-        vertical: ct.spacing.xs,
-      ),
-      child: Row(
-        children: [
-          arrow(
-            Icons.chevron_left,
-            l10n.makeupPrevious,
-            canGoBack ? () => _move(-1) : null,
-          ),
-          Expanded(
-            child: Text(
-              title.characters.first.toUpperCase() +
-                  title.characters.skip(1).toString(),
-              textAlign: TextAlign.center,
-              style: ct.text.monthTitle,
-            ),
-          ),
-          arrow(
-            Icons.chevron_right,
-            l10n.makeupNext,
-            _busy ? null : () => _move(1),
-          ),
-        ],
-      ),
+    return MonthNav(
+      month: _month,
+      previousTooltip: l10n.makeupPrevious,
+      nextTooltip: l10n.makeupNext,
+      onPrevious: canGoBack ? () => _move(-1) : null,
+      onNext: _busy ? null : () => _move(1),
     );
   }
 
