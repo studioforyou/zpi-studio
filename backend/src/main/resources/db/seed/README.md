@@ -97,3 +97,14 @@ For the trainer's **Pakiety → Odróbki** section (#78), signed in as Anna:
 | Julia | 1 from her expired PT package (seed 10) | No source class (granted by staff); the package reached its limit, 2 of 2 |
 
 The pass ledger of Piotr's new pass matches its balance (8 activated, two entries consumed for the two cancelled classes). Re-running the seed only adds missing rows.
+
+## Announcements (seed 25)
+
+Beata Lis has sent four announcements, visible in the panel under **Komunikacja → Komunikaty** and in the app's notification inbox:
+
+- *Nowy grafik od grudnia* to all clients (Katarzyna and Tomasz have read it; Monika's phone has no registered device).
+- *Zmiana sali w czwartek* to the group *Pole dance początkujący wt/czw 18:00* (Katarzyna, Monika).
+- *Promocja −20% na karnety*, marketing, to all clients: only Katarzyna accepted the consent to marketing notifications in the app, so 3 clients were skipped.
+- *Trening personalny w piątek* to Tomasz only.
+
+The same seed adds two automatic notifications to Monika whose push did not arrive (*Karnet wkrótce wygaśnie*, unregistered phone, and *Jutro: Pole dance początkujący*, two failed attempts), so **Komunikacja → Historia wysyłek** (#161) shows the "Błąd push" status.

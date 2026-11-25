@@ -16,6 +16,7 @@ enum DocumentKind {
   parentalConsent,
   marketingEmail,
   marketingSms,
+  marketingPush,
   other;
 
   static DocumentKind fromCode(String code) => switch (code) {
@@ -25,6 +26,7 @@ enum DocumentKind {
     'PARENTAL_CONSENT' => parentalConsent,
     'MARKETING_EMAIL' => marketingEmail,
     'MARKETING_SMS' => marketingSms,
+    'MARKETING_PUSH' => marketingPush,
     _ => other,
   };
 }

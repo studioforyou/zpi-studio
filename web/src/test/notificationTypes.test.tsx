@@ -50,6 +50,12 @@ function stubApi() {
   return patches;
 }
 
+/** Announcements are the first tab; the notification settings are the second. */
+async function openNotificationsTab() {
+  renderWithProviders(<CommunicationPage />);
+  await userEvent.click(screen.getByRole('tab', { name: 'Powiadomienia' }));
+}
+
 test('formats reminder times in the largest whole unit', () => {
   expect(formatLeadTime(1440)).toBe('1 dzień');
   expect(formatLeadTime(2880)).toBe('2 dni');
@@ -62,7 +68,7 @@ test('formats reminder times in the largest whole unit', () => {
 
 test('shows each notification type with its reminder times and switches it off', async () => {
   const patches = stubApi();
-  renderWithProviders(<CommunicationPage />);
+  await openNotificationsTab();
   expect(screen.getByRole('tab', { name: 'Powiadomienia' })).toHaveAttribute(
     'aria-selected',
     'true',
@@ -83,7 +89,7 @@ test('shows each notification type with its reminder times and switches it off',
 
 test('edits reminder times and content, and rejects unknown placeholders', async () => {
   const patches = stubApi();
-  renderWithProviders(<CommunicationPage />);
+  await openNotificationsTab();
   await userEvent.click(await screen.findByRole('button', { name: 'Edytuj' }));
   const dialog = await screen.findByRole('dialog');
   const preview = within(dialog).getByLabelText('Podgląd');
@@ -140,7 +146,7 @@ test('edits reminder times and content, and rejects unknown placeholders', async
 
 test('inserts a field into the title when the title was used last', async () => {
   stubApi();
-  renderWithProviders(<CommunicationPage />);
+  await openNotificationsTab();
   await userEvent.click(await screen.findByRole('button', { name: 'Edytuj' }));
   const dialog = await screen.findByRole('dialog');
   const title = within(dialog).getByRole('textbox', { name: /^Tytuł/ });
@@ -153,7 +159,7 @@ test('inserts a field into the title when the title was used last', async () => 
 
 test('does not save duplicate reminder times', async () => {
   const patches = stubApi();
-  renderWithProviders(<CommunicationPage />);
+  await openNotificationsTab();
   await userEvent.click(await screen.findByRole('button', { name: 'Edytuj' }));
   const dialog = await screen.findByRole('dialog');
   const amount = within(dialog).getByRole('textbox', { name: 'Przypomnienie 2: ile' });
@@ -188,7 +194,7 @@ test('counts a pass reminder back from 9:00 on the last day and previews pass fi
       throw new Error(`Unexpected request: ${init.method} ${url}`);
     }),
   );
-  renderWithProviders(<CommunicationPage />);
+  await openNotificationsTab();
   expect(await screen.findByText('Karnet wkrótce wygaśnie')).toBeInTheDocument();
   expect(screen.getByText('3 dni przed')).toBeInTheDocument();
   await userEvent.click(screen.getByRole('button', { name: 'Edytuj' }));
@@ -226,7 +232,7 @@ test('shows the new message notification without reminder times and previews mes
       throw new Error(`Unexpected request: ${init.method} ${url}`);
     }),
   );
-  renderWithProviders(<CommunicationPage />);
+  await openNotificationsTab();
   expect(await screen.findByText('Nowa wiadomość')).toBeInTheDocument();
   expect(
     screen.getByText(/Wiadomości z czatu grupowego dziecka dostaje rodzic\./),
@@ -279,7 +285,7 @@ test('configures both waiting-list messages and edits the deadline template with
       throw new Error(`Unexpected request: ${init.method} ${url}`);
     }),
   );
-  renderWithProviders(<CommunicationPage />);
+  await openNotificationsTab();
   expect(
     await screen.findByText('Miejsce z listy rezerwowej do potwierdzenia'),
   ).toBeInTheDocument();
@@ -352,7 +358,7 @@ test('shows the class change and cancellation notifications with their fields', 
       throw new Error(`Unexpected request: ${init.method} ${url}`);
     }),
   );
-  renderWithProviders(<CommunicationPage />);
+  await openNotificationsTab();
   expect(await screen.findByText('Zmiana zajęć')).toBeInTheDocument();
   expect(screen.getByText('Automatyczne odwołanie zajęć')).toBeInTheDocument();
   expect(screen.getByText(/mniej osób niż wymagane minimum\./)).toBeInTheDocument();
