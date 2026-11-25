@@ -11,6 +11,7 @@ import org.springframework.modulith.events.IncompleteEventPublications;
 import org.springframework.stereotype.Service;
 
 import studioforyou.pl.backend.booking.ClassAutoCancellation;
+import studioforyou.pl.backend.communication.interest.ClassBookingOpenedNotifications;
 import studioforyou.pl.backend.communication.notification.NotificationDispatcher;
 import studioforyou.pl.backend.communication.pass.PassExpiryReminders;
 import studioforyou.pl.backend.communication.reminder.ClassReminders;
@@ -21,7 +22,8 @@ import studioforyou.pl.backend.communication.reminder.ClassReminders;
  * can). Notifications about business events are sent right after the event, not here; this job
  * only catches up on the ones whose sending failed or was interrupted.
  * <p>
- * Today the timed notifications are class reminders and reminders about expiring passes. The job
+ * Today the timed notifications are class reminders, reminders about expiring passes and the
+ * announcements of classes whose booking opened to the participants interested in them. The job
  * also runs the automatic cancellation of classes too few participants booked, first, so a
  * cancelled class gets no reminder and its people are told about the cancellation right away.
  */
@@ -39,16 +41,20 @@ public class NotificationJobs {
 
 	private final PassExpiryReminders passExpiryReminders;
 
+	private final ClassBookingOpenedNotifications bookingOpened;
+
 	private final NotificationDispatcher dispatcher;
 
 	private final IncompleteEventPublications incompleteEvents;
 
 	NotificationJobs(ClassAutoCancellation autoCancellation, ClassReminders classReminders,
-			PassExpiryReminders passExpiryReminders, NotificationDispatcher dispatcher,
+			PassExpiryReminders passExpiryReminders, ClassBookingOpenedNotifications bookingOpened,
+			NotificationDispatcher dispatcher,
 			IncompleteEventPublications incompleteEvents) {
 		this.autoCancellation = autoCancellation;
 		this.classReminders = classReminders;
 		this.passExpiryReminders = passExpiryReminders;
+		this.bookingOpened = bookingOpened;
 		this.dispatcher = dispatcher;
 		this.incompleteEvents = incompleteEvents;
 	}
@@ -59,6 +65,7 @@ public class NotificationJobs {
 		int cancelled = safely("automatic class cancellation", () -> autoCancellation.cancelDue(now));
 		int reminders = safely("class reminders", () -> classReminders.sendDue(now));
 		reminders += safely("pass expiry reminders", () -> passExpiryReminders.sendDue(now));
+		reminders += safely("booking opened notifications", () -> bookingOpened.sendDue(now));
 		int retried = safely("delivery retries", () -> dispatcher.retryUndelivered(now));
 		safely("incomplete events", () -> {
 			incompleteEvents.resubmitIncompletePublicationsOlderThan(INCOMPLETE_EVENT_AGE);
@@ -79,7 +86,8 @@ public class NotificationJobs {
 
 	/**
 	 * @param classesCancelled classes cancelled automatically for too few participants
-	 * @param remindersCreated new reminders about classes and expiring passes
+	 * @param remindersCreated new reminders about classes and expiring passes, and new
+	 * announcements of classes whose booking opened
 	 * @param deliveriesRetried notifications sent again after a failed or interrupted delivery
 	 */
 	public record RunResult(Instant ranAt, int classesCancelled, int remindersCreated, int deliveriesRetried) {

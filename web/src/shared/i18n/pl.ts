@@ -1826,6 +1826,11 @@ export const pl = {
           description:
             'Wysyłane trenerom od razu, gdy zajęcia grupowe zostaną odwołane automatycznie, bo zapisało się mniej osób niż wymagane minimum.',
         },
+        CLASS_BOOKING_OPENED: {
+          name: 'Otwarcie zapisów na zajęcia',
+          description:
+            'Wysyłane w chwili otwarcia zapisów na zajęcia grupowe klientom zainteresowanym danym rodzajem zajęć: tym, którzy zaznaczyli go w aplikacji, i tym, którzy byli na takich zajęciach w ostatnich 60 dniach. Pomijane, gdy klient jest już zapisany lub na liście rezerwowej albo brak wolnych miejsc. Powiadomienia dziecka dostaje rodzic.',
+        },
       },
       placeholders: {
         SUBSTITUTION_AVAILABLE: {
@@ -2079,6 +2084,28 @@ export const pl = {
             label: 'Wymagane minimum',
             description: 'Ilu uczestników wymagały zajęcia, np. „4”',
             example: '4',
+          },
+        },
+        CLASS_BOOKING_OPENED: {
+          zajęcia: {
+            label: 'Nazwa zajęć',
+            description: 'Nazwa zajęć',
+            example: 'Pole dance',
+          },
+          dzień: {
+            label: 'Dzień',
+            description: '„dziś”, „jutro” albo dzień tygodnia z datą, np. „wtorek 12.11”',
+            example: 'wtorek 12.11',
+          },
+          godzina: {
+            label: 'Godzina',
+            description: 'Godzina rozpoczęcia, np. „18:00”',
+            example: '18:00',
+          },
+          sala: {
+            label: 'Sala',
+            description: 'Nazwa sali albo „studio”, gdy sala nie jest przypisana',
+            example: 'Sala 1',
           },
         },
       },

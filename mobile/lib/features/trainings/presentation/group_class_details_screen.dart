@@ -9,6 +9,7 @@ import 'package:mobile/features/documents/presentation/documents_screen.dart';
 import 'package:mobile/features/passes/data/passes_api.dart';
 import 'package:mobile/features/schedule/presentation/widgets/series_change_widgets.dart';
 import 'package:mobile/features/trainings/data/group_classes_api.dart';
+import 'package:mobile/features/trainings/presentation/widgets/class_interest_switch.dart';
 import 'package:mobile/features/trainings/presentation/widgets/class_participants_section.dart';
 import 'package:mobile/features/trainings/presentation/widgets/group_class_summary.dart';
 import 'package:mobile/features/trainings/presentation/widgets/group_class_widgets.dart';
@@ -123,6 +124,15 @@ class _GroupClassDetailsScreenState
         const SizedBox(height: 12),
       ],
       GroupClassSummary(event: event, participant: participant),
+      if ((event.serviceTypeId, event.serviceTypeName) case (
+        final String serviceTypeId,
+        final String serviceTypeName,
+      ))
+        ClassInterestSwitch(
+          scope: widget.query.scope,
+          serviceTypeId: serviceTypeId,
+          serviceTypeName: serviceTypeName,
+        ),
       const SizedBox(height: 16),
       if (isReserved && reservation != null) ...[
         ClassInfoLine(Icons.check_circle_outline, l10n.classesReserved),
