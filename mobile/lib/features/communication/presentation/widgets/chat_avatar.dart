@@ -31,6 +31,15 @@ class PersonAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (context.inClientTheme) {
+      return SquareAvatar(
+        initials: SquareAvatar.initialsOf(name),
+        background: clientAvatarColor(context, seed),
+        foreground: context.ct.colors.onChatAvatar,
+        size: size,
+        style: size < context.ct.sizes.avatar ? context.ct.text.badge : null,
+      );
+    }
     final color = _personColors[seed.hashCode.abs() % _personColors.length];
     return Container(
       width: size,
@@ -61,6 +70,7 @@ class ChatKindAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (context.inClientTheme) return _ClientKindAvatar(kind: kind, size: size);
     final scheme = Theme.of(context).colorScheme;
     final isEvent = kind == ConversationKind.event;
     return Container(
@@ -136,11 +146,26 @@ class ClientConversationAvatar extends StatelessWidget {
         size: dimension,
       );
     }
-    final isEvent = conversation.kind == ConversationKind.event;
+    return _ClientKindAvatar(kind: conversation.kind, size: dimension);
+  }
+}
+
+/// The square icon of a group or class chat in the client app.
+class _ClientKindAvatar extends StatelessWidget {
+  const _ClientKindAvatar({required this.kind, required this.size});
+
+  final ConversationKind kind;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final ct = context.ct;
+    final c = ct.colors;
+    final isEvent = kind == ConversationKind.event;
     return ExcludeSemantics(
       child: Container(
-        width: dimension,
-        height: dimension,
+        width: size,
+        height: size,
         color: isEvent ? c.primarySoft : c.primary,
         alignment: Alignment.center,
         child: Icon(

@@ -67,7 +67,9 @@ class RolePickerScreen extends ConsumerWidget {
                     l10n.rolePickerTitle,
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      color: RolePickerStyle.titleColor,
+                      color: context.inClientTheme
+                          ? context.ct.colors.ink
+                          : RolePickerStyle.titleColor,
                       fontWeight: RolePickerStyle.titleWeight,
                     ),
                   ),

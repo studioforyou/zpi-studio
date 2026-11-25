@@ -9,9 +9,9 @@ import 'package:mobile/core/auth/auth_repository.dart';
 import 'package:mobile/core/auth/choice_store.dart';
 import 'package:mobile/core/auth/fake_auth_repository.dart';
 import 'package:mobile/core/auth/session.dart';
+import 'package:mobile/features/accounts/presentation/client_profile_view.dart';
 import 'package:mobile/features/accounts/presentation/widgets/choice_tile.dart';
 import 'package:mobile/features/accounts/presentation/widgets/profile_header.dart';
-import 'package:mobile/features/accounts/presentation/widgets/profile_styles.dart';
 import 'package:mobile/features/schedule/data/schedule_service_types.dart';
 import 'package:mobile/features/schedule/data/studio_trainers.dart';
 import 'package:mobile/features/communication/data/notifications_api.dart';
@@ -110,7 +110,7 @@ void main() {
 
     await logIn(tester);
 
-    expect(find.text('Wybierz profil:'), findsOneWidget);
+    expect(find.text('Wybierz profil'), findsOneWidget);
     expect(find.byType(NavigationBar), findsNothing);
     expect(find.byType(AppNavBar), findsNothing);
 
@@ -125,7 +125,7 @@ void main() {
 
     await logIn(tester);
 
-    expect(find.text('Wybierz profil:'), findsNothing);
+    expect(find.text('Wybierz profil'), findsNothing);
     expectClientShell();
   });
 
@@ -145,35 +145,17 @@ void main() {
     ),
   );
 
-  testWidgets('the profile header shows the active profile and its actions', (
+  testWidgets('the client profile shows the active profile and its actions', (
     tester,
   ) async {
     await openProfileAsAnna(tester);
 
-    final tile = headerTile(tester);
-    expect(tile.labels, (name: 'Anna', role: 'Klient'));
-    expect(tile.size, ProfileHeaderStyle.tileSize);
-    expect(tile.onTap, isNull);
+    expect(find.byType(ClientProfileView), findsOneWidget);
+    expect(find.byType(ProfileHeader), findsNothing);
+    expect(find.text('Klient'), findsOneWidget);
     expect(find.text('Anna Kowalska'), findsOneWidget);
-    expect(find.text('ZMIEŃ PROFIL'), findsOneWidget);
-    expect(find.text('WYLOGUJ SIĘ'), findsOneWidget);
-
-    // The text block is centred on the square, or starts at its top when it
-    // is taller than the square.
-    final squareTop = tester.getTopLeft(find.byType(ChoiceTile)).dy;
-    final textTop = tester.getTopLeft(find.text('Anna Kowalska')).dy;
-    final textBottom = tester.getBottomLeft(find.text('WYLOGUJ SIĘ')).dy;
-    if (textBottom - textTop <= ProfileHeaderStyle.tileSize) {
-      expect(
-        (textTop + textBottom) / 2,
-        moreOrLessEquals(
-          squareTop + ProfileHeaderStyle.tileSize / 2,
-          epsilon: 1,
-        ),
-      );
-    } else {
-      expect(textTop, moreOrLessEquals(squareTop, epsilon: 1));
-    }
+    expect(find.text('Zmień profil'), findsOneWidget);
+    expect(find.text('Wyloguj się'), findsOneWidget);
   });
 
   testWidgets('changing profile returns to the profile tab behind the intro', (
@@ -181,9 +163,9 @@ void main() {
   ) async {
     await openProfileAsAnna(tester);
 
-    await tester.tap(find.text('ZMIEŃ PROFIL'));
+    await tester.tap(find.text('Zmień profil'));
     await tester.pumpAndSettle();
-    expect(find.text('Wybierz profil:'), findsOneWidget);
+    expect(find.text('Wybierz profil'), findsOneWidget);
 
     await tester.ensureVisible(find.text('Trener'));
     await tester.tap(find.text('Trener'));
@@ -218,8 +200,9 @@ void main() {
     await tester.pump();
     expect(intro, findsNothing);
     await tester.pumpAndSettle();
-    expect(find.text('Wybierz profil:'), findsNothing);
-    expect(headerTile(tester).labels, (name: 'Anna', role: 'Klient'));
+    expect(find.text('Wybierz profil'), findsNothing);
+    expect(find.byType(ClientProfileView), findsOneWidget);
+    expect(find.text('Anna Kowalska'), findsOneWidget);
   }
 
   testWidgets('back from the picker after login returns to the login screen', (
@@ -228,7 +211,7 @@ void main() {
     await pumpApp(tester, FakeAuthRepository());
     await logIn(tester);
 
-    await tester.tap(find.text('POWRÓT DO LOGOWANIA'));
+    await tester.tap(find.text('Powrót do logowania'));
     await tester.pumpAndSettle();
 
     expect(find.text('Zaloguj się'), findsOneWidget);
@@ -238,11 +221,11 @@ void main() {
     tester,
   ) async {
     await openProfileAsAnna(tester);
-    await tester.tap(find.text('ZMIEŃ PROFIL'));
+    await tester.tap(find.text('Zmień profil'));
     await tester.pumpAndSettle();
-    expect(find.text('POWRÓT DO LOGOWANIA'), findsNothing);
+    expect(find.text('Powrót do logowania'), findsNothing);
 
-    await tester.tap(find.text('POWRÓT DO PROFILU'));
+    await tester.tap(find.text('Powrót do profilu'));
 
     await expectBackOnProfileAsAnnaWithoutIntro(tester);
   });
@@ -251,7 +234,7 @@ void main() {
     tester,
   ) async {
     await openProfileAsAnna(tester);
-    await tester.tap(find.text('ZMIEŃ PROFIL'));
+    await tester.tap(find.text('Zmień profil'));
     await tester.pumpAndSettle();
 
     await tester.binding.handlePopRoute();
@@ -263,7 +246,7 @@ void main() {
     tester,
   ) async {
     await openProfileAsAnna(tester);
-    await tester.tap(find.text('ZMIEŃ PROFIL'));
+    await tester.tap(find.text('Zmień profil'));
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Anna').first);
@@ -271,10 +254,14 @@ void main() {
     await expectBackOnProfileAsAnnaWithoutIntro(tester);
   });
 
-  testWidgets('logout in the profile header signs out', (tester) async {
+  testWidgets('logout in the profile signs out after confirming', (
+    tester,
+  ) async {
     await openProfileAsAnna(tester);
 
-    await tester.tap(find.text('WYLOGUJ SIĘ'));
+    await tester.tap(find.text('Wyloguj się'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Wyloguj się').last);
     await tester.pumpAndSettle();
 
     expect(find.text('Zaloguj się'), findsOneWidget);
@@ -286,7 +273,7 @@ void main() {
     final store = InMemoryChoiceStore()..values['demo-user'] = 'TRAINER';
     await pumpApp(tester, _SignedInAuthRepository(), store: store);
 
-    expect(find.text('Wybierz profil:'), findsNothing);
+    expect(find.text('Wybierz profil'), findsNothing);
     expectTrainerShell();
   });
 
@@ -296,6 +283,6 @@ void main() {
     await pumpApp(tester, _SignedInAuthRepository());
 
     expect(find.text('Zaloguj się'), findsNothing);
-    expect(find.text('Wybierz profil:'), findsOneWidget);
+    expect(find.text('Wybierz profil'), findsOneWidget);
   });
 }

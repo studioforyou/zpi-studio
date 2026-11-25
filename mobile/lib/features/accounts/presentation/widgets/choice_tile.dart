@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mobile/app/theme/client/client_theme.dart';
 import 'package:mobile/core/auth/app_role.dart';
 import 'package:mobile/core/auth/session.dart';
 import 'package:mobile/features/accounts/presentation/widgets/profile_styles.dart';
@@ -95,6 +96,7 @@ class ChoiceTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final client = context.inClientTheme;
     final radius = BorderRadius.circular(size * ChoiceTileStyle.cornerRadius);
     final nameFontSize = size * ChoiceTileStyle.nameSize * labelScale;
     final letterColor =
@@ -131,7 +133,9 @@ class ChoiceTile extends StatelessWidget {
               style: TextStyle(
                 fontSize: nameFontSize,
                 fontWeight: ChoiceTileStyle.nameWeight,
-                color: ChoiceTileStyle.nameColor,
+                color: client
+                    ? context.ct.colors.ink
+                    : ChoiceTileStyle.nameColor,
                 height: labelLineHeight,
                 leadingDistribution: TextLeadingDistribution.even,
               ),
@@ -143,7 +147,9 @@ class ChoiceTile extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 fontSize: size * ChoiceTileStyle.roleSize * labelScale,
-                color: ChoiceTileStyle.roleColor,
+                color: client
+                    ? context.ct.colors.muted
+                    : ChoiceTileStyle.roleColor,
                 height: labelLineHeight,
                 leadingDistribution: TextLeadingDistribution.even,
               ),

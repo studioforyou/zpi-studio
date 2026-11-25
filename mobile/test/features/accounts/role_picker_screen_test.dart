@@ -60,7 +60,7 @@ void main() {
   testWidgets('shows first names only, with the role below', (tester) async {
     await pumpPicker(tester, _session(1));
 
-    expect(find.text('Wybierz profil:'), findsOneWidget);
+    expect(find.text('Wybierz profil'), findsOneWidget);
     expect(find.text('Karolina'), findsNWidgets(2));
     expect(find.text('Kuba0'), findsOneWidget);
     expect(find.textContaining('Szyma'), findsNothing);
@@ -100,7 +100,7 @@ void main() {
 
     expect(tester.takeException(), isNull);
     expect(find.byType(ChoiceTile), findsNWidgets(10));
-    final titleTop = tester.getTopLeft(find.text('Wybierz profil:')).dy;
+    final titleTop = tester.getTopLeft(find.text('Wybierz profil')).dy;
 
     await tester.scrollUntilVisible(
       find.text('Trener'),
@@ -109,7 +109,7 @@ void main() {
     );
     expect(find.text('Trener').hitTestable(), findsOneWidget);
     // The title stays pinned at the top while the tiles scroll.
-    expect(tester.getTopLeft(find.text('Wybierz profil:')).dy, titleTop);
-    expect(find.text('Wybierz profil:').hitTestable(), findsOneWidget);
+    expect(tester.getTopLeft(find.text('Wybierz profil')).dy, titleTop);
+    expect(find.text('Wybierz profil').hitTestable(), findsOneWidget);
   });
 }

@@ -225,6 +225,10 @@ extension ClientThemeContext on BuildContext {
     final theme = Theme.of(this);
     return theme.extension<ClientTheme>() ?? ClientTheme.of(theme.brightness);
   }
+
+  /// Whether this widget is shown in the client app's theme, for widgets
+  /// shared with the trainer that look different there.
+  bool get inClientTheme => Theme.of(this).extension<ClientTheme>() != null;
 }
 
 /// Material [ThemeData] for the client app, built from [clientThemeConfig]:
