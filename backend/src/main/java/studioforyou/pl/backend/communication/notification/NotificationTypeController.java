@@ -31,7 +31,8 @@ import studioforyou.pl.backend.shared.api.ListResponse;
 
 /**
  * The administrator's notification settings: which types the studio sends, when, and with what
- * content. Every new notification type appears here.
+ * content. Every new notification type appears here, except announcements, whose content the
+ * administrator writes for each one.
  */
 @RestController
 @RequestMapping("/api/v1/notification-types")
@@ -50,6 +51,7 @@ class NotificationTypeController {
 	@ApiResponse(responseCode = "200", description = "Every notification type the application knows.")
 	public ListResponse<NotificationTypeResponse> list() {
 		return new ListResponse<>(Arrays.stream(NotificationType.values())
+			.filter(NotificationType::configurable)
 			.map(store::settings)
 			.map(NotificationTypeResponse::from)
 			.toList());
@@ -114,6 +116,7 @@ class NotificationTypeController {
 
 	private static NotificationType type(String code) {
 		return NotificationType.fromCode(code)
+			.filter(NotificationType::configurable)
 			.orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "Notification type not found."));
 	}
 

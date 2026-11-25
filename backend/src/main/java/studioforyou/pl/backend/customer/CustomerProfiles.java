@@ -124,6 +124,21 @@ public class CustomerProfiles {
 			.optional();
 	}
 
+	/** The own profile of each of the given accounts; accounts without one are left out. */
+	public Map<UUID, UUID> ownProfileIds(Collection<UUID> accountIds) {
+		if (accountIds.isEmpty()) {
+			return Map.of();
+		}
+		record Row(UUID accountId, UUID id) {
+		}
+		return jdbc.sql("SELECT account_id, id FROM customer_profile WHERE account_id IN (:ids)")
+			.param("ids", accountIds)
+			.query(Row.class)
+			.list()
+			.stream()
+			.collect(Collectors.toMap(Row::accountId, Row::id, (first, second) -> first));
+	}
+
 	/** Names of the own profiles of the given accounts, whatever their status; accounts without one are left out. */
 	public Map<UUID, String> displayNamesByAccount(Collection<UUID> accountIds) {
 		if (accountIds.isEmpty()) {

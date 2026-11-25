@@ -123,6 +123,11 @@ public enum NotificationType {
 			new Placeholder(Placeholder.ROOM, "Room names, or \"studio\" when no room is assigned"),
 			new Placeholder(Placeholder.BOOKED, "How many participants booked the class, e.g. \"2\""),
 			new Placeholder(Placeholder.MINIMUM, "How many participants the class needed, e.g. \"4\""))),
+			
+	/**
+	 * A message the administrator wrote; its title and text come from the announcement, not a template.
+	 */
+	ANNOUNCEMENT((short) 14, false, List.of());
 
 	/**
 	 * Booking opened for a class the participant is interested in: they marked its service type, or
@@ -158,6 +163,11 @@ public enum NotificationType {
 
 	public List<Placeholder> placeholders() {
 		return placeholders;
+	}
+
+	/** Whether the administrator configures the type in the notification settings. */
+	public boolean configurable() {
+		return this != ANNOUNCEMENT;
 	}
 
 	public static Optional<NotificationType> fromCode(String code) {
