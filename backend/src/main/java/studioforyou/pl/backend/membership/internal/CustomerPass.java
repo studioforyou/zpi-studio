@@ -73,6 +73,9 @@ public class CustomerPass {
 	@Column(name = "updated_at")
 	private Instant updatedAt;
 
+	@Column(name = "renewal_declined_at")
+	private Instant renewalDeclinedAt;
+
 	@Version
 	private int version;
 
@@ -213,6 +216,26 @@ public class CustomerPass {
 			throw new IllegalStateException("Pass " + this.id + " is not waiting for a payment.");
 		}
 		this.status = this.validFrom.isAfter(today) ? CustomerPassStatus.SCHEDULED : CustomerPassStatus.ACTIVE;
+	}
+
+	/**
+	 * Records that the participant will not renew the pass, so no more reminders to buy the next
+	 * one are sent for it. Saying it again keeps the first moment.
+	 */
+	void declineRenewal(Instant now) {
+		if (this.renewalDeclinedAt == null) {
+			this.renewalDeclinedAt = now;
+		}
+	}
+
+	/** Undoes {@link #declineRenewal}: reminders to buy the next pass are sent again. */
+	void undoRenewalDecline() {
+		this.renewalDeclinedAt = null;
+	}
+
+	/** When the participant said they will not renew the pass, or {@code null} without such a decision. */
+	public Instant getRenewalDeclinedAt() {
+		return this.renewalDeclinedAt;
 	}
 
 	public LocalDate getValidFrom() {

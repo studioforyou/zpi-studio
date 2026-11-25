@@ -76,6 +76,10 @@ class PushNotifications {
     'PASS_LAST_ENTRY_USED': clientPassesPath,
   };
 
+  /// Notification types reminding to buy the next pass; with a `passId` they
+  /// open the renewal of that pass.
+  static const _passRenewalTypes = {'PASS_EXPIRING', 'PASS_LAST_ENTRY_USED'};
+
   static const _trainerPaths = {
     'TIME_OFF_APPROVED': trainerAvailabilityPath,
     'TIME_OFF_REJECTED': trainerAvailabilityPath,
@@ -181,7 +185,14 @@ class PushNotifications {
               session.activeProfileId != choice.profile?.id)) {
         _ref.read(authControllerProvider.notifier).choose(choice);
       }
-      router.go(clientPath);
+      final passId = data['passId'];
+      router.go(
+        _passRenewalTypes.contains(data['type']) &&
+                passId != null &&
+                passId.isNotEmpty
+            ? clientPassRenewalLocation(passId)
+            : clientPath,
+      );
       return;
     }
     final trainerPath = _trainerPaths[data['type']];

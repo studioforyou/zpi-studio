@@ -345,6 +345,25 @@
   "passBuyNext": "Kup kolejny",
   "passBuyNextUnavailable": "Ten karnet nie jest już w sprzedaży. Wybierz karnet w zakładce Oferta.",
   "passOfferBuy": "Kup",
+  "passRenewalDeclined": "Nie odnawiasz tego karnetu, więc nie przypomnimy o kolejnym.",
+  "passRenewalDeclineUndo": "Cofnij",
+  "passRenewalDeclineUndone": "Przypomnimy o odnowieniu tego karnetu.",
+  "passRenewalDeclineError": "Nie udało się zapisać decyzji. Spróbuj ponownie.",
+  "passRenewalTitle": "Odnowienie karnetu",
+  "passRenewalShowPasses": "Moje karnety",
+  "checkoutDeclineRenewal": "Nie odnawiam tego karnetu",
+  "checkoutDeclineRenewalTitle": "Nie odnawiać karnetu?",
+  "checkoutDeclineRenewalMessage": "Nie będziemy przypominać o kupnie kolejnego karnetu {name}. Możesz to cofnąć na liście karnetów albo kupić karnet później.",
+  "@checkoutDeclineRenewalMessage": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "checkoutDeclineRenewalBack": "Wróć",
+  "checkoutDeclineRenewalConfirm": "Nie odnawiam",
+  "checkoutDeclineRenewalDone": "Nie przypomnimy o odnowieniu tego karnetu.",
   "checkoutTitle": "Zakup karnetu",
   "checkoutFor": "Dla: {name}",
   "@checkoutFor": {

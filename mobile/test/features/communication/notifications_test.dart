@@ -253,6 +253,9 @@ void main() {
           scheduleServiceTypesProvider.overrideWith((ref) async => const {}),
           studioTrainersProvider.overrideWith((ref) async => const []),
           ownPassesProvider.overrideWith((ref, profileId) async => const []),
+          passOfferProvider.overrideWith(
+            (ref) async => const PassOffer(products: [], serviceNames: {}),
+          ),
           pushMessagingProvider.overrideWithValue(push),
           devicesApiProvider.overrideWithValue(devices),
           notificationsApiProvider.overrideWithValue(notifications),
@@ -490,7 +493,8 @@ void main() {
     );
 
     testWidgets(
-      'a tapped pass notification about a child opens the child\'s passes',
+      'a tapped pass notification about a child opens the renewal of the '
+      'child\'s pass',
       (tester) async {
         final push = _Push();
         final notifications = _Notifications();
@@ -518,7 +522,7 @@ void main() {
         final session =
             (container.read(authControllerProvider) as Authenticated).session;
         expect(session.activeProfileId, 'child-2');
-        expect(location(container), clientPassesPath);
+        expect(location(container), clientPassRenewalLocation('pass-1'));
         expect(notifications.read, ['n2']);
       },
     );
