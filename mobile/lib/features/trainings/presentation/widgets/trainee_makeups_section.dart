@@ -25,6 +25,7 @@ String makeupReason(AppLocalizations l10n, MakeupReason reason) =>
     switch (reason) {
       MakeupReason.cancelledByStudio => l10n.traineeMakeupsReasonStudio,
       MakeupReason.cancelledInTime => l10n.traineeMakeupsReasonInTime,
+      MakeupReason.disputeUpheld => l10n.traineeMakeupsReasonDispute,
       MakeupReason.other => l10n.traineeMakeupsReasonOther,
     };
 

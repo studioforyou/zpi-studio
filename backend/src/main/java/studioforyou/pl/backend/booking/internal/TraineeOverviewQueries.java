@@ -117,13 +117,14 @@ class TraineeOverviewQueries {
 		List<UUID> reservationIds = summary.credits().stream().map(TraineeMakeupCredits.Credit::sourceReservationId)
 			.filter(Objects::nonNull).distinct().toList();
 		Map<UUID, OriginRow> origins = reservationIds.isEmpty() ? Map.of() : jdbc.sql("""
-				SELECT r.id, r.cancel_kind, e.title, e.service_type_id, e.starts_at
+				SELECT r.id, r.status, r.cancel_kind, e.title, e.service_type_id, e.starts_at
 				FROM reservation r JOIN schedule_event e ON e.id = r.event_id
 				WHERE r.id IN (:ids) AND r.customer_id = :customer
 				""")
 			.param("ids", reservationIds).param("customer", customerId)
-			.query((rs, n) -> new OriginRow(rs.getObject("id", UUID.class), rs.getString("cancel_kind"), rs.getString("title"),
-					rs.getObject("service_type_id", UUID.class), rs.getObject("starts_at", OffsetDateTime.class).toInstant()))
+			.query((rs, n) -> new OriginRow(rs.getObject("id", UUID.class), rs.getString("status"), rs.getString("cancel_kind"),
+					rs.getString("title"), rs.getObject("service_type_id", UUID.class),
+					rs.getObject("starts_at", OffsetDateTime.class).toInstant()))
 			.list().stream().collect(Collectors.toMap(OriginRow::reservationId, Function.identity()));
 		Set<UUID> serviceIds = new HashSet<>();
 		summary.credits().forEach(credit -> serviceIds.addAll(credit.serviceTypeIds()));
@@ -133,7 +134,7 @@ class TraineeOverviewQueries {
 		List<MakeupCredit> items = summary.credits().stream().map(credit -> {
 			OriginRow row = credit.sourceReservationId() == null ? null : origins.get(credit.sourceReservationId());
 			MakeupOrigin origin = row == null ? null : new MakeupOrigin(originTitle(row, serviceById), row.startsAt(),
-					originReason(row.cancelKind()));
+					originReason(row.status(), row.cancelKind()));
 			List<MakeupService> usable = credit.serviceTypeIds().stream().map(serviceById::get).filter(Objects::nonNull)
 				.filter(ServiceTypeSummary::active)
 				.map(service -> new MakeupService(service.id(), service.name()))
@@ -156,7 +157,11 @@ class TraineeOverviewQueries {
 		return row.title() != null ? row.title() : (service != null ? service.name() : null);
 	}
 
-	private static String originReason(String cancelKind) {
+	private static String originReason(String status, String cancelKind) {
+		if ("ACTIVE".equals(status)) {
+			// A held session gives a credit only when the studio upheld the client's dispute about it.
+			return "DISPUTE_UPHELD";
+		}
 		if ("STUDIO".equals(cancelKind)) {
 			return "CANCELLED_BY_STUDIO";
 		}
@@ -319,7 +324,8 @@ class TraineeOverviewQueries {
 	record OverviewList(LocalDate checkedOn, Instant checkedAt, List<Overview> items) {
 	}
 
-	private record OriginRow(UUID reservationId, String cancelKind, String title, UUID serviceTypeId, Instant startsAt) {
+	private record OriginRow(UUID reservationId, String status, String cancelKind, String title, UUID serviceTypeId,
+			Instant startsAt) {
 	}
 
 	/**
@@ -339,7 +345,10 @@ class TraineeOverviewQueries {
 			Instant expiresAt, MakeupOrigin origin, List<MakeupService> services) {
 	}
 
-	/** @param reason {@code CANCELLED_BY_STUDIO}, {@code CANCELLED_IN_TIME} or {@code OTHER} */
+	/**
+	 * @param reason {@code CANCELLED_BY_STUDIO}, {@code CANCELLED_IN_TIME}, {@code DISPUTE_UPHELD} (granted after
+	 * the studio upheld the client's dispute about the held session) or {@code OTHER}
+	 */
 	record MakeupOrigin(String title, Instant startsAt, String reason) {
 	}
 

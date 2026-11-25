@@ -19,6 +19,17 @@ String personalEffect(AppLocalizations l10n, String? effect) =>
       _ => l10n.personalNoEntry,
     };
 
+/// The studio's decision on a resolved dispute and what it did to the package.
+String personalDisputeOutcome(AppLocalizations l10n, PersonalDispute dispute) =>
+    switch ((dispute.resolution, dispute.resolutionEffect)) {
+      ('UPHELD', 'ENTRY_RETURNED') => l10n.personalDisputeUpheldEntry,
+      ('UPHELD', 'MAKEUP_RETURNED') => l10n.personalDisputeUpheldMakeupReturned,
+      ('UPHELD', _) => l10n.personalDisputeUpheld,
+      ('UPHELD_MAKEUP', _) => l10n.personalDisputeUpheldMakeup,
+      ('REJECTED', _) => l10n.personalDisputeRejected,
+      _ => l10n.personalDisputeResolved,
+    };
+
 String personalStatus(AppLocalizations l10n, PersonalSession session) =>
     session.status == EventStatus.cancelled
     ? l10n.eventStatusCancelled
@@ -261,8 +272,18 @@ class _PersonalTrainingScreenState extends ConsumerState<PersonalTrainingScreen>
                                     ).textTheme.titleSmall,
                                   ),
                                   Text(dispute.reason),
+                                  if (dispute.status != 'OPEN')
+                                    Text(
+                                      personalDisputeOutcome(l10n, dispute),
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodyMedium
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                    ),
                                   if (dispute.resolutionNote case final note?)
-                                    Text(note),
+                                    Text(l10n.personalDisputeNote(note)),
                                   if (dispute.status == 'OPEN')
                                     Text(
                                       l10n.personalDisputePending,

@@ -227,6 +227,22 @@ void main() {
     },
   );
 
+  test('a credit granted after an upheld dispute says so in its origin', () {
+    final l10n = lookupAppLocalizations(const Locale('pl'));
+    final credit = _credit(
+      expiresAt: DateTime(2026, 12, 4, 10),
+      origin: MakeupOrigin(
+        title: 'Trening personalny',
+        startsAt: DateTime(2026, 11, 10, 18),
+        reason: MakeupReason.disputeUpheld,
+      ),
+    );
+    expect(
+      makeupOriginLine(l10n, credit),
+      'Za: Trening personalny, 10.11.2026 · uznane zgłoszenie niezgodności',
+    );
+  });
+
   testWidgets('opens the details with the services the credit can book', (
     tester,
   ) async {
