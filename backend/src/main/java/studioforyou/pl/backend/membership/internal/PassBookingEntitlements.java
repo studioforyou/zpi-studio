@@ -2,6 +2,7 @@ package studioforyou.pl.backend.membership.internal;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.context.ApplicationEventPublisher;
@@ -54,6 +55,13 @@ class PassBookingEntitlements implements BookingEntitlements {
 			.map(pass -> new EligiblePass(pass.getId(), pass.getProductName(), pass.getEntriesRemaining(),
 					pass.getValidFrom(), pass.getValidUntil()))
 			.toList();
+	}
+
+	@Override
+	public Optional<HeldPass> held(UUID customerId, UUID passId) {
+		return passes.findByIdAndCustomerId(passId, customerId)
+			.map(pass -> new HeldPass(pass.getId(), pass.getProductName(), pass.getEntriesRemaining(),
+					pass.getValidUntil()));
 	}
 
 	@Override

@@ -15,6 +15,7 @@ IconData documentIcon(DocumentKind kind) => switch (kind) {
   DocumentKind.parentalConsent => Icons.family_restroom,
   DocumentKind.marketingEmail => Icons.mail_outline,
   DocumentKind.marketingSms => Icons.sms_outlined,
+  DocumentKind.marketingPush => Icons.campaign_outlined,
   DocumentKind.other => Icons.description_outlined,
 };
 

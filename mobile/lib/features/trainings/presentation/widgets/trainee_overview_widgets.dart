@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:mobile/core/auth/auth_controller.dart';
+import 'package:mobile/core/auth/auth_state.dart';
 import 'package:mobile/features/schedule/data/schedule_api.dart';
+import 'package:mobile/features/schedule/presentation/reschedule_event_screen.dart';
 import 'package:mobile/features/schedule/presentation/widgets/substitution_widgets.dart';
 import 'package:mobile/features/schedule/presentation/widgets/schedule_calendar.dart';
 import 'package:mobile/features/trainings/data/trainee_overview_api.dart';
@@ -774,9 +778,114 @@ void showTraineeTraining(
                 training.passName!,
                 style: Theme.of(context).textTheme.bodySmall,
               ),
+            _MoveTrainingButton(training),
           ],
         ),
       ),
     ),
   );
+}
+
+/// Lets the lead trainer move an upcoming personal training to the new date
+/// agreed with the client (#125) straight from its sheet in the schedule, with
+/// the same form as on the event details. The current event is loaded first,
+/// so the change is based on its latest version and rooms.
+class _MoveTrainingButton extends ConsumerStatefulWidget {
+  const _MoveTrainingButton(this.training);
+
+  final TraineeTraining training;
+
+  @override
+  ConsumerState<_MoveTrainingButton> createState() =>
+      _MoveTrainingButtonState();
+}
+
+class _MoveTrainingButtonState extends ConsumerState<_MoveTrainingButton> {
+  bool _loading = false;
+  bool _failed = false;
+
+  bool _canMove(String? staffId) {
+    final training = widget.training;
+    return staffId != null &&
+        training.kind == EventKind.personalTraining &&
+        training.status == EventStatus.scheduled &&
+        DateTime.now().isBefore(training.startsAt) &&
+        training.staff.any(
+          (person) => person.isLead && person.staffId == staffId,
+        );
+  }
+
+  Future<void> _open() async {
+    final navigator = Navigator.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    final container = ProviderScope.containerOf(context);
+    final saved = AppLocalizations.of(context).rescheduleSaved;
+    setState(() {
+      _loading = true;
+      _failed = false;
+    });
+    final ScheduleEvent event;
+    try {
+      event = await ref
+          .read(scheduleApiProvider)
+          .fetchOwnEvent(widget.training.eventId);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _failed = true;
+      });
+      return;
+    }
+    if (!mounted) return;
+    navigator.pop();
+    final moved = await navigator.push<ScheduleEvent>(
+      MaterialPageRoute(
+        builder: (_) =>
+            RescheduleEventScreen(event: event, participantCount: 1),
+      ),
+    );
+    if (moved == null) return;
+    // The sheet is closed by now, so the lists are refreshed through the
+    // container rather than this widget's ref.
+    container
+      ..invalidate(ownScheduleEventProvider)
+      ..invalidate(ownPersonalTrainingsProvider)
+      ..invalidate(traineeOverviewsProvider)
+      ..invalidate(traineeOverviewProvider)
+      ..invalidate(traineeCalendarProvider);
+    messenger.showSnackBar(SnackBar(content: Text(saved)));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final staffId = switch (ref.watch(authControllerProvider)) {
+      Authenticated(:final session) => session.staffProfileId,
+      _ => null,
+    };
+    if (!_canMove(staffId)) return const SizedBox.shrink();
+    final l10n = AppLocalizations.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      spacing: 8,
+      children: [
+        OutlinedButton.icon(
+          key: const Key('traineeTrainingReschedule'),
+          onPressed: _loading ? null : _open,
+          icon: _loading
+              ? const SizedBox.square(
+                  dimension: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.edit_outlined),
+          label: Text(l10n.rescheduleEdit),
+        ),
+        if (_failed)
+          Text(
+            l10n.rescheduleLoadError,
+            style: TextStyle(color: Theme.of(context).colorScheme.error),
+          ),
+      ],
+    );
+  }
 }

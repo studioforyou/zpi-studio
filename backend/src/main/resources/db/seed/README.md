@@ -98,11 +98,22 @@ For the trainer's **Pakiety → Odróbki** section (#78), signed in as Anna:
 
 The pass ledger of Piotr's new pass matches its balance (8 activated, two entries consumed for the two cancelled classes). Re-running the seed only adds missing rows.
 
-## Personal-training disputes (seed 23)
+## Announcements (seed 25)
+
+Beata Lis has sent four announcements, visible in the panel under **Komunikacja → Komunikaty** and in the app's notification inbox:
+
+- *Nowy grafik od grudnia* to all clients (Katarzyna and Tomasz have read it; Monika's phone has no registered device).
+- *Zmiana sali w czwartek* to the group *Pole dance początkujący wt/czw 18:00* (Katarzyna, Monika).
+- *Promocja −20% na karnety*, marketing, to all clients: only Katarzyna accepted the consent to marketing notifications in the app, so 3 clients were skipped.
+- *Trening personalny w piątek* to Tomasz only.
+
+The same seed adds two automatic notifications to Monika whose push did not arrive (*Karnet wkrótce wygaśnie*, unregistered phone, and *Jutro: Pole dance początkujący*, two failed attempts), so **Komunikacja → Historia wysyłek** (#161) shows the "Błąd push" status.
+
+## Personal-training disputes (seed 27)
 
 Signed in as Beata, **Niezgodności** (#113) lists the disputes clients reported about held personal sessions. Three are open: Tomasz's "Trening trwał 30 minut zamiast 60." (seed 04), his request to explain a session's accounting (seed 10) and Monika's (seed 13). Each can be upheld (the entry goes back to the package as a correction), upheld with a make-up credit, or rejected; the explanation is shown to the client in the mobile app.
 
-`R__seed_23_dispute_resolutions.sql` adds two disputes Beata already decided, for the **Rozstrzygnięte** tab. Both are Tomasz's sessions with Marek, funded by a separate "Pakiet PT — rozstrzygnięte zgłoszenia":
+`R__seed_27_dispute_resolutions.sql` adds two disputes Beata already decided, for the **Rozstrzygnięte** tab. Both are Tomasz's sessions with Marek, funded by a separate "Pakiet PT — rozstrzygnięte zgłoszenia":
 
 | Session | Decision | Effect |
 | --- | --- | --- |

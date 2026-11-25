@@ -54,11 +54,51 @@ class ClassBooking {
   final List<EligibleClassPass> eligiblePasses;
 }
 
+/// What cancelling a reservation does to the pass or make-up credit that
+/// funds it, shown before the participant confirms.
+class ClassPassConsequence {
+  const ClassPassConsequence({
+    required this.source,
+    required this.productName,
+    required this.entriesRemaining,
+    required this.entriesAfterCancellation,
+    required this.validUntil,
+    required this.expiresAt,
+  });
+
+  factory ClassPassConsequence.fromJson(Map<String, dynamic> json) =>
+      ClassPassConsequence(
+        source: json['source'] as String,
+        productName: json['productName'] as String,
+        entriesRemaining: json['entriesRemaining'] as int?,
+        entriesAfterCancellation: json['entriesAfterCancellation'] as int?,
+        validUntil: _date(json['validUntil']),
+        expiresAt: _date(json['expiresAt']),
+      );
+
+  /// `PASS` or `MAKEUP_CREDIT`.
+  final String source;
+  final String productName;
+
+  /// Null for an unlimited pass or a make-up credit.
+  final int? entriesRemaining;
+  final int? entriesAfterCancellation;
+
+  /// Last day of the pass; null for a make-up credit.
+  final DateTime? validUntil;
+
+  /// When the make-up credit expires; null for a pass.
+  final DateTime? expiresAt;
+
+  bool get isUnlimitedPass => source == 'PASS' && entriesRemaining == null;
+}
+
 class ClassCancellation {
   const ClassCancellation({
     required this.allowed,
     required this.reason,
     required this.entryReturned,
+    this.passConsequence,
   });
 
   factory ClassCancellation.fromJson(Map<String, dynamic> json) =>
@@ -66,6 +106,11 @@ class ClassCancellation {
         allowed: json['allowed'] as bool,
         reason: json['reason'] as String?,
         entryReturned: json['entryReturned'] as bool?,
+        passConsequence: switch (json['passConsequence']) {
+          final Map<String, dynamic> consequence =>
+            ClassPassConsequence.fromJson(consequence),
+          _ => null,
+        },
       );
 
   final bool allowed;
@@ -73,6 +118,9 @@ class ClassCancellation {
 
   /// Current forecast. The server checks this again when cancelling.
   final bool? entryReturned;
+
+  /// Null when cancelling is unavailable or the reservation has no pass.
+  final ClassPassConsequence? passConsequence;
 }
 
 class ClassReservation {

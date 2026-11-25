@@ -267,6 +267,7 @@ class _NotificationTile extends ConsumerWidget {
       'TIME_OFF_APPROVED' ||
       'TIME_OFF_REJECTED' ||
       'TIME_OFF_CANCELLED' => Icons.event_busy_outlined,
+      'ANNOUNCEMENT' => Icons.campaign_outlined,
       _ => Icons.notifications_outlined,
     };
     return Card(
@@ -277,7 +278,10 @@ class _NotificationTile extends ConsumerWidget {
           : theme.colorScheme.surfaceContainerLow,
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        onTap: () => ref.read(pushNotificationsProvider).open(_data),
+        // An announcement leads nowhere else: tapping it shows its whole text.
+        onTap: _isAnnouncement
+            ? () => _showFullText(context, ref)
+            : () => ref.read(pushNotificationsProvider).open(_data),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(12, 8, 8, 12),
           child: Row(
@@ -337,6 +341,11 @@ class _NotificationTile extends ConsumerWidget {
                         ),
                       ],
                     ),
+                    if (_isAnnouncement)
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: _announcementTag(context),
+                      ),
                     if (structured) ...[
                       Text(
                         name,
@@ -387,6 +396,35 @@ class _NotificationTile extends ConsumerWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  bool get _isAnnouncement => notification.type == 'ANNOUNCEMENT';
+
+  bool get _isMarketing => notification.data['marketing'] == 'true';
+
+  /// "Komunikat studia", or "Oferta" for a marketing announcement.
+  Widget _announcementTag(BuildContext context) {
+    final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
+    final background = _isMarketing
+        ? theme.colorScheme.tertiaryContainer
+        : theme.colorScheme.secondaryContainer;
+    final foreground = _isMarketing
+        ? theme.colorScheme.onTertiaryContainer
+        : theme.colorScheme.onSecondaryContainer;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        _isMarketing
+            ? l10n.notificationsOffer
+            : l10n.notificationsStudioAnnouncement,
+        style: theme.textTheme.labelSmall?.copyWith(color: foreground),
       ),
     );
   }
@@ -454,11 +492,51 @@ class _NotificationTile extends ConsumerWidget {
                   notification.title,
                   style: Theme.of(sheetContext).textTheme.titleMedium,
                 ),
+                if (_isAnnouncement)
+                  Wrap(
+                    spacing: 8,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      _announcementTag(sheetContext),
+                      if (notification.data['audience'] case final audience?)
+                        Text(
+                          audience,
+                          style: Theme.of(sheetContext).textTheme.bodySmall,
+                        ),
+                    ],
+                  ),
                 Text(notification.body),
                 Text(
-                  _when(l10n, notification.createdAt),
+                  [
+                    _when(l10n, notification.createdAt),
+                    if (_isAnnouncement && notification.data['author'] != null)
+                      notification.data['author']!,
+                  ].join(' · '),
                   style: Theme.of(sheetContext).textTheme.bodySmall,
                 ),
+                if (_isAnnouncement && _isMarketing)
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Theme.of(
+                        sheetContext,
+                      ).colorScheme.surfaceContainerHighest,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      spacing: 8,
+                      children: [
+                        const Icon(Icons.info_outline, size: 18),
+                        Expanded(
+                          child: Text(
+                            l10n.notificationsMarketingHint,
+                            style: Theme.of(sheetContext).textTheme.bodySmall,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 if (_isWaitlist)
                   FilledButton.icon(
                     onPressed: () {
