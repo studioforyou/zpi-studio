@@ -394,6 +394,144 @@ test('creates a one-off event after checking its date', async () => {
   expect(requestBody(fetchMock, 'POST', '/api/v1/schedule-events/preview')).toEqual(expected);
 });
 
+test('creates a private consultation without a service, customer or trainer', async () => {
+  const fetchMock = stubApi((url, method) => {
+    if (url === '/api/v1/schedule-events/preview' && method === 'POST') {
+      return json({
+        occurrences: [
+          {
+            date: '2026-11-03',
+            startsAt: '2026-11-03T17:00:00Z',
+            endsAt: '2026-11-03T17:30:00Z',
+            excluded: false,
+            issues: [],
+          },
+        ],
+        warnings: [],
+        conflictCount: 0,
+      });
+    }
+    if (url === '/api/v1/schedule-events' && method === 'POST') return json(baseEvent, 201);
+  });
+  renderWithProviders(<SchedulePage initialDate="2026-11-03" />);
+  await screen.findByRole('button', { name: 'Dodaj wydarzenie' });
+  await userEvent.click(screen.getByRole('button', { name: 'Dodaj wydarzenie' }));
+  const dialog = await screen.findByRole('dialog');
+  await choose(within(dialog).getByRole('combobox', { name: /Rodzaj/ }), 'Konsultacja');
+  expect(within(dialog).queryByRole('combobox', { name: /Usługa/ })).not.toBeInTheDocument();
+  expect(within(dialog).queryByRole('radio', { name: 'Cykliczne' })).not.toBeInTheDocument();
+  expect(within(dialog).queryByLabelText(/Limit miejsc/)).not.toBeInTheDocument();
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Dalej: sprawdź terminy' }));
+  expect(await within(dialog).findByText('To pole jest wymagane.')).toBeInTheDocument();
+  await choose(within(dialog).getByRole('combobox', { name: /^Sala/ }), 'Sala treningowa');
+  fireEvent.change(within(dialog).getByLabelText('Gość (opcjonalnie)'), {
+    target: { value: ' Alicja Zielińska ' },
+  });
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Dalej: sprawdź terminy' }));
+  await within(dialog).findByText('Brak konfliktów — wszystkie terminy można zapisać.');
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Zapisz' }));
+  await vi.waitFor(() =>
+    expect(requestBody(fetchMock, 'POST', '/api/v1/schedule-events')).toMatchObject({
+      kind: 'CONSULTATION',
+      serviceTypeId: null,
+      capacity: null,
+      visibility: 'PRIVATE',
+      guestName: 'Alicja Zielińska',
+      staff: [],
+      resources: [{ resourceId: 'gym', blocksWholeRoom: true }],
+    }),
+  );
+});
+
+test('consultation preview shows a room conflict and blocks saving', async () => {
+  const fetchMock = stubApi((url, method) =>
+    url === '/api/v1/schedule-events/preview' && method === 'POST'
+      ? json({
+          occurrences: [
+            {
+              date: '2026-11-03',
+              startsAt: '2026-11-03T17:00:00Z',
+              endsAt: '2026-11-03T17:30:00Z',
+              excluded: false,
+              issues: [
+                {
+                  type: 'RESOURCE_BUSY',
+                  blocking: true,
+                  resourceId: 'gym',
+                  eventTitle: 'Inna konsultacja',
+                  startsAt: '2026-11-03T17:00:00Z',
+                  endsAt: '2026-11-03T18:00:00Z',
+                },
+              ],
+            },
+          ],
+          warnings: [],
+          conflictCount: 1,
+        })
+      : undefined,
+  );
+  renderWithProviders(<SchedulePage initialDate="2026-11-03" />);
+  await userEvent.click(await screen.findByRole('button', { name: 'Dodaj wydarzenie' }));
+  const dialog = await screen.findByRole('dialog');
+  await choose(within(dialog).getByRole('combobox', { name: /Rodzaj/ }), 'Konsultacja');
+  await choose(within(dialog).getByRole('combobox', { name: /^Sala/ }), 'Sala treningowa');
+  await choose(
+    within(dialog).getByRole('combobox', { name: 'Trener (opcjonalnie)' }),
+    'Marek Nowak',
+  );
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Dalej: sprawdź terminy' }));
+  expect(await within(dialog).findByText(/Inna konsultacja/)).toBeInTheDocument();
+  expect(within(dialog).getByRole('button', { name: 'Zapisz' })).toBeDisabled();
+  expect(requestBody(fetchMock, 'POST', '/api/v1/schedule-events/preview')).toMatchObject({
+    staff: [{ staffId: 'marek', role: 'LEAD' }],
+    guestName: null,
+  });
+});
+
+test('edits consultation guest and time without attendance or pass controls', async () => {
+  const consultation: ScheduleEvent = {
+    ...baseEvent,
+    id: 'consultation',
+    kind: 'CONSULTATION',
+    title: 'Konsultacja',
+    guestName: 'Jan',
+    serviceTypeId: null,
+    serviceTypeName: null,
+    seriesId: null,
+    capacity: null,
+    visibility: 'PRIVATE',
+    isSeriesException: false,
+  };
+  const fetchMock = stubApi((url, method) => {
+    if (url.startsWith('/api/v1/schedule-events?') && method === 'GET')
+      return json({ items: [consultation] });
+    if (url === '/api/v1/schedule-events/consultation' && method === 'PUT')
+      return json(consultation);
+  });
+  renderWithProviders(<SchedulePage initialDate="2026-11-03" />);
+  await userEvent.click(
+    await screen.findByRole('button', { name: 'Konsultacja · Jan, 18:00–19:00' }),
+  );
+  const details = await screen.findByRole('dialog');
+  expect(within(details).queryByText('Uczestnicy i obecność')).not.toBeInTheDocument();
+  await userEvent.click(within(details).getByRole('button', { name: 'Edytuj wydarzenie' }));
+  const editor = await screen.findByRole('dialog', { name: /Edycja wydarzenia/ });
+  fireEvent.change(within(editor).getByLabelText('Gość (opcjonalnie)'), {
+    target: { value: 'Alicja' },
+  });
+  fireEvent.change(within(editor).getByLabelText(/Początek/), {
+    target: { value: '19:30' },
+  });
+  await userEvent.click(within(editor).getByRole('button', { name: 'Zapisz zmiany' }));
+  await vi.waitFor(() =>
+    expect(requestBody(fetchMock, 'PUT', '/api/v1/schedule-events/consultation')).toMatchObject({
+      guestName: 'Alicja',
+      startsAt: '2026-11-03T18:30:00.000Z',
+      capacity: null,
+    }),
+  );
+});
+
 test('uses the configured personal training capacity when selecting a service', async () => {
   stubApi((url, method) =>
     url === '/api/v1/service-types' && method === 'GET'

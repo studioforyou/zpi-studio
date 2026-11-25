@@ -97,7 +97,7 @@ class OccurrenceChanges {
 		requireEditable(event);
 		ZoneId zone = this.studio.zone();
 		Occurrence occurrence = this.planner.checkedOccurrence(request.startsAt(), request.endsAt(), zone);
-		Short capacity = (event.getKind() == EventKind.BLOCK) ? null : capacity(request.capacity());
+		Short capacity = (event.getKind() == EventKind.BLOCK || event.getKind() == EventKind.CONSULTATION) ? null : capacity(request.capacity());
 		Assignments assignments = assignments(event, capacity, request.staff(), request.resources());
 		List<ScheduleIssue> issues = this.conflicts.find(List.of(occurrence), assignments, zone, List.of(eventId))
 			.get(0);
@@ -163,7 +163,7 @@ class OccurrenceChanges {
 			resources = List.of(new ResourceAssignmentRequest(request.resourceId(), blocksWholeRoom));
 		}
 		return new ChangeEventRequest(request.version(), request.startsAt(), request.endsAt(), event.getTitle(),
-				toInteger(event.getCapacity()), staff, resources);
+				toInteger(event.getCapacity()), staff, resources, event.getGuestName());
 	}
 
 	/**
@@ -173,7 +173,7 @@ class OccurrenceChanges {
 		ScheduleEvent event = lockForChange(eventId, request.version());
 		ZoneId zone = this.studio.zone();
 		Occurrence occurrence = this.planner.checkedOccurrence(request.startsAt(), request.endsAt(), zone);
-		Short capacity = (event.getKind() == EventKind.BLOCK) ? null : capacity(request.capacity());
+		Short capacity = (event.getKind() == EventKind.BLOCK || event.getKind() == EventKind.CONSULTATION) ? null : capacity(request.capacity());
 		requireRoomForParticipants(event, capacity);
 		Assignments assignments = assignments(event, capacity, request.staff(), request.resources());
 		this.planner.lockAndRejectConflicts(List.of(occurrence), assignments, zone, List.of(eventId));
@@ -183,6 +183,7 @@ class OccurrenceChanges {
 		boolean moved = event.reschedule(occurrence.startsAt(), occurrence.endsAt());
 		boolean detailsChanged = event.changeDetails(title(request.title(), event), capacity);
 		boolean assignmentsChanged = event.replaceAssignments(assignments.staff(), assignments.resources());
+		if (event.getKind() == EventKind.CONSULTATION) event.setGuestName(SchedulePlanner.guestName(request.guestName()));
 		if (moved || detailsChanged || assignmentsChanged) {
 			event.markSeriesException();
 		}
@@ -252,6 +253,9 @@ class OccurrenceChanges {
 	 */
 	private Assignments assignments(ScheduleEvent event, @Nullable Short capacity,
 			List<StaffAssignmentRequest> staff, List<ResourceAssignmentRequest> resources) {
+		if (event.getKind() == EventKind.CONSULTATION) {
+			return this.planner.consultationAssignments(staff, resources, event);
+		}
 		if (event.getKind() == EventKind.BLOCK) {
 			return this.planner.assignments(null, null, List.of(), SchedulePlanner.blockRooms(staff, resources),
 					event);
@@ -317,7 +321,7 @@ class OccurrenceChanges {
 			title = requested.strip();
 		}
 		else if (event.getServiceTypeId() == null) {
-			title = event.getTitle();
+			title = event.getKind() == EventKind.CONSULTATION ? "Konsultacja" : event.getTitle();
 		}
 		else {
 			title = this.serviceTypes.findById(event.getServiceTypeId())

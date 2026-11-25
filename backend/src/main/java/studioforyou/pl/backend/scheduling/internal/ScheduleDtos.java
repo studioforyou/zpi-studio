@@ -54,22 +54,22 @@ final class ScheduleDtos {
 
 	}
 
-	@Schema(name = "CreateScheduleEventRequest", description = "A one-off event. A BLOCK, e.g. a maintenance, "
-			+ "has no service type, capacity or staff: it takes its rooms whole and is always PRIVATE.")
+	@Schema(name = "CreateScheduleEventRequest", description = "A one-off event. BLOCK and CONSULTATION reserve whole rooms privately without a service or capacity. A consultation has one room, an optional trainer and an optional guest without a customer account.")
 	record CreateEventRequest(
-			@NotNull @Schema(description = "CLASS, PERSONAL_TRAINING, WORKSHOP or BLOCK.") EventKind kind,
-			@Schema(description = "Required, except for BLOCK, which ignores it.") UUID serviceTypeId,
+			@NotNull @Schema(description = "CLASS, PERSONAL_TRAINING, WORKSHOP, CONSULTATION or BLOCK.") EventKind kind,
+			@Schema(description = "Not used for CONSULTATION or BLOCK.") UUID serviceTypeId,
 			@Size(max = MAX_TITLE_LENGTH)
 			@Schema(description = "The service type's name when missing; required for BLOCK.") String title,
 			@Min(1) @Max(Short.MAX_VALUE)
 			@Schema(description = "Maximum number of participants; the service type's limit (at most the rooms' "
-					+ "limit) when missing, 1 for personal training. Ignored for BLOCK.") Integer capacity,
-			@Schema(description = "PRIVATE for personal training and BLOCK, PUBLIC otherwise when missing.")
+					+ "limit) when missing, 1 for personal training. Ignored for BLOCK and CONSULTATION.") Integer capacity,
+			@Schema(description = "Always PRIVATE for CONSULTATION and BLOCK; PRIVATE by default for personal training.")
 			EventVisibility visibility,
 			@NotNull @Schema(example = "2026-11-03T17:00:00Z") Instant startsAt,
 			@NotNull @Schema(example = "2026-11-03T18:00:00Z") Instant endsAt,
 			List<@Valid @NotNull StaffAssignmentRequest> staff,
-			List<@Valid @NotNull ResourceAssignmentRequest> resources) {
+			List<@Valid @NotNull ResourceAssignmentRequest> resources,
+			@Size(max = MAX_TITLE_LENGTH) @Schema(description = "Optional guest name for CONSULTATION; no customer account is created.") String guestName) {
 
 		EventDetailsRequest details() {
 			return new EventDetailsRequest(this.kind, this.serviceTypeId, this.title, this.capacity, this.visibility,
@@ -122,7 +122,7 @@ final class ScheduleDtos {
 		/** The same event as an administrator would plan it, run by {@code staffId}. */
 		CreateEventRequest runBy(UUID staffId) {
 			return new CreateEventRequest(EventKind.CLASS, this.serviceTypeId, this.title, this.capacity,
-					EventVisibility.PUBLIC, this.startsAt, this.endsAt, List.of(lead(staffId)), this.resources);
+					EventVisibility.PUBLIC, this.startsAt, this.endsAt, List.of(lead(staffId)), this.resources, null);
 		}
 
 	}
@@ -324,7 +324,8 @@ final class ScheduleDtos {
 			@Schema(description = "Maximum number of participants; null = no limit. Not below the places "
 					+ "already taken: active reservations and held waiting-list offers.") Integer capacity,
 			@NotNull List<@Valid @NotNull StaffAssignmentRequest> staff,
-			@NotNull List<@Valid @NotNull ResourceAssignmentRequest> resources) {
+			@NotNull List<@Valid @NotNull ResourceAssignmentRequest> resources,
+			@Size(max = MAX_TITLE_LENGTH) @Schema(description = "Consultation guest; null clears the name.") String guestName) {
 	}
 
 	@Schema(name = "RestoreSeriesOccurrenceRequest")

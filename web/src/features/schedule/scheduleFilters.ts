@@ -221,7 +221,7 @@ export function staffingGapsOf(event: ScheduleEvent): StaffingGap[] {
     return [];
   }
   const gaps: StaffingGap[] = [];
-  if (event.staff.length === 0) {
+  if (event.staff.length === 0 && event.kind !== 'CONSULTATION') {
     gaps.push('NO_STAFF');
   }
   if (event.resources.length === 0) {

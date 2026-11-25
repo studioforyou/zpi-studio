@@ -46,7 +46,8 @@ class ScheduleQueries {
 	private static final String EVENT_COLUMNS = """
 			SELECT e.id, e.kind, e.status, e.visibility, e.title, e.service_type_id, e.series_id,
 			       e.is_series_exception, e.series_original_start, e.training_group_id, e.starts_at, e.ends_at, e.capacity,
-			       e.cancel_reason, e.block_reason, e.guest_name, e.version
+			       CASE WHEN e.kind='CONSULTATION' THEN coalesce(nullif(e.cancel_note,''),e.cancel_reason)
+			            ELSE e.cancel_reason END AS cancel_reason, e.block_reason, e.guest_name, e.version
 			FROM schedule_event e
 			""";
 

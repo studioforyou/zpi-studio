@@ -129,7 +129,7 @@ class ScheduleEventControllerTest extends ScheduleTestSupport {
 			.andExpect(jsonPath("$.errors[0].code").value("OUT_OF_RANGE"));
 		post("/api/v1/schedule-events", eventJson("CONSULTATION", POLE, at(day, "18:00"), at(day, "19:00"), "", ""))
 			.andExpect(status().isBadRequest())
-			.andExpect(jsonPath("$.errors[0].field").value("kind"));
+			.andExpect(jsonPath("$.errors[0].field").value("resources"));
 		post("/api/v1/schedule-events", """
 				{"kind": "CLASS", "startsAt": "%s", "endsAt": "%s"}
 				""".formatted(at(day, "18:00"), at(day, "19:00")))

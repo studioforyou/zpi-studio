@@ -71,6 +71,6 @@ class DefaultPersonalTrainingPlanning implements PersonalTrainingPlanning {
 		return new CreateEventRequest(EventKind.PERSONAL_TRAINING, plan.serviceTypeId(), title, 1,
 				EventVisibility.PRIVATE, plan.startsAt(), plan.endsAt(),
 				List.of(new StaffAssignmentRequest(staffId, StaffRole.LEAD)),
-				List.of(new ResourceAssignmentRequest(plan.resourceId(), true)));
+				List.of(new ResourceAssignmentRequest(plan.resourceId(), true)), null);
 	}
 }

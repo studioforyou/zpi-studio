@@ -3,10 +3,10 @@ import { Alert, Button, Group, Modal, Stack, Text, Textarea } from '@mantine/cor
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '@/shared/api/apiClient';
 import { pl } from '@/shared/i18n/pl';
-import { scheduleKeys } from './scheduleApi';
+import { scheduleKeys, type EventKind } from './scheduleApi';
 import { scheduleErrorMessage } from './scheduleFormat';
 
-type Target = { id: string; version: number; title: string };
+type Target = { id: string; version: number; title: string; kind?: EventKind };
 
 export function CancelStudioEventModal({
   target,
@@ -32,6 +32,8 @@ function CancelForm({
   onCancelled: () => void;
 }) {
   const t = pl.substitutions;
+  const consultation = target.kind === 'CONSULTATION';
+  const consultationTexts = pl.schedule.consultation;
   const client = useQueryClient();
   const [reason, setReason] = useState('');
   const mutation = useMutation({
@@ -53,7 +55,7 @@ function CancelForm({
       closeOnEscape={!mutation.isPending}
       closeOnClickOutside={!mutation.isPending}
       withCloseButton={!mutation.isPending}
-      title={t.cancelTitle}
+      title={consultation ? consultationTexts.cancelTitle : t.cancelTitle}
     >
       <form
         onSubmit={(event) => {
@@ -63,7 +65,7 @@ function CancelForm({
       >
         <Stack>
           <Text fw={600}>{target.title}</Text>
-          <Text size="sm">{t.cancelHint}</Text>
+          <Text size="sm">{consultation ? consultationTexts.cancelHint : t.cancelHint}</Text>
           <Textarea
             label={t.cancelReason}
             value={reason}
@@ -84,7 +86,7 @@ function CancelForm({
               loading={mutation.isPending}
               disabled={!reason.trim()}
             >
-              {t.cancelEvent}
+              {consultation ? consultationTexts.cancel : t.cancelEvent}
             </Button>
           </Group>
         </Stack>

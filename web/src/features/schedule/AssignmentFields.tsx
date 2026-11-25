@@ -1,4 +1,4 @@
-import { MultiSelect, Stack, Switch, Text } from '@mantine/core';
+import { MultiSelect, Select, SimpleGrid, Stack, Switch, Text } from '@mantine/core';
 import { pl } from '@/shared/i18n/pl';
 import type { ServiceTypeRule } from './resourcesApi';
 import type { ResourceAssignment, StaffAssignment, StaffRole } from './scheduleApi';
@@ -16,6 +16,8 @@ type AssignmentFieldsProps = {
   roomRules: ReadonlyMap<string, ServiceTypeRule[]>;
   /** Assignments of a block: only rooms, always taken whole. */
   block?: boolean;
+  consultation?: boolean;
+  roomError?: string;
 };
 
 /**
@@ -31,6 +33,8 @@ export function AssignmentFields({
   lookups,
   roomRules,
   block = false,
+  consultation = false,
+  roomError,
 }: AssignmentFieldsProps) {
   const texts = pl.schedule.assignmentFields;
   const leadIds = staff.filter((member) => member.role === 'LEAD').map((member) => member.staffId);
@@ -93,6 +97,34 @@ export function AssignmentFields({
       resources.map((resource) =>
         resource.resourceId === resourceId ? { ...resource, blocksWholeRoom } : resource,
       ),
+    );
+  }
+
+  if (consultation) {
+    const consultationTexts = pl.schedule.consultation;
+    return (
+      <SimpleGrid cols={{ base: 1, sm: 2 }}>
+        <Select
+          label={consultationTexts.room}
+          required
+          searchable
+          data={roomOptions.filter((room) => lookups.resourceById.get(room.value)?.kind === 'ROOM')}
+          value={roomIds[0] ?? null}
+          onChange={(id) =>
+            onResourcesChange(id ? [{ resourceId: id, blocksWholeRoom: true }] : [])
+          }
+          error={roomError}
+        />
+        <Select
+          label={consultationTexts.trainer}
+          placeholder={consultationTexts.noTrainer}
+          searchable
+          clearable
+          data={staffOptions([])}
+          value={leadIds[0] ?? null}
+          onChange={(id) => onStaffChange(id ? [{ staffId: id, role: 'LEAD' }] : [])}
+        />
+      </SimpleGrid>
     );
   }
 

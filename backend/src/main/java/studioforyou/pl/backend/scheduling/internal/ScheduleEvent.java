@@ -161,7 +161,13 @@ class ScheduleEvent {
 	}
 
 	void setGuestName(String guestName) {
+		if (Objects.equals(this.guestName, guestName)) return;
 		this.guestName = guestName;
+		this.updatedAt = Instant.now();
+	}
+
+	String getGuestName() {
+		return this.guestName;
 	}
 
 	EventKind getKind() {
