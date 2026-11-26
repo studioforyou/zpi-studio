@@ -209,6 +209,14 @@ class SchedulePlanner {
 	 * occurrences of its series. A change of one occurrence marks it as an exception to its series.
 	 */
 	ScheduleEventResponse changeAssignments(UUID eventId, ChangeAssignmentsRequest request) {
+		return changeAssignments(eventId, request, Set.of());
+	}
+
+	/**
+	 * As {@link #changeAssignments(UUID, ChangeAssignmentsRequest)}, but the staff members in
+	 * {@code silentStaff} get no change notice, e.g. trainers told about a substitution instead.
+	 */
+	ScheduleEventResponse changeAssignments(UUID eventId, ChangeAssignmentsRequest request, Set<UUID> silentStaff) {
 		ScheduleEvent event = this.events.findByIdForUpdate(eventId)
 			.orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "Event not found."));
 		if (event.getVersion() != request.version()) {
@@ -248,7 +256,7 @@ class SchedulePlanner {
 				.ifPresent((series) -> series.setDefaults(assignments.leadStaffId(), assignments.mainResourceId()));
 		}
 		this.events.flush();
-		this.notices.record(before);
+		this.notices.record(before, silentStaff);
 		return this.queries.findEvent(eventId).orElseThrow();
 	}
 
