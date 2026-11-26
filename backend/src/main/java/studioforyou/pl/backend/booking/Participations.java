@@ -203,6 +203,62 @@ public class Participations {
 		return participants;
 	}
 
+	/**
+	 * Every participant's visits to events that started before {@code now}: the last one and how
+	 * many there were in the {@code windowDays} days up to and including it. A visit is a
+	 * reservation that was not cancelled and not marked absent, for an event the studio did not
+	 * cancel, so one whose attendance nobody marked counts.
+	 */
+	public Map<UUID, LastVisit> findLastVisits(Instant now, int windowDays) {
+		Map<UUID, LastVisit> visits = new HashMap<>();
+		jdbc.sql("""
+				WITH visit AS (
+				    SELECT r.customer_id, e.starts_at
+				    FROM reservation r
+				    JOIN schedule_event e ON e.id = r.event_id
+				    WHERE r.status = 'ACTIVE' AND r.attendance <> 'ABSENT' AND e.status <> 'CANCELLED'
+				      AND e.starts_at < :now
+				), last_visit AS (
+				    SELECT customer_id, max(starts_at) AS last_at FROM visit GROUP BY customer_id
+				)
+				SELECT l.customer_id, l.last_at,
+				       count(*) FILTER (WHERE v.starts_at > l.last_at - make_interval(days => :windowDays)) AS recent
+				FROM last_visit l
+				JOIN visit v ON v.customer_id = l.customer_id
+				GROUP BY l.customer_id, l.last_at
+				""")
+			.param("now", now.atOffset(java.time.ZoneOffset.UTC))
+			.param("windowDays", windowDays)
+			.query((rs, rowNum) -> new LastVisit(rs.getObject("customer_id", UUID.class),
+					rs.getObject("last_at", OffsetDateTime.class).toInstant(), rs.getInt("recent")))
+			.list()
+			.forEach((visit) -> visits.put(visit.customerId(), visit));
+		return visits;
+	}
+
+	/**
+	 * @param lastAt start of the last event visited
+	 * @param recentVisits visits in the window up to and including the last one
+	 */
+	public record LastVisit(UUID customerId, Instant lastAt, int recentVisits) {
+	}
+
+	/**
+	 * Participants with a reservation that was not cancelled for an event starting at or after
+	 * {@code now} that the studio did not cancel.
+	 */
+	public Set<UUID> findWithUpcomingReservations(Instant now) {
+		return jdbc.sql("""
+				SELECT DISTINCT r.customer_id
+				FROM reservation r
+				JOIN schedule_event e ON e.id = r.event_id
+				WHERE r.status = 'ACTIVE' AND e.status <> 'CANCELLED' AND e.starts_at >= :now
+				""")
+			.param("now", now.atOffset(java.time.ZoneOffset.UTC))
+			.query(UUID.class)
+			.set();
+	}
+
 	/** Events any of the participants has a reservation for that was not cancelled. */
 	public Set<UUID> findActiveEventIds(Collection<UUID> profileIds) {
 		if (profileIds.isEmpty()) {

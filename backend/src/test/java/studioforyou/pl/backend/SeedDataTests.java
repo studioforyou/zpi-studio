@@ -360,6 +360,23 @@ class SeedDataTests {
 		assertThat(polePrices).contains(16000);
 	}
 
+	@Test
+	void lapsedCustomersSeedListsAdultsAndAChildWhoStoppedComing() throws Exception {
+		String lapsed = mvc.perform(get("/api/v1/reports/lapsed-customers").param("inactiveDays", "30")
+			.header("Authorization", "Bearer " + seedToken(10)))
+			.andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+		List<String> names = JsonPath.read(lapsed, "$.customers[*].lastName");
+		assertThat(names).contains("Wróbel", "Kaczmarek", "Pawlak", "Kubiak");
+		assertThat(JsonPath.<List<String>>read(lapsed, "$.customers[?(@.firstName == 'Oliwer')].guardianName"))
+			.containsExactly("Marta Kubiak");
+		assertThat(JsonPath.<List<String>>read(lapsed, "$.customers[?(@.lastName == 'Wróbel')].pass.state"))
+			.containsExactly("VALID");
+		assertThat(JsonPath.<List<String>>read(lapsed, "$.customers[?(@.lastName == 'Kaczmarek')].pass.state"))
+			.containsExactly("ENDED");
+		assertThat(JsonPath.<List<Object>>read(lapsed, "$.customers[?(@.lastName == 'Wróbel')].lastAnnouncement"))
+			.doesNotContainNull();
+	}
+
 	private String report(String token, String path, LocalDate from, LocalDate to, @Nullable String kind)
 			throws Exception {
 		var request = get(path).header("Authorization", "Bearer " + token)

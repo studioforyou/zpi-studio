@@ -439,6 +439,65 @@ public class CustomerProfiles {
 	}
 
 	/**
+	 * Active participants among the given ones with the contact the studio reaches them by: an
+	 * adult's own account and phone number, or for a child the account and phone number of its
+	 * earliest current active guardian. Archived profiles are left out; a child without such a
+	 * guardian has no contact account.
+	 */
+	public List<ContactDetails> activeContactDetails(Collection<UUID> profileIds) {
+		if (profileIds.isEmpty()) {
+			return List.of();
+		}
+		record Row(UUID id, CustomerKind kind, String firstName, String lastName, @Nullable UUID accountId,
+				@Nullable String phone, @Nullable UUID guardianId, @Nullable String guardianFirstName,
+				@Nullable String guardianLastName, @Nullable UUID guardianAccountId, @Nullable String guardianPhone) {
+		}
+		List<Row> rows = jdbc.sql("""
+				SELECT p.id, p.kind, p.first_name, p.last_name, p.account_id, p.phone,
+				       guardian.id AS guardian_id, guardian.first_name AS guardian_first_name,
+				       guardian.last_name AS guardian_last_name, guardian.account_id AS guardian_account_id,
+				       guardian.phone AS guardian_phone
+				FROM customer_profile p
+				LEFT JOIN LATERAL (
+				    SELECT gp.id, gp.first_name, gp.last_name, gp.account_id, gp.phone
+				    FROM guardianship g
+				    JOIN customer_profile gp ON gp.id = g.guardian_id
+				    WHERE g.child_id = p.id AND g.ended_at IS NULL AND gp.status = 'ACTIVE'
+				    ORDER BY g.created_at, gp.id
+				    LIMIT 1) guardian ON p.account_id IS NULL
+				WHERE p.id IN (:ids) AND p.status = 'ACTIVE'
+				""")
+			.param("ids", profileIds)
+			.query(Row.class)
+			.list();
+		Map<UUID, String> emails = accountEmails.emailsOf(rows.stream()
+			.map((row) -> (row.accountId() != null) ? row.accountId() : row.guardianAccountId())
+			.filter(Objects::nonNull)
+			.collect(Collectors.toSet()));
+		return rows.stream().map((row) -> {
+			boolean viaGuardian = row.accountId() == null && row.guardianId() != null;
+			UUID contactAccount = viaGuardian ? row.guardianAccountId() : row.accountId();
+			return new ContactDetails(row.id(), row.kind(), row.firstName(), row.lastName(), contactAccount,
+					viaGuardian ? row.guardianId() : row.id(),
+					viaGuardian ? row.guardianFirstName() + " " + row.guardianLastName() : null,
+					(contactAccount != null) ? emails.get(contactAccount) : null,
+					viaGuardian ? row.guardianPhone() : row.phone());
+		}).toList();
+	}
+
+	/**
+	 * A participant with the contact the studio reaches them by.
+	 *
+	 * @param contactAccountId the participant's own account or, for a child, its guardian's
+	 * @param contactProfileId the profile of the person contacted: the participant or its guardian
+	 * @param guardianName the guardian's name when the contact is a child's guardian
+	 */
+	public record ContactDetails(UUID id, CustomerKind kind, String firstName, String lastName,
+			@Nullable UUID contactAccountId, UUID contactProfileId, @Nullable String guardianName,
+			@Nullable String email, @Nullable String phone) {
+	}
+
+	/**
 	 * Accounts that get notifications about the given participants: an adult's own account, and
 	 * for a child the accounts of all its current active guardians. Profiles without such an
 	 * account are left out.
