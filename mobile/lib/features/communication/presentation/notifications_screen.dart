@@ -259,7 +259,11 @@ class _NotificationTile extends ConsumerWidget {
       'CLASS_CHANGED' => Icons.edit_calendar_outlined,
       'CLASS_CANCELLED' || 'CLASS_AUTO_CANCELLED' => Icons.event_busy_outlined,
       'NEW_MESSAGE' => Icons.chat_bubble_outline,
-      'SUBSTITUTION_AVAILABLE' => Icons.swap_horiz,
+      'SUBSTITUTION_AVAILABLE' ||
+      'SUBSTITUTION_CLAIM_REJECTED' ||
+      'SUBSTITUTION_CLOSED' => Icons.swap_horiz,
+      'SUBSTITUTION_COVERED' ||
+      'SUBSTITUTION_ASSIGNED' => Icons.event_available_outlined,
       'PASS_EXPIRING' ||
       'PASS_LAST_ENTRY_USED' => Icons.confirmation_number_outlined,
       'WAITLIST_PLACE_OFFERED' => Icons.event_seat_outlined,

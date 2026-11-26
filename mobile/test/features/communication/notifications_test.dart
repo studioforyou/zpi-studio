@@ -966,6 +966,58 @@ void main() {
       expect(notifications.read, ['n5']);
     });
 
+    testWidgets('a tapped substitution decision opens the schedule for the '
+        'trainer who asked and the substitution for the candidate', (
+      tester,
+    ) async {
+      final push = _Push();
+      final notifications = _Notifications();
+      final container = await pumpApp(
+        tester,
+        push: push,
+        devices: _Devices(),
+        notifications: notifications,
+      );
+      await tester.tap(find.text('Anna').first);
+      await tester.pumpAndSettle();
+
+      push.opened.add(
+        const PushMessage(
+          data: {
+            'type': 'SUBSTITUTION_COVERED',
+            'notificationId': 'n6',
+            'requestId': 'r1',
+            'eventId': 'e1',
+            'role': 'TRAINER',
+          },
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final session =
+          (container.read(authControllerProvider) as Authenticated).session;
+      expect(session.activeRole, AppRole.trainer);
+      expect(location(container), trainerSchedulePath);
+
+      push.opened.add(
+        const PushMessage(
+          data: {
+            'type': 'SUBSTITUTION_CLAIM_REJECTED',
+            'notificationId': 'n7',
+            'requestId': 'r1',
+            'eventId': 'e1',
+            'role': 'TRAINER',
+            'candidate': 'true',
+          },
+        ),
+      );
+      await tester.pumpAndSettle();
+      // The substitutions screen opens the request and drops it from the
+      // location.
+      expect(location(container), trainerSubstitutionsPath);
+      expect(notifications.read, ['n6', 'n7']);
+    });
+
     testWidgets('a message in the conversation on screen refreshes it without '
         'a banner', (tester) async {
       final push = _Push();

@@ -11,6 +11,37 @@ function countOf(count: number, one: string, few: string, many: string): string 
   return `${count.toLocaleString('pl-PL')} ${unit}`;
 }
 
+const substitutionEventFields = {
+  zajęcia: {
+    label: 'Zajęcia',
+    description: 'Nazwa zajęć lub usługi, bez danych uczestnika',
+    example: 'Pole dance',
+  },
+  dzień: {
+    label: 'Dzień',
+    description: 'Data terminu w strefie czasowej studia',
+    example: 'wt., 1.12',
+  },
+  godzina: {
+    label: 'Godziny',
+    description: 'Początek i koniec zajęć',
+    example: '18:00–19:00',
+  },
+  sala: {
+    label: 'Sala',
+    description: 'Sale zajęte przez wydarzenie',
+    example: 'Sala treningowa 1',
+  },
+};
+
+const substitutionNoteField = {
+  notatka: {
+    label: 'Notatka studia',
+    description: '„Notatka studia: …” z notatką administratora do decyzji albo nic',
+    example: 'Notatka studia: Dziękujemy za pomoc!',
+  },
+};
+
 const waitlistClassFields = {
   zajęcia: {
     label: 'Nazwa zajęć',
@@ -1803,6 +1834,26 @@ export const pl = {
           description:
             'Wysyłane aktywnym trenerom z odpowiednimi kwalifikacjami i wolnym terminem. Otwiera ofertę przejęcia zastępstwa.',
         },
+        SUBSTITUTION_COVERED: {
+          name: 'Zastępstwo potwierdzone',
+          description:
+            'Wysyłane trenerowi, który poprosił o zastępstwo, gdy ktoś przejmie jego zajęcia: po zatwierdzeniu przez studio, po bezpośrednim przydziale albo od razu po przejęciu, gdy studio nie wymaga akceptacji. Otwiera zajęcia w grafiku.',
+        },
+        SUBSTITUTION_ASSIGNED: {
+          name: 'Przydzielone zastępstwo',
+          description:
+            'Wysyłane trenerowi, gdy studio zatwierdzi jego zgłoszenie na zastępstwo albo samo przydzieli mu zajęcia. Gdy trener przejmie zastępstwo bez akceptacji studia, nic nie jest wysyłane.',
+        },
+        SUBSTITUTION_CLAIM_REJECTED: {
+          name: 'Zgłoszenie na zastępstwo nieprzyjęte',
+          description:
+            'Wysyłane trenerowi, gdy studio odrzuci jego zgłoszenie na zastępstwo albo zamknie prośbę, na którą czekało jego zgłoszenie.',
+        },
+        SUBSTITUTION_CLOSED: {
+          name: 'Zastępstwo nieprzydzielone',
+          description:
+            'Wysyłane trenerowi, który poprosił o zastępstwo, gdy studio zamknie prośbę bez zastępcy: zajęcia zostają przy nim. Przy odwołaniu zajęć wysyłane jest tylko powiadomienie o odwołaniu.',
+        },
         WAITLIST_PLACE_OFFERED: {
           name: 'Miejsce z listy rezerwowej do potwierdzenia',
           description:
@@ -1894,6 +1945,17 @@ export const pl = {
             example: 'Sala treningowa 1',
           },
         },
+        SUBSTITUTION_COVERED: {
+          ...substitutionEventFields,
+          zastępca: {
+            label: 'Zastępca',
+            description: 'Trener, który poprowadzi zajęcia',
+            example: 'Marek Lis',
+          },
+        },
+        SUBSTITUTION_ASSIGNED: { ...substitutionEventFields, ...substitutionNoteField },
+        SUBSTITUTION_CLAIM_REJECTED: { ...substitutionEventFields, ...substitutionNoteField },
+        SUBSTITUTION_CLOSED: { ...substitutionEventFields, ...substitutionNoteField },
         WAITLIST_PLACE_OFFERED: {
           ...waitlistClassFields,
           'potwierdź do': {

@@ -11,15 +11,22 @@ import java.util.concurrent.TimeUnit;
 
 import com.jayway.jsonpath.JsonPath;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.event.ApplicationEvents;
+import org.springframework.test.context.event.RecordApplicationEvents;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 import studioforyou.pl.backend.communication.notification.Notifications;
+import studioforyou.pl.backend.scheduling.SubstitutionDecided;
+import studioforyou.pl.backend.scheduling.SubstitutionDecided.Outcome;
 
+@RecordApplicationEvents
 class SubstitutionManagementTest extends ScheduleTestSupport {
 
 	@MockitoBean Notifications notifications;
+	@Autowired ApplicationEvents published;
 	private static final String OFFERS = "/api/v1/me/substitution-offers";
 	private static final String ADMIN = "/api/v1/substitution-requests";
 
@@ -37,6 +44,66 @@ class SubstitutionManagementTest extends ScheduleTestSupport {
 			.andExpect(jsonPath("$.status").value("APPROVED"));
 		assertThat(lead(event)).isEqualTo(MAREK);
 		assertThat(this.jdbcTemplate.queryForObject("SELECT count(*) FROM audit_log WHERE entity_id=?", Integer.class, UUID.fromString(request))).isEqualTo(2);
+	}
+
+	@Test
+	void approvalTellsBothTrainersAboutTheSubstitutionInsteadOfAGenericChange() throws Exception {
+		String event = createEvent(poleClass(this.monday, "18:00", "19:00"));
+		String request = request(event); qualify();
+		action(MAREK_TOKEN, OFFERS, request, "claim", 0).andExpect(status().isOk());
+		assertThat(decisions()).isEmpty();
+		this.mockMvc.perform(as(ADMIN_TOKEN, MockMvcRequestBuilders.post(ADMIN + "/" + request + "/approve")
+				.contentType(MediaType.APPLICATION_JSON).content("{\"version\":1,\"note\":\"Dzięki!\"}"))).andExpect(status().isOk());
+		SubstitutionDecided decided = decisions().getFirst();
+		assertThat(decisions()).hasSize(1);
+		assertThat(decided.outcome()).isEqualTo(Outcome.COVERED);
+		assertThat(decided.requestId()).isEqualTo(UUID.fromString(request));
+		assertThat(decided.originalStaffId()).isEqualTo(ANNA);
+		assertThat(decided.substituteStaffId()).isEqualTo(MAREK);
+		assertThat(decided.substituteName()).isNotBlank();
+		assertThat(decided.selfClaimed()).isFalse();
+		assertThat(decided.version()).isEqualTo(2);
+		assertThat(decided.note()).isEqualTo("Dzięki!");
+		assertThat(this.jdbcTemplate.queryForObject("SELECT count(*) FROM schedule_change_notice WHERE event_id=? AND staff_id IS NOT NULL",
+				Integer.class, UUID.fromString(event))).isZero();
+	}
+
+	@Test
+	void rejectionTellsOnlyTheCandidate() throws Exception {
+		String request = request(createEvent(poleClass(this.monday, "18:00", "19:00"))); qualify();
+		action(MAREK_TOKEN, OFFERS, request, "claim", 0).andExpect(status().isOk());
+		action(ADMIN_TOKEN, ADMIN, request, "reject", 1).andExpect(status().isOk());
+		assertThat(decisions()).singleElement().satisfies((d) -> {
+			assertThat(d.outcome()).isEqualTo(Outcome.CLAIM_REJECTED);
+			assertThat(d.substituteStaffId()).isEqualTo(MAREK);
+		});
+	}
+
+	@Test
+	void directAssignmentAndClosingAreDecisionsToo() throws Exception {
+		String assigned = request(createEvent(poleClass(this.monday, "18:00", "19:00"))); qualify();
+		this.mockMvc.perform(as(ADMIN_TOKEN, MockMvcRequestBuilders.post(ADMIN + "/" + assigned + "/assign")
+				.contentType(MediaType.APPLICATION_JSON).content("{\"version\":0,\"staffId\":\"" + MAREK + "\"}"))).andExpect(status().isOk());
+		String closed = request(createEvent(poleClass(this.monday, "20:00", "21:00")));
+		action(MAREK_TOKEN, OFFERS, closed, "claim", 0).andExpect(status().isOk());
+		action(ADMIN_TOKEN, ADMIN, closed, "close", 1).andExpect(status().isOk());
+		assertThat(decisions()).extracting(SubstitutionDecided::outcome).containsExactly(Outcome.COVERED, Outcome.CLOSED);
+		assertThat(decisions().getFirst().substituteStaffId()).isEqualTo(MAREK);
+		assertThat(decisions().getLast().substituteStaffId()).isEqualTo(MAREK);
+	}
+
+	@Test
+	void closingAnUnclaimedRequestHasNoCandidateAndWithdrawingIsNoDecision() throws Exception {
+		String withdrawn = request(createEvent(poleClass(this.monday, "18:00", "19:00"))); qualify();
+		action(MAREK_TOKEN, OFFERS, withdrawn, "claim", 0).andExpect(status().isOk());
+		action(MAREK_TOKEN, OFFERS, withdrawn, "withdraw", 1).andExpect(status().isOk());
+		assertThat(decisions()).isEmpty();
+		String closed = request(createEvent(poleClass(this.monday, "20:00", "21:00")));
+		action(ADMIN_TOKEN, ADMIN, closed, "close", 0).andExpect(status().isOk());
+		assertThat(decisions()).singleElement().satisfies((d) -> {
+			assertThat(d.outcome()).isEqualTo(Outcome.CLOSED);
+			assertThat(d.substituteStaffId()).isNull();
+		});
 	}
 
 	@Test
@@ -116,6 +183,10 @@ class SubstitutionManagementTest extends ScheduleTestSupport {
 			String event=createEvent(poleClass(this.monday, "18:00", "19:00")); String request=request(event); qualify();
 			action(MAREK_TOKEN, OFFERS, request, "claim", 0).andExpect(status().isOk()).andExpect(jsonPath("$.status").value("APPROVED"));
 			assertThat(lead(event)).isEqualTo(MAREK);
+			assertThat(decisions()).singleElement().satisfies((d) -> {
+				assertThat(d.outcome()).isEqualTo(Outcome.COVERED);
+				assertThat(d.selfClaimed()).isTrue();
+			});
 		} finally { this.jdbcTemplate.update("DELETE FROM studio WHERE name='Test substitutions'"); }
 	}
 
@@ -140,6 +211,7 @@ class SubstitutionManagementTest extends ScheduleTestSupport {
 		assertThat(this.jdbcTemplate.queryForObject("SELECT status FROM substitution_request WHERE id=?",String.class,UUID.fromString(request))).isEqualTo("CANCELLED");
 	}
 
+	private List<SubstitutionDecided> decisions() { return this.published.stream(SubstitutionDecided.class).toList(); }
 	private void qualify() { this.jdbcTemplate.update("INSERT INTO staff_qualification(staff_id,service_type_id) VALUES (?,?) ON CONFLICT DO NOTHING", MAREK, POLE); }
 	private UUID lead(String event) { return this.jdbcTemplate.queryForObject("SELECT staff_id FROM event_staff WHERE event_id=? AND role='LEAD'",UUID.class,UUID.fromString(event)); }
 	private String request(String event) throws Exception {

@@ -87,11 +87,23 @@ class PushNotifications {
   };
 
   /// Notification types about a class a trainer runs; with the role
-  /// `TRAINER` they open the trainer's schedule.
+  /// `TRAINER` they open the trainer's schedule. A decision on a substitution
+  /// the trainer asked for belongs here too: the class stays in, or leaves,
+  /// their schedule.
   static const _trainerScheduleTypes = {
     'CLASS_CHANGED',
     'CLASS_CANCELLED',
     'CLASS_AUTO_CANCELLED',
+    'SUBSTITUTION_COVERED',
+    'SUBSTITUTION_CLOSED',
+  };
+
+  /// Notification types about a substitution the trainer may take or has
+  /// claimed; they open that substitution in the trainer's substitutions.
+  static const _substitutionOfferTypes = {
+    'SUBSTITUTION_AVAILABLE',
+    'SUBSTITUTION_ASSIGNED',
+    'SUBSTITUTION_CLAIM_REJECTED',
   };
 
   /// Opens what a notification is about (its `data`) and marks it read. A
@@ -107,7 +119,7 @@ class PushNotifications {
 
     final session = auth.session;
     final router = _ref.read(appRouterProvider);
-    if (data['type'] == 'SUBSTITUTION_AVAILABLE' &&
+    if (_substitutionOfferTypes.contains(data['type']) &&
         session.roles.contains(AppRole.trainer)) {
       if (session.activeRole != AppRole.trainer) {
         final choice = session.choices
