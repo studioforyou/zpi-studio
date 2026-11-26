@@ -112,6 +112,7 @@ class AccountManagementTests {
 		}
 		children.clear();
 		String accounts = "(SELECT id FROM account WHERE email ILIKE '%" + DOMAIN + "' OR email ILIKE '%@closed.invalid')";
+		jdbc.sql("DELETE FROM audit_log WHERE actor_account_id IN " + accounts).update();
 		for (String table : new String[] { "staff_profile", "customer_profile", "account_invitation",
 				"account_status_change", "account_role", "identity_link" }) {
 			jdbc.sql("DELETE FROM " + table + " WHERE account_id IN " + accounts).update();

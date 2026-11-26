@@ -72,8 +72,9 @@ public class AccountsController {
 	 */
 	@PutMapping("/{accountId}")
 	@Operation(summary = "Update an account's personal and contact details", operationId = "updateAccount")
-	public AccountDetails update(@PathVariable UUID accountId, @Valid @RequestBody UpdateAccountRequest request) {
-		return accounts.update(accountId, request);
+	public AccountDetails update(@PathVariable UUID accountId, @Valid @RequestBody UpdateAccountRequest request,
+			AccountAuthenticationToken authentication) {
+		return accounts.update(accountId, request, callerId(authentication));
 	}
 
 	/**
@@ -83,8 +84,8 @@ public class AccountsController {
 	@Operation(summary = "Update an account's staff profile", operationId = "updateAccountStaffProfile",
 			description = "The names are also saved in the account's own client profile.")
 	public AccountDetails updateStaffProfile(@PathVariable UUID accountId,
-			@Valid @RequestBody UpdateStaffDetailsRequest request) {
-		return accounts.updateStaffProfile(accountId, request);
+			@Valid @RequestBody UpdateStaffDetailsRequest request, AccountAuthenticationToken authentication) {
+		return accounts.updateStaffProfile(accountId, request, callerId(authentication));
 	}
 
 	/**
@@ -94,8 +95,8 @@ public class AccountsController {
 	@PutMapping("/{accountId}/children/{childProfileId}")
 	@Operation(summary = "Update a child of an account", operationId = "updateAccountChild")
 	public AccountDetails updateChild(@PathVariable UUID accountId, @PathVariable UUID childProfileId,
-			@Valid @RequestBody UpdateChildRequest request) {
-		return accounts.updateChild(accountId, childProfileId, request);
+			@Valid @RequestBody UpdateChildRequest request, AccountAuthenticationToken authentication) {
+		return accounts.updateChild(accountId, childProfileId, request, callerId(authentication));
 	}
 
 	/**

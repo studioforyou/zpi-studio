@@ -31,9 +31,12 @@ public class CustomerProfiles {
 
 	private final AccountEmails accountEmails;
 
-	public CustomerProfiles(JdbcClient jdbc, AccountEmails accountEmails) {
+	private final ProfileChangeLog changeLog;
+
+	public CustomerProfiles(JdbcClient jdbc, AccountEmails accountEmails, ProfileChangeLog changeLog) {
 		this.jdbc = jdbc;
 		this.accountEmails = accountEmails;
+		this.changeLog = changeLog;
 	}
 
 	/** Names for a caller-authorized participant set; no contacts or participant details. */
@@ -171,34 +174,69 @@ public class CustomerProfiles {
 
 	/**
 	 * Changes the name and phone number of the account's own profile, whatever its status. A blank
-	 * phone clears it.
+	 * phone clears it. The change is recorded in the profile's history.
 	 *
+	 * @param changedBy the account that makes the change
 	 * @return whether the account has an own profile
 	 */
-	public boolean updateOwnProfile(UUID accountId, String firstName, String lastName, String phone) {
-		return jdbc.sql("""
+	public boolean updateOwnProfile(UUID accountId, String firstName, String lastName, String phone,
+			UUID changedBy) {
+		Optional<LockedProfile> before = lockOwnProfile(accountId);
+		if (before.isEmpty()) {
+			return false;
+		}
+		String newPhone = (phone == null || phone.isBlank()) ? null : phone.strip();
+		jdbc.sql("""
 				UPDATE customer_profile
 				SET first_name = :firstName, last_name = :lastName, phone = :phone, updated_at = now()
-				WHERE account_id = :accountId
+				WHERE id = :id
 				""")
-			.param("accountId", accountId)
+			.param("id", before.get().id())
 			.param("firstName", firstName.strip())
 			.param("lastName", lastName.strip())
-			.param("phone", (phone == null || phone.isBlank()) ? null : phone.strip())
-			.update() > 0;
+			.param("phone", newPhone)
+			.update();
+		ProfileChangeLog.Details old = before.get().details();
+		changeLog.record(before.get().id(), changedBy, old, new ProfileChangeLog.Details(firstName.strip(),
+				lastName.strip(), old.birthDate(), newPhone, old.emergencyContactName(), old.emergencyPhone()));
+		return true;
 	}
 
-	/** Changes only the name of the account's own profile, whatever its status. */
-	public void renameOwnProfile(UUID accountId, String firstName, String lastName) {
+	/**
+	 * Changes only the name of the account's own profile, whatever its status. The change is
+	 * recorded in the profile's history.
+	 *
+	 * @param changedBy the account that makes the change
+	 */
+	public void renameOwnProfile(UUID accountId, String firstName, String lastName, UUID changedBy) {
+		Optional<LockedProfile> before = lockOwnProfile(accountId);
+		if (before.isEmpty()) {
+			return;
+		}
 		jdbc.sql("""
 				UPDATE customer_profile
 				SET first_name = :firstName, last_name = :lastName, updated_at = now()
-				WHERE account_id = :accountId
+				WHERE id = :id
 				""")
-			.param("accountId", accountId)
+			.param("id", before.get().id())
 			.param("firstName", firstName.strip())
 			.param("lastName", lastName.strip())
 			.update();
+		ProfileChangeLog.Details old = before.get().details();
+		changeLog.record(before.get().id(), changedBy, old, new ProfileChangeLog.Details(firstName.strip(),
+				lastName.strip(), old.birthDate(), old.phone(), old.emergencyContactName(), old.emergencyPhone()));
+	}
+
+	private Optional<LockedProfile> lockOwnProfile(UUID accountId) {
+		return jdbc.sql("""
+				SELECT id, first_name, last_name, birth_date, phone, emergency_contact_name, emergency_phone
+				FROM customer_profile
+				WHERE account_id = :accountId
+				FOR UPDATE
+				""")
+			.param("accountId", accountId)
+			.query(LockedProfile.class)
+			.optional();
 	}
 
 	/**
@@ -221,29 +259,47 @@ public class CustomerProfiles {
 
 	/**
 	 * Replaces the details of an active child the account's own profile is a current guardian of.
-	 * The caller validates and trims the details.
+	 * The caller validates and trims the details. The change is recorded in the child's history.
 	 *
+	 * @param changedBy the account that makes the change
 	 * @return {@code false} if there is no such child
 	 */
-	public boolean updateChildOfAccount(UUID accountId, ChildDetails child) {
-		return jdbc.sql("""
-				UPDATE customer_profile c
+	public boolean updateChildOfAccount(UUID accountId, ChildDetails child, UUID changedBy) {
+		Optional<LockedProfile> before = jdbc.sql("""
+				SELECT c.id, c.first_name, c.last_name, c.birth_date, c.phone, c.emergency_contact_name,
+				       c.emergency_phone
+				FROM customer_profile c
+				JOIN guardianship g ON g.child_id = c.id AND g.ended_at IS NULL
+				JOIN customer_profile guardian ON guardian.id = g.guardian_id
+				WHERE c.id = :childId AND c.status = 'ACTIVE' AND guardian.account_id = :accountId
+				FOR UPDATE OF c
+				""")
+			.param("accountId", accountId)
+			.param("childId", child.id())
+			.query(LockedProfile.class)
+			.optional();
+		if (before.isEmpty()) {
+			return false;
+		}
+		jdbc.sql("""
+				UPDATE customer_profile
 				SET first_name = :firstName, last_name = :lastName, birth_date = :birthDate,
 				    emergency_contact_name = :emergencyContactName, emergency_phone = :emergencyPhone,
 				    updated_at = now()
-				FROM guardianship g
-				JOIN customer_profile guardian ON guardian.id = g.guardian_id
-				WHERE c.id = :childId AND c.status = 'ACTIVE' AND g.child_id = c.id AND g.ended_at IS NULL
-				  AND guardian.account_id = :accountId
+				WHERE id = :childId
 				""")
-			.param("accountId", accountId)
 			.param("childId", child.id())
 			.param("firstName", child.firstName())
 			.param("lastName", child.lastName())
 			.param("birthDate", child.birthDate())
 			.param("emergencyContactName", child.emergencyContactName())
 			.param("emergencyPhone", child.emergencyPhone())
-			.update() > 0;
+			.update();
+		ProfileChangeLog.Details old = before.get().details();
+		changeLog.record(child.id(), changedBy, old, new ProfileChangeLog.Details(child.firstName(),
+				child.lastName(), child.birthDate(), old.phone(), child.emergencyContactName(),
+				child.emergencyPhone()));
+		return true;
 	}
 
 	/**
@@ -543,6 +599,16 @@ public class CustomerProfiles {
 
 		public String displayName() {
 			return firstName + " " + lastName;
+		}
+
+	}
+
+	private record LockedProfile(UUID id, String firstName, String lastName, @Nullable LocalDate birthDate,
+			@Nullable String phone, @Nullable String emergencyContactName, @Nullable String emergencyPhone) {
+
+		ProfileChangeLog.Details details() {
+			return new ProfileChangeLog.Details(firstName, lastName, birthDate, phone, emergencyContactName,
+					emergencyPhone);
 		}
 
 	}

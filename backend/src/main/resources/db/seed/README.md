@@ -125,3 +125,12 @@ The package's balance matches its ledger (8 activated, two entries used, one ret
 ## Announcement templates (seed 27)
 
 Beata Lis has three announcement templates under **Komunikacja → Komunikaty → Szablony** (#160): *Zamknięcie studia w święto* and *Zmiana sali* (studio messages) and *Promocja na karnety* (an offer). In **Nowy komunikat** the field **Szablon** fills the title, text and kind from them.
+
+## Profile change history (seed 28)
+
+`R__seed_28_profile_history.sql` adds change history entries that end in the current seed values, for the trainer's "Historia zmian" screen:
+
+- **Katarzyna** (log in as Ewa): phone changed by herself, emergency contact changed by Beata in the panel, goals changed by Ewa, an injury note added by herself and archived by Ewa.
+- **Tomasz** (log in as Marek): sport experience filled in by Marek, birth date and phone changed by himself, his knee note added by himself.
+
+Health entries show only to a trainer with access to the participant's health data. New changes made in the app or the panel are added to the history automatically.

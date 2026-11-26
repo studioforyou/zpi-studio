@@ -4,11 +4,15 @@ import java.net.URI;
 import java.util.UUID;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import org.jspecify.annotations.Nullable;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -18,6 +22,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import studioforyou.pl.backend.shared.api.AccountAuthentication;
@@ -27,6 +32,8 @@ import studioforyou.pl.backend.trainings.internal.TraineeCardDtos.HealthNoteResp
 import studioforyou.pl.backend.trainings.internal.TraineeCardDtos.TraineeCardResponse;
 import studioforyou.pl.backend.trainings.internal.TraineeCardDtos.UpdateTraineeCardRequest;
 import studioforyou.pl.backend.trainings.internal.TraineeCardService.Trainer;
+import studioforyou.pl.backend.trainings.internal.TraineeProfileHistory.ProfileHistoryGroup;
+import studioforyou.pl.backend.trainings.internal.TraineeProfileHistory.ProfileHistoryResponse;
 
 /**
  * The trainee card the signed-in trainer keeps for a participant they currently work with. The
@@ -43,8 +50,29 @@ class TraineeCardController {
 
 	private final TraineeCardService cards;
 
-	TraineeCardController(TraineeCardService cards) {
+	private final TraineeProfileHistory history;
+
+	TraineeCardController(TraineeCardService cards, TraineeProfileHistory history) {
 		this.cards = cards;
+		this.history = history;
+	}
+
+	@GetMapping("/profile-history")
+	@Operation(summary = "Get the change history of my trainee's profile", operationId = "getOwnTraineeProfileHistory",
+			description = "Changes of the participant's personal and contact details, of the card's goals and sport "
+					+ "experience, and added or archived health notes, newest first, with who made each change. "
+					+ "Health entries are included only when healthAccess is GRANTED and never contain the note's "
+					+ "text. Changes are recorded from the release of this feature on.")
+	@ApiResponse(responseCode = "200", description = "One page of the history.")
+	@ApiResponse(responseCode = "400", description = "VALIDATION_FAILED: page or size out of range.",
+			content = @Content(mediaType = "application/problem+json",
+					schema = @Schema(implementation = ApiProblem.class)))
+	ProfileHistoryResponse profileHistory(@PathVariable UUID customerId,
+			@Parameter(description = "Only entries of this group.") @RequestParam(required = false)
+			@Nullable ProfileHistoryGroup group,
+			@RequestParam(defaultValue = "0") @Min(0) int page,
+			@RequestParam(defaultValue = "50") @Min(1) @Max(100) int size, AccountAuthentication authentication) {
+		return history.history(customerId, trainer(authentication), group, page, size);
 	}
 
 	@GetMapping("/card")
