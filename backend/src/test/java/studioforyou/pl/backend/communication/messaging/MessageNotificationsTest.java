@@ -47,4 +47,16 @@ class MessageNotificationsTest {
 		assertThat(MessageNotifications.count(22)).isEqualTo("22 nowe wiadomości");
 	}
 
+	@Test
+	void aMessageWithoutTextShowsWhatIsAttached() {
+		assertThat(MessageNotifications.attachments(1, 1)).isEqualTo("Zdjęcie");
+		assertThat(MessageNotifications.attachments(3, 3)).isEqualTo("3 zdjęcia");
+		assertThat(MessageNotifications.attachments(5, 5)).isEqualTo("5 zdjęć");
+		assertThat(MessageNotifications.attachments(1, 0)).isEqualTo("Załącznik");
+		// Photos together with a document are attachments.
+		assertThat(MessageNotifications.attachments(2, 1)).isEqualTo("2 załączniki");
+		assertThat(MessageNotifications.attachments(5, 0)).isEqualTo("5 załączników");
+		assertThat(MessageNotifications.attachments(0, 0)).isEmpty();
+	}
+
 }

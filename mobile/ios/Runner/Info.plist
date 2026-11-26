@@ -66,6 +66,10 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>Aparat jest potrzebny, aby zrobić zdjęcie i wysłać je w wiadomości.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Dostęp do zdjęć jest potrzebny, aby wybrać zdjęcie i wysłać je w wiadomości.</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>

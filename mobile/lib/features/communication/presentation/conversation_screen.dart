@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -8,11 +9,13 @@ import 'package:mobile/core/auth/app_role.dart';
 import 'package:mobile/core/auth/auth_controller.dart';
 import 'package:mobile/core/auth/auth_state.dart';
 import 'package:mobile/core/network/api_exception.dart';
+import 'package:mobile/features/communication/data/attachment_picker.dart';
 import 'package:mobile/features/communication/data/conversations_api.dart';
 import 'package:mobile/features/communication/data/notifications_api.dart';
 import 'package:mobile/features/communication/data/open_conversation.dart';
 import 'package:mobile/features/communication/presentation/chat_format.dart';
 import 'package:mobile/features/communication/presentation/widgets/chat_avatar.dart';
+import 'package:mobile/features/communication/presentation/widgets/message_attachments.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
 
 /// How often new messages are fetched while the conversation is open.
@@ -47,6 +50,12 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
   bool _loadingOlder = false;
   bool _sending = false;
   bool _polling = false;
+
+  /// Files picked to go with the next message.
+  List<OutgoingAttachment> _attachments = const [];
+
+  /// How much of the attachments has been uploaded, while they are sent.
+  double? _uploadProgress;
 
   /// A poll was asked for while one was running, e.g. by a push.
   bool _pollAgain = false;
@@ -204,17 +213,31 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
 
   Future<void> _send() async {
     final text = _input.text.trim();
-    if (text.isEmpty || _sending) {
+    final attachments = _attachments;
+    if ((text.isEmpty && attachments.isEmpty) || _sending) {
       return;
     }
-    setState(() => _sending = true);
+    setState(() {
+      _sending = true;
+      _uploadProgress = attachments.isEmpty ? null : 0;
+    });
     try {
-      final message = await _api.send(widget.conversationId, text);
+      final message = await _api.send(
+        widget.conversationId,
+        text,
+        attachments: attachments,
+        onProgress: attachments.isEmpty
+            ? null
+            : (progress) {
+                if (mounted) setState(() => _uploadProgress = progress);
+              },
+      );
       if (!mounted) {
         return;
       }
       _input.clear();
       setState(() {
+        _attachments = const [];
         if (!_messages.any((known) => known.id == message.id)) {
           _messages = [..._messages, message];
         }
@@ -222,17 +245,118 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
       // Writing reads the conversation.
       _refreshUnread();
     } catch (e) {
+      // The text and the files stay, so the user can send them again.
       _showError(e, sending: true);
       unawaited(_poll());
     } finally {
       if (mounted) {
-        setState(() => _sending = false);
+        setState(() {
+          _sending = false;
+          _uploadProgress = null;
+        });
       }
     }
   }
 
+  /// Asks where the attachment comes from and adds what the user picks.
+  Future<void> _attach() async {
+    final l10n = AppLocalizations.of(context);
+    final remaining = maxAttachments - _attachments.length;
+    if (remaining <= 0) {
+      _snack(l10n.chatAttachmentsLimit(maxAttachments));
+      return;
+    }
+    final source = await showModalBottomSheet<_AttachmentSource>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_camera_outlined),
+              title: Text(l10n.chatAttachCamera),
+              onTap: () => Navigator.of(context).pop(_AttachmentSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: Text(l10n.chatAttachGallery),
+              onTap: () => Navigator.of(context).pop(_AttachmentSource.gallery),
+            ),
+            ListTile(
+              leading: const Icon(Icons.description_outlined),
+              title: Text(l10n.chatAttachDocument),
+              subtitle: Text(l10n.chatAttachDocumentHint),
+              onTap: () =>
+                  Navigator.of(context).pop(_AttachmentSource.document),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (source == null || !mounted) {
+      return;
+    }
+    final picker = ref.read(attachmentPickerProvider);
+    List<OutgoingAttachment> picked;
+    try {
+      picked = switch (source) {
+        _AttachmentSource.camera => await picker.takePhoto(),
+        _AttachmentSource.gallery => await picker.pickPhotos(remaining),
+        _AttachmentSource.document => await picker.pickDocuments(),
+      };
+    } catch (_) {
+      _snack(l10n.chatAttachmentPickError);
+      return;
+    }
+    if (mounted && picked.isNotEmpty) {
+      _addAttachments(picked, l10n);
+    }
+  }
+
+  /// Adds the picked files the backend will accept, and says why the others
+  /// were left out.
+  void _addAttachments(List<OutgoingAttachment> picked, AppLocalizations l10n) {
+    final accepted = [..._attachments];
+    String? problem;
+    for (final attachment in picked) {
+      final total = accepted.fold(0, (sum, file) => sum + file.sizeBytes);
+      if (accepted.length >= maxAttachments) {
+        problem = l10n.chatAttachmentsLimit(maxAttachments);
+        break;
+      } else if (!_isAllowed(attachment.name)) {
+        problem = l10n.chatAttachmentTypeNotAllowed;
+      } else if (attachment.sizeBytes > maxAttachmentBytes) {
+        problem = l10n.chatAttachmentTooLarge(attachment.name);
+      } else if (total + attachment.sizeBytes > maxAttachmentsTotalBytes) {
+        problem = l10n.chatAttachmentsTooLarge;
+      } else {
+        accepted.add(attachment);
+      }
+    }
+    setState(() => _attachments = accepted);
+    if (problem != null) {
+      _snack(problem);
+    }
+  }
+
+  static bool _isAllowed(String name) {
+    final dot = name.lastIndexOf('.');
+    return dot >= 0 &&
+        documentExtensions.contains(name.substring(dot + 1).toLowerCase());
+  }
+
+  void _snack(String text) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+  }
+
   Future<void> _showMessageMenu(ChatMessage message, Offset position) async {
     final l10n = AppLocalizations.of(context);
+    final canCopy = !message.isDeleted && (message.body ?? '').isNotEmpty;
+    if (!canCopy && !message.canDelete) {
+      return;
+    }
     final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
     final action = await showMenu<String>(
       context: context,
@@ -241,7 +365,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
         Offset.zero & overlay.size,
       ),
       items: [
-        if (!message.isDeleted)
+        if (!message.isDeleted && (message.body ?? '').isNotEmpty)
           PopupMenuItem(
             value: 'copy',
             child: ListTile(
@@ -368,7 +492,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     }
     final l10n = AppLocalizations.of(context);
     final status = error is ApiException ? error.statusCode : null;
-    final message = sending && status != 404 && status != 422
+    final message = sending && status != 404 && status != 413 && status != 422
         ? l10n.messagesSendError
         : messagesErrorMessage(error, l10n);
     ScaffoldMessenger.of(
@@ -469,7 +593,20 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
         children: [
           Expanded(child: _messageList(conversation, l10n)),
           if (conversation.canWrite)
-            _InputBar(controller: _input, sending: _sending, onSend: _send)
+            _InputBar(
+              controller: _input,
+              sending: _sending,
+              onSend: _send,
+              attachments: _attachments,
+              uploadProgress: _uploadProgress,
+              onAttach: _sending ? null : _attach,
+              onRemoveAttachment: (attachment) => setState(
+                () => _attachments = [
+                  for (final known in _attachments)
+                    if (known != attachment) known,
+                ],
+              ),
+            )
           else
             _Banner(
               icon: conversation.hasLeft || conversation.isClosed
@@ -524,6 +661,10 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
             !isSameDay(next.createdAt, message.createdAt) ||
             next.senderAccountId != message.senderAccountId;
         return _MessageRow(
+          // The list is reversed, so a new message takes the place of the
+          // one before it: the key keeps a message's photos with it.
+          key: ValueKey(message.id),
+          conversationId: conversation.id,
           message: message,
           showName: conversation.isGroup && !message.isMine && startsRun,
           showAvatar: !message.isMine && endsRun,
@@ -573,8 +714,13 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
   );
 }
 
+/// Where a new attachment comes from.
+enum _AttachmentSource { camera, gallery, document }
+
 class _MessageRow extends StatelessWidget {
   const _MessageRow({
+    super.key,
+    required this.conversationId,
     required this.message,
     required this.showName,
     required this.showAvatar,
@@ -586,6 +732,7 @@ class _MessageRow extends StatelessWidget {
     required this.onLongPress,
   });
 
+  final String conversationId;
   final ChatMessage message;
 
   /// Whether the sender's name is shown above the bubble: the first message
@@ -632,14 +779,17 @@ class _MessageRow extends StatelessWidget {
         : (mine ? scheme.onPrimary : scheme.onSurface);
     const radius = Radius.circular(18);
     const tail = Radius.circular(6);
+    final maxWidth = MediaQuery.sizeOf(context).width * 0.74;
+    final body = message.body ?? '';
+    final attachments = message.isDeleted
+        ? const <ChatAttachment>[]
+        : message.attachments;
 
     final bubble = GestureDetector(
       onTap: onTap,
       onLongPressStart: (details) => onLongPress(details.globalPosition),
       child: Container(
-        constraints: BoxConstraints(
-          maxWidth: MediaQuery.sizeOf(context).width * 0.74,
-        ),
+        constraints: BoxConstraints(maxWidth: maxWidth),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
         decoration: BoxDecoration(
           color: background,
@@ -654,7 +804,7 @@ class _MessageRow extends StatelessWidget {
           ),
         ),
         child: Text(
-          message.isDeleted ? l10n.messagesDeleted : message.body ?? '',
+          message.isDeleted ? l10n.messagesDeleted : body,
           style: theme.textTheme.bodyLarge?.copyWith(
             color: foreground,
             fontStyle: message.isDeleted ? FontStyle.italic : null,
@@ -662,6 +812,26 @@ class _MessageRow extends StatelessWidget {
         ),
       ),
     );
+
+    // Attachments above the text, as separate pieces of the same message.
+    final content = attachments.isEmpty
+        ? bubble
+        : Column(
+            crossAxisAlignment: mine
+                ? CrossAxisAlignment.end
+                : CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            spacing: 4,
+            children: [
+              MessageAttachments(
+                conversationId: conversationId,
+                message: message,
+                maxWidth: maxWidth,
+                onLongPress: onLongPress,
+              ),
+              if (body.isNotEmpty) bubble,
+            ],
+          );
 
     return Padding(
       padding: EdgeInsets.only(top: topGap),
@@ -704,7 +874,7 @@ class _MessageRow extends StatelessWidget {
                         size: 32,
                       )
                     : const SizedBox(width: 32),
-              bubble,
+              content,
             ],
           ),
         ],
@@ -718,55 +888,205 @@ class _InputBar extends StatelessWidget {
     required this.controller,
     required this.sending,
     required this.onSend,
+    required this.attachments,
+    required this.uploadProgress,
+    required this.onAttach,
+    required this.onRemoveAttachment,
   });
 
   final TextEditingController controller;
   final bool sending;
   final VoidCallback onSend;
 
+  /// Files picked to go with the message, shown above the text field.
+  final List<OutgoingAttachment> attachments;
+
+  /// How much of the attachments has been uploaded, while they are sent.
+  final double? uploadProgress;
+
+  /// Adds an attachment; `null` while a message is being sent.
+  final VoidCallback? onAttach;
+  final ValueChanged<OutgoingAttachment> onRemoveAttachment;
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final scheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final progress = uploadProgress;
     return SafeArea(
       top: false,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 8, 8, 12),
-        child: Row(
-          spacing: 8,
+        padding: const EdgeInsets.fromLTRB(4, 8, 8, 12),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Expanded(
-              child: TextField(
-                controller: controller,
-                minLines: 1,
-                maxLines: 5,
-                maxLength: maxMessageLength,
-                textCapitalization: TextCapitalization.sentences,
-                decoration: InputDecoration(
-                  hintText: l10n.chatInputHint,
-                  counterText: '',
-                  filled: true,
-                  fillColor: scheme.surfaceContainerHigh,
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 18,
-                    vertical: 12,
+            if (attachments.isNotEmpty)
+              SizedBox(
+                height: 76,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.fromLTRB(8, 4, 0, 8),
+                  itemCount: attachments.length,
+                  separatorBuilder: (_, _) => const SizedBox(width: 8),
+                  itemBuilder: (_, index) => _PendingAttachment(
+                    attachment: attachments[index],
+                    onRemove: sending
+                        ? null
+                        : () => onRemoveAttachment(attachments[index]),
                   ),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(24),
-                    borderSide: BorderSide.none,
+                ),
+              ),
+            if (progress != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(8, 0, 4, 8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  spacing: 4,
+                  children: [
+                    LinearProgressIndicator(
+                      value: progress,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                    Text(
+                      l10n.chatSendingAttachments((progress * 100).round()),
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: scheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            Row(
+              spacing: 4,
+              children: [
+                IconButton(
+                  tooltip: l10n.chatAttach,
+                  onPressed: onAttach,
+                  icon: const Icon(Icons.add_circle_outline),
+                ),
+                Expanded(
+                  child: TextField(
+                    controller: controller,
+                    minLines: 1,
+                    maxLines: 5,
+                    maxLength: maxMessageLength,
+                    textCapitalization: TextCapitalization.sentences,
+                    decoration: InputDecoration(
+                      hintText: l10n.chatInputHint,
+                      counterText: '',
+                      filled: true,
+                      fillColor: scheme.surfaceContainerHigh,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 18,
+                        vertical: 12,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(24),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 4),
+                IconButton.filled(
+                  tooltip: l10n.chatSend,
+                  onPressed: sending ? null : onSend,
+                  iconSize: 24,
+                  style: IconButton.styleFrom(fixedSize: const Size(48, 48)),
+                  icon: const Icon(Icons.send),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A file picked for the next message: a photo's thumbnail or a document's
+/// icon and name, with a button that takes it out.
+class _PendingAttachment extends StatelessWidget {
+  const _PendingAttachment({required this.attachment, required this.onRemove});
+
+  final OutgoingAttachment attachment;
+  final VoidCallback? onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final pixels = MediaQuery.devicePixelRatioOf(context);
+    final Widget preview = attachment.isImage
+        ? Image.file(
+            File(attachment.path),
+            fit: BoxFit.cover,
+            cacheWidth: (64 * pixels).round(),
+            errorBuilder: (_, _, _) =>
+                Icon(Icons.image_outlined, color: scheme.onSurfaceVariant),
+          )
+        : Padding(
+            padding: const EdgeInsets.all(6),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              spacing: 2,
+              children: [
+                Icon(
+                  Icons.description_outlined,
+                  size: 22,
+                  color: scheme.onSurfaceVariant,
+                ),
+                Text(
+                  attachment.name,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.labelSmall?.copyWith(fontSize: 9),
+                ),
+              ],
+            ),
+          );
+    return SizedBox.square(
+      dimension: 64,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Positioned.fill(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: ColoredBox(
+                color: scheme.surfaceContainerHigh,
+                child: Center(child: preview),
+              ),
+            ),
+          ),
+          Positioned(
+            top: -6,
+            right: -6,
+            child: Material(
+              color: scheme.inverseSurface,
+              shape: const CircleBorder(),
+              child: InkWell(
+                customBorder: const CircleBorder(),
+                onTap: onRemove,
+                child: Tooltip(
+                  message: l10n.chatRemoveAttachment,
+                  child: Padding(
+                    padding: const EdgeInsets.all(3),
+                    child: Icon(
+                      Icons.close,
+                      size: 14,
+                      color: scheme.onInverseSurface,
+                    ),
                   ),
                 ),
               ),
             ),
-            IconButton.filled(
-              tooltip: l10n.chatSend,
-              onPressed: sending ? null : onSend,
-              iconSize: 24,
-              style: IconButton.styleFrom(fixedSize: const Size(48, 48)),
-              icon: const Icon(Icons.send),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

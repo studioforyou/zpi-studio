@@ -366,7 +366,8 @@ class ConversationStore {
 			.optional();
 	}
 
-	Message insertMessage(UUID conversationId, UUID senderId, String body) {
+	/** @param body the text; {@code null} for a message with attachments only */
+	Message insertMessage(UUID conversationId, UUID senderId, @Nullable String body) {
 		return jdbc.sql("""
 				INSERT INTO message (conversation_id, sender_id, body)
 				VALUES (:conversationId, :senderId, :body)
@@ -377,6 +378,38 @@ class ConversationStore {
 			.param("body", body)
 			.query(Message.class)
 			.single();
+	}
+
+	/** Attaches a stored file to the message, at the given place among its attachments. */
+	void insertAttachment(UUID messageId, UUID fileId, int position) {
+		jdbc.sql("""
+				INSERT INTO message_attachment (message_id, file_id, position)
+				VALUES (:messageId, :fileId, :position)
+				""")
+			.param("messageId", messageId)
+			.param("fileId", fileId)
+			.param("position", position)
+			.update();
+	}
+
+	/** The stored files attached to each of the given messages, in their order; messages without any are left out. */
+	Map<UUID, List<UUID>> findAttachments(Collection<UUID> messageIds) {
+		if (messageIds.isEmpty()) {
+			return Map.of();
+		}
+		Map<UUID, List<UUID>> attachments = new HashMap<>();
+		jdbc.sql("""
+				SELECT message_id, file_id
+				FROM message_attachment
+				WHERE message_id IN (:ids)
+				ORDER BY message_id, position, file_id
+				""")
+			.param("ids", messageIds)
+			.query((rs) -> {
+				attachments.computeIfAbsent(rs.getObject("message_id", UUID.class), (id) -> new ArrayList<>())
+					.add(rs.getObject("file_id", UUID.class));
+			});
+		return attachments;
 	}
 
 	/** Removes the text of the message; the message stays in its place as a deleted one. */

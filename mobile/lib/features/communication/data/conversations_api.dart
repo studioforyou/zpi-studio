@@ -9,6 +9,9 @@ import 'package:mobile/core/network/dio_provider.dart';
 /// backend).
 const conversationsPath = '/api/v1/me/conversations';
 
+/// How long sending or receiving attachments may stall before it fails.
+const transferTimeout = Duration(seconds: 60);
+
 enum ConversationKind {
   /// A 1:1 conversation between a client and a trainer.
   direct,
@@ -47,6 +50,8 @@ class MessagePreview {
     required this.body,
     required this.isDeleted,
     required this.createdAt,
+    this.attachmentCount = 0,
+    this.imageCount = 0,
   });
 
   factory MessagePreview.fromJson(Map<String, dynamic> json) => MessagePreview(
@@ -55,16 +60,24 @@ class MessagePreview {
     body: json['body'] as String?,
     isDeleted: json['isDeleted'] as bool,
     createdAt: DateTime.parse(json['createdAt'] as String).toLocal(),
+    attachmentCount: (json['attachmentCount'] as num?)?.toInt() ?? 0,
+    imageCount: (json['imageCount'] as num?)?.toInt() ?? 0,
   );
 
   /// `null` for the user's own message.
   final String? senderName;
   final bool isMine;
 
-  /// `null` for a deleted message.
+  /// `null` for a deleted message or one with attachments only.
   final String? body;
   final bool isDeleted;
   final DateTime createdAt;
+
+  /// How many files are attached; 0 for a deleted message.
+  final int attachmentCount;
+
+  /// How many of them are photos.
+  final int imageCount;
 }
 
 /// A conversation in the user's list.
@@ -186,6 +199,46 @@ class Conversation {
   bool get isGroup => kind != ConversationKind.direct;
 }
 
+/// A file attached to a message.
+class ChatAttachment {
+  const ChatAttachment({
+    required this.id,
+    required this.fileName,
+    required this.contentType,
+    required this.sizeBytes,
+    required this.isImage,
+    this.width,
+    this.height,
+  });
+
+  factory ChatAttachment.fromJson(Map<String, dynamic> json) => ChatAttachment(
+    id: json['id'] as String,
+    fileName: json['fileName'] as String,
+    contentType: json['contentType'] as String,
+    sizeBytes: (json['sizeBytes'] as num).toInt(),
+    isImage: json['isImage'] as bool,
+    width: (json['width'] as num?)?.toInt(),
+    height: (json['height'] as num?)?.toInt(),
+  );
+
+  final String id;
+
+  /// The name to show and save it with, ending with the extension of its
+  /// type.
+  final String fileName;
+
+  /// Its media type, recognized by the backend from the content.
+  final String contentType;
+  final int sizeBytes;
+
+  /// Whether it is a photo, shown in the conversation.
+  final bool isImage;
+
+  /// The size a photo is displayed with, when the backend knows it.
+  final int? width;
+  final int? height;
+}
+
 class ChatMessage {
   const ChatMessage({
     required this.id,
@@ -196,6 +249,7 @@ class ChatMessage {
     required this.isDeleted,
     required this.createdAt,
     required this.canDelete,
+    this.attachments = const [],
   });
 
   factory ChatMessage.fromJson(Map<String, dynamic> json) => ChatMessage(
@@ -207,6 +261,10 @@ class ChatMessage {
     isDeleted: json['isDeleted'] as bool,
     createdAt: DateTime.parse(json['createdAt'] as String).toLocal(),
     canDelete: json['canDelete'] as bool,
+    attachments: [
+      for (final item in json['attachments'] as List? ?? const [])
+        ChatAttachment.fromJson(item as Map<String, dynamic>),
+    ],
   );
 
   final String id;
@@ -214,11 +272,33 @@ class ChatMessage {
   final String senderName;
   final bool isMine;
 
-  /// `null` for a deleted message.
+  /// `null` for a deleted message or one with attachments only.
   final String? body;
   final bool isDeleted;
   final DateTime createdAt;
   final bool canDelete;
+
+  /// The attached files in the order they were sent; empty for a deleted
+  /// message.
+  final List<ChatAttachment> attachments;
+}
+
+/// A file the user picked to send with a message.
+class OutgoingAttachment {
+  const OutgoingAttachment({
+    required this.path,
+    required this.name,
+    required this.sizeBytes,
+    required this.isImage,
+  });
+
+  /// Where the file is on the phone.
+  final String path;
+
+  /// The name it is sent with.
+  final String name;
+  final int sizeBytes;
+  final bool isImage;
 }
 
 /// Messages oldest first.
@@ -364,6 +444,30 @@ class GroupChatTargets {
   final List<EventChatTarget> events;
 }
 
+/// A failed conversations request, with the backend's error code.
+class ConversationApiException extends ApiException {
+  const ConversationApiException({
+    super.statusCode,
+    required super.message,
+    this.code,
+  });
+
+  factory ConversationApiException.fromDio(DioException e) {
+    final data = e.response?.data;
+    final base = ApiException.fromDio(e);
+    return ConversationApiException(
+      statusCode: base.statusCode,
+      message: base.message,
+      code: data is Map && data['code'] is String
+          ? data['code'] as String
+          : null,
+    );
+  }
+
+  /// E.g. `FILE_TYPE_NOT_ALLOWED` or `FILE_TOO_LARGE`.
+  final String? code;
+}
+
 class ConversationsApi {
   const ConversationsApi(this._dio);
 
@@ -435,14 +539,72 @@ class ConversationsApi {
     ];
   });
 
-  Future<ChatMessage> send(String conversationId, String body) =>
-      _call(() async {
-        final response = await _dio.post<Map<String, dynamic>>(
-          '$conversationsPath/$conversationId/messages',
-          data: {'body': body},
-        );
-        return ChatMessage.fromJson(response.data!);
-      });
+  /// Sends a message with text, [attachments] or both. With attachments it is
+  /// sent as `multipart/form-data`, reporting the share uploaded so far to
+  /// [onProgress].
+  Future<ChatMessage> send(
+    String conversationId,
+    String body, {
+    List<OutgoingAttachment> attachments = const [],
+    void Function(double progress)? onProgress,
+  }) => _call(() async {
+    final path = '$conversationsPath/$conversationId/messages';
+    if (attachments.isEmpty) {
+      final response = await _dio.post<Map<String, dynamic>>(
+        path,
+        data: {'body': body},
+      );
+      return ChatMessage.fromJson(response.data!);
+    }
+    final form = FormData();
+    if (body.isNotEmpty) {
+      form.fields.add(MapEntry('body', body));
+    }
+    for (final attachment in attachments) {
+      form.files.add(
+        MapEntry(
+          'files',
+          await MultipartFile.fromFile(
+            attachment.path,
+            filename: attachment.name,
+          ),
+        ),
+      );
+    }
+    final response = await _dio.post<Map<String, dynamic>>(
+      path,
+      data: form,
+      options: Options(sendTimeout: transferTimeout),
+      onSendProgress: onProgress == null
+          ? null
+          : (sent, total) {
+              if (total > 0) onProgress(sent / total);
+            },
+    );
+    return ChatMessage.fromJson(response.data!);
+  });
+
+  /// Downloads a file attached to a message to [savePath], reporting the
+  /// share received so far to [onProgress].
+  Future<void> downloadAttachment(
+    String conversationId,
+    String messageId,
+    String attachmentId,
+    String savePath, {
+    void Function(double progress)? onProgress,
+  }) => _call(() async {
+    await _dio.download(
+      '$conversationsPath/$conversationId/messages/$messageId/attachments/'
+      '$attachmentId',
+      savePath,
+      options: Options(receiveTimeout: transferTimeout),
+      onReceiveProgress: onProgress == null
+          ? null
+          : (received, total) {
+              if (total > 0) onProgress(received / total);
+            },
+    );
+  });
 
   Future<void> deleteMessage(String conversationId, String messageId) =>
       _call(() async {
@@ -539,7 +701,7 @@ class ConversationsApi {
     try {
       return await request();
     } on DioException catch (e) {
-      throw ApiException.fromDio(e);
+      throw ConversationApiException.fromDio(e);
     }
   }
 }

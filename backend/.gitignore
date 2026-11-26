@@ -34,3 +34,6 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### Local file storage (app.files.local-directory) ###
+/data/

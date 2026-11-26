@@ -154,6 +154,12 @@ public enum ErrorCode {
 	CONVERSATION_STILL_ACTIVE(HttpStatus.UNPROCESSABLE_CONTENT),
 	RECIPIENT_WITHOUT_ACCOUNT(HttpStatus.UNPROCESSABLE_CONTENT),
 
+	// files: uploaded files, e.g. message attachments
+	/** A file, or the whole request, is larger than allowed. */
+	FILE_TOO_LARGE(HttpStatus.CONTENT_TOO_LARGE),
+	/** The file's content is not one of the allowed types, whatever its name says. */
+	FILE_TYPE_NOT_ALLOWED(HttpStatus.UNPROCESSABLE_CONTENT),
+
 	// staff: leave and unavailability
 	/** The staff member already has requested or approved time off in that period. */
 	TIME_OFF_OVERLAP(HttpStatus.CONFLICT),

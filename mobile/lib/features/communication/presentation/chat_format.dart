@@ -1,5 +1,6 @@
 import 'package:intl/intl.dart';
 import 'package:mobile/core/network/api_exception.dart';
+import 'package:mobile/features/communication/data/conversations_api.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
 
 /// When a conversation was last active, as shown in the list: the time
@@ -58,6 +59,21 @@ int _dayDifference(DateTime time, DateTime now) => DateTime(
   now.day,
 ).difference(DateTime(time.year, time.month, time.day)).inDays;
 
+/// The size of a file, e.g. `820 KB` or `1,4 MB`.
+String formatFileSize(int bytes) {
+  if (bytes < 1024 * 1024) {
+    return '${(bytes / 1024).ceil()} KB';
+  }
+  return '${NumberFormat('0.#', 'pl').format(bytes / (1024 * 1024))} MB';
+}
+
+/// What a message without text has attached, e.g. `Zdjęcie`, `3 zdjęcia`,
+/// `Załącznik` or `2 załączniki`.
+String attachmentsSummary(int count, int images, AppLocalizations l10n) =>
+    images == count
+    ? l10n.messagesPhotos(count)
+    : l10n.messagesAttachments(count);
+
 /// A message for a failed conversations request, by its HTTP status.
 String messagesErrorMessage(
   Object error,
@@ -65,10 +81,15 @@ String messagesErrorMessage(
   bool loading = false,
 }) {
   if (error is ApiException) {
+    if (error is ConversationApiException &&
+        error.code == 'FILE_TYPE_NOT_ALLOWED') {
+      return l10n.chatAttachmentTypeNotAllowed;
+    }
     return switch (error.statusCode) {
       null => l10n.messagesNetworkError,
       404 => l10n.messagesNotFound,
       409 => l10n.messagesChatExists,
+      413 => l10n.messagesFileTooLarge,
       422 => l10n.messagesReadOnlyError,
       _ => loading ? l10n.messagesLoadError : l10n.messagesActionError,
     };

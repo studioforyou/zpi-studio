@@ -1,7 +1,10 @@
 package studioforyou.pl.backend.communication.messaging;
 
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -13,6 +16,12 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.jspecify.annotations.Nullable;
 
+import org.springframework.core.io.InputStreamResource;
+import org.springframework.core.io.Resource;
+import org.springframework.http.CacheControl;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -23,7 +32,9 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import studioforyou.pl.backend.communication.messaging.MessagingDtos.ClientResponse;
 import studioforyou.pl.backend.communication.messaging.MessagingDtos.ConversationResponse;
@@ -38,7 +49,10 @@ import studioforyou.pl.backend.communication.messaging.MessagingDtos.StartTraine
 import studioforyou.pl.backend.communication.messaging.MessagingDtos.TrainerResponse;
 import studioforyou.pl.backend.communication.messaging.MessagingDtos.UnreadCountResponse;
 import studioforyou.pl.backend.communication.messaging.MessagingDtos.UpdateConversationRequest;
+import studioforyou.pl.backend.communication.messaging.MessagingService.NewAttachment;
 import studioforyou.pl.backend.communication.messaging.MessagingService.Started;
+import studioforyou.pl.backend.files.StoredFiles;
+import studioforyou.pl.backend.files.StoredFiles.StoredFile;
 import studioforyou.pl.backend.shared.api.AccountAuthentication;
 import studioforyou.pl.backend.shared.api.ApiProblem;
 import studioforyou.pl.backend.shared.api.ListResponse;
@@ -233,8 +247,9 @@ class OwnConversationController {
 				limit);
 	}
 
-	@PostMapping("/{conversationId}/messages")
-	@Operation(summary = "Send a message", operationId = "sendOwnConversationMessage")
+	@PostMapping(path = "/{conversationId}/messages", consumes = MediaType.APPLICATION_JSON_VALUE)
+	@Operation(summary = "Send a message", operationId = "sendOwnConversationMessage",
+			description = "A text message. To attach files, send the message as multipart/form-data.")
 	@ApiResponse(responseCode = "201", description = "The sent message.")
 	@ApiResponse(responseCode = "400", description = "VALIDATION_FAILED.", content = @Content(
 			mediaType = "application/problem+json", schema = @Schema(implementation = ApiProblem.class)))
@@ -246,8 +261,74 @@ class OwnConversationController {
 					mediaType = "application/problem+json", schema = @Schema(implementation = ApiProblem.class)))
 	ResponseEntity<MessageResponse> send(@PathVariable UUID conversationId, @Valid @RequestBody SendMessageRequest request,
 			AccountAuthentication authentication) {
-		MessageResponse sent = messaging.send(conversationId, authentication.requireActiveAccountId(), request.body());
-		return ResponseEntity.created(URI.create(BASE + conversationId + "/messages/" + sent.id())).body(sent);
+		return sent(conversationId,
+				messaging.send(conversationId, authentication.requireActiveAccountId(), request.body(), List.of()));
+	}
+
+	@PostMapping(path = "/{conversationId}/messages", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+	@Operation(summary = "Send a message with attachments", operationId = "sendOwnConversationMessageWithAttachments",
+			description = "Up to 5 files (part `files`) of at most 10 MB each and 30 MB together, with optional text "
+					+ "(part `body`, up to 2000 characters): JPEG, PNG and HEIC photos, PDF, DOCX, XLSX and TXT "
+					+ "documents. The type is recognized from the content, and the file name gets its extension. "
+					+ "Either the text or a file is required.")
+	@ApiResponse(responseCode = "201", description = "The sent message.")
+	@ApiResponse(responseCode = "400", description = "VALIDATION_FAILED: no text and no file, text too long, "
+			+ "too many files or an empty file.", content = @Content(mediaType = "application/problem+json",
+					schema = @Schema(implementation = ApiProblem.class)))
+	@ApiResponse(responseCode = "404", description = "No such conversation, or the user has never been in it.",
+			content = @Content(mediaType = "application/problem+json",
+					schema = @Schema(implementation = ApiProblem.class)))
+	@ApiResponse(responseCode = "413", description = "FILE_TOO_LARGE.", content = @Content(
+			mediaType = "application/problem+json", schema = @Schema(implementation = ApiProblem.class)))
+	@ApiResponse(responseCode = "422", description = "CONVERSATION_READ_ONLY, or FILE_TYPE_NOT_ALLOWED (with "
+			+ "`allowedTypes`).", content = @Content(mediaType = "application/problem+json",
+					schema = @Schema(implementation = ApiProblem.class)))
+	ResponseEntity<MessageResponse> sendWithAttachments(@PathVariable UUID conversationId,
+			@RequestParam(required = false) @Nullable String body,
+			@RequestPart(name = "files", required = false) @Nullable List<MultipartFile> files,
+			AccountAuthentication authentication) {
+		List<NewAttachment> attachments = (files == null) ? List.of()
+				: files.stream()
+					.map((file) -> new NewAttachment(file.getOriginalFilename(), file.getSize(), file))
+					.toList();
+		return sent(conversationId,
+				messaging.send(conversationId, authentication.requireActiveAccountId(), body, attachments));
+	}
+
+	@GetMapping("/{conversationId}/messages/{messageId}/attachments/{attachmentId}")
+	@Operation(summary = "Download an attachment", operationId = "getOwnConversationMessageAttachment",
+			description = "The content of a file attached to a message the user can see, with its media type. "
+					+ "Photos are served inline, other files as attachments with their file name. The content "
+					+ "never changes, so the app may keep it.")
+	@ApiResponse(responseCode = "200", description = "The file.", content = @Content(
+			mediaType = "application/octet-stream", schema = @Schema(type = "string", format = "binary")))
+	@ApiResponse(responseCode = "404", description = "No such conversation, message or attachment, the message "
+			+ "is deleted, or the user cannot see it.", content = @Content(mediaType = "application/problem+json",
+					schema = @Schema(implementation = ApiProblem.class)))
+	ResponseEntity<Resource> attachment(@PathVariable UUID conversationId, @PathVariable UUID messageId,
+			@PathVariable UUID attachmentId, AccountAuthentication authentication) {
+		StoredFiles.Content content = messaging.attachment(conversationId, messageId, attachmentId,
+				authentication.requireActiveAccountId());
+		StoredFile file = content.file();
+		ContentDisposition.Builder disposition = file.isImage() ? ContentDisposition.inline()
+				: ContentDisposition.attachment();
+		// A name with letters outside ASCII, e.g. "Plan na tydzień.docx", goes as UTF-8 (filename*).
+		if (StandardCharsets.US_ASCII.newEncoder().canEncode(file.name())) {
+			disposition.filename(file.name());
+		}
+		else {
+			disposition.filename(file.name(), StandardCharsets.UTF_8);
+		}
+		MediaType type = MediaType.parseMediaType(file.mimeType());
+		if ("text".equals(type.getType())) {
+			type = new MediaType(type, StandardCharsets.UTF_8);
+		}
+		return ResponseEntity.ok()
+			.contentType(type)
+			.contentLength(file.sizeBytes())
+			.header(HttpHeaders.CONTENT_DISPOSITION, disposition.build().toString())
+			.cacheControl(CacheControl.maxAge(Duration.ofDays(7)).cachePrivate())
+			.body(new InputStreamResource(content.stream()));
 	}
 
 	@DeleteMapping("/{conversationId}/messages/{messageId}")
@@ -264,6 +345,10 @@ class OwnConversationController {
 			AccountAuthentication authentication) {
 		messaging.deleteMessage(conversationId, messageId, authentication.requireActiveAccountId());
 		return ResponseEntity.noContent().build();
+	}
+
+	private static ResponseEntity<MessageResponse> sent(UUID conversationId, MessageResponse sent) {
+		return ResponseEntity.created(URI.create(BASE + conversationId + "/messages/" + sent.id())).body(sent);
 	}
 
 	private static ResponseEntity<ConversationResponse> started(Started started) {

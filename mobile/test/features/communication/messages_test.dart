@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,6 +10,8 @@ import 'package:mobile/core/auth/auth_controller.dart';
 import 'package:mobile/core/auth/auth_state.dart';
 import 'package:mobile/core/auth/session.dart';
 import 'package:mobile/core/network/api_exception.dart';
+import 'package:mobile/features/communication/data/attachment_files.dart';
+import 'package:mobile/features/communication/data/attachment_picker.dart';
 import 'package:mobile/features/communication/data/conversations_api.dart';
 import 'package:mobile/features/communication/data/notifications_api.dart';
 import 'package:mobile/features/communication/data/open_conversation.dart';
@@ -17,6 +21,7 @@ import 'package:mobile/features/communication/presentation/conversation_screen.d
 import 'package:mobile/features/communication/presentation/messages_screen.dart';
 import 'package:mobile/features/communication/presentation/new_group_chat_screen.dart';
 import 'package:mobile/features/communication/presentation/widgets/chat_avatar.dart';
+import 'package:mobile/features/communication/presentation/widgets/message_attachments.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
 
 const _trainer = Session(
@@ -95,15 +100,33 @@ class _FakeConversationsApi extends ConversationsApi {
     );
   }
 
+  final sentAttachments = <List<OutgoingAttachment>>[];
+
   @override
-  Future<ChatMessage> send(String conversationId, String body) async {
+  Future<ChatMessage> send(
+    String conversationId,
+    String body, {
+    List<OutgoingAttachment> attachments = const [],
+    void Function(double progress)? onProgress,
+  }) async {
     sent.add(body);
+    sentAttachments.add(attachments);
     final message = _message(
       'sent-${sent.length}',
-      body,
+      body.isEmpty ? null : body,
       sender: 'me',
       name: 'Ja',
       isMine: true,
+      attachments: [
+        for (final attachment in attachments)
+          ChatAttachment(
+            id: 'file-${attachment.name}',
+            fileName: attachment.name,
+            contentType: attachment.isImage ? 'image/jpeg' : 'application/pdf',
+            sizeBytes: attachment.sizeBytes,
+            isImage: attachment.isImage,
+          ),
+      ],
     );
     messages.putIfAbsent(conversationId, () => []).add(message);
     return message;
@@ -182,6 +205,41 @@ class _FakeConversationsApi extends ConversationsApi {
   }
 }
 
+class _FakeAttachmentFiles extends AttachmentFiles {
+  _FakeAttachmentFiles(super.api);
+
+  final opened = <String>[];
+  final saved = <String>[];
+  OpenOutcome outcome = OpenOutcome.opened;
+
+  @override
+  Future<File> file(
+    String conversationId,
+    String messageId,
+    ChatAttachment attachment, {
+    void Function(double progress)? onProgress,
+  }) async => File('/cache/${attachment.id}/${attachment.fileName}');
+
+  @override
+  Future<OpenOutcome> open(File file, String contentType) async {
+    opened.add(file.path);
+    return outcome;
+  }
+
+  @override
+  Future<bool> save(File file, ChatAttachment attachment) async {
+    saved.add(attachment.fileName);
+    return true;
+  }
+}
+
+class _FakeAttachmentPicker extends AttachmentPicker {
+  List<OutgoingAttachment> documents = [];
+
+  @override
+  Future<List<OutgoingAttachment>> pickDocuments() async => documents;
+}
+
 class _SignedIn extends AuthController {
   _SignedIn(this.session);
 
@@ -193,11 +251,12 @@ class _SignedIn extends AuthController {
 
 ChatMessage _message(
   String id,
-  String body, {
+  String? body, {
   required String sender,
   required String name,
   bool isMine = false,
   DateTime? at,
+  List<ChatAttachment> attachments = const [],
 }) => ChatMessage(
   id: id,
   senderAccountId: sender,
@@ -207,6 +266,32 @@ ChatMessage _message(
   isDeleted: false,
   createdAt: at ?? DateTime(2026, 11, 5, 10, 30),
   canDelete: isMine,
+  attachments: attachments,
+);
+
+const _photo = ChatAttachment(
+  id: 'photo-1',
+  fileName: 'IMG_0042.jpg',
+  contentType: 'image/jpeg',
+  sizeBytes: 640 * 1024,
+  isImage: true,
+  width: 1920,
+  height: 2560,
+);
+
+const _plan = ChatAttachment(
+  id: 'pdf-1',
+  fileName: 'Plan treningowy.pdf',
+  contentType: 'application/pdf',
+  sizeBytes: 1468006,
+  isImage: false,
+);
+
+OutgoingAttachment _picked(String name, int sizeBytes) => OutgoingAttachment(
+  path: '/picked/$name',
+  name: name,
+  sizeBytes: sizeBytes,
+  isImage: false,
 );
 
 Conversation _direct(String id, String name) => Conversation(
@@ -254,6 +339,7 @@ ConversationSummary _summary(
   String title,
   ConversationKind kind, {
   int unread = 0,
+  MessagePreview? last,
 }) => ConversationSummary(
   id: id,
   kind: kind,
@@ -264,21 +350,29 @@ ConversationSummary _summary(
   eventStartsAt: null,
   hasLeft: false,
   isClosed: false,
-  lastMessage: MessagePreview(
-    senderName: null,
-    isMine: true,
-    body: 'Cześć',
-    isDeleted: false,
-    createdAt: DateTime.now(),
-  ),
+  lastMessage:
+      last ??
+      MessagePreview(
+        senderName: null,
+        isMine: true,
+        body: 'Cześć',
+        isDeleted: false,
+        createdAt: DateTime.now(),
+      ),
   unreadCount: unread,
 );
 
 void main() {
   late _FakeConversationsApi api;
+  late _FakeAttachmentFiles files;
+  late _FakeAttachmentPicker picker;
   var notificationCountLoads = 0;
 
-  setUp(() => api = _FakeConversationsApi());
+  setUp(() {
+    api = _FakeConversationsApi();
+    files = _FakeAttachmentFiles(api);
+    picker = _FakeAttachmentPicker();
+  });
 
   Future<void> pump(
     WidgetTester tester, {
@@ -320,6 +414,8 @@ void main() {
         overrides: [
           authControllerProvider.overrideWith(() => _SignedIn(session)),
           conversationsApiProvider.overrideWithValue(api),
+          attachmentFilesProvider.overrideWithValue(files),
+          attachmentPickerProvider.overrideWithValue(picker),
           unreadCountProvider.overrideWith((ref, scope) async {
             notificationCountLoads++;
             return UnreadNotifications.none;
@@ -337,6 +433,47 @@ void main() {
   }
 
   group('conversation list', () {
+    testWidgets('a message without text says what is attached', (tester) async {
+      api.summaries = [
+        _summary(
+          '1',
+          'Marta Zielińska',
+          ConversationKind.direct,
+          last: MessagePreview(
+            senderName: 'Marta Zielińska',
+            isMine: false,
+            body: null,
+            isDeleted: false,
+            createdAt: DateTime.now(),
+            attachmentCount: 3,
+            imageCount: 3,
+          ),
+        ),
+        _summary(
+          '2',
+          'Pole dance wt/czw',
+          ConversationKind.group,
+          last: MessagePreview(
+            senderName: null,
+            isMine: true,
+            body: null,
+            isDeleted: false,
+            createdAt: DateTime.now(),
+            attachmentCount: 2,
+            imageCount: 1,
+          ),
+        ),
+      ];
+      await pump(
+        tester,
+        session: _trainer,
+        initialLocation: '/trainer/messages',
+      );
+
+      expect(find.text('3 zdjęcia'), findsOneWidget);
+      expect(find.text('Ty: 2 załączniki'), findsOneWidget);
+    });
+
     testWidgets('filters private and group chats', (tester) async {
       api.summaries = [
         _summary('1', 'Marta Zielińska', ConversationKind.direct, unread: 2),
@@ -734,6 +871,197 @@ void main() {
 
       expect(api.sent, ['Do zobaczenia']);
       expect(find.text('Do zobaczenia'), findsOneWidget);
+    });
+
+    testWidgets('sends a document picked from the phone without text', (
+      tester,
+    ) async {
+      api.conversations['d'] = _direct('d', 'Ewa Lis');
+      picker.documents = [_picked('wyniki.pdf', 120 * 1024)];
+      await pump(
+        tester,
+        session: _client,
+        initialLocation: '/client/messages/chat/d',
+      );
+
+      await tester.tap(find.byTooltip('Dodaj załącznik'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Dokument'));
+      await tester.pumpAndSettle();
+      // Waiting above the text field until it is sent, and can be taken out.
+      expect(find.byTooltip('Usuń załącznik'), findsOneWidget);
+      await tester.tap(find.byTooltip('Wyślij'));
+      await tester.pumpAndSettle();
+
+      expect(api.sent, ['']);
+      expect(api.sentAttachments.single.map((file) => file.name), [
+        'wyniki.pdf',
+      ]);
+      expect(find.byTooltip('Usuń załącznik'), findsNothing);
+      expect(find.text('wyniki.pdf'), findsOneWidget);
+      expect(find.text('PDF · 120 KB'), findsOneWidget);
+    });
+
+    testWidgets('leaves out files the backend would not accept', (
+      tester,
+    ) async {
+      api.conversations['d'] = _direct('d', 'Ewa Lis');
+      picker.documents = [
+        _picked('skan.pdf', 11 * 1024 * 1024),
+        _picked('plan.docx', 200 * 1024),
+        _picked('lista.csv', 1024),
+      ];
+      await pump(
+        tester,
+        session: _client,
+        initialLocation: '/client/messages/chat/d',
+      );
+
+      await tester.tap(find.byTooltip('Dodaj załącznik'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Dokument'));
+      await tester.pumpAndSettle();
+
+      expect(find.byTooltip('Usuń załącznik'), findsOneWidget);
+      expect(find.text('plan.docx'), findsOneWidget);
+      expect(
+        find.textContaining('Tego pliku nie można wysłać'),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.byTooltip('Usuń załącznik'));
+      await tester.pumpAndSettle();
+      expect(find.byTooltip('Usuń załącznik'), findsNothing);
+    });
+
+    testWidgets('shows photos and opens documents in another app', (
+      tester,
+    ) async {
+      api.conversations['d'] = _direct('d', 'Ewa Lis');
+      api.messages['d'] = [
+        _message(
+          '1',
+          'Plan na ten tydzień',
+          sender: 'x',
+          name: 'Ewa Lis',
+          attachments: const [_photo, _plan],
+        ),
+      ];
+      await pump(
+        tester,
+        session: _client,
+        initialLocation: '/client/messages/chat/d',
+      );
+
+      expect(find.byType(PhotoThumbnail), findsOneWidget);
+      expect(find.text('Plan treningowy.pdf'), findsOneWidget);
+      expect(find.text('PDF · 1,4 MB'), findsOneWidget);
+      expect(find.text('Plan na ten tydzień'), findsOneWidget);
+
+      await tester.tap(find.text('Plan treningowy.pdf'));
+      await tester.pumpAndSettle();
+      expect(files.opened, ['/cache/pdf-1/Plan treningowy.pdf']);
+
+      // Without an app for the file, it can be saved on the phone instead.
+      files.outcome = OpenOutcome.noApp;
+      await tester.tap(find.text('Plan treningowy.pdf'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('Brak aplikacji'), findsOneWidget);
+      await tester.tap(
+        find.widgetWithText(SnackBarAction, 'Zapisz w telefonie'),
+      );
+      await tester.pumpAndSettle();
+      expect(files.saved, ['Plan treningowy.pdf']);
+    });
+
+    testWidgets('a photo opens full screen, zoomable and saveable', (
+      tester,
+    ) async {
+      api.conversations['d'] = _direct('d', 'Ewa Lis');
+      api.messages['d'] = [
+        _message(
+          '1',
+          null,
+          sender: 'x',
+          name: 'Ewa Lis',
+          attachments: const [_photo],
+        ),
+      ];
+      await pump(
+        tester,
+        session: _client,
+        initialLocation: '/client/messages/chat/d',
+      );
+
+      await tester.tap(find.byType(PhotoThumbnail));
+      await tester.pumpAndSettle();
+      expect(find.byType(PhotoViewerScreen), findsOneWidget);
+      expect(find.byType(InteractiveViewer), findsOneWidget);
+      expect(find.text('Zdjęcie'), findsOneWidget);
+
+      await tester.tap(find.byTooltip('Zapisz w telefonie'));
+      await tester.pumpAndSettle();
+      expect(files.saved, ['IMG_0042.jpg']);
+      await tester.tap(find.byTooltip('Otwórz w innej aplikacji'));
+      await tester.pumpAndSettle();
+      expect(files.opened, ['/cache/photo-1/IMG_0042.jpg']);
+    });
+
+    testWidgets('a new photo below keeps every photo in its own message', (
+      tester,
+    ) async {
+      api.conversations['d'] = _direct('d', 'Ewa Lis');
+      api.messages['d'] = [
+        _message(
+          '1',
+          null,
+          sender: 'x',
+          name: 'Ewa Lis',
+          attachments: const [_photo],
+        ),
+      ];
+      await pump(
+        tester,
+        session: _client,
+        initialLocation: '/client/messages/chat/d',
+      );
+
+      api.messages['d']!.add(
+        _message(
+          '2',
+          null,
+          sender: 'x',
+          name: 'Ewa Lis',
+          attachments: const [
+            ChatAttachment(
+              id: 'photo-2',
+              fileName: 'IMG_0043.jpg',
+              contentType: 'image/jpeg',
+              sizeBytes: 1024,
+              isImage: true,
+            ),
+          ],
+        ),
+      );
+      await tester.pump(messagesPollInterval);
+      await tester.pumpAndSettle();
+
+      final shown = [
+        for (final image in tester.widgetList<Image>(
+          find.descendant(
+            of: find.byType(PhotoThumbnail),
+            matching: find.byType(Image),
+          ),
+        ))
+          ((image.image as ResizeImage).imageProvider as FileImage).file.path,
+      ];
+      expect(
+        shown,
+        unorderedEquals([
+          '/cache/photo-1/IMG_0042.jpg',
+          '/cache/photo-2/IMG_0043.jpg',
+        ]),
+      );
     });
 
     testWidgets('a client who left reads the history and can remove the chat', (
