@@ -78,6 +78,7 @@ A status change without an author that only the owner can make (accepting the in
 - **Client part.** Reservations that were not cancelled, of the account's own profile and of the children it is a current guardian of (`Zosia: Pole dance`), from `Participations.findForCalendar`. A reservation the studio cancelled together with its event stays as `STATUS:CANCELLED`, so calendars show or remove it; one the participant cancelled disappears.
 - **Trainer part.** Events the account's staff profile runs or assists, including cancelled ones (`STATUS:CANCELLED`), from `CalendarEvents.findAssignedTo`. Blocks are left out.
 - **Contents.** The title, the rooms as `LOCATION` and the leads as `DESCRIPTION`. Participants' and guests' names are left out, because the feed leaves the studio's systems. `UID` stays the same for an event (and participant) in every download and `SEQUENCE` is the event's version, so calendars update events in place.
+- **Entries for the app.** `GET /api/v1/me/calendar-events` (with the same optional `role`) returns the same entries as JSON (`uid`, `startsAt`, `endsAt`, `title`, `location`, `description`, `cancelled`, `sequence`) for the signed-in account, without a link. The app writes them to a calendar on the phone when the user syncs right away.
 
 ## Tests
 

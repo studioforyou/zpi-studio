@@ -44,6 +44,8 @@ class CalendarFeedTests {
 
 	private static final String ME = "/api/v1/me/calendar-feed";
 
+	private static final String EVENTS = "/api/v1/me/calendar-events";
+
 	@Autowired
 	private MockMvc mvc;
 
@@ -217,6 +219,32 @@ class CalendarFeedTests {
 			.andExpect(status().isOk())
 			.andExpect(content().contentTypeCompatibleWith("text/calendar"))
 			.andExpect(header().string("Cache-Control", org.hamcrest.Matchers.containsString("no-cache")));
+	}
+
+	@Test
+	void theAppGetsTheSameEntriesAsJsonWithoutALink() throws Exception {
+		UUID own = addEvent("CLASS", null, start, "SCHEDULED");
+		UUID cancelledByStudio = addEvent("CLASS", null, start.plus(Duration.ofDays(2)), "CANCELLED");
+		UUID childClass = addEvent("CLASS", "Kids acrobatics", start.plus(Duration.ofDays(1)), "SCHEDULED");
+		addReservation(own, parentProfile, "ACTIVE", null);
+		addReservation(childClass, child, "ACTIVE", null);
+		addReservation(cancelledByStudio, parentProfile, "CANCELLED", "STUDIO");
+		addRoom(own, "Pole room");
+
+		mvc.perform(get(EVENTS).header("Authorization", "Bearer parent"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.items.length()").value(3))
+			.andExpect(jsonPath("$.items[0].uid").value(own + "-" + parentProfile + "@studioforyou.pl"))
+			.andExpect(jsonPath("$.items[0].title").value("Pole dance, beginners"))
+			.andExpect(jsonPath("$.items[0].location").value("Pole room"))
+			.andExpect(jsonPath("$.items[0].startsAt").value(start.toString()))
+			.andExpect(jsonPath("$.items[0].cancelled").value(false))
+			.andExpect(jsonPath("$.items[1].title").value("Zosia: Kids acrobatics"))
+			.andExpect(jsonPath("$.items[2].cancelled").value(true));
+		mvc.perform(get(EVENTS).param("role", "TRAINER").header("Authorization", "Bearer parent"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.items.length()").value(0));
+		mvc.perform(get(EVENTS)).andExpect(status().isUnauthorized());
 	}
 
 	private String create(String account) throws Exception {

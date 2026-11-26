@@ -111,6 +111,16 @@ class CalendarFeedService {
 		UUID accountId = this.store.findAccountByActiveTokenHash(CalendarFeedTokens.hash(token))
 			.filter((id) -> !this.accountRoles.findActive(Set.of(id)).isEmpty())
 			.orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "Calendar feed not found."));
+		return ICalendarWriter.write(calendarName(role), entries(accountId, role, now), now);
+	}
+
+	/**
+	 * The account's schedule as calendar entries, the same as in its feed: the parts that the role
+	 * selects, or every part for its roles when {@code role} is {@code null}. The app writes them to
+	 * the phone's calendar when the user syncs it right away.
+	 */
+	@Transactional(readOnly = true)
+	List<Entry> entries(UUID accountId, @Nullable CalendarFeedRole role, Instant now) {
 		Set<String> held = this.accountRoles.rolesOf(Set.of(accountId)).getOrDefault(accountId, Set.of());
 		Set<CalendarFeedRole> parts = EnumSet.noneOf(CalendarFeedRole.class);
 		for (CalendarFeedRole part : (role == null) ? EnumSet.allOf(CalendarFeedRole.class) : EnumSet.of(role)) {
@@ -129,7 +139,7 @@ class CalendarFeedService {
 			entries.addAll(trainerEntries(accountId, endingAfter, labelRoles));
 		}
 		entries.sort(Comparator.comparing(Entry::startsAt).thenComparing(Entry::uid));
-		return ICalendarWriter.write(calendarName(role), entries, now);
+		return entries;
 	}
 
 	private List<Entry> clientEntries(UUID accountId, Instant endingAfter, boolean labelRole) {

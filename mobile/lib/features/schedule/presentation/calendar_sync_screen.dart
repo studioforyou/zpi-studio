@@ -7,6 +7,8 @@ import 'package:mobile/core/auth/auth_controller.dart';
 import 'package:mobile/core/auth/auth_state.dart';
 import 'package:mobile/core/auth/session.dart';
 import 'package:mobile/features/schedule/data/calendar_feed_api.dart';
+import 'package:mobile/features/schedule/data/calendar_sync_now.dart';
+import 'package:mobile/features/schedule/data/phone_calendar.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -18,8 +20,10 @@ final externalLauncherProvider = Provider<ExternalLauncher>(
       (uri) => launchUrl(uri, mode: LaunchMode.externalApplication),
 );
 
-/// The account's subscription of an external calendar (Google Calendar, Apple
-/// Calendar) to its schedule, opened from "Mój grafik".
+/// Syncing the account's schedule with an external calendar (Google Calendar,
+/// Apple Calendar), opened from "Mój grafik": right away, by writing it to a
+/// calendar on the phone, and automatically, by subscribing the calendar to
+/// the account's private feed link.
 class CalendarSyncScreen extends ConsumerWidget {
   const CalendarSyncScreen({super.key});
 
@@ -76,37 +80,40 @@ class _CalendarSyncState extends ConsumerState<_CalendarSync> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final provider = calendarFeedProvider(widget.session.accountId);
-    return ref
-        .watch(provider)
-        .when(
-          skipLoadingOnRefresh: false,
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (_, _) => Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
+    final titleStyle = Theme.of(context).textTheme.titleMedium;
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        _SyncNow(session: widget.session),
+        const Divider(height: 48),
+        Text(l10n.calendarSyncLinkSection, style: titleStyle),
+        const SizedBox(height: 8),
+        Text(l10n.calendarSyncIntro),
+        const SizedBox(height: 8),
+        Text(
+          l10n.calendarSyncRefreshNote,
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+        const SizedBox(height: 24),
+        ...ref
+            .watch(provider)
+            .when(
+              skipLoadingOnRefresh: false,
+              loading: () => const [Center(child: CircularProgressIndicator())],
+              error: (_, _) => [
                 Text(l10n.calendarSyncLoadError),
-                TextButton(
-                  onPressed: () => ref.invalidate(provider),
-                  child: Text(l10n.passesRetryButton),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton(
+                    onPressed: () => ref.invalidate(provider),
+                    child: Text(l10n.passesRetryButton),
+                  ),
                 ),
               ],
+              data: (state) => _actions(l10n, state),
             ),
-          ),
-          data: (state) => ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              Text(l10n.calendarSyncIntro),
-              const SizedBox(height: 8),
-              Text(
-                l10n.calendarSyncRefreshNote,
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-              const SizedBox(height: 24),
-              ..._actions(l10n, state),
-            ],
-          ),
-        );
+      ],
+    );
   }
 
   List<Widget> _actions(AppLocalizations l10n, CalendarFeedState state) {
@@ -182,54 +189,8 @@ class _CalendarSyncState extends ConsumerState<_CalendarSync> {
     ];
   }
 
-  /// An account that is both a client and a trainer chooses what to add.
-  Future<CalendarFeedScope?> _chooseScope() async {
-    final roles = widget.session.roles;
-    if (!(roles.contains(AppRole.client) && roles.contains(AppRole.trainer))) {
-      return CalendarFeedScope.all;
-    }
-    final l10n = AppLocalizations.of(context);
-    return showModalBottomSheet<CalendarFeedScope>(
-      context: context,
-      showDragHandle: true,
-      builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              title: Text(
-                l10n.calendarSyncScopeTitle,
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-            ),
-            for (final (scope, title, hint) in [
-              (
-                CalendarFeedScope.all,
-                l10n.calendarSyncScopeAll,
-                l10n.calendarSyncScopeAllHint,
-              ),
-              (
-                CalendarFeedScope.client,
-                l10n.calendarSyncScopeClient,
-                l10n.calendarSyncScopeClientHint,
-              ),
-              (
-                CalendarFeedScope.trainer,
-                l10n.calendarSyncScopeTrainer,
-                l10n.calendarSyncScopeTrainerHint,
-              ),
-            ])
-              ListTile(
-                key: Key('calendarSyncScope.${scope.name}'),
-                title: Text(title),
-                subtitle: Text(hint),
-                onTap: () => Navigator.of(context).pop(scope),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
+  Future<CalendarFeedScope?> _chooseScope() =>
+      chooseCalendarScope(context, widget.session);
 
   Future<void> _open(
     CalendarFeedLink link,
@@ -277,28 +238,8 @@ class _CalendarSyncState extends ConsumerState<_CalendarSync> {
     if (confirmed) await _run(_controller.turnOff);
   }
 
-  Future<bool> _confirm(String title, String body, String action) async {
-    final l10n = AppLocalizations.of(context);
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(title),
-        content: Text(body),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: Text(l10n.calendarSyncCancel),
-          ),
-          TextButton(
-            key: const Key('calendarSyncConfirm'),
-            onPressed: () => Navigator.of(context).pop(true),
-            child: Text(action),
-          ),
-        ],
-      ),
-    );
-    return result ?? false;
-  }
+  Future<bool> _confirm(String title, String body, String action) =>
+      _confirmDialog(context, title, body, action);
 
   Future<void> _run(Future<void> Function() action) async {
     final messenger = ScaffoldMessenger.of(context);
@@ -308,6 +249,315 @@ class _CalendarSyncState extends ConsumerState<_CalendarSync> {
       await action();
     } catch (_) {
       messenger.showSnackBar(SnackBar(content: Text(failed)));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+}
+
+/// An account that is both a client and a trainer chooses what to add to a
+/// calendar; any other account adds its whole schedule. `null` when the user
+/// closes the sheet.
+Future<CalendarFeedScope?> chooseCalendarScope(
+  BuildContext context,
+  Session session,
+) async {
+  final roles = session.roles;
+  if (!(roles.contains(AppRole.client) && roles.contains(AppRole.trainer))) {
+    return CalendarFeedScope.all;
+  }
+  final l10n = AppLocalizations.of(context);
+  return showModalBottomSheet<CalendarFeedScope>(
+    context: context,
+    showDragHandle: true,
+    builder: (context) => SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ListTile(
+            title: Text(
+              l10n.calendarSyncScopeTitle,
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+          ),
+          for (final (scope, title, hint) in [
+            (
+              CalendarFeedScope.all,
+              l10n.calendarSyncScopeAll,
+              l10n.calendarSyncScopeAllHint,
+            ),
+            (
+              CalendarFeedScope.client,
+              l10n.calendarSyncScopeClient,
+              l10n.calendarSyncScopeClientHint,
+            ),
+            (
+              CalendarFeedScope.trainer,
+              l10n.calendarSyncScopeTrainer,
+              l10n.calendarSyncScopeTrainerHint,
+            ),
+          ])
+            ListTile(
+              key: Key('calendarSyncScope.${scope.name}'),
+              title: Text(title),
+              subtitle: Text(hint),
+              onTap: () => Navigator.of(context).pop(scope),
+            ),
+        ],
+      ),
+    ),
+  );
+}
+
+Future<bool> _confirmDialog(
+  BuildContext context,
+  String title,
+  String body,
+  String action,
+) async {
+  final l10n = AppLocalizations.of(context);
+  final result = await showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: Text(title),
+      content: Text(body),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: Text(l10n.calendarSyncCancel),
+        ),
+        TextButton(
+          key: const Key('calendarSyncConfirm'),
+          onPressed: () => Navigator.of(context).pop(true),
+          child: Text(action),
+        ),
+      ],
+    ),
+  );
+  return result ?? false;
+}
+
+/// "Synchronizuj teraz": writes the schedule to a calendar on the phone at
+/// once. The first sync asks what to add (an account with both roles) and
+/// which calendar to use; later ones reuse both.
+class _SyncNow extends ConsumerStatefulWidget {
+  const _SyncNow({required this.session});
+
+  final Session session;
+
+  @override
+  ConsumerState<_SyncNow> createState() => _SyncNowState();
+}
+
+class _SyncNowState extends ConsumerState<_SyncNow> {
+  /// Buttons are off while a sync or a removal is under way.
+  bool _busy = false;
+
+  /// Events are being written; not while the user picks in a sheet.
+  bool _writing = false;
+
+  CalendarSyncNowController get _controller =>
+      ref.read(calendarSyncNowProvider(widget.session.accountId).notifier);
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final record = ref
+        .watch(calendarSyncNowProvider(widget.session.accountId))
+        .value;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          l10n.calendarSyncNowSection,
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
+        const SizedBox(height: 8),
+        Text(l10n.calendarSyncNowIntro),
+        if (record != null) ...[
+          const SizedBox(height: 8),
+          Text(
+            l10n.calendarSyncNowLast(
+              record.calendarName,
+              DateFormat(
+                'dd.MM.yyyy, HH:mm',
+                'pl',
+              ).format(record.syncedAt.toLocal()),
+            ),
+            key: const Key('calendarSyncNowLast'),
+            style: Theme.of(context).textTheme.labelMedium,
+          ),
+        ],
+        const SizedBox(height: 12),
+        FilledButton.icon(
+          key: const Key('calendarSyncNow'),
+          onPressed: _busy ? null : () => _sync(choose: record == null),
+          icon: _writing
+              ? const SizedBox.square(
+                  dimension: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.sync),
+          label: Text(l10n.calendarSyncNow),
+        ),
+        if (record != null)
+          Wrap(
+            spacing: 8,
+            children: [
+              TextButton(
+                key: const Key('calendarSyncNowChange'),
+                onPressed: _busy ? null : () => _sync(choose: true),
+                child: Text(l10n.calendarSyncNowChange),
+              ),
+              TextButton(
+                key: const Key('calendarSyncNowRemove'),
+                onPressed: _busy ? null : () => _remove(record),
+                child: Text(l10n.calendarSyncNowRemove),
+              ),
+            ],
+          ),
+      ],
+    );
+  }
+
+  /// Syncs; with [choose], first asks what to add and to which calendar.
+  Future<void> _sync({required bool choose}) async {
+    final l10n = AppLocalizations.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    final phone = ref.read(phoneCalendarProvider);
+    setState(() => _busy = true);
+    try {
+      if (!await phone.requestAccess()) {
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(l10n.calendarSyncNowNoAccess),
+            action: SnackBarAction(
+              label: l10n.calendarSyncNowOpenSettings,
+              onPressed: phone.openSettings,
+            ),
+          ),
+        );
+        return;
+      }
+      final calendars = await phone.writableCalendars();
+      final record = await ref.read(
+        calendarSyncNowProvider(widget.session.accountId).future,
+      );
+      // A calendar removed from the phone since the last sync is chosen again.
+      final keepsCalendar =
+          !choose && calendars.any((c) => c.id == record?.calendarId);
+      CalendarFeedScope? scope;
+      PhoneCalendarInfo? calendar;
+      if (!keepsCalendar) {
+        if (calendars.isEmpty) {
+          messenger.showSnackBar(
+            SnackBar(content: Text(l10n.calendarSyncNowNoCalendars)),
+          );
+          return;
+        }
+        if (!mounted) return;
+        scope = await chooseCalendarScope(context, widget.session);
+        if (scope == null || !mounted) return;
+        calendar = await _chooseCalendar(calendars);
+        if (calendar == null) return;
+      }
+      if (mounted) setState(() => _writing = true);
+      final result = await _controller.sync(
+        cancelledPrefix: l10n.calendarSyncNowCancelledPrefix,
+        calendar: calendar,
+        scope: scope,
+      );
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            result.unchanged
+                ? l10n.calendarSyncNowUpToDate
+                : l10n.calendarSyncNowDone(
+                    result.added,
+                    result.updated,
+                    result.removed,
+                  ),
+          ),
+        ),
+      );
+    } catch (_) {
+      messenger.showSnackBar(SnackBar(content: Text(l10n.calendarSyncError)));
+    } finally {
+      if (mounted) {
+        setState(() {
+          _busy = false;
+          _writing = false;
+        });
+      }
+    }
+  }
+
+  Future<PhoneCalendarInfo?> _chooseCalendar(
+    List<PhoneCalendarInfo> calendars,
+  ) {
+    final l10n = AppLocalizations.of(context);
+    return showModalBottomSheet<PhoneCalendarInfo>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (context) => SafeArea(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.sizeOf(context).height * 0.7,
+          ),
+          child: ListView(
+            shrinkWrap: true,
+            children: [
+              ListTile(
+                title: Text(
+                  l10n.calendarSyncNowPickTitle,
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                subtitle: Text(l10n.calendarSyncNowPickHint),
+              ),
+              for (final calendar in calendars)
+                ListTile(
+                  key: Key('calendarSyncNowCalendar.${calendar.id}'),
+                  leading: const Icon(Icons.calendar_today),
+                  title: Text(calendar.name),
+                  subtitle:
+                      calendar.accountName == null ||
+                          calendar.accountName == calendar.name
+                      ? null
+                      : Text(calendar.accountName!),
+                  onTap: () => Navigator.of(context).pop(calendar),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _remove(CalendarSyncRecord record) async {
+    final l10n = AppLocalizations.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    final confirmed = await _confirmDialog(
+      context,
+      l10n.calendarSyncNowRemoveTitle,
+      l10n.calendarSyncNowRemoveBody(record.calendarName),
+      l10n.calendarSyncNowRemoveConfirm,
+    );
+    if (!confirmed || !mounted) return;
+    setState(() => _busy = true);
+    try {
+      if (!await ref.read(phoneCalendarProvider).requestAccess()) {
+        messenger.showSnackBar(
+          SnackBar(content: Text(l10n.calendarSyncNowNoAccess)),
+        );
+        return;
+      }
+      final removed = await _controller.removeAll();
+      messenger.showSnackBar(
+        SnackBar(content: Text(l10n.calendarSyncNowRemoved(removed))),
+      );
+    } catch (_) {
+      messenger.showSnackBar(SnackBar(content: Text(l10n.calendarSyncError)));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
