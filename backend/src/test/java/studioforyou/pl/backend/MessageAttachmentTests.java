@@ -20,11 +20,13 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.MessageDigest;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.UUID;
 import java.util.function.BooleanSupplier;
@@ -323,6 +325,33 @@ class MessageAttachmentTests {
 		send(CLIENT, id, null, file("IMG_0001.HEIC", TestFiles.heic())).andExpect(status().isCreated())
 			.andExpect(jsonPath("$.attachments[0].contentType").value("image/heic"))
 			.andExpect(jsonPath("$.attachments[0].isImage").value(true));
+	}
+
+	@Test
+	void aPhotoIsStoredWithoutWhereItWasTaken() throws Exception {
+		String id = direct();
+		byte[] photo = TestFiles.jpegWithLocation();
+
+		String message = idOf(send(CLIENT, id, null, file("IMG_0050.jpg", photo)).andExpect(status().isCreated())
+			.andExpect(jsonPath("$.attachments[0].sizeBytes").value(photo.length))
+			// The orientation stays: the photo is still shown upright, as 100 x 200.
+			.andExpect(jsonPath("$.attachments[0].width").value(100))
+			.andExpect(jsonPath("$.attachments[0].height").value(200)));
+		String file = attachmentId(TRAINER, id, 0);
+
+		byte[] stored = perform(TRAINER, get(attachment(id, message, file))).andExpect(status().isOk())
+			.andReturn()
+			.getResponse()
+			.getContentAsByteArray();
+		assertThat(stored).hasSize(photo.length).isNotEqualTo(photo);
+		assertThat(new String(stored, StandardCharsets.ISO_8859_1))
+			.doesNotContain(new String(TestFiles.latitude(false), StandardCharsets.ISO_8859_1))
+			.doesNotContain(TestFiles.XMP_LOCATION);
+		// The checksum is of the stored copy.
+		assertThat(jdbc.sql("SELECT sha256 FROM stored_file WHERE id = :id")
+			.param("id", UUID.fromString(file))
+			.query(String.class)
+			.single()).isEqualTo(HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(stored)));
 	}
 
 	@Test

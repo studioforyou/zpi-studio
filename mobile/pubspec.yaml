@@ -48,6 +48,7 @@ dependencies:
   file_picker: ^13.4.1
   open_filex: ^5.0.0
   path_provider: ^2.1.6
+  gal: ^3.0.1
 
 dev_dependencies:
   flutter_test:

@@ -15,6 +15,8 @@ import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.springframework.core.io.ByteArrayResource;
+import org.springframework.core.io.InputStreamSource;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -54,9 +56,22 @@ public class JdbcStoredFiles implements StoredFiles {
 			throw new ApiException(ErrorCode.FILE_TOO_LARGE,
 					"A file can have at most " + (maxSize / (1024 * 1024)) + " MB.");
 		}
+		InputStreamSource content = upload.content();
 		Inspection inspection;
 		try {
-			inspection = FileInspector.inspect(upload.content(), upload.originalName());
+			inspection = FileInspector.inspect(content, upload.originalName());
+			FileType type = inspection.type();
+			if (type != null && type.isImage() && allowed.contains(type)) {
+				// Where the photo was taken is not passed on: the stored copy has no location.
+				byte[] bytes;
+				try (InputStream in = content.getInputStream()) {
+					bytes = in.readAllBytes();
+				}
+				if (LocationRemover.strip(bytes, type)) {
+					content = new ByteArrayResource(bytes);
+					inspection = FileInspector.inspect(content, upload.originalName());
+				}
+			}
 		}
 		catch (IOException ex) {
 			throw new UncheckedIOException("Could not read the uploaded file", ex);
@@ -70,7 +85,7 @@ public class JdbcStoredFiles implements StoredFiles {
 		String bucket = storage.bucket();
 		String key = upload.keyPrefix() + "/" + id;
 		try {
-			storage.put(key, upload.content(), type.mimeType());
+			storage.put(key, content, type.mimeType());
 		}
 		catch (IOException ex) {
 			throw new UncheckedIOException("Could not save the uploaded file", ex);

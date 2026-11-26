@@ -68,6 +68,8 @@
 	</array>
 	<key>NSCameraUsageDescription</key>
 	<string>Aparat jest potrzebny, aby zrobić zdjęcie i wysłać je w wiadomości.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Dostęp jest potrzebny, aby zapisać zdjęcie z wiadomości w Twojej galerii.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Dostęp do zdjęć jest potrzebny, aby wybrać zdjęcie i wysłać je w wiadomości.</string>
 	<key>CFBundleURLTypes</key>

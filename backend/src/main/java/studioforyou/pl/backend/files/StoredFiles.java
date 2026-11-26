@@ -21,7 +21,9 @@ public interface StoredFiles {
 
 	/**
 	 * Saves an uploaded file. Its type is recognized from the content (see {@link FileType}), and
-	 * its name gets that type's extension.
+	 * its name gets that type's extension. A photo is stored without where it was taken: its EXIF
+	 * GPS block and XMP GPS values are removed, the rest of its metadata (e.g. the orientation)
+	 * and its pixels stay as they are.
 	 *
 	 * @param allowed the types the caller accepts
 	 * @param maxSize the largest accepted size, in bytes

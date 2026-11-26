@@ -3,7 +3,10 @@ package studioforyou.pl.backend;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
+import java.util.zip.CRC32;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -32,6 +35,106 @@ public final class TestFiles {
 		write(out, 0x01, 0x22, 0x00, 0x02, 0x11, 0x01, 0x03, 0x11, 0x01);
 		write(out, 0xFF, 0xD9);
 		return out.toByteArray();
+	}
+
+	/** The XMP GPS values of {@link #jpegWithLocation()}. */
+	public static final String[] XMP_LOCATION = { "51,6.5N", "17,2E", "120/1" };
+
+	/**
+	 * A TIFF (EXIF) structure with orientation 6 and a GPS block holding the latitude
+	 * {@link #latitude(boolean) 51°6'30"} N.
+	 */
+	public static byte[] exifWithLocation(boolean littleEndian) {
+		ByteBuffer tiff = ByteBuffer.allocate(92).order(littleEndian ? ByteOrder.LITTLE_ENDIAN : ByteOrder.BIG_ENDIAN);
+		tiff.put(littleEndian ? new byte[] { 'I', 'I' } : new byte[] { 'M', 'M' }).putShort((short) 42).putInt(8);
+		// IFD0 at 8: Orientation (SHORT) and the GPS pointer (LONG) to 38.
+		tiff.putShort((short) 2);
+		tiff.putShort((short) 0x0112).putShort((short) 3).putInt(1).putShort((short) 6).putShort((short) 0);
+		tiff.putShort((short) 0x8825).putShort((short) 4).putInt(1).putInt(38);
+		tiff.putInt(0);
+		// GPS IFD at 38: GPSLatitudeRef "N" (ASCII, in the entry) and GPSLatitude (3 RATIONAL at 68).
+		tiff.putShort((short) 2);
+		tiff.putShort((short) 1).putShort((short) 2).putInt(2).put((byte) 'N').put((byte) 0).putShort((short) 0);
+		tiff.putShort((short) 2).putShort((short) 5).putInt(3).putInt(68);
+		tiff.putInt(0);
+		tiff.put(latitude(littleEndian));
+		return tiff.array();
+	}
+
+	/** The latitude 51/1, 6/1, 30/1 as {@link #exifWithLocation(boolean)} stores it. */
+	public static byte[] latitude(boolean littleEndian) {
+		ByteBuffer value = ByteBuffer.allocate(24).order(littleEndian ? ByteOrder.LITTLE_ENDIAN : ByteOrder.BIG_ENDIAN);
+		return value.putInt(51).putInt(1).putInt(6).putInt(1).putInt(30).putInt(1).array();
+	}
+
+	/**
+	 * The start of a JPEG photo of 200 x 100 pixels turned by EXIF orientation 6, taken at a place
+	 * written in its EXIF GPS block and in XMP.
+	 */
+	public static byte[] jpegWithLocation() {
+		ByteArrayOutputStream out = new ByteArrayOutputStream();
+		write(out, 0xFF, 0xD8);
+		byte[] exif = exifWithLocation(false);
+		write(out, 0xFF, 0xE1, 0x00, 2 + 6 + exif.length);
+		write(out, 'E', 'x', 'i', 'f', 0, 0);
+		out.writeBytes(exif);
+		byte[] xmp = ("http://ns.adobe.com/xap/1.0/\0<x:xmpmeta xmlns:x=\"adobe:ns:meta/\"><rdf:RDF>"
+				+ "<rdf:Description exif:GPSLatitude=\"" + XMP_LOCATION[0] + "\" exif:GPSLongitude='" + XMP_LOCATION[1]
+				+ "' tiff:Orientation=\"6\"><exif:GPSAltitude>" + XMP_LOCATION[2]
+				+ "</exif:GPSAltitude></rdf:Description></rdf:RDF></x:xmpmeta>")
+			.getBytes(StandardCharsets.UTF_8);
+		write(out, 0xFF, 0xE1, (2 + xmp.length) >> 8, (2 + xmp.length) & 0xFF);
+		out.writeBytes(xmp);
+		write(out, 0xFF, 0xC0, 0x00, 0x11, 0x08, 0x00, 0x64, 0x00, 0xC8, 0x03);
+		write(out, 0x01, 0x22, 0x00, 0x02, 0x11, 0x01, 0x03, 0x11, 0x01);
+		write(out, 0xFF, 0xD9);
+		return out.toByteArray();
+	}
+
+	/** A PNG image of 640 x 480 pixels with a location in its {@code eXIf} chunk (little-endian EXIF). */
+	public static byte[] pngWithLocation() {
+		ByteArrayOutputStream out = new ByteArrayOutputStream();
+		write(out, 0x89, 'P', 'N', 'G', '\r', '\n', 0x1A, '\n');
+		chunk(out, "IHDR", new byte[] { 0, 0, 2, (byte) 0x80, 0, 0, 1, (byte) 0xE0, 8, 2, 0, 0, 0 });
+		chunk(out, "eXIf", exifWithLocation(true));
+		chunk(out, "IEND", new byte[0]);
+		return out.toByteArray();
+	}
+
+	/** A HEIC photo whose Exif item holds a location. */
+	public static byte[] heicWithLocation() {
+		ByteArrayOutputStream out = new ByteArrayOutputStream();
+		out.writeBytes(heic());
+		// An Exif item: the offset of the TIFF header, "Exif\0\0", the TIFF structure.
+		write(out, 0x00, 0x00, 0x00, 0x06, 'E', 'x', 'i', 'f', 0, 0);
+		out.writeBytes(exifWithLocation(false));
+		return out.toByteArray();
+	}
+
+	/** Whether the CRC of every chunk of the PNG matches its type and data. */
+	public static boolean pngChecksumsMatch(byte[] png) {
+		ByteBuffer buffer = ByteBuffer.wrap(png);
+		int at = 8;
+		while (at + 12 <= png.length) {
+			int length = buffer.getInt(at);
+			CRC32 crc = new CRC32();
+			crc.update(png, at + 4, 4 + length);
+			if ((int) crc.getValue() != buffer.getInt(at + 8 + length)) {
+				return false;
+			}
+			at += 12 + length;
+		}
+		return at == png.length;
+	}
+
+	private static void chunk(ByteArrayOutputStream out, String type, byte[] data) {
+		ByteBuffer header = ByteBuffer.allocate(8).putInt(data.length).put(type.getBytes(StandardCharsets.US_ASCII));
+		out.writeBytes(header.array());
+		out.writeBytes(data);
+		CRC32 crc = new CRC32();
+		crc.update(header.array(), 4, 4);
+		crc.update(data);
+		out.writeBytes(ByteBuffer.allocate(4).putInt((int) crc.getValue()).array());
 	}
 
 	/** The start of a PNG image of 640 x 480 pixels. */

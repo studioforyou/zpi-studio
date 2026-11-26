@@ -131,9 +131,9 @@ class _PhotoGrid extends StatelessWidget {
 
   void _openViewer(BuildContext context, int index) {
     Navigator.of(context).push(
+      // Opaque, so the conversation below is not shown, and its snack bars
+      // neither.
       PageRouteBuilder<void>(
-        opaque: false,
-        barrierColor: Colors.black,
         pageBuilder: (_, _, _) => PhotoViewerScreen(
           conversationId: conversationId,
           messageId: messageId,
@@ -486,7 +486,7 @@ Future<void> saveAttachment(
 }
 
 /// The photos of a message full screen: swiped through, zoomed with two
-/// fingers or a double tap, saved on the phone or opened in another app.
+/// fingers or a double tap, saved in the gallery or opened in another app.
 class PhotoViewerScreen extends ConsumerStatefulWidget {
   const PhotoViewerScreen({
     super.key,
@@ -537,12 +537,29 @@ class _PhotoViewerScreenState extends ConsumerState<PhotoViewerScreen> {
     }
   }
 
+  /// Saves the photo in the gallery; a format the gallery does not take is
+  /// saved as a file instead.
   Future<void> _save() async {
     final l10n = AppLocalizations.of(context);
+    final messenger = ScaffoldMessenger.of(context);
     final photo = _photo;
     final file = await _file(photo, l10n);
     if (file == null || !mounted) return;
-    await saveAttachment(context, ref, file, photo, l10n);
+    final result = await ref.read(attachmentFilesProvider).saveToGallery(file);
+    switch (result) {
+      case GallerySave.saved:
+        messenger.showSnackBar(
+          SnackBar(content: Text(l10n.chatSavedToGallery)),
+        );
+      case GallerySave.denied:
+        messenger.showSnackBar(SnackBar(content: Text(l10n.chatGalleryDenied)));
+      case GallerySave.unsupported:
+        if (mounted) {
+          await saveAttachment(context, ref, file, photo, l10n);
+        }
+      case GallerySave.failed:
+        messenger.showSnackBar(SnackBar(content: Text(l10n.chatFileOpenError)));
+    }
   }
 
   Future<void> _openElsewhere() async {
@@ -584,7 +601,7 @@ class _PhotoViewerScreenState extends ConsumerState<PhotoViewerScreen> {
               ),
               actions: [
                 IconButton(
-                  tooltip: l10n.chatSaveFile,
+                  tooltip: l10n.chatSaveToGallery,
                   onPressed: _save,
                   icon: const Icon(Icons.download_outlined),
                 ),

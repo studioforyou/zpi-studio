@@ -1,10 +1,31 @@
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:gal/gal.dart';
+import 'package:gal/gal_platform_interface.dart';
 import 'package:mobile/features/communication/data/attachment_files.dart';
 import 'package:mobile/features/communication/data/conversations_api.dart';
+
+/// The phone's gallery: saves the photos, or fails as it is told to.
+final class _FakeGallery extends GalPlatform {
+  final saved = <String>[];
+  GalExceptionType? failure;
+
+  @override
+  Future<void> putImage(String path, {String? album}) async {
+    final type = failure;
+    if (type != null) {
+      throw GalException(
+        type: type,
+        platformException: PlatformException(code: type.code),
+        stackTrace: StackTrace.current,
+      );
+    }
+    saved.add(path);
+  }
+}
 
 void main() {
   late HttpServer server;
@@ -57,5 +78,21 @@ void main() {
     // Shown again, it comes from the cache.
     await files.file('c', 'm', attachment);
     expect(requests, 1);
+  });
+
+  test('saves a photo in the gallery and says why it could not', () async {
+    final gallery = _FakeGallery();
+    GalPlatform.instance = gallery;
+    final files = AttachmentFiles(ConversationsApi(Dio()));
+    final photo = File('${cache.path}/IMG.jpg');
+
+    expect(await files.saveToGallery(photo), GallerySave.saved);
+    expect(gallery.saved, [photo.path]);
+    gallery.failure = GalExceptionType.permissionDenied;
+    expect(await files.saveToGallery(photo), GallerySave.denied);
+    gallery.failure = GalExceptionType.notSupportedFormat;
+    expect(await files.saveToGallery(photo), GallerySave.unsupported);
+    gallery.failure = GalExceptionType.notEnoughSpace;
+    expect(await files.saveToGallery(photo), GallerySave.failed);
   });
 }

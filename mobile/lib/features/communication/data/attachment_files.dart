@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:gal/gal.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:mobile/features/communication/data/conversations_api.dart';
@@ -12,6 +13,19 @@ enum OpenOutcome {
 
   /// No app on the phone opens this kind of file.
   noApp,
+  failed,
+}
+
+/// What happened when a photo was saved in the phone's gallery.
+enum GallerySave {
+  saved,
+
+  /// The user did not let the app add photos.
+  denied,
+
+  /// The phone's gallery does not take this kind of image, e.g. HEIC on an
+  /// older Android.
+  unsupported,
   failed,
 }
 
@@ -93,6 +107,21 @@ class AttachmentFiles {
       ResultType.noAppToOpen => OpenOutcome.noApp,
       _ => OpenOutcome.failed,
     };
+  }
+
+  /// Saves a photo in the phone's gallery: Photos on iPhone (asking once for
+  /// permission to add photos), the Pictures album on Android.
+  Future<GallerySave> saveToGallery(File file) async {
+    try {
+      await Gal.putImage(file.path);
+      return GallerySave.saved;
+    } on GalException catch (e) {
+      return switch (e.type) {
+        GalExceptionType.permissionDenied => GallerySave.denied,
+        GalExceptionType.notSupportedFormat => GallerySave.unsupported,
+        _ => GallerySave.failed,
+      };
+    }
   }
 
   /// Lets the user choose where on the phone to save a copy. Returns whether

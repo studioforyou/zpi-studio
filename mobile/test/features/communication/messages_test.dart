@@ -210,7 +210,9 @@ class _FakeAttachmentFiles extends AttachmentFiles {
 
   final opened = <String>[];
   final saved = <String>[];
+  final inGallery = <String>[];
   OpenOutcome outcome = OpenOutcome.opened;
+  GallerySave gallery = GallerySave.saved;
 
   @override
   Future<File> file(
@@ -230,6 +232,12 @@ class _FakeAttachmentFiles extends AttachmentFiles {
   Future<bool> save(File file, ChatAttachment attachment) async {
     saved.add(attachment.fileName);
     return true;
+  }
+
+  @override
+  Future<GallerySave> saveToGallery(File file) async {
+    if (gallery == GallerySave.saved) inGallery.add(file.path);
+    return gallery;
   }
 }
 
@@ -974,7 +982,43 @@ void main() {
       expect(files.saved, ['Plan treningowy.pdf']);
     });
 
-    testWidgets('a photo opens full screen, zoomable and saveable', (
+    testWidgets(
+      'a photo opens full screen, zoomable and saved in the gallery',
+      (tester) async {
+        api.conversations['d'] = _direct('d', 'Ewa Lis');
+        api.messages['d'] = [
+          _message(
+            '1',
+            null,
+            sender: 'x',
+            name: 'Ewa Lis',
+            attachments: const [_photo],
+          ),
+        ];
+        await pump(
+          tester,
+          session: _client,
+          initialLocation: '/client/messages/chat/d',
+        );
+
+        await tester.tap(find.byType(PhotoThumbnail));
+        await tester.pumpAndSettle();
+        expect(find.byType(PhotoViewerScreen), findsOneWidget);
+        expect(find.byType(InteractiveViewer), findsOneWidget);
+        expect(find.text('Zdjęcie'), findsOneWidget);
+
+        await tester.tap(find.byTooltip('Zapisz w galerii'));
+        await tester.pumpAndSettle();
+        expect(files.inGallery, ['/cache/photo-1/IMG_0042.jpg']);
+        expect(find.text('Zapisano zdjęcie w galerii.'), findsOneWidget);
+        expect(files.saved, isEmpty);
+        await tester.tap(find.byTooltip('Otwórz w innej aplikacji'));
+        await tester.pumpAndSettle();
+        expect(files.opened, ['/cache/photo-1/IMG_0042.jpg']);
+      },
+    );
+
+    testWidgets('a photo the gallery does not take is saved as a file', (
       tester,
     ) async {
       api.conversations['d'] = _direct('d', 'Ewa Lis');
@@ -992,19 +1036,19 @@ void main() {
         session: _client,
         initialLocation: '/client/messages/chat/d',
       );
-
       await tester.tap(find.byType(PhotoThumbnail));
       await tester.pumpAndSettle();
-      expect(find.byType(PhotoViewerScreen), findsOneWidget);
-      expect(find.byType(InteractiveViewer), findsOneWidget);
-      expect(find.text('Zdjęcie'), findsOneWidget);
 
-      await tester.tap(find.byTooltip('Zapisz w telefonie'));
+      files.gallery = GallerySave.denied;
+      await tester.tap(find.byTooltip('Zapisz w galerii'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('nie ma dostępu do zdjęć'), findsOneWidget);
+      expect(files.saved, isEmpty);
+
+      files.gallery = GallerySave.unsupported;
+      await tester.tap(find.byTooltip('Zapisz w galerii'));
       await tester.pumpAndSettle();
       expect(files.saved, ['IMG_0042.jpg']);
-      await tester.tap(find.byTooltip('Otwórz w innej aplikacji'));
-      await tester.pumpAndSettle();
-      expect(files.opened, ['/cache/photo-1/IMG_0042.jpg']);
     });
 
     testWidgets('a new photo below keeps every photo in its own message', (

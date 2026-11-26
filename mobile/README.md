@@ -175,22 +175,29 @@ phone's files (`file_picker`). Photos are scaled to at most 2560 px on the
 longer side and saved as JPEG of quality 85 before they are sent. The app
 checks the limits the backend has (10 MB a file, 30 MB a message) and sends the
 message as `multipart/form-data`, showing the upload progress; the text is
-optional. See `lib/features/communication/data/attachment_picker.dart`.
+optional. The picker keeps the photo's EXIF, location included; the backend
+removes the location before it stores the photo. See `lib/features/communication/data/attachment_picker.dart`.
 
 Received files are downloaded once into the app's cache, kept by attachment
 id (`attachment_files.dart`). Photos are shown in the conversation and open
 full screen (`PhotoViewerScreen`): swipe between the photos of a message, zoom
-with two fingers or a double tap. Other files open in an app of the phone with
-`open_filex` (the system preview on iPhone, e.g. a PDF viewer or Word on
-Android); when no app opens the file, or with the download button of a file or
-photo, a copy can be saved on the phone (`FilePicker.saveFile`).
+with two fingers or a double tap, and save it in the phone's gallery (`gal`):
+Photos on iPhone, the Pictures album on Android. A photo the gallery does not
+take (e.g. HEIC on an older Android) is saved as a file instead. Other files
+open in an app of the phone with `open_filex` (the system preview on iPhone,
+e.g. a PDF viewer or Word on Android); when no app opens the file, or with the
+download button of a file, a copy can be saved on the phone
+(`FilePicker.saveFile`: Files on iPhone, a folder the user picks on Android).
 
 Platform settings: `ios/Runner/Info.plist` describes the camera and photo
 library use (`NSCameraUsageDescription`, `NSPhotoLibraryUsageDescription`; the
 picker runs with `requestFullMetadata: false`, so iOS does not ask for the
-library permission). `android/app/src/main/AndroidManifest.xml` removes the
-storage and media permissions `open_filex` declares, since the app opens only
-files in its own cache.
+library permission) and adding photos to the library
+(`NSPhotoLibraryAddUsageDescription`, asked the first time a photo is saved).
+`android/app/src/main/AndroidManifest.xml` removes the storage and media
+permissions `open_filex` declares, since the app opens only files in its own
+cache, and declares `WRITE_EXTERNAL_STORAGE` up to Android 10 only, which `gal`
+needs there; later versions save to the gallery without any permission.
 
 ## Push notifications and inbox
 
