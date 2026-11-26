@@ -46,6 +46,9 @@ class PassLedgerEntry {
 	@Column(name = "reservation_id")
 	private UUID reservationId;
 
+	@Column(name = "suspension_id")
+	private UUID suspensionId;
+
 	private String reason;
 
 	@Column(name = "actor_account_id")
@@ -76,11 +79,22 @@ class PassLedgerEntry {
 				reason, actorAccountId);
 	}
 
-	/** A change of the last valid day: an extension, a suspension or its cancellation. */
+	/** A change of the last valid day agreed with the participant. */
 	static PassLedgerEntry extension(UUID passId, LocalDate validUntilBefore, LocalDate validUntilAfter, String reason,
 			UUID actorAccountId) {
 		return new PassLedgerEntry(passId, PassLedgerKind.EXTENSION, (short) 0, validUntilBefore, validUntilAfter, reason,
 				actorAccountId);
+	}
+
+	/**
+	 * A change of the last valid day made by a suspension (a later day) or by its cancellation (an
+	 * earlier day). The link lets the pass history show the suspended period.
+	 */
+	static PassLedgerEntry suspension(UUID passId, UUID suspensionId, LocalDate validUntilBefore,
+			LocalDate validUntilAfter, String reason, UUID actorAccountId) {
+		PassLedgerEntry entry = extension(passId, validUntilBefore, validUntilAfter, reason, actorAccountId);
+		entry.suspensionId = suspensionId;
+		return entry;
 	}
 
 	static PassLedgerEntry reservation(UUID passId, UUID reservationId, PassLedgerKind kind, short entriesDelta,

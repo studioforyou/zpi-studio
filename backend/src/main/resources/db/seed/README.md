@@ -134,3 +134,21 @@ Beata Lis has three announcement templates under **Komunikacja → Komunikaty �
 - **Tomasz** (log in as Marek): sport experience filled in by Marek, birth date and phone changed by himself, his knee note added by himself.
 
 Health entries show only to a trainer with access to the participant's health data. New changes made in the app or the panel are added to the history automatically.
+
+## Pass change history (seed 29)
+
+`R__seed_29_pass_change_history.sql` adds Katarzyna's **Karnet Pole Dance — 4 wejścia (historia zmian)** for the administrator's pass history (#85). Signed in as Beata, open **Karnety → Karnety uczestników**, search for Katarzyna and click **Historia** next to it. All its entries are used, so it is not offered when Katarzyna books a class.
+
+| When | Change |
+| --- | --- |
+| 30 days ago | Beata assigns it: 4 entries, "Płatność kartą w recepcji" |
+| 29–27 days ago | Katarzyna books a class and attends it (Ewa marks her present) |
+| 23–21 days ago | Katarzyna books a class and cancels it in time; the entry stays used and she gets a make-up credit, which she uses 18 days ago for "Pole dance — odrabianie" |
+| 15–13 days ago | Beata books her on a class after a phone call; Ewa marks her absent |
+| 12 days ago | Beata gives one entry back: "Nieobecność z powodu choroby, zwrot uzgodniony z klientką" |
+| 10 and 6 days ago | A seven-day suspension for a knee injury, cut short after four days |
+| 5 days ago | Beata extends it by a week |
+| 4–2 days ago | A class cancelled too late, then the last entry booked for a class in two days |
+| yesterday | Katarzyna says she will not renew it |
+
+The balance adds up to the pass's 0 entries left. The seed also links the suspension entries of seeds 04 and 10 (Monika's Open pass, Tomasz's PT package) to their suspensions, so their history shows the suspended days. Re-running the seed only adds missing rows.

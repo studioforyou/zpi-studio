@@ -635,6 +635,33 @@ class SeedDataTests {
 			.containsExactly("Odrabianie 3 tygodnie");
 	}
 
+	@Test
+	void beataReadsTheShowcasePassHistoryWithEveryKindOfChange() throws Exception {
+		String history = seedGet(seedToken(10), "/api/v1/customers/07000000-0000-0000-0000-000000000001/passes/"
+				+ "28000000-0000-0000-0000-000000029001/history?size=100", false);
+		assertThat(JsonPath.<List<String>>read(history, "$.entries.items[*].kind")).containsExactly("RENEWAL_DECLINED",
+				"ENTRY_RESERVED", "ENTRY_USED", "ENTRY_RESERVED", "EXTENDED", "SUSPENSION_CANCELLED", "SUSPENDED",
+				"CORRECTED", "ENTRY_USED", "ENTRY_RESERVED", "MAKEUP_GRANTED", "ENTRY_USED", "ENTRY_RESERVED",
+				"ENTRY_USED", "ENTRY_RESERVED", "ACTIVATED");
+		assertThat(JsonPath.<Integer>read(history, "$.pass.entriesRemaining")).isZero();
+		assertThat(JsonPath.<Integer>read(history, "$.pass.ledgerBalance")).isZero();
+		LocalDate today = LocalDate.now(ZoneId.of("Europe/Warsaw"));
+		assertThat(JsonPath.<Map<String, Object>>read(history, "$.entries.items[5].suspension"))
+			.isEqualTo(Map.of("startsOn", today.minusDays(6).toString(), "endsOn", today.minusDays(4).toString()));
+		assertThat(JsonPath.<Map<String, Object>>read(history, "$.entries.items[6].suspension"))
+			.isEqualTo(Map.of("startsOn", today.minusDays(10).toString(), "endsOn", today.minusDays(4).toString()));
+		assertThat(JsonPath.<String>read(history, "$.entries.items[10].makeupCredit.usedFor.title"))
+			.isEqualTo("Pole dance — odrabianie (historia karnetu)");
+		assertThat(JsonPath.<String>read(history, "$.entries.items[8].session.attendance")).isEqualTo("ABSENT");
+		assertThat(JsonPath.<String>read(history, "$.entries.items[9].session.bookedBy.name")).isEqualTo("Beata Lis");
+
+		// Seed 04's suspension of Monika's Open pass is linked to its ledger entry.
+		String monika = seedGet(seedToken(10), "/api/v1/customers/07000000-0000-0000-0000-000000000003/passes/"
+				+ "28000000-0000-0000-0000-000000000005/history?category=VALIDITY", false);
+		assertThat(JsonPath.<List<String>>read(monika, "$.entries.items[*].kind")).containsExactly("SUSPENDED");
+		assertThat(JsonPath.<Object>read(monika, "$.entries.items[0].suspension")).isNotNull();
+	}
+
 	private Map<String, Long> rowCounts() {
 		List<String> tables = jdbc.sql("""
 				SELECT table_name

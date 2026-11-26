@@ -75,8 +75,8 @@ class PassExtensionAndSuspensionTests {
 
 	@AfterEach
 	void tearDown() {
-		jdbc.sql("DELETE FROM pass_suspension").update();
 		jdbc.sql("DELETE FROM pass_ledger").update();
+		jdbc.sql("DELETE FROM pass_suspension").update();
 		jdbc.sql("DELETE FROM customer_pass").update();
 		jdbc.sql("DELETE FROM customer_profile").update();
 		jdbc.sql("DELETE FROM pass_product_variant").update();

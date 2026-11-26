@@ -1100,6 +1100,98 @@ export const pl = {
       unknown: 'Nie udało się zapisać zmiany. Spróbuj ponownie.',
     },
   },
+  passHistory: {
+    open: 'Historia',
+    title: 'Historia karnetu',
+    loading: 'Wczytywanie historii…',
+    loadError: 'Nie udało się wczytać historii karnetu.',
+    notFound: 'Nie znaleziono tego karnetu uczestnika. Zamknij panel i odśwież listę.',
+    retry: 'Spróbuj ponownie',
+    empty: 'Ten karnet nie ma jeszcze zapisanych zmian.',
+    emptyCategory: 'Brak zmian tego rodzaju.',
+    total: (count: number) => countOf(count, 'zmiana', 'zmiany', 'zmian'),
+    filter: 'Rodzaj zmian',
+    balance: (remaining: number, total: number) => `Saldo: ${remaining} z ${total}`,
+    unlimited: 'Bez limitu wejść',
+    validity: (from: string, to: string) => `Ważny ${from} – ${to}`,
+    mismatch: (ledger: number, stored: number) =>
+      `Zmiany w historii dają saldo ${ledger}, a karnet ma ${stored}. Część zmian mogła zostać wprowadzona, zanim historia była prowadzona.`,
+    all: 'Wszystkie',
+    categories: {
+      ENTRIES: 'Wejścia na zajęcia',
+      CORRECTIONS: 'Korekty',
+      VALIDITY: 'Ważność i zawieszenia',
+      MAKEUP: 'Odrabiania',
+      PASS: 'Zakup i odnowienie',
+    },
+    kinds: {
+      ACTIVATED: 'Aktywacja karnetu',
+      ENTRY_RESERVED: 'Rezerwacja zajęć',
+      ENTRY_USED: 'Wejście rozliczone jako wykorzystane',
+      ENTRY_RETURNED: 'Zwrot wejścia',
+      CORRECTED: 'Korekta salda',
+      DISPUTE_REFUND: 'Zwrot wejścia po uznaniu zgłoszenia',
+      EXTENDED: 'Przedłużenie ważności',
+      SUSPENDED: 'Zawieszenie karnetu',
+      SUSPENSION_CANCELLED: 'Anulowanie zawieszenia',
+      EXPIRED: 'Wygaśnięcie karnetu',
+      MAKEUP_GRANTED: 'Przyznano odrabianie',
+      RENEWAL_DECLINED: 'Rezygnacja z odnowienia',
+    },
+    change: (delta: number) => (delta === 0 ? '±0' : `${delta > 0 ? '+' : '−'}${Math.abs(delta)}`),
+    changeLabel: (delta: number) =>
+      delta === 0
+        ? 'Saldo bez zmian'
+        : `${delta > 0 ? 'Dodano' : 'Odjęto'} ${passEntryCount(Math.abs(delta))}`,
+    balanceAfter: (balance: number) => `saldo po: ${balance}`,
+    details: {
+      purchased: 'Zakup w aplikacji',
+      assigned: 'Przypisany przez studio',
+      validUntil: (date: string) => `ważny do ${date}`,
+      validityChange: (before: string, after: string) => `Ważny do: ${before} → ${after}`,
+      settledAtBooking: 'Wejście pobrano przy rezerwacji, saldo się nie zmienia.',
+      suspended: (from: string, to: string, days: number) =>
+        `Zawieszony ${from} – ${to} (${countOf(days, 'dzień', 'dni', 'dni')})`,
+      suspensionCancelled: (from: string, to: string, days: number) =>
+        `Anulowane dni zawieszenia: ${from} – ${to} (${countOf(days, 'dzień', 'dni', 'dni')})`,
+      renewalDeclined:
+        'Klient lub opiekun zaznaczył w aplikacji, że nie odnowi karnetu. Przypomnienia o zakupie kolejnego są wyłączone.',
+      makeupFor: 'Za zajęcia',
+      makeupGrantedDirectly: 'Przyznane bezpośrednio przez studio',
+      makeupStates: {
+        AVAILABLE: (date: string) => `Dostępne do ${date}`,
+        USED: 'Wykorzystane',
+        EXPIRED: (date: string) => `Niewykorzystane, wygasło ${date}`,
+      },
+      makeupUsedFor: 'Wykorzystane na',
+    },
+    session: {
+      unknown: 'Zajęcia niedostępne',
+      eventCancelled: 'zajęcia odwołane przez studio',
+      sources: {
+        SELF: 'Zapis w aplikacji',
+        STAFF: 'Zapis przez studio',
+        WAITLIST: 'Z listy oczekujących',
+      },
+      cancelKinds: {
+        IN_TIME: 'Odwołane w terminie',
+        LATE: 'Odwołane po terminie',
+        STUDIO: 'Odwołane przez studio',
+      },
+      by: (name: string) => `przez: ${name}`,
+      attendance: {
+        UNMARKED: 'Obecność nieoznaczona',
+        PRESENT: 'Obecność na zajęciach',
+        ABSENT: 'Nieobecność na zajęciach',
+      },
+    },
+    actor: {
+      system: 'System',
+      participant: 'Klient lub opiekun w aplikacji',
+      unknownName: 'Konto bez nazwy',
+      roles: { CLIENT: 'klient', GUARDIAN: 'opiekun', STAFF: 'studio' },
+    },
+  },
   schedule: {
     title: 'Grafik',
     add: 'Dodaj wydarzenie',
