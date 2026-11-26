@@ -32,12 +32,16 @@ import org.springframework.transaction.annotation.Transactional;
 import studioforyou.pl.backend.booking.Participations;
 import studioforyou.pl.backend.booking.Participations.ActiveReservation;
 import studioforyou.pl.backend.communication.messaging.ConversationAudience.Role;
+import studioforyou.pl.backend.communication.messaging.ConversationStore.AttachmentCursor;
 import studioforyou.pl.backend.communication.messaging.ConversationStore.Conversation;
+import studioforyou.pl.backend.communication.messaging.ConversationStore.ListedAttachment;
 import studioforyou.pl.backend.communication.messaging.ConversationStore.Message;
 import studioforyou.pl.backend.communication.messaging.ConversationStore.Participant;
 import studioforyou.pl.backend.communication.messaging.ConversationStore.Summary;
+import studioforyou.pl.backend.communication.messaging.MessagingDtos.AttachmentPage;
 import studioforyou.pl.backend.communication.messaging.MessagingDtos.AttachmentResponse;
 import studioforyou.pl.backend.communication.messaging.MessagingDtos.ClientResponse;
+import studioforyou.pl.backend.communication.messaging.MessagingDtos.ConversationAttachmentResponse;
 import studioforyou.pl.backend.communication.messaging.MessagingDtos.ConversationResponse;
 import studioforyou.pl.backend.communication.messaging.MessagingDtos.ConversationSummaryResponse;
 import studioforyou.pl.backend.communication.messaging.MessagingDtos.CreateGroupChatRequest;
@@ -263,7 +267,7 @@ class MessagingService {
 		}
 		Message message = store.insertMessage(conversationId, accountId, text);
 		for (int i = 0; i < saved.size(); i++) {
-			store.insertAttachment(message.id(), saved.get(i).id(), i);
+			store.insertAttachment(message.id(), saved.get(i).id(), i, saved.get(i).isImage());
 		}
 		read(conversationId, accountId);
 		publisher.publishEvent(new MessageSent(conversationId, message.id(), accountId));
@@ -284,6 +288,41 @@ class MessagingService {
 			throw attachmentNotFound();
 		}
 		return files.open(fileId);
+	}
+
+	/**
+	 * The photos or the other files of the messages the account can see, oldest first: the latest
+	 * page, the page before an attachment of the conversation (older ones) or the page after one
+	 * (newer ones). Deleted messages are left out, and so are the ones from after the account left
+	 * the group or class.
+	 */
+	AttachmentPage attachments(UUID conversationId, UUID accountId, AttachmentKind kind, @Nullable UUID before,
+			@Nullable UUID after, int limit) {
+		if (before != null && after != null) {
+			throw ApiException.invalidField("after", FieldErrorCode.INVALID_VALUE, "Use either before or after.");
+		}
+		Access access = open(conversationId, accountId);
+		int size = Math.clamp(limit, 1, MAX_PAGE_SIZE);
+		AttachmentCursor beforeCursor = (before != null) ? requireAttachmentCursor(conversationId, before) : null;
+		AttachmentCursor afterCursor = (after != null) ? requireAttachmentCursor(conversationId, after) : null;
+		List<ListedAttachment> page = store.listAttachments(conversationId, kind == AttachmentKind.PHOTO,
+				access.visibleUntil(), beforeCursor, afterCursor, size + 1);
+		boolean hasMore = page.size() > size;
+		if (hasMore) {
+			page = (after != null) ? page.subList(0, size) : page.subList(1, page.size());
+		}
+		Map<UUID, StoredFile> stored = files.findAll(page.stream().map(ListedAttachment::fileId).toList());
+		Map<UUID, String> names = names(page.stream().map(ListedAttachment::senderId).collect(Collectors.toSet()));
+		return new AttachmentPage(page.stream()
+			.filter((attachment) -> stored.containsKey(attachment.fileId()))
+			.map((attachment) -> new ConversationAttachmentResponse(attachment.messageId(), attachment.senderId(),
+					name(attachment.senderId(), names), attachment.senderId().equals(accountId),
+					attachment.createdAt().toInstant(), attachmentResponse(stored.get(attachment.fileId()))))
+			.toList(), hasMore);
+	}
+
+	private AttachmentCursor requireAttachmentCursor(UUID conversationId, UUID fileId) {
+		return store.findAttachmentCursor(conversationId, fileId).orElseThrow(MessagingService::attachmentNotFound);
 	}
 
 	/**

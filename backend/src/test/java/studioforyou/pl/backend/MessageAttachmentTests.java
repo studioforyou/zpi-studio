@@ -277,6 +277,12 @@ class MessageAttachmentTests {
 		perform(CLIENT, get(attachment(id, before, beforeFile))).andExpect(status().isOk());
 		perform(CLIENT, get(attachment(id, after, afterFile))).andExpect(status().isNotFound());
 		perform(OTHER_CLIENT, get(attachment(id, after, afterFile))).andExpect(status().isOk());
+		// The same in the conversation's photos and files.
+		perform(CLIENT, get(attachments(id, "FILE", "")))
+			.andExpect(jsonPath("$.items[*].attachment.fileName").value(contains("program.pdf")));
+		perform(CLIENT, get(attachments(id, "PHOTO", ""))).andExpect(jsonPath("$.items").value(empty()));
+		perform(OTHER_CLIENT, get(attachments(id, "PHOTO", "")))
+			.andExpect(jsonPath("$.items[*].attachment.fileName").value(contains("mapa.png")));
 		assertThat(jdbc.sql("SELECT count(*) FROM stored_file WHERE uploaded_by = :client")
 			.param("client", clientAccount)
 			.query(Long.class)
@@ -355,6 +361,57 @@ class MessageAttachmentTests {
 	}
 
 	@Test
+	void theConversationListsAllItsPhotosAndApartFromThemItsFiles() throws Exception {
+		String id = direct();
+		String first = idOf(send(CLIENT, id, "Kolano i wyniki", file("a.jpg", TestFiles.jpeg(6)),
+				file("wyniki.pdf", TestFiles.pdf()), file("b.png", TestFiles.png())));
+		send(TRAINER, id, "Dzięki, przejrzę").andExpect(status().isCreated());
+		String second = idOf(send(TRAINER, id, null, file("c.heic", TestFiles.heic()),
+				file("plan.docx", TestFiles.docx())));
+		String mistake = idOf(send(CLIENT, id, null, file("pomyłka.jpg", TestFiles.jpeg(1))));
+		perform(CLIENT, delete(CONVERSATIONS + "/" + id + "/messages/" + mistake)).andExpect(status().isNoContent());
+
+		// Every photo of the conversation, oldest first, with the message it came with; deleted ones left out.
+		String photos = perform(TRAINER, get(attachments(id, "PHOTO", ""))).andExpect(status().isOk())
+			.andExpect(jsonPath("$.items[*].attachment.fileName").value(contains("a.jpg", "b.png", "c.heic")))
+			.andExpect(jsonPath("$.items[*].messageId").value(contains(first, first, second)))
+			.andExpect(jsonPath("$.items[0].senderAccountId").value(clientAccount.toString()))
+			.andExpect(jsonPath("$.items[0].senderName").value("Marta Zielińska"))
+			.andExpect(jsonPath("$.items[0].isMine").value(false))
+			.andExpect(jsonPath("$.items[2].isMine").value(true))
+			.andExpect(jsonPath("$.items[0].attachment.isImage").value(true))
+			.andExpect(jsonPath("$.items[0].attachment.width").value(100))
+			.andExpect(jsonPath("$.hasMore").value(false))
+			.andReturn()
+			.getResponse()
+			.getContentAsString();
+		perform(CLIENT, get(attachments(id, "FILE", "")))
+			.andExpect(jsonPath("$.items[*].attachment.fileName").value(contains("wyniki.pdf", "plan.docx")))
+			.andExpect(jsonPath("$.items[*].attachment.isImage").value(contains(false, false)))
+			.andExpect(jsonPath("$.items[1].isMine").value(false));
+
+		// Page by page, from the latest, or around a photo opened in the conversation.
+		String a = JsonPath.read(photos, "$.items[0].attachment.id");
+		String b = JsonPath.read(photos, "$.items[1].attachment.id");
+		perform(TRAINER, get(attachments(id, "PHOTO", "&limit=2")))
+			.andExpect(jsonPath("$.items[*].attachment.fileName").value(contains("b.png", "c.heic")))
+			.andExpect(jsonPath("$.hasMore").value(true));
+		perform(TRAINER, get(attachments(id, "PHOTO", "&before=" + b)))
+			.andExpect(jsonPath("$.items[*].attachment.fileName").value(contains("a.jpg")))
+			.andExpect(jsonPath("$.hasMore").value(false));
+		perform(TRAINER, get(attachments(id, "PHOTO", "&after=" + a + "&limit=1")))
+			.andExpect(jsonPath("$.items[*].attachment.fileName").value(contains("b.png")))
+			.andExpect(jsonPath("$.hasMore").value(true));
+
+		perform(OUTSIDER, get(attachments(id, "PHOTO", ""))).andExpect(status().isNotFound());
+		perform(TRAINER, get(attachments(id, "PHOTO", "&before=" + UUID.randomUUID())))
+			.andExpect(status().isNotFound());
+		perform(TRAINER, get(attachments(id, "PHOTO", "&before=" + a + "&after=" + b)))
+			.andExpect(status().isBadRequest());
+		perform(TRAINER, get(attachments(id, "VIDEO", ""))).andExpect(status().isBadRequest());
+	}
+
+	@Test
 	void deletingAMessageDeletesItsFiles() throws Exception {
 		String id = direct();
 		String message = idOf(send(CLIENT, id, "Pomyłka", file("zdjecie.jpg", TestFiles.jpeg(1))));
@@ -403,6 +460,11 @@ class MessageAttachmentTests {
 
 	private static String attachment(String conversationId, String messageId, String fileId) {
 		return CONVERSATIONS + "/" + conversationId + "/messages/" + messageId + "/attachments/" + fileId;
+	}
+
+	/** The conversation's photos or files, with more query parameters ({@code &...}). */
+	private static String attachments(String conversationId, String kind, String query) {
+		return CONVERSATIONS + "/" + conversationId + "/attachments?kind=" + kind + query;
 	}
 
 	/** The first attachment of the message at the given place, as the account sees the conversation. */

@@ -36,6 +36,7 @@ import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+import studioforyou.pl.backend.communication.messaging.MessagingDtos.AttachmentPage;
 import studioforyou.pl.backend.communication.messaging.MessagingDtos.ClientResponse;
 import studioforyou.pl.backend.communication.messaging.MessagingDtos.ConversationResponse;
 import studioforyou.pl.backend.communication.messaging.MessagingDtos.ConversationSummaryResponse;
@@ -293,6 +294,28 @@ class OwnConversationController {
 					.toList();
 		return sent(conversationId,
 				messaging.send(conversationId, authentication.requireActiveAccountId(), body, attachments));
+	}
+
+	@GetMapping("/{conversationId}/attachments")
+	@Operation(summary = "List the photos or files of my conversation", operationId = "listOwnConversationAttachments",
+			description = "The photos (kind PHOTO) or the other files (kind FILE) sent in the conversation, each with "
+					+ "the message it came with, oldest first: the latest page, the page before an attachment "
+					+ "(older ones) or the page after one (newer ones). Deleted messages are left out; a user who "
+					+ "left a group or class sees only what was sent before they left.")
+	@ApiResponse(responseCode = "200", description = "The photos or files.")
+	@ApiResponse(responseCode = "400", description = "VALIDATION_FAILED: both before and after.", content = @Content(
+			mediaType = "application/problem+json", schema = @Schema(implementation = ApiProblem.class)))
+	@ApiResponse(responseCode = "404", description = "No such conversation or cursor attachment, or the user has "
+			+ "never been in the conversation.", content = @Content(mediaType = "application/problem+json",
+					schema = @Schema(implementation = ApiProblem.class)))
+	AttachmentPage attachments(@PathVariable UUID conversationId,
+			@Parameter(description = "Photos or other files.") @RequestParam AttachmentKind kind,
+			@Parameter(description = "Sent before this attachment.") @RequestParam(required = false) @Nullable UUID before,
+			@Parameter(description = "Sent after this attachment.") @RequestParam(required = false) @Nullable UUID after,
+			@Parameter(description = "Page size, 1 to 100.") @RequestParam(defaultValue = "50") int limit,
+			AccountAuthentication authentication) {
+		return messaging.attachments(conversationId, authentication.requireActiveAccountId(), kind, before, after,
+				limit);
 	}
 
 	@GetMapping("/{conversationId}/messages/{messageId}/attachments/{attachmentId}")

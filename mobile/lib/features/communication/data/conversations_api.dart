@@ -283,6 +283,78 @@ class ChatMessage {
   final List<ChatAttachment> attachments;
 }
 
+/// Which attachments of a conversation are listed.
+enum AttachmentKind {
+  /// Photos.
+  photo('PHOTO'),
+
+  /// The other files: PDF, Word, Excel and text documents.
+  file('FILE');
+
+  const AttachmentKind(this.apiValue);
+
+  final String apiValue;
+}
+
+/// A file sent in a conversation, with the message it came with.
+class ConversationAttachment {
+  const ConversationAttachment({
+    required this.attachment,
+    required this.messageId,
+    required this.senderAccountId,
+    required this.senderName,
+    required this.isMine,
+    required this.sentAt,
+  });
+
+  factory ConversationAttachment.fromJson(Map<String, dynamic> json) =>
+      ConversationAttachment(
+        attachment: ChatAttachment.fromJson(
+          json['attachment'] as Map<String, dynamic>,
+        ),
+        messageId: json['messageId'] as String,
+        senderAccountId: json['senderAccountId'] as String,
+        senderName: json['senderName'] as String,
+        isMine: json['isMine'] as bool,
+        sentAt: DateTime.parse(json['sentAt'] as String).toLocal(),
+      );
+
+  /// The attachments of a message, in their order.
+  static List<ConversationAttachment> ofMessage(ChatMessage message) => [
+    for (final attachment in message.attachments)
+      ConversationAttachment(
+        attachment: attachment,
+        messageId: message.id,
+        senderAccountId: message.senderAccountId,
+        senderName: message.senderName,
+        isMine: message.isMine,
+        sentAt: message.createdAt,
+      ),
+  ];
+
+  final ChatAttachment attachment;
+  final String messageId;
+  final String senderAccountId;
+  final String senderName;
+
+  /// Whether the user sent it.
+  final bool isMine;
+  final DateTime sentAt;
+}
+
+/// Photos or files of a conversation, oldest first.
+class ConversationAttachmentPage {
+  const ConversationAttachmentPage({
+    required this.items,
+    required this.hasMore,
+  });
+
+  final List<ConversationAttachment> items;
+
+  /// Whether there are older ones (or newer ones, for a page `after` one).
+  final bool hasMore;
+}
+
 /// A file the user picked to send with a message.
 class OutgoingAttachment {
   const OutgoingAttachment({
@@ -603,6 +675,34 @@ class ConversationsApi {
           : (received, total) {
               if (total > 0) onProgress(received / total);
             },
+    );
+  });
+
+  /// The conversation's photos or other files, oldest first: the latest
+  /// [limit] ones, or the ones sent [before] or [after] an attachment.
+  Future<ConversationAttachmentPage> fetchAttachments(
+    String conversationId,
+    AttachmentKind kind, {
+    String? before,
+    String? after,
+    int? limit,
+  }) => _call(() async {
+    final response = await _dio.get<Map<String, dynamic>>(
+      '$conversationsPath/$conversationId/attachments',
+      queryParameters: {
+        'kind': kind.apiValue,
+        'before': ?before,
+        'after': ?after,
+        'limit': ?limit,
+      },
+    );
+    final data = response.data!;
+    return ConversationAttachmentPage(
+      items: [
+        for (final item in data['items'] as List)
+          ConversationAttachment.fromJson(item as Map<String, dynamic>),
+      ],
+      hasMore: data['hasMore'] as bool,
     );
   });
 

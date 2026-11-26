@@ -23,6 +23,7 @@ class MessageAttachments extends StatelessWidget {
     required this.message,
     required this.maxWidth,
     required this.onLongPress,
+    required this.onOpenPhoto,
   });
 
   final String conversationId;
@@ -31,6 +32,9 @@ class MessageAttachments extends StatelessWidget {
   /// Widest the attachments may be, as wide as a message bubble.
   final double maxWidth;
   final ValueChanged<Offset> onLongPress;
+
+  /// Opens a photo full screen, among the other photos of the conversation.
+  final ValueChanged<ChatAttachment> onOpenPhoto;
 
   @override
   Widget build(BuildContext context) {
@@ -57,6 +61,7 @@ class MessageAttachments extends StatelessWidget {
               messageId: message.id,
               photos: photos,
               width: math.min(maxWidth, maxPhotoWidth),
+              onOpen: onOpenPhoto,
             ),
           ),
         for (final file in files)
@@ -83,12 +88,14 @@ class _PhotoGrid extends StatelessWidget {
     required this.messageId,
     required this.photos,
     required this.width,
+    required this.onOpen,
   });
 
   final String conversationId;
   final String messageId;
   final List<ChatAttachment> photos;
   final double width;
+  final ValueChanged<ChatAttachment> onOpen;
 
   @override
   Widget build(BuildContext context) {
@@ -99,7 +106,7 @@ class _PhotoGrid extends StatelessWidget {
         conversationId: conversationId,
         messageId: messageId,
         photo: photos[index],
-        onTap: () => _openViewer(context, index),
+        onTap: () => onOpen(photos[index]),
       ),
     );
 
@@ -126,23 +133,6 @@ class _PhotoGrid extends StatelessWidget {
     return ClipRRect(
       borderRadius: BorderRadius.circular(16),
       child: SizedBox(width: width, child: content),
-    );
-  }
-
-  void _openViewer(BuildContext context, int index) {
-    Navigator.of(context).push(
-      // Opaque, so the conversation below is not shown, and its snack bars
-      // neither.
-      PageRouteBuilder<void>(
-        pageBuilder: (_, _, _) => PhotoViewerScreen(
-          conversationId: conversationId,
-          messageId: messageId,
-          photos: photos,
-          initialIndex: index,
-        ),
-        transitionsBuilder: (_, animation, _, child) =>
-            FadeTransition(opacity: animation, child: child),
-      ),
     );
   }
 }
@@ -247,6 +237,75 @@ class _PhotoThumbnailState extends ConsumerState<PhotoThumbnail> {
   );
 }
 
+/// Downloads an attachment, showing how far it got, and then opens it in an
+/// app of the phone or saves a copy on the phone.
+mixin _FileActions<T extends ConsumerStatefulWidget> on ConsumerState<T> {
+  String get conversationId;
+  String get messageId;
+  ChatAttachment get attachment;
+
+  /// How much of the file has been downloaded, while it is downloading.
+  double? progress;
+
+  bool get busy => progress != null;
+
+  Future<File?> _download(AppLocalizations l10n) async {
+    setState(() => progress = 0);
+    try {
+      return await ref
+          .read(attachmentFilesProvider)
+          .file(
+            conversationId,
+            messageId,
+            attachment,
+            onProgress: (value) {
+              if (mounted) setState(() => progress = value);
+            },
+          );
+    } catch (_) {
+      _snack(l10n.chatFileDownloadError);
+      return null;
+    } finally {
+      if (mounted) setState(() => progress = null);
+    }
+  }
+
+  Future<void> openFile() async {
+    if (busy) return;
+    final l10n = AppLocalizations.of(context);
+    final file = await _download(l10n);
+    if (file == null || !mounted) return;
+    final files = ref.read(attachmentFilesProvider);
+    final outcome = await files.open(file, attachment.contentType);
+    switch (outcome) {
+      case OpenOutcome.opened:
+        break;
+      case OpenOutcome.noApp:
+        _snack(
+          l10n.chatFileNoApp,
+          action: SnackBarAction(label: l10n.chatSaveFile, onPressed: saveFile),
+        );
+      case OpenOutcome.failed:
+        _snack(l10n.chatFileOpenError);
+    }
+  }
+
+  Future<void> saveFile() async {
+    if (busy) return;
+    final l10n = AppLocalizations.of(context);
+    final file = await _download(l10n);
+    if (file == null || !mounted) return;
+    await saveAttachment(context, ref, file, attachment, l10n);
+  }
+
+  void _snack(String text, {SnackBarAction? action}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(text), action: action));
+  }
+}
+
 /// A document attached to a message: its type, name and size. Tapping it
 /// opens it in an app of the phone; the button saves a copy on the phone.
 class AttachmentFileTile extends ConsumerStatefulWidget {
@@ -272,74 +331,22 @@ class AttachmentFileTile extends ConsumerStatefulWidget {
   ConsumerState<AttachmentFileTile> createState() => _AttachmentFileTileState();
 }
 
-class _AttachmentFileTileState extends ConsumerState<AttachmentFileTile> {
-  /// How much of the file has been downloaded, while it is downloading.
-  double? _progress;
+class _AttachmentFileTileState extends ConsumerState<AttachmentFileTile>
+    with _FileActions {
+  @override
+  String get conversationId => widget.conversationId;
 
-  bool get _busy => _progress != null;
+  @override
+  String get messageId => widget.messageId;
 
-  Future<File?> _download(AppLocalizations l10n) async {
-    setState(() => _progress = 0);
-    try {
-      return await ref
-          .read(attachmentFilesProvider)
-          .file(
-            widget.conversationId,
-            widget.messageId,
-            widget.attachment,
-            onProgress: (progress) {
-              if (mounted) setState(() => _progress = progress);
-            },
-          );
-    } catch (_) {
-      _snack(l10n.chatFileDownloadError);
-      return null;
-    } finally {
-      if (mounted) setState(() => _progress = null);
-    }
-  }
-
-  Future<void> _open() async {
-    if (_busy) return;
-    final l10n = AppLocalizations.of(context);
-    final file = await _download(l10n);
-    if (file == null || !mounted) return;
-    final files = ref.read(attachmentFilesProvider);
-    final outcome = await files.open(file, widget.attachment.contentType);
-    switch (outcome) {
-      case OpenOutcome.opened:
-        break;
-      case OpenOutcome.noApp:
-        _snack(
-          l10n.chatFileNoApp,
-          action: SnackBarAction(label: l10n.chatSaveFile, onPressed: _save),
-        );
-      case OpenOutcome.failed:
-        _snack(l10n.chatFileOpenError);
-    }
-  }
-
-  Future<void> _save() async {
-    if (_busy) return;
-    final l10n = AppLocalizations.of(context);
-    final file = await _download(l10n);
-    if (file == null || !mounted) return;
-    await saveAttachment(context, ref, file, widget.attachment, l10n);
-  }
-
-  void _snack(String text, {SnackBarAction? action}) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(text), action: action));
-  }
+  @override
+  ChatAttachment get attachment => widget.attachment;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final attachment = widget.attachment;
     final background = widget.mine
         ? scheme.primary
         : scheme.surfaceContainerHigh;
@@ -354,7 +361,7 @@ class _AttachmentFileTileState extends ConsumerState<AttachmentFileTile> {
       borderRadius: BorderRadius.circular(16),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        onTap: _open,
+        onTap: openFile,
         child: GestureDetector(
           onLongPressStart: (details) =>
               widget.onLongPress(details.globalPosition),
@@ -364,19 +371,12 @@ class _AttachmentFileTileState extends ConsumerState<AttachmentFileTile> {
               mainAxisSize: MainAxisSize.min,
               spacing: 10,
               children: [
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: widget.mine
-                        ? scheme.onPrimary.withValues(alpha: 0.16)
-                        : kind.color.withValues(alpha: 0.14),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Icon(
-                    kind.icon,
-                    color: widget.mine ? scheme.onPrimary : kind.color,
-                  ),
+                _FileIcon(
+                  kind: kind,
+                  background: widget.mine
+                      ? scheme.onPrimary.withValues(alpha: 0.16)
+                      : null,
+                  color: widget.mine ? scheme.onPrimary : null,
                 ),
                 Flexible(
                   child: Column(
@@ -401,28 +401,141 @@ class _AttachmentFileTileState extends ConsumerState<AttachmentFileTile> {
                     ],
                   ),
                 ),
-                SizedBox.square(
-                  dimension: 40,
-                  child: _busy
-                      ? Padding(
-                          padding: const EdgeInsets.all(10),
-                          child: CircularProgressIndicator(
-                            value: (_progress ?? 0) > 0 ? _progress : null,
-                            strokeWidth: 2.5,
-                            color: foreground,
-                          ),
-                        )
-                      : IconButton(
-                          tooltip: l10n.chatSaveFile,
-                          onPressed: _save,
-                          icon: Icon(Icons.download_outlined, color: secondary),
-                        ),
+                _SaveButton(
+                  progress: progress,
+                  color: secondary,
+                  progressColor: foreground,
+                  tooltip: l10n.chatSaveFile,
+                  onPressed: saveFile,
                 ),
               ],
             ),
           ),
         ),
       ),
+    );
+  }
+}
+
+/// A file in the list of a conversation's files: its type, name, size, who
+/// sent it and when. Tapping it opens it in an app of the phone; the button
+/// saves a copy on the phone.
+class AttachmentFileRow extends ConsumerStatefulWidget {
+  const AttachmentFileRow({
+    super.key,
+    required this.conversationId,
+    required this.item,
+  });
+
+  final String conversationId;
+  final ConversationAttachment item;
+
+  @override
+  ConsumerState<AttachmentFileRow> createState() => _AttachmentFileRowState();
+}
+
+class _AttachmentFileRowState extends ConsumerState<AttachmentFileRow>
+    with _FileActions {
+  @override
+  String get conversationId => widget.conversationId;
+
+  @override
+  String get messageId => widget.item.messageId;
+
+  @override
+  ChatAttachment get attachment => widget.item.attachment;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final scheme = Theme.of(context).colorScheme;
+    final item = widget.item;
+    final kind = _FileKind.of(attachment);
+    final sender = item.isMine ? l10n.chatMe : item.senderName;
+    final sent = formatListTime(item.sentAt, l10n, DateTime.now());
+    return ListTile(
+      contentPadding: const EdgeInsets.only(left: 16, right: 8),
+      leading: _FileIcon(kind: kind),
+      title: Text(
+        attachment.fileName,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+      ),
+      subtitle: Text(
+        '${kind.label} · ${formatFileSize(attachment.sizeBytes)} · '
+        '$sender, $sent',
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+      trailing: _SaveButton(
+        progress: progress,
+        color: scheme.onSurfaceVariant,
+        progressColor: scheme.primary,
+        tooltip: l10n.chatSaveFile,
+        onPressed: saveFile,
+      ),
+      onTap: openFile,
+    );
+  }
+}
+
+/// The icon of a document's type in a rounded square of its colour.
+class _FileIcon extends StatelessWidget {
+  const _FileIcon({required this.kind, this.background, this.color});
+
+  final _FileKind kind;
+
+  /// Colours other than the type's, e.g. on the user's own bubble.
+  final Color? background;
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: 40,
+    height: 40,
+    decoration: BoxDecoration(
+      color: background ?? kind.color.withValues(alpha: 0.14),
+      borderRadius: BorderRadius.circular(10),
+    ),
+    child: Icon(kind.icon, color: color ?? kind.color),
+  );
+}
+
+/// Saves a copy of the file on the phone; shows the download while it runs.
+class _SaveButton extends StatelessWidget {
+  const _SaveButton({
+    required this.progress,
+    required this.color,
+    required this.progressColor,
+    required this.tooltip,
+    required this.onPressed,
+  });
+
+  final double? progress;
+  final Color color;
+  final Color progressColor;
+  final String tooltip;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final value = progress;
+    return SizedBox.square(
+      dimension: 40,
+      child: value != null
+          ? Padding(
+              padding: const EdgeInsets.all(10),
+              child: CircularProgressIndicator(
+                value: value > 0 ? value : null,
+                strokeWidth: 2.5,
+                color: progressColor,
+              ),
+            )
+          : IconButton(
+              tooltip: tooltip,
+              onPressed: onPressed,
+              icon: Icon(Icons.download_outlined, color: color),
+            ),
     );
   }
 }
@@ -485,29 +598,67 @@ Future<void> saveAttachment(
   }
 }
 
-/// The photos of a message full screen: swiped through, zoomed with two
-/// fingers or a double tap, saved in the gallery or opened in another app.
+/// Opens [photos] of a conversation full screen at [initialIndex].
+///
+/// [photos] are newest first; [hasOlder] says whether the conversation has
+/// photos older than the last of them, which the viewer loads as the user
+/// swipes to them.
+Future<void> openPhotoViewer(
+  BuildContext context, {
+  required String conversationId,
+  required List<ConversationAttachment> photos,
+  required int initialIndex,
+  required bool hasOlder,
+}) => Navigator.of(context).push(
+  // Opaque, so the screen below is not shown, and its snack bars neither.
+  PageRouteBuilder<void>(
+    pageBuilder: (_, _, _) => PhotoViewerScreen(
+      conversationId: conversationId,
+      photos: photos,
+      initialIndex: initialIndex,
+      hasOlder: hasOlder,
+    ),
+    transitionsBuilder: (_, animation, _, child) =>
+        FadeTransition(opacity: animation, child: child),
+  ),
+);
+
+/// The photos of a conversation full screen, the older ones to the left:
+/// swiped through across all its messages, zoomed with two fingers or a
+/// double tap, saved in the gallery or opened in another app. Older photos
+/// are loaded as the user gets to them.
 class PhotoViewerScreen extends ConsumerStatefulWidget {
   const PhotoViewerScreen({
     super.key,
     required this.conversationId,
-    required this.messageId,
     required this.photos,
     required this.initialIndex,
+    this.hasOlder = false,
   });
 
   final String conversationId;
-  final String messageId;
-  final List<ChatAttachment> photos;
+
+  /// Newest first.
+  final List<ConversationAttachment> photos;
   final int initialIndex;
+
+  /// Whether the conversation has photos older than the last of [photos].
+  final bool hasOlder;
 
   @override
   ConsumerState<PhotoViewerScreen> createState() => _PhotoViewerScreenState();
 }
 
 class _PhotoViewerScreenState extends ConsumerState<PhotoViewerScreen> {
+  /// Older photos are loaded when the user is this close to the oldest one.
+  static const _preload = 3;
+
   late final _pages = PageController(initialPage: widget.initialIndex);
+  late List<ConversationAttachment> _photos = widget.photos;
   late int _index = widget.initialIndex;
+  late bool _hasOlder = widget.hasOlder;
+  bool _loadingOlder = false;
+  bool _olderFailed = false;
 
   /// While a photo is zoomed in, dragging moves it instead of changing pages.
   bool _zoomed = false;
@@ -516,19 +667,66 @@ class _PhotoViewerScreenState extends ConsumerState<PhotoViewerScreen> {
   bool _chrome = true;
 
   @override
+  void initState() {
+    super.initState();
+    // Opened at one of the oldest photos loaded: the ones before it come next.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadOlderIfNear());
+  }
+
+  @override
   void dispose() {
     _pages.dispose();
     super.dispose();
   }
 
-  ChatAttachment get _photo => widget.photos[_index];
+  /// The photo shown; `null` on the page after the oldest loaded one, while
+  /// older ones are loading.
+  ConversationAttachment? get _photo =>
+      _index < _photos.length ? _photos[_index] : null;
 
-  Future<File?> _file(ChatAttachment photo, AppLocalizations l10n) async {
+  Future<void> _loadOlderIfNear() async {
+    if (!_hasOlder || _loadingOlder || _index < _photos.length - _preload) {
+      return;
+    }
+    setState(() {
+      _loadingOlder = true;
+      _olderFailed = false;
+    });
+    try {
+      final page = await ref
+          .read(conversationsApiProvider)
+          .fetchAttachments(
+            widget.conversationId,
+            AttachmentKind.photo,
+            before: _photos.last.attachment.id,
+          );
+      if (!mounted) return;
+      final known = {for (final photo in _photos) photo.attachment.id};
+      setState(() {
+        // Added at the end: the photo shown stays where it is.
+        _photos = [
+          ..._photos,
+          for (final photo in page.items.reversed)
+            if (!known.contains(photo.attachment.id)) photo,
+        ];
+        _hasOlder = page.hasMore;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _olderFailed = true);
+    } finally {
+      if (mounted) setState(() => _loadingOlder = false);
+    }
+  }
+
+  Future<File?> _file(
+    ConversationAttachment photo,
+    AppLocalizations l10n,
+  ) async {
     final messenger = ScaffoldMessenger.of(context);
     try {
       return await ref
           .read(attachmentFilesProvider)
-          .file(widget.conversationId, widget.messageId, photo);
+          .file(widget.conversationId, photo.messageId, photo.attachment);
     } catch (_) {
       messenger.showSnackBar(
         SnackBar(content: Text(l10n.chatFileDownloadError)),
@@ -539,10 +737,9 @@ class _PhotoViewerScreenState extends ConsumerState<PhotoViewerScreen> {
 
   /// Saves the photo in the gallery; a format the gallery does not take is
   /// saved as a file instead.
-  Future<void> _save() async {
+  Future<void> _save(ConversationAttachment photo) async {
     final l10n = AppLocalizations.of(context);
     final messenger = ScaffoldMessenger.of(context);
-    final photo = _photo;
     final file = await _file(photo, l10n);
     if (file == null || !mounted) return;
     final result = await ref.read(attachmentFilesProvider).saveToGallery(file);
@@ -555,21 +752,20 @@ class _PhotoViewerScreenState extends ConsumerState<PhotoViewerScreen> {
         messenger.showSnackBar(SnackBar(content: Text(l10n.chatGalleryDenied)));
       case GallerySave.unsupported:
         if (mounted) {
-          await saveAttachment(context, ref, file, photo, l10n);
+          await saveAttachment(context, ref, file, photo.attachment, l10n);
         }
       case GallerySave.failed:
         messenger.showSnackBar(SnackBar(content: Text(l10n.chatFileOpenError)));
     }
   }
 
-  Future<void> _openElsewhere() async {
+  Future<void> _openElsewhere(ConversationAttachment photo) async {
     final l10n = AppLocalizations.of(context);
-    final photo = _photo;
     final file = await _file(photo, l10n);
     if (file == null || !mounted) return;
     final outcome = await ref
         .read(attachmentFilesProvider)
-        .open(file, photo.contentType);
+        .open(file, photo.attachment.contentType);
     if (outcome != OpenOutcome.opened && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -586,7 +782,7 @@ class _PhotoViewerScreenState extends ConsumerState<PhotoViewerScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final count = widget.photos.length;
+    final photo = _photo;
     return Scaffold(
       backgroundColor: Colors.black,
       extendBodyBehindAppBar: true,
@@ -594,44 +790,79 @@ class _PhotoViewerScreenState extends ConsumerState<PhotoViewerScreen> {
           ? AppBar(
               backgroundColor: Colors.black54,
               foregroundColor: Colors.white,
-              title: Text(
-                count > 1
-                    ? l10n.chatPhotoPosition(_index + 1, count)
-                    : l10n.chatPhoto,
-              ),
+              title: photo == null
+                  ? null
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          photo.isMine ? l10n.chatMe : photo.senderName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        Text(
+                          formatChainTime(photo.sentAt, l10n, DateTime.now()),
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(color: Colors.white70),
+                        ),
+                      ],
+                    ),
               actions: [
-                IconButton(
-                  tooltip: l10n.chatSaveToGallery,
-                  onPressed: _save,
-                  icon: const Icon(Icons.download_outlined),
-                ),
-                IconButton(
-                  tooltip: l10n.chatOpenInOtherApp,
-                  onPressed: _openElsewhere,
-                  icon: const Icon(Icons.open_in_new),
-                ),
+                if (photo != null) ...[
+                  IconButton(
+                    tooltip: l10n.chatSaveToGallery,
+                    onPressed: () => _save(photo),
+                    icon: const Icon(Icons.download_outlined),
+                  ),
+                  IconButton(
+                    tooltip: l10n.chatOpenInOtherApp,
+                    onPressed: () => _openElsewhere(photo),
+                    icon: const Icon(Icons.open_in_new),
+                  ),
+                ],
               ],
             )
           : null,
       body: PageView.builder(
         controller: _pages,
+        // Newest first, from the right: older photos are to the left, and
+        // loading more of them adds pages without moving the one shown.
+        reverse: true,
         physics: _zoomed
             ? const NeverScrollableScrollPhysics()
             : const PageScrollPhysics(),
-        itemCount: count,
-        onPageChanged: (index) => setState(() {
-          _index = index;
-          _zoomed = false;
-        }),
-        itemBuilder: (_, index) => _ZoomablePhoto(
-          conversationId: widget.conversationId,
-          messageId: widget.messageId,
-          photo: widget.photos[index],
-          onTap: () => setState(() => _chrome = !_chrome),
-          onZoomed: (zoomed) {
-            if (zoomed != _zoomed) setState(() => _zoomed = zoomed);
-          },
-        ),
+        itemCount: _photos.length + (_hasOlder ? 1 : 0),
+        onPageChanged: (index) {
+          setState(() {
+            _index = index;
+            _zoomed = false;
+          });
+          _loadOlderIfNear();
+        },
+        itemBuilder: (_, index) {
+          if (index == _photos.length) {
+            return Center(
+              child: _olderFailed && !_loadingOlder
+                  ? IconButton(
+                      tooltip: l10n.messagesRetry,
+                      onPressed: _loadOlderIfNear,
+                      icon: const Icon(Icons.refresh, color: Colors.white),
+                    )
+                  : const CircularProgressIndicator(color: Colors.white),
+            );
+          }
+          final photo = _photos[index];
+          return _ZoomablePhoto(
+            key: ValueKey(photo.attachment.id),
+            conversationId: widget.conversationId,
+            messageId: photo.messageId,
+            photo: photo.attachment,
+            onTap: () => setState(() => _chrome = !_chrome),
+            onZoomed: (zoomed) {
+              if (zoomed != _zoomed) setState(() => _zoomed = zoomed);
+            },
+          );
+        },
       ),
     );
   }
@@ -639,6 +870,7 @@ class _PhotoViewerScreenState extends ConsumerState<PhotoViewerScreen> {
 
 class _ZoomablePhoto extends ConsumerStatefulWidget {
   const _ZoomablePhoto({
+    super.key,
     required this.conversationId,
     required this.messageId,
     required this.photo,
@@ -681,6 +913,15 @@ class _ZoomablePhotoState extends ConsumerState<_ZoomablePhoto>
     _transform.addListener(() {
       widget.onZoomed(_transform.value.getMaxScaleOnAxis() > 1.01);
     });
+  }
+
+  @override
+  void didUpdateWidget(_ZoomablePhoto oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.photo.id != widget.photo.id) {
+      _file = _load();
+      _transform.value = Matrix4.identity();
+    }
   }
 
   @override

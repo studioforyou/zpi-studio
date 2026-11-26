@@ -381,15 +381,76 @@ class ConversationStore {
 	}
 
 	/** Attaches a stored file to the message, at the given place among its attachments. */
-	void insertAttachment(UUID messageId, UUID fileId, int position) {
+	void insertAttachment(UUID messageId, UUID fileId, int position, boolean isImage) {
 		jdbc.sql("""
-				INSERT INTO message_attachment (message_id, file_id, position)
-				VALUES (:messageId, :fileId, :position)
+				INSERT INTO message_attachment (message_id, file_id, position, is_image)
+				VALUES (:messageId, :fileId, :position, :isImage)
 				""")
 			.param("messageId", messageId)
 			.param("fileId", fileId)
 			.param("position", position)
+			.param("isImage", isImage)
 			.update();
+	}
+
+	/** Where a file attached to a message of the conversation is among the conversation's attachments. */
+	Optional<AttachmentCursor> findAttachmentCursor(UUID conversationId, UUID fileId) {
+		return jdbc.sql("""
+				SELECT m.created_at, m.id AS message_id, a.position
+				FROM message_attachment a
+				JOIN message m ON m.id = a.message_id
+				WHERE a.file_id = :fileId AND m.conversation_id = :conversationId
+				""")
+			.param("fileId", fileId)
+			.param("conversationId", conversationId)
+			.query(AttachmentCursor.class)
+			.optional();
+	}
+
+	/**
+	 * Up to {@code limit} photos ({@code images}) or other files attached to messages of the
+	 * conversation that are not deleted, oldest first, in the order of the messages and then of the
+	 * attachments within one: the latest ones, the ones just before {@code before} or the ones just
+	 * after {@code after}. Messages after {@code upTo} are left out.
+	 */
+	List<ListedAttachment> listAttachments(UUID conversationId, boolean images, @Nullable Instant upTo,
+			@Nullable AttachmentCursor before, @Nullable AttachmentCursor after, int limit) {
+		String where = "m.conversation_id = :conversationId AND m.deleted_at IS NULL AND a.is_image = :images";
+		if (upTo != null) {
+			where += " AND m.created_at <= :upTo";
+		}
+		if (before != null) {
+			where += " AND (m.created_at, m.id, a.position) < (:cursorAt, :cursorMessage, :cursorPosition)";
+		}
+		if (after != null) {
+			where += " AND (m.created_at, m.id, a.position) > (:cursorAt, :cursorMessage, :cursorPosition)";
+		}
+		String order = (after != null) ? "ASC" : "DESC";
+		var spec = jdbc.sql("""
+				SELECT a.file_id, a.message_id, m.sender_id, m.created_at
+				FROM message_attachment a
+				JOIN message m ON m.id = a.message_id
+				WHERE %s
+				ORDER BY m.created_at %s, m.id %s, a.position %s
+				LIMIT :limit
+				""".formatted(where, order, order, order))
+			.param("conversationId", conversationId)
+			.param("images", images)
+			.param("limit", limit);
+		if (upTo != null) {
+			spec = spec.param("upTo", utc(upTo));
+		}
+		AttachmentCursor cursor = (before != null) ? before : after;
+		if (cursor != null) {
+			spec = spec.param("cursorAt", cursor.createdAt())
+				.param("cursorMessage", cursor.messageId())
+				.param("cursorPosition", cursor.position());
+		}
+		List<ListedAttachment> attachments = new ArrayList<>(spec.query(ListedAttachment.class).list());
+		if (after == null) {
+			Collections.reverse(attachments);
+		}
+		return attachments;
 	}
 
 	/** The stored files attached to each of the given messages, in their order; messages without any are left out. */
@@ -460,6 +521,14 @@ class ConversationStore {
 
 	record Message(UUID id, UUID conversationId, UUID senderId, @Nullable String body, OffsetDateTime createdAt,
 			@Nullable OffsetDateTime deletedAt) {
+	}
+
+	/** The place of an attachment among a conversation's attachments, to list the ones before or after it. */
+	record AttachmentCursor(OffsetDateTime createdAt, UUID messageId, int position) {
+	}
+
+	/** A file attached to a message, with who sent it and when. */
+	record ListedAttachment(UUID fileId, UUID messageId, UUID senderId, OffsetDateTime createdAt) {
 	}
 
 	record Summary(UUID id, ConversationKind kind, @Nullable UUID trainingGroupId, @Nullable UUID eventId,

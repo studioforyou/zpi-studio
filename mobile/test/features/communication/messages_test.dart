@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
@@ -17,6 +18,7 @@ import 'package:mobile/features/communication/data/notifications_api.dart';
 import 'package:mobile/features/communication/data/open_conversation.dart';
 import 'package:mobile/features/communication/presentation/chat_format.dart';
 import 'package:mobile/features/communication/presentation/chat_pickers.dart';
+import 'package:mobile/features/communication/presentation/conversation_media_screen.dart';
 import 'package:mobile/features/communication/presentation/conversation_screen.dart';
 import 'package:mobile/features/communication/presentation/messages_screen.dart';
 import 'package:mobile/features/communication/presentation/new_group_chat_screen.dart';
@@ -63,6 +65,18 @@ class _FakeConversationsApi extends ConversationsApi {
   final hidden = <String>[];
   int? startStatus;
 
+  /// How many of the latest messages a conversation opens with; all when
+  /// `null`.
+  int? latestPageSize;
+
+  /// The messages older ones were asked for before.
+  final olderRequests = <String>[];
+  bool olderFail = false;
+
+  /// How many photos or files a page has, whatever the app asks for.
+  int? attachmentPageSize;
+  final attachmentRequests = <String>[];
+
   @override
   Future<List<ConversationSummary>> fetchConversations() async =>
       List.of(summaries);
@@ -93,10 +107,46 @@ class _FakeConversationsApi extends ConversationsApi {
         nextDeletedSince: 'cursor-${deletedSinceSeen.length}',
       );
     }
+    if (before != null) {
+      olderRequests.add(before);
+      if (olderFail) {
+        throw const ApiException(statusCode: 500, message: 'Error');
+      }
+      return MessagePage(
+        items: all.sublist(0, all.indexWhere((m) => m.id == before)),
+        hasMore: false,
+      );
+    }
+    final size = latestPageSize ?? all.length;
     return MessagePage(
-      items: before == null ? all : const [],
-      hasMore: false,
+      items: all.sublist(math.max(0, all.length - size)),
+      hasMore: all.length > size,
       nextDeletedSince: 'cursor-0',
+    );
+  }
+
+  @override
+  Future<ConversationAttachmentPage> fetchAttachments(
+    String conversationId,
+    AttachmentKind kind, {
+    String? before,
+    String? after,
+    int? limit,
+  }) async {
+    attachmentRequests.add('${kind.name} before=$before');
+    final all = [
+      for (final message in messages[conversationId] ?? const <ChatMessage>[])
+        if (!message.isDeleted)
+          for (final item in ConversationAttachment.ofMessage(message))
+            if (item.attachment.isImage == (kind == AttachmentKind.photo)) item,
+    ];
+    final end = before == null
+        ? all.length
+        : all.indexWhere((item) => item.attachment.id == before);
+    final start = math.max(0, end - (attachmentPageSize ?? limit ?? 50));
+    return ConversationAttachmentPage(
+      items: all.sublist(start, end),
+      hasMore: start > 0,
     );
   }
 
@@ -293,6 +343,29 @@ const _plan = ChatAttachment(
   contentType: 'application/pdf',
   sizeBytes: 1468006,
   isImage: false,
+);
+
+ChatAttachment _photoNamed(String name) => ChatAttachment(
+  id: 'photo-$name',
+  fileName: '$name.jpg',
+  contentType: 'image/jpeg',
+  sizeBytes: 1024,
+  isImage: true,
+);
+
+/// The file of the photo shown in the photo viewer.
+String _shownPhoto(WidgetTester tester) {
+  final image = tester.widget<Image>(
+    find.descendant(
+      of: find.byType(PhotoViewerScreen),
+      matching: find.byType(Image),
+    ),
+  );
+  return (image.image as FileImage).file.path;
+}
+
+Finder _thumbnailOf(String photoId) => find.byWidgetPredicate(
+  (widget) => widget is PhotoThumbnail && widget.photo.id == photoId,
 );
 
 OutgoingAttachment _picked(String name, int sizeBytes) => OutgoingAttachment(
@@ -894,7 +967,7 @@ void main() {
 
       await tester.tap(find.byTooltip('Dodaj załącznik'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Dokument'));
+      await tester.tap(find.text('Plik'));
       await tester.pumpAndSettle();
       // Waiting above the text field until it is sent, and can be taken out.
       expect(find.byTooltip('Usuń załącznik'), findsOneWidget);
@@ -927,7 +1000,7 @@ void main() {
 
       await tester.tap(find.byTooltip('Dodaj załącznik'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Dokument'));
+      await tester.tap(find.text('Plik'));
       await tester.pumpAndSettle();
 
       expect(find.byTooltip('Usuń załącznik'), findsOneWidget);
@@ -1005,7 +1078,9 @@ void main() {
         await tester.pumpAndSettle();
         expect(find.byType(PhotoViewerScreen), findsOneWidget);
         expect(find.byType(InteractiveViewer), findsOneWidget);
-        expect(find.text('Zdjęcie'), findsOneWidget);
+        // Who sent it, and when.
+        expect(find.text('Ewa Lis'), findsOneWidget);
+        expect(find.text('5 listopada, 10:30'), findsOneWidget);
 
         await tester.tap(find.byTooltip('Zapisz w galerii'));
         await tester.pumpAndSettle();
@@ -1105,6 +1180,239 @@ void main() {
           '/cache/photo-1/IMG_0042.jpg',
           '/cache/photo-2/IMG_0043.jpg',
         ]),
+      );
+    });
+
+    testWidgets('older messages load by themselves when scrolled up to', (
+      tester,
+    ) async {
+      api.conversations['d'] = _direct('d', 'Ewa Lis');
+      api
+        ..messages['d'] = [
+          for (var i = 1; i <= 60; i++)
+            _message('$i', 'Wiadomość $i', sender: 'x', name: 'Ewa Lis'),
+        ]
+        ..latestPageSize = 30
+        ..olderFail = true;
+      await pump(
+        tester,
+        session: _client,
+        initialLocation: '/client/messages/chat/d',
+      );
+      expect(find.text('Wiadomość 60'), findsOneWidget);
+      // The latest messages fill the screen: nothing more is loaded yet.
+      expect(api.olderRequests, isEmpty);
+
+      final messages = find.byType(Scrollable).first;
+      final retry = find.text(
+        'Nie udało się wczytać wcześniejszych wiadomości. Spróbuj ponownie',
+      );
+      await tester.scrollUntilVisible(retry, 300, scrollable: messages);
+      await tester.pumpAndSettle();
+      // A failure does not repeat on every scroll; the user tries again.
+      expect(api.olderRequests, ['31']);
+      await tester.drag(messages, const Offset(0, 100));
+      await tester.pumpAndSettle();
+      expect(api.olderRequests, ['31']);
+
+      api.olderFail = false;
+      await tester.tap(retry);
+      await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(
+        find.text('Wiadomość 1'),
+        300,
+        scrollable: messages,
+      );
+      expect(api.olderRequests, ['31', '31']);
+      expect(retry, findsNothing);
+    });
+
+    testWidgets('swiping a photo goes through the photos of every message', (
+      tester,
+    ) async {
+      api.conversations['d'] = _direct('d', 'Ewa Lis');
+      api
+        ..messages['d'] = [
+          _message(
+            '1',
+            null,
+            sender: 'x',
+            name: 'Ewa Lis',
+            at: DateTime(2026, 11, 3, 9),
+            attachments: [_photoNamed('a')],
+          ),
+          for (var i = 0; i < 40; i++)
+            _message(
+              't$i',
+              'Wiadomość $i',
+              sender: 'x',
+              name: 'Ewa Lis',
+              at: DateTime(2026, 11, 4, 8),
+            ),
+          _message(
+            '2',
+            'Moje ćwiczenia',
+            sender: 'me',
+            name: 'Anna Kowalska',
+            isMine: true,
+            at: DateTime(2026, 11, 4, 9),
+            attachments: [_photoNamed('b'), _plan],
+          ),
+          _message(
+            '3',
+            null,
+            sender: 'x',
+            name: 'Ewa Lis',
+            at: DateTime(2026, 11, 5, 9),
+            attachments: [_photoNamed('c')],
+          ),
+        ]
+        // The conversation opens without the oldest message, and the ones
+        // loaded fill the screen.
+        ..latestPageSize = 42;
+      await pump(
+        tester,
+        session: _client,
+        initialLocation: '/client/messages/chat/d',
+      );
+      expect(find.byType(PhotoThumbnail), findsNWidgets(2));
+      expect(api.olderRequests, isEmpty);
+
+      await tester.tap(_thumbnailOf('photo-c'));
+      await tester.pumpAndSettle();
+      expect(_shownPhoto(tester), '/cache/photo-c/c.jpg');
+      // The photos before the ones loaded in the conversation are asked for.
+      expect(api.attachmentRequests, ['photo before=photo-b']);
+
+      // Older photos are to the left.
+      await tester.fling(find.byType(PageView), const Offset(500, 0), 1500);
+      await tester.pumpAndSettle();
+      expect(_shownPhoto(tester), '/cache/photo-b/b.jpg');
+      expect(find.text('Ty'), findsOneWidget);
+      await tester.fling(find.byType(PageView), const Offset(500, 0), 1500);
+      await tester.pumpAndSettle();
+      expect(_shownPhoto(tester), '/cache/photo-a/a.jpg');
+      expect(find.text('Ewa Lis'), findsOneWidget);
+      // That is the first photo of the conversation.
+      await tester.fling(find.byType(PageView), const Offset(500, 0), 1500);
+      await tester.pumpAndSettle();
+      expect(_shownPhoto(tester), '/cache/photo-a/a.jpg');
+      expect(api.attachmentRequests, hasLength(1));
+
+      await tester.fling(find.byType(PageView), const Offset(-500, 0), 1500);
+      await tester.pumpAndSettle();
+      expect(_shownPhoto(tester), '/cache/photo-b/b.jpg');
+    });
+
+    testWidgets('the details of a private chat lead to all photos and files', (
+      tester,
+    ) async {
+      api.conversations['d'] = _direct('d', 'Ewa Lis');
+      api.messages['d'] = [
+        _message(
+          '1',
+          null,
+          sender: 'x',
+          name: 'Ewa Lis',
+          at: DateTime(2024, 3, 10, 9),
+          attachments: [_photoNamed('a')],
+        ),
+        _message(
+          '2',
+          'Plan na ten tydzień',
+          sender: 'x',
+          name: 'Ewa Lis',
+          at: DateTime.now(),
+          attachments: [_photoNamed('b'), _plan],
+        ),
+      ];
+      await pump(
+        tester,
+        session: _client,
+        initialLocation: '/client/messages/chat/d',
+      );
+
+      await tester.tap(find.byTooltip('Informacje o czacie'));
+      await tester.pumpAndSettle();
+      expect(find.text('trener'), findsNWidgets(2));
+      await tester.tap(find.text('Zdjęcia'));
+      await tester.pumpAndSettle();
+
+      // Newest first, by month.
+      expect(find.byType(ConversationPhotosScreen), findsOneWidget);
+      expect(find.text('Marzec 2024'), findsOneWidget);
+      expect(find.byType(PhotoThumbnail), findsNWidgets(2));
+      expect(
+        tester.getTopLeft(_thumbnailOf('photo-b')).dy,
+        lessThan(tester.getTopLeft(_thumbnailOf('photo-a')).dy),
+      );
+
+      // A photo opens among all of them, the newer ones to the right.
+      await tester.tap(_thumbnailOf('photo-a'));
+      await tester.pumpAndSettle();
+      expect(_shownPhoto(tester), '/cache/photo-a/a.jpg');
+      await tester.fling(find.byType(PageView), const Offset(-500, 0), 1500);
+      await tester.pumpAndSettle();
+      expect(_shownPhoto(tester), '/cache/photo-b/b.jpg');
+
+      // Back in the details, the files.
+      await tester.tap(find.byType(BackButton));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byType(BackButton));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Pliki'));
+      await tester.pumpAndSettle();
+      expect(find.byType(ConversationFilesScreen), findsOneWidget);
+      expect(find.text('Plan treningowy.pdf'), findsOneWidget);
+      expect(find.textContaining('PDF · 1,4 MB · Ewa Lis'), findsOneWidget);
+      await tester.tap(find.text('Plan treningowy.pdf'));
+      await tester.pumpAndSettle();
+      expect(files.opened, ['/cache/pdf-1/Plan treningowy.pdf']);
+    });
+
+    testWidgets('all photos are loaded page by page; files may be none', (
+      tester,
+    ) async {
+      api.conversations['g'] = _group('g', 'Pole dance wt/czw');
+      api
+        ..messages['g'] = [
+          for (final name in ['a', 'b', 'c', 'd', 'e'])
+            _message(
+              name,
+              null,
+              sender: 'x',
+              name: 'Ewa Lis',
+              attachments: [_photoNamed(name)],
+            ),
+        ]
+        ..attachmentPageSize = 2;
+      await pump(
+        tester,
+        session: _client,
+        initialLocation: '/client/messages/chat/g',
+      );
+      await tester.tap(find.byTooltip('Informacje o czacie'));
+      await tester.pumpAndSettle();
+      // A group chat's details still list its people.
+      expect(find.text('Członkowie · 2'), findsOneWidget);
+      await tester.tap(find.text('Zdjęcia'));
+      await tester.pumpAndSettle();
+
+      // Two pages do not fill the screen, so the next ones follow.
+      expect(find.byType(PhotoThumbnail), findsNWidgets(5));
+      expect(api.attachmentRequests, [
+        'photo before=null',
+        'photo before=photo-d',
+        'photo before=photo-b',
+      ]);
+
+      await tester.tap(find.byType(BackButton));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Pliki'));
+      await tester.pumpAndSettle();
+      expect(
+        find.text('W tej rozmowie nie ma jeszcze plików.'),
+        findsOneWidget,
       );
     });
 

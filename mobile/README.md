@@ -180,14 +180,22 @@ removes the location before it stores the photo. See `lib/features/communication
 
 Received files are downloaded once into the app's cache, kept by attachment
 id (`attachment_files.dart`). Photos are shown in the conversation and open
-full screen (`PhotoViewerScreen`): swipe between the photos of a message, zoom
-with two fingers or a double tap, and save it in the phone's gallery (`gal`):
+full screen (`PhotoViewerScreen`): swipe through all the photos of the
+conversation, older ones to the left (the ones loaded in the conversation
+first, then older ones from `GET .../attachments?kind=PHOTO` as the user gets
+to them), zoom with two fingers or a double tap, and save it in the phone's
+gallery (`gal`):
 Photos on iPhone, the Pictures album on Android. A photo the gallery does not
 take (e.g. HEIC on an older Android) is saved as a file instead. Other files
 open in an app of the phone with `open_filex` (the system preview on iPhone,
 e.g. a PDF viewer or Word on Android); when no app opens the file, or with the
 download button of a file, a copy can be saved on the phone
 (`FilePicker.saveFile`: Files on iPhone, a folder the user picks on Android).
+
+Every conversation, a private one too, has details behind the info button of
+its bar, with the way to all its photos and all its other files
+(`conversation_media_screen.dart`): a grid of photos and a list of files,
+newest first and by month, loaded page by page as the user scrolls.
 
 Platform settings: `ios/Runner/Info.plist` describes the camera and photo
 library use (`NSCameraUsageDescription`, `NSPhotoLibraryUsageDescription`; the

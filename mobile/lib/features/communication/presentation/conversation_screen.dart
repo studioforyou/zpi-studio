@@ -14,6 +14,7 @@ import 'package:mobile/features/communication/data/conversations_api.dart';
 import 'package:mobile/features/communication/data/notifications_api.dart';
 import 'package:mobile/features/communication/data/open_conversation.dart';
 import 'package:mobile/features/communication/presentation/chat_format.dart';
+import 'package:mobile/features/communication/presentation/conversation_media_screen.dart';
 import 'package:mobile/features/communication/presentation/widgets/chat_avatar.dart';
 import 'package:mobile/features/communication/presentation/widgets/message_attachments.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
@@ -28,8 +29,12 @@ const messageChainGap = Duration(minutes: 10);
 /// Longest message, as the backend accepts it.
 const maxMessageLength = 2000;
 
-/// One conversation: its messages, writing and, for a group or class chat,
-/// its people and settings.
+/// Older messages are loaded when the user scrolls this close to the oldest
+/// one.
+const _loadOlderExtent = 600.0;
+
+/// One conversation: its messages, writing, and its details: all its photos
+/// and files and, for a group or class chat, its people and settings.
 class ConversationScreen extends ConsumerStatefulWidget {
   const ConversationScreen({super.key, required this.conversationId});
 
@@ -41,6 +46,7 @@ class ConversationScreen extends ConsumerStatefulWidget {
 
 class _ConversationScreenState extends ConsumerState<ConversationScreen> {
   final _input = TextEditingController();
+  final _scroll = ScrollController();
   Timer? _timer;
   late final OpenConversation _open;
   StreamSubscription<String>? _arrived;
@@ -48,6 +54,9 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
   List<ChatMessage> _messages = const [];
   bool _hasOlder = false;
   bool _loadingOlder = false;
+
+  /// Loading older messages failed; they load again when the user asks.
+  bool _olderFailed = false;
   bool _sending = false;
   bool _polling = false;
 
@@ -70,6 +79,12 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
   @override
   void initState() {
     super.initState();
+    // Older messages load by themselves as the user scrolls up to them.
+    _scroll.addListener(() {
+      if (_scroll.position.extentAfter < _loadOlderExtent && !_olderFailed) {
+        _loadOlder();
+      }
+    });
     _load();
     _timer = Timer.periodic(messagesPollInterval, (_) => _poll());
     // A push about a new message here shows it at once.
@@ -87,6 +102,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
       _open.id = null;
     }
     _input.dispose();
+    _scroll.dispose();
     super.dispose();
   }
 
@@ -104,6 +120,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
         _hasOlder = page.hasMore;
         _deletedSince = page.nextDeletedSince;
       });
+      _fillScreen();
       _markRead();
     } catch (e) {
       if (mounted) {
@@ -167,28 +184,46 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
 
   Future<void> _loadOlder() async {
     final first = _messages.firstOrNull;
-    if (first == null || _loadingOlder) {
+    if (first == null || !_hasOlder || _loadingOlder) {
       return;
     }
-    setState(() => _loadingOlder = true);
+    setState(() {
+      _loadingOlder = true;
+      _olderFailed = false;
+    });
     try {
       final page = await _api.fetchMessages(
         widget.conversationId,
         before: first.id,
       );
       if (mounted) {
+        // The list is reversed, so the older messages are added above
+        // without moving the ones on screen.
         setState(() {
           _messages = [...page.items, ..._messages];
           _hasOlder = page.hasMore;
         });
+        _fillScreen();
       }
-    } catch (e) {
-      _showError(e);
+    } catch (_) {
+      if (mounted) setState(() => _olderFailed = true);
     } finally {
       if (mounted) {
         setState(() => _loadingOlder = false);
       }
     }
+  }
+
+  /// Loads older messages while the loaded ones do not fill the screen:
+  /// there is nothing to scroll that would load them.
+  void _fillScreen() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted &&
+          _scroll.hasClients &&
+          _scroll.position.extentAfter < _loadOlderExtent) {
+        _loadOlder();
+      }
+    });
   }
 
   void _markRead() {
@@ -462,6 +497,8 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
       builder: (_) => _InfoSheet(
         conversation: conversation,
         accountId: _accountId(),
+        subtitle: _subtitle(conversation, AppLocalizations.of(context)),
+        onOpen: _openMedia,
         onClientsCanReply: (value) async {
           try {
             final updated = await _api.setClientsCanReply(
@@ -478,6 +515,47 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
           }
         },
       ),
+    );
+  }
+
+  /// Opens all the photos or files of the conversation, above its details.
+  void _openMedia(AttachmentKind kind) {
+    final conversation = _conversation;
+    if (conversation == null) return;
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => switch (kind) {
+          AttachmentKind.photo => ConversationPhotosScreen(
+            conversationId: conversation.id,
+            title: conversation.title,
+          ),
+          AttachmentKind.file => ConversationFilesScreen(
+            conversationId: conversation.id,
+            title: conversation.title,
+          ),
+        },
+      ),
+    );
+  }
+
+  /// Opens a photo full screen among all the photos of the conversation: the
+  /// ones loaded here, newest first, and the older ones as the user swipes to
+  /// them.
+  void _openPhoto(ChatAttachment photo) {
+    final photos = [
+      for (final message in _messages.reversed)
+        if (!message.isDeleted)
+          for (final item in ConversationAttachment.ofMessage(message).reversed)
+            if (item.attachment.isImage) item,
+    ];
+    final index = photos.indexWhere((item) => item.attachment.id == photo.id);
+    if (index < 0) return;
+    openPhotoViewer(
+      context,
+      conversationId: widget.conversationId,
+      photos: photos,
+      initialIndex: index,
+      hasOlder: _hasOlder,
     );
   }
 
@@ -575,12 +653,11 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
           ],
         ),
         actions: [
-          if (conversation.isGroup)
-            IconButton(
-              tooltip: l10n.chatInfo,
-              onPressed: _showInfo,
-              icon: const Icon(Icons.info_outline),
-            ),
+          IconButton(
+            tooltip: l10n.chatInfo,
+            onPressed: _showInfo,
+            icon: const Icon(Icons.info_outline),
+          ),
           if (conversation.canHide)
             PopupMenuButton<void>(
               itemBuilder: (_) => [
@@ -630,15 +707,25 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     final now = DateTime.now();
     final count = _messages.length + (_hasOlder ? 1 : 0);
     return ListView.builder(
+      controller: _scroll,
       reverse: true,
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
       itemCount: count,
       itemBuilder: (context, index) {
         if (index == _messages.length) {
-          return Center(
-            child: TextButton(
-              onPressed: _loadingOlder ? null : _loadOlder,
-              child: Text(l10n.chatLoadOlder),
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Center(
+              child: _olderFailed && !_loadingOlder
+                  ? TextButton.icon(
+                      onPressed: _loadOlder,
+                      icon: const Icon(Icons.refresh),
+                      label: Text(l10n.chatLoadOlderError),
+                    )
+                  : const SizedBox.square(
+                      dimension: 22,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
             ),
           );
         }
@@ -676,6 +763,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
             () => _tappedId = _tappedId == message.id ? null : message.id,
           ),
           onLongPress: (position) => _showMessageMenu(message, position),
+          onOpenPhoto: _openPhoto,
         );
       },
     );
@@ -730,6 +818,7 @@ class _MessageRow extends StatelessWidget {
     required this.tapped,
     required this.onTap,
     required this.onLongPress,
+    required this.onOpenPhoto,
   });
 
   final String conversationId;
@@ -758,6 +847,7 @@ class _MessageRow extends StatelessWidget {
   final bool tapped;
   final VoidCallback onTap;
   final ValueChanged<Offset> onLongPress;
+  final ValueChanged<ChatAttachment> onOpenPhoto;
 
   @override
   Widget build(BuildContext context) {
@@ -828,6 +918,7 @@ class _MessageRow extends StatelessWidget {
                 message: message,
                 maxWidth: maxWidth,
                 onLongPress: onLongPress,
+                onOpenPhoto: onOpenPhoto,
               ),
               if (body.isNotEmpty) bubble,
             ],
@@ -1123,16 +1214,26 @@ class _Banner extends StatelessWidget {
   }
 }
 
-/// The people and settings of a group or class chat.
+/// The details of a conversation: the person of a 1:1 conversation or the
+/// title, people and settings of a group or class chat, and the way to all
+/// its photos and files.
 class _InfoSheet extends StatefulWidget {
   const _InfoSheet({
     required this.conversation,
     required this.accountId,
+    required this.subtitle,
+    required this.onOpen,
     required this.onClientsCanReply,
   });
 
   final Conversation conversation;
   final String? accountId;
+
+  /// Who the other person of a 1:1 conversation is, e.g. `klient`.
+  final String subtitle;
+
+  /// Opens all the photos or all the files of the conversation.
+  final ValueChanged<AttachmentKind> onOpen;
   final Future<Conversation?> Function(bool value) onClientsCanReply;
 
   @override
@@ -1157,6 +1258,7 @@ class _InfoSheetState extends State<_InfoSheet> {
     final section = theme.textTheme.labelLarge?.copyWith(
       color: theme.colorScheme.primary,
     );
+    final counterpart = _conversation.counterpart;
 
     return SafeArea(
       child: ConstrainedBox(
@@ -1167,11 +1269,65 @@ class _InfoSheetState extends State<_InfoSheet> {
           shrinkWrap: true,
           padding: const EdgeInsets.only(bottom: 16),
           children: [
+            if (_conversation.isGroup)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
+                child: Text(
+                  _conversation.title,
+                  style: theme.textTheme.titleLarge,
+                ),
+              )
+            else
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
+                child: Row(
+                  spacing: 14,
+                  children: [
+                    PersonAvatar(
+                      name: _conversation.title,
+                      seed: counterpart?.accountId ?? _conversation.id,
+                      size: 48,
+                    ),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _conversation.title,
+                            style: theme.textTheme.titleLarge,
+                          ),
+                          Text(
+                            widget.subtitle,
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
-              child: Text(
-                _conversation.title,
-                style: theme.textTheme.titleLarge,
+              padding: const EdgeInsets.fromLTRB(24, 8, 24, 12),
+              child: Row(
+                spacing: 12,
+                children: [
+                  Expanded(
+                    child: _MediaButton(
+                      icon: Icons.photo_library_outlined,
+                      label: l10n.chatPhotos,
+                      onTap: () => widget.onOpen(AttachmentKind.photo),
+                    ),
+                  ),
+                  Expanded(
+                    child: _MediaButton(
+                      icon: Icons.insert_drive_file_outlined,
+                      label: l10n.chatFiles,
+                      onTap: () => widget.onOpen(AttachmentKind.file),
+                    ),
+                  ),
+                ],
               ),
             ),
             if (_conversation.isLeader)
@@ -1195,27 +1351,29 @@ class _InfoSheetState extends State<_InfoSheet> {
                         }
                       },
               ),
-            const Divider(),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 8, 24, 4),
-              child: Text(l10n.chatLeaders, style: section),
-            ),
-            for (final person in _conversation.leaders) _person(person, l10n),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 12, 24, 4),
-              child: Text(
-                l10n.chatMembersHeader(_conversation.members.length),
-                style: section,
+            if (_conversation.isGroup) ...[
+              const Divider(),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 8, 24, 4),
+                child: Text(l10n.chatLeaders, style: section),
               ),
-            ),
-            for (final person in members) _person(person, l10n),
-            if (!_showAll && _conversation.members.length > _collapsedMembers)
-              ListTile(
-                contentPadding: const EdgeInsets.symmetric(horizontal: 24),
-                leading: const Icon(Icons.expand_more),
-                title: Text(l10n.chatShowAll),
-                onTap: () => setState(() => _showAll = true),
+              for (final person in _conversation.leaders) _person(person, l10n),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 12, 24, 4),
+                child: Text(
+                  l10n.chatMembersHeader(_conversation.members.length),
+                  style: section,
+                ),
               ),
+              for (final person in members) _person(person, l10n),
+              if (!_showAll && _conversation.members.length > _collapsedMembers)
+                ListTile(
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 24),
+                  leading: const Icon(Icons.expand_more),
+                  title: Text(l10n.chatShowAll),
+                  onTap: () => setState(() => _showAll = true),
+                ),
+            ],
           ],
         ),
       ),
@@ -1237,4 +1395,41 @@ class _InfoSheetState extends State<_InfoSheet> {
       style: Theme.of(context).textTheme.bodyLarge,
     ),
   );
+}
+
+/// One of the ways from a conversation's details to all its photos or files.
+class _MediaButton extends StatelessWidget {
+  const _MediaButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return Material(
+      color: scheme.surfaceContainerHigh,
+      borderRadius: BorderRadius.circular(16),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+          child: Column(
+            spacing: 6,
+            children: [
+              Icon(icon, color: scheme.primary),
+              Text(label, style: theme.textTheme.labelLarge),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }

@@ -112,6 +112,30 @@ final class MessagingDtos {
 	}
 
 	/**
+	 * A file attached to a message of the conversation, with the message it came with.
+	 *
+	 * @param messageId the message; the content is at {@code GET .../messages/{messageId}/attachments/{id}}
+	 * @param senderName the name of who sent it
+	 * @param isMine whether the signed-in user sent it
+	 * @param sentAt when the message was sent
+	 */
+	@Schema(name = "ConversationAttachment")
+	record ConversationAttachmentResponse(UUID messageId, UUID senderAccountId,
+			@Schema(example = "Ola Lewandowska") String senderName, boolean isMine, Instant sentAt,
+			AttachmentResponse attachment) {
+	}
+
+	/**
+	 * Photos or other files of a conversation, oldest first, in the order they were sent.
+	 *
+	 * @param hasMore whether there are older ones than the first one ({@code before} or the latest
+	 * page) or newer ones than the last one ({@code after})
+	 */
+	@Schema(name = "ConversationAttachmentPage")
+	record AttachmentPage(List<ConversationAttachmentResponse> items, boolean hasMore) {
+	}
+
+	/**
 	 * Messages oldest first.
 	 *
 	 * @param hasMore whether there are older messages than the first one ({@code before} or the latest
