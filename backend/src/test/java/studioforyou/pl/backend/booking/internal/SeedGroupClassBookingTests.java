@@ -71,7 +71,7 @@ class SeedGroupClassBookingTests {
 				""").query(Integer.class).single()).isZero();
 		// Only the accounts and profiles of seeds 01-02; the showcase adds none. The sales history
 		// (seed 19) adds clients without an account of its own, with IDs ending in 19NNNNNN, and the
-		// lapsed customers (seed 30) add clients with IDs ending in 171NNN.
+		// lapsed customers (seed 29) add clients with IDs ending in 171NNN.
 		assertThat(jdbc.sql("""
 				SELECT count(*) FROM account
 				WHERE id::text NOT LIKE '03000000-0000-0000-0000-000000171%'

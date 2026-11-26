@@ -1,4 +1,4 @@
--- Seed 30: customers who stopped coming, for the panel's "Nieaktywni klienci" list (#171)
+-- Seed 29: customers who stopped coming, for the panel's "Nieaktywni klienci" list (#171)
 -- DEV/STAGE TEST DATA ONLY. Conventions: see R__seed_01_identity.sql.
 -- New clients (ids ...171NNN) whose visits ended a while before the seed first ran, with no
 -- upcoming bookings. Visit dates are fixed when the seed first runs, so they only get older.
