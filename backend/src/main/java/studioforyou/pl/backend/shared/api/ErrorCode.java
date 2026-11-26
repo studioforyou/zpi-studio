@@ -92,6 +92,10 @@ public enum ErrorCode {
 	DISPUTE_WINDOW_CLOSED(HttpStatus.UNPROCESSABLE_CONTENT),
 	PERSONAL_SESSION_NOT_HELD(HttpStatus.UNPROCESSABLE_CONTENT),
 	PERSONAL_SESSION_NOT_CONFIRMED(HttpStatus.UNPROCESSABLE_CONTENT),
+	/** Another administrator has already decided on the dispute. */
+	DISPUTE_ALREADY_RESOLVED(HttpStatus.CONFLICT),
+	/** The chosen decision does not fit the session's funding, e.g. a make-up credit from an unlimited pass. */
+	DISPUTE_RESOLUTION_UNAVAILABLE(HttpStatus.UNPROCESSABLE_CONTENT),
 
 	// booking: attendance
 	/** Attendance is recorded only once the event has started. */
@@ -159,7 +163,9 @@ public enum ErrorCode {
 	TIME_OFF_NOT_CANCELLABLE(HttpStatus.UNPROCESSABLE_CONTENT),
 	// communication: announcements
 	/** Nobody would get the announcement, e.g. an empty group or no one with the marketing consent. */
-	ANNOUNCEMENT_NO_RECIPIENTS(HttpStatus.UNPROCESSABLE_CONTENT);
+	ANNOUNCEMENT_NO_RECIPIENTS(HttpStatus.UNPROCESSABLE_CONTENT),
+	/** Another announcement template already has this name, regardless of letter case. */
+	ANNOUNCEMENT_TEMPLATE_NAME_ALREADY_USED(HttpStatus.CONFLICT);
 
 	private final HttpStatus status;
 

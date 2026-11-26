@@ -94,6 +94,19 @@ class PassLedgerEntry {
 		return new PassLedgerEntry(passId, PassLedgerKind.CORRECTION, entriesDelta, null, null, reason, actorAccountId);
 	}
 
+	/**
+	 * Gives back the entry a reservation used, after an administrator upheld the client's dispute
+	 * about the session. It is a correction rather than a return, so the session still counts as held
+	 * and used; linking it to the reservation lets the ledger's unique index refund it only once.
+	 */
+	static PassLedgerEntry disputeRefund(UUID passId, UUID reservationId, short entriesDelta, String reason,
+			UUID actorAccountId) {
+		PassLedgerEntry entry = new PassLedgerEntry(passId, PassLedgerKind.CORRECTION, entriesDelta, null, null, reason,
+				actorAccountId);
+		entry.reservationId = reservationId;
+		return entry;
+	}
+
 	short getEntriesDelta() {
 		return this.entriesDelta;
 	}
