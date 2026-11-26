@@ -109,11 +109,11 @@ Beata Lis has sent four announcements, visible in the panel under **Komunikacja 
 
 The same seed adds two automatic notifications to Monika whose push did not arrive (*Karnet wkrótce wygaśnie*, unregistered phone, and *Jutro: Pole dance początkujący*, two failed attempts), so **Komunikacja → Historia wysyłek** (#161) shows the "Błąd push" status.
 
-## Personal-training disputes (seed 27)
+## Personal-training disputes (seed 26)
 
 Signed in as Beata, **Niezgodności** (#113) lists the disputes clients reported about held personal sessions. Three are open: Tomasz's "Trening trwał 30 minut zamiast 60." (seed 04), his request to explain a session's accounting (seed 10) and Monika's (seed 13). Each can be upheld (the entry goes back to the package as a correction), upheld with a make-up credit, or rejected; the explanation is shown to the client in the mobile app.
 
-`R__seed_27_dispute_resolutions.sql` adds two disputes Beata already decided, for the **Rozstrzygnięte** tab. Both are Tomasz's sessions with Marek, funded by a separate "Pakiet PT — rozstrzygnięte zgłoszenia":
+`R__seed_26_dispute_resolutions.sql` adds two disputes Beata already decided, for the **Rozstrzygnięte** tab. Both are Tomasz's sessions with Marek, funded by a separate "Pakiet PT — rozstrzygnięte zgłoszenia":
 
 | Session | Decision | Effect |
 | --- | --- | --- |
@@ -121,3 +121,7 @@ Signed in as Beata, **Niezgodności** (#113) lists the disputes clients reported
 | "Personalny — zgłoszenie odrzucone", 6 days ago | Rejected | The entry stays used |
 
 The package's balance matches its ledger (8 activated, two entries used, one returned: 7 left). Re-running the seed only adds missing rows, so decisions made while testing are kept.
+
+## Announcement templates (seed 27)
+
+Beata Lis has three announcement templates under **Komunikacja → Komunikaty → Szablony** (#160): *Zamknięcie studia w święto* and *Zmiana sali* (studio messages) and *Promocja na karnety* (an offer). In **Nowy komunikat** the field **Szablon** fills the title, text and kind from them.

@@ -3,6 +3,7 @@ import { Alert, Badge, Button, Group, Progress, Stack, Table, Text } from '@mant
 import { useQuery } from '@tanstack/react-query';
 import { pl } from '@/shared/i18n/pl';
 import { AnnouncementDetailsDrawer } from './AnnouncementDetailsDrawer';
+import { AnnouncementTemplatesModal } from './AnnouncementTemplatesModal';
 import { audienceLabel, formatSentAt } from './announcementFormat';
 import {
   HISTORY_PAGE_SIZE,
@@ -12,11 +13,12 @@ import {
 } from './announcementsApi';
 import { NewAnnouncementModal } from './NewAnnouncementModal';
 
-/** Sent announcements, newest first, and the form for a new one. */
+/** Sent announcements, newest first, the form for a new one and the announcement templates. */
 export function AnnouncementsPanel() {
   const texts = pl.communication.announcements;
   const [size, setSize] = useState(HISTORY_PAGE_SIZE);
   const [composing, setComposing] = useState(false);
+  const [managingTemplates, setManagingTemplates] = useState(false);
   const [opened, setOpened] = useState<AnnouncementSummary | null>(null);
   const history = useQuery({
     queryKey: announcementKeys.list(size),
@@ -24,7 +26,14 @@ export function AnnouncementsPanel() {
     placeholderData: (previous) => previous,
   });
 
-  const newButton = <Button onClick={() => setComposing(true)}>{texts.newAnnouncement}</Button>;
+  const actions = (
+    <Group gap="xs">
+      <Button variant="default" onClick={() => setManagingTemplates(true)}>
+        {texts.templatesButton}
+      </Button>
+      <Button onClick={() => setComposing(true)}>{texts.newAnnouncement}</Button>
+    </Group>
+  );
 
   return (
     <Stack>
@@ -52,7 +61,7 @@ export function AnnouncementsPanel() {
           <Text c="dimmed" ta="center">
             {texts.emptyText}
           </Text>
-          {newButton}
+          {actions}
         </Stack>
       ) : (
         <>
@@ -60,7 +69,7 @@ export function AnnouncementsPanel() {
             <Text size="sm" c="dimmed">
               {texts.intro}
             </Text>
-            {newButton}
+            {actions}
           </Group>
           <Table highlightOnHover>
             <Table.Thead>
@@ -132,6 +141,10 @@ export function AnnouncementsPanel() {
         </>
       )}
       <NewAnnouncementModal opened={composing} onClose={() => setComposing(false)} />
+      <AnnouncementTemplatesModal
+        opened={managingTemplates}
+        onClose={() => setManagingTemplates(false)}
+      />
       <AnnouncementDetailsDrawer announcement={opened} onClose={() => setOpened(null)} />
     </Stack>
   );

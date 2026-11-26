@@ -69,7 +69,8 @@ class NotificationTypeController {
 	@Operation(summary = "Change a notification type's settings", operationId = "updateNotificationType",
 			description = "Switches the type on or off, replaces its reminder times (timed types only) and its "
 					+ "push title and text. Title and text may only use the type's placeholders. A change applies to "
-					+ "notifications created from now on; ones already sent stay as they were.")
+					+ "notifications created from now on; ones already sent stay as they were. To restore the default "
+					+ "content, send the type's defaultTitle and defaultBody as title and body.")
 	@ApiResponse(responseCode = "200", description = "The type's new settings.")
 	@ApiResponse(responseCode = "400", description = "Invalid settings, e.g. an unknown placeholder or duplicate reminder times.")
 	@ApiResponse(responseCode = "404", description = "No such notification type.")
