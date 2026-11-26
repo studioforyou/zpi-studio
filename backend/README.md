@@ -69,6 +69,22 @@ New messages (`NEW_MESSAGE`, #153) work this way inside `communication`: `Messag
 
 A status change without an author that only the owner can make (accepting the invitation, registering) is shown as the owner's; any other one has no actor (the system). The reasons the backend saves when the administrator gives none (e.g. `Suspended by an administrator`) are left out. Roles given when an account is created (by invitation or as a new administrator) are recorded in `audit_log` since #63; accounts created earlier have no such entry. Personal data edits are not part of this history.
 
+## Pass change history
+
+`GET /api/v1/customers/{customerId}/passes/{passId}/history` (administrators only, #85) lists everything that changed a participant's pass, newest first, so the studio can explain how it was used. One entry per change (`kind`), each with its time, author (`actor`: name and `role` `CLIENT`, `GUARDIAN` or `STAFF`; `null` for the system), the note given with it (`reason`, internal) and, for a change of the balance, `entriesChange` and `balanceAfter`:
+
+| Category (`category` filter) | Kinds | Comes from |
+| --- | --- | --- |
+| `ENTRIES` | `ENTRY_RESERVED` (a booking took an entry), `ENTRY_USED` (the booked entry was settled as used: attended, absent or cancelled too late; `entriesChange` 0), `ENTRY_RETURNED` | `pass_ledger`, with the reservation's class, who booked it (`source`, `bookedBy`), how and by whom it was cancelled and the attendance from `booking` and `scheduling` |
+| `CORRECTIONS` | `CORRECTED` (by the staff), `DISPUTE_REFUND` (an upheld dispute, #113, with its session) | `pass_ledger` |
+| `VALIDITY` | `EXTENDED`, `SUSPENDED` and `SUSPENSION_CANCELLED` with the suspended days or the days given back (`suspension`), `EXPIRED` | `pass_ledger`, `pass_suspension` |
+| `MAKEUP` | `MAKEUP_GRANTED`: the class it was granted for and the credit now (`AVAILABLE`, `USED` with the class it paid for, `EXPIRED`) | `makeup_credit` |
+| `PASS` | `ACTIVATED`, `RENEWAL_DECLINED` (#74; who declined is not recorded) | `pass_ledger`, `customer_pass` |
+
+The response also has `counts` per category for the whole history and the pass's `entriesRemaining` next to `ledgerBalance`, what its changes add up to; the panel warns when they differ (data from before the ledger was complete). Upcoming bookings are included, since they already hold an entry. Standard page (`page`, `size` up to 100); a pass of another participant returns `404`. `membership` provides the changes through `PassChangeHistory`, reading only its own tables; `booking` describes the reservations, reads the events through `scheduling`'s `GroupClassSchedule` and the authors' names through `customer` and `staff`.
+
+A suspension moves the last valid day by its length, and cancelling it while in progress cuts its end short, so the suspended period cannot be read back from `pass_suspension` alone. V29 adds `pass_ledger.suspension_id`: the `EXTENSION` entry of a suspension and of its cancellation point at it, and entries saved before are linked by the same pass, author, note and time. The note `Suspension cancelled` saved with a cancellation is not shown. Seed 29 adds a showcase pass with every kind of change (see the [seed README](src/main/resources/db/seed/README.md#pass-change-history-seed-29)).
+
 ## Tests
 
 Requires JDK 21. From `backend/`, run only the module architecture test without a Spring context, database, or Docker:

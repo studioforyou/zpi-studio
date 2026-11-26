@@ -283,10 +283,11 @@ public class CustomerPassService {
 			}
 		}
 		String reason = blankToNull(command.reason());
-		suspensions.save(new PassSuspension(passId, startsOn, endsOn, reason, actorAccountId));
+		PassSuspension suspension = suspensions.save(new PassSuspension(passId, startsOn, endsOn, reason, actorAccountId));
 		LocalDate before = pass.getValidUntil();
 		pass.changeValidUntil(before.plusDays(days), today);
-		ledger.save(PassLedgerEntry.extension(passId, before, pass.getValidUntil(), reason, actorAccountId));
+		ledger.save(PassLedgerEntry.suspension(passId, suspension.getId(), before, pass.getValidUntil(), reason,
+				actorAccountId));
 		passes.flush();
 		return pass;
 	}
@@ -311,7 +312,7 @@ public class CustomerPassService {
 		long removed = suspension.cancelFrom(today);
 		LocalDate before = pass.getValidUntil();
 		pass.changeValidUntil(before.minusDays(removed), today);
-		ledger.save(PassLedgerEntry.extension(passId, before, pass.getValidUntil(), "Suspension cancelled",
+		ledger.save(PassLedgerEntry.suspension(passId, suspensionId, before, pass.getValidUntil(), "Suspension cancelled",
 				actorAccountId));
 		passes.flush();
 		return pass;
