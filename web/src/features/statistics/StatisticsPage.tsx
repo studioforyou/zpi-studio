@@ -8,6 +8,7 @@ import { pl } from '@/shared/i18n/pl';
 import { BookingOutcomesPanel } from './BookingOutcomesPanel';
 import { ClassAttendancePanel } from './ClassAttendancePanel';
 import { CustomerActivityPanel } from './CustomerActivityPanel';
+import { LapsedCustomersPanel } from './LapsedCustomersPanel';
 import { OverviewPanel } from './OverviewPanel';
 import { SalesPanel } from './SalesPanel';
 import { StatisticsFilterBar } from './StatisticsFilterBar';
@@ -24,6 +25,7 @@ const panels: Record<StatisticsTab, (props: PanelProps) => ReactNode> = {
   attendance: ({ filters }) => <ClassAttendancePanel filters={filters} />,
   outcomes: ({ filters }) => <BookingOutcomesPanel filters={filters} />,
   customers: ({ filters }) => <CustomerActivityPanel filters={filters} />,
+  lapsed: () => <LapsedCustomersPanel />,
   sales: ({ filters }) => <SalesPanel filters={filters} />,
 };
 
@@ -58,7 +60,8 @@ export function StatisticsPage() {
   return (
     <Stack gap="lg">
       <Title order={2}>{texts.title}</Title>
-      <StatisticsFilterBar filters={filters} />
+      {/* The lapsed customers list is as of today: neither the period nor the events apply. */}
+      {tab !== 'lapsed' && <StatisticsFilterBar filters={filters} />}
       {/* Only the open tab is mounted, so only its reports are loaded. */}
       <Tabs value={tab} onChange={open} keepMounted={false}>
         <Tabs.List>

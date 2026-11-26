@@ -43,30 +43,41 @@ import {
 
 const DAY = 24 * 60 * 60 * 1000;
 
+/** A person the announcement is for from the start, e.g. a customer who stopped coming. */
+export type AnnouncementRecipient = { accountId: string; label: string };
+
 type Props = {
   opened: boolean;
   onClose: () => void;
+  /** Opens the form addressed to this person; the administrator can still change it. */
+  recipient?: AnnouncementRecipient | null;
 };
 
 /**
  * Writes and sends an announcement, optionally starting from a template; sending to every client
  * asks for confirmation first.
  */
-export function NewAnnouncementModal({ opened, onClose }: Props) {
+export function NewAnnouncementModal({ opened, onClose, recipient = null }: Props) {
   const texts = pl.communication.announcements.form;
   return (
     <Modal opened={opened} onClose={onClose} title={texts.title} size="lg">
       {/* Mounted only while open, so every new announcement starts empty. */}
-      {opened && <AnnouncementForm onClose={onClose} />}
+      {opened && <AnnouncementForm onClose={onClose} recipient={recipient} />}
     </Modal>
   );
 }
 
-function AnnouncementForm({ onClose }: { onClose: () => void }) {
+function AnnouncementForm({
+  onClose,
+  recipient,
+}: {
+  onClose: () => void;
+  recipient: AnnouncementRecipient | null;
+}) {
   const texts = pl.communication.announcements.form;
   const queryClient = useQueryClient();
-  const [audience, setAudience] = useState<Audience>('GROUP');
-  const [accountId, setAccountId] = useState<string | null>(null);
+  const [audience, setAudience] = useState<Audience>(recipient ? 'PERSON' : 'GROUP');
+  const [accountId, setAccountId] = useState<string | null>(recipient?.accountId ?? null);
   const [trainingGroupId, setTrainingGroupId] = useState<string | null>(null);
   const [eventId, setEventId] = useState<string | null>(null);
   const [marketing, setMarketing] = useState(false);
@@ -149,7 +160,9 @@ function AnnouncementForm({ onClose }: { onClose: () => void }) {
           data={audiences.map((value) => ({ value, label: texts.audiences[value] }))}
         />
       </Stack>
-      {audience === 'PERSON' && <PersonPicker value={accountId} onChange={setAccountId} />}
+      {audience === 'PERSON' && (
+        <PersonPicker value={accountId} onChange={setAccountId} initial={recipient} />
+      )}
       {audience === 'GROUP' && (
         <GroupPicker value={trainingGroupId} onChange={setTrainingGroupId} />
       )}
@@ -260,14 +273,25 @@ function TemplatePicker({
   );
 }
 
-function PersonPicker({ value, onChange }: PickerProps) {
+function PersonPicker({
+  value,
+  onChange,
+  initial = null,
+}: PickerProps & { initial?: AnnouncementRecipient | null }) {
   const texts = pl.communication.announcements.form;
-  const [search, setSearch] = useState('');
+  const [chosen, setChosen] = useState<{ value: string; label: string } | null>(
+    initial && initial.accountId === value
+      ? { value: initial.accountId, label: initial.label }
+      : null,
+  );
+  // A preselected person shows their name in the field, as if the administrator had picked them.
+  const [search, setSearch] = useState(chosen?.label ?? '');
   const [debounced] = useDebouncedValue(search, 300);
-  const [chosen, setChosen] = useState<{ value: string; label: string } | null>(null);
+  // The chosen person's label is not a search the accounts list understands.
+  const query = chosen !== null && debounced === chosen.label ? '' : debounced;
   const people = useQuery({
-    queryKey: accountKeys.list({ query: debounced, role: null, status: 'ACTIVE', page: 0 }),
-    queryFn: () => searchAccounts({ query: debounced, role: null, status: 'ACTIVE', page: 0 }),
+    queryKey: accountKeys.list({ query, role: null, status: 'ACTIVE', page: 0 }),
+    queryFn: () => searchAccounts({ query, role: null, status: 'ACTIVE', page: 0 }),
     placeholderData: keepPreviousData,
   });
   const options = useMemo(() => {
