@@ -5,6 +5,7 @@ import 'package:mobile/core/auth/auth_controller.dart';
 import 'package:mobile/core/auth/auth_state.dart';
 import 'package:mobile/features/schedule/data/schedule_api.dart';
 import 'package:mobile/features/schedule/presentation/reschedule_event_screen.dart';
+import 'package:mobile/features/schedule/presentation/widgets/add_to_calendar.dart';
 import 'package:mobile/features/schedule/presentation/widgets/schedule_calendar.dart';
 import 'package:mobile/features/schedule/presentation/widgets/series_change_widgets.dart';
 import 'package:mobile/features/schedule/presentation/widgets/substitution_widgets.dart';
@@ -91,6 +92,10 @@ class _Details extends ConsumerWidget {
                       const SizedBox(height: 12),
                     ],
                   _EventSummary(event),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: AddToCalendarButton(event: event),
+                  ),
                   if (canReschedule(event, staffId))
                     Padding(
                       padding: const EdgeInsets.only(top: 12),

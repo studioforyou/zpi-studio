@@ -77,5 +77,17 @@
 			</array>
 		</dict>
 	</array>
+	<key>NSCalendarsUsageDescription</key>
+	<string>Aplikacja dodaje wybrane zajęcia do Twojego kalendarza.</string>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>Aplikacja dodaje wybrane zajęcia do Twojego kalendarza.</string>
+	<key>NSCalendarsWriteOnlyAccessUsageDescription</key>
+	<string>Aplikacja dodaje wybrane zajęcia do Twojego kalendarza.</string>
+	<key>NSContactsUsageDescription</key>
+	<string>Kalendarz może podpowiadać miejsca i osoby podczas dodawania zajęć.</string>
+	<key>CFBundleLocalizations</key>
+	<array>
+		<string>pl</string>
+	</array>
 </dict>
 </plist>

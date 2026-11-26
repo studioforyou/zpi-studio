@@ -14,6 +14,8 @@ import 'package:mobile/features/trainings/presentation/widgets/class_participant
 import 'package:mobile/features/trainings/presentation/widgets/group_class_summary.dart';
 import 'package:mobile/features/trainings/presentation/widgets/group_class_widgets.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
+import 'package:mobile/features/schedule/data/client_schedule_api.dart';
+import 'package:mobile/features/schedule/presentation/widgets/add_to_calendar.dart';
 
 class GroupClassDetailsScreen extends ConsumerStatefulWidget {
   const GroupClassDetailsScreen({required this.query, super.key});
@@ -124,6 +126,13 @@ class _GroupClassDetailsScreenState
         const SizedBox(height: 12),
       ],
       GroupClassSummary(event: event, participant: participant),
+      Padding(
+        padding: const EdgeInsets.only(top: 12),
+        child: AddToCalendarButton(
+          event: ClientScheduleEvent(event),
+          participant: _childFirstName(),
+        ),
+      ),
       if ((event.serviceTypeId, event.serviceTypeName) case (
         final String serviceTypeId,
         final String serviceTypeName,
@@ -709,6 +718,16 @@ class _GroupClassDetailsScreenState
     return deadline != null && deadline.isBefore(DateTime.now())
         ? l10n.classesCancelLateForfeitsEntry(classDateTime(deadline))
         : l10n.classesCancelForfeitsEntry;
+  }
+
+  /// A guardian's calendar entry names the child, e.g. "Zosia: Pole dance".
+  String? _childFirstName() {
+    final profile = clientSession(ref.read(authControllerProvider))?.profiles
+        .where((profile) => profile.id == widget.query.scope.profileId)
+        .firstOrNull;
+    return profile != null && profile.isChild
+        ? profile.displayName.split(' ').first
+        : null;
   }
 
   String? _participantName() => clientSession(ref.read(authControllerProvider))

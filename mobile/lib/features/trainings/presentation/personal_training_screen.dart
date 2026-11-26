@@ -10,6 +10,7 @@ import 'package:mobile/features/trainings/data/personal_trainings_api.dart';
 import 'package:mobile/features/trainings/data/training_history_api.dart';
 import 'package:mobile/features/trainings/presentation/widgets/group_class_widgets.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
+import 'package:mobile/features/schedule/presentation/widgets/add_to_calendar.dart';
 
 String personalEffect(AppLocalizations l10n, String? effect) =>
     switch (effect) {
@@ -183,6 +184,13 @@ class _PersonalTrainingScreenState extends ConsumerState<PersonalTrainingScreen>
                         ),
                         if (session.roomNames.isNotEmpty)
                           Text(session.roomNames.join(', ')),
+                        const SizedBox(height: 12),
+                        AddToCalendarButton(
+                          event: session,
+                          participant: profile != null && profile.isChild
+                              ? profile.displayName.split(' ').first
+                              : null,
+                        ),
                         const SizedBox(height: 12),
                         Align(
                           alignment: Alignment.centerLeft,

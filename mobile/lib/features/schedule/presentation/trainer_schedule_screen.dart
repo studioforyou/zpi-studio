@@ -9,7 +9,9 @@ import 'package:mobile/features/schedule/data/substitution_api.dart';
 import 'package:mobile/features/schedule/presentation/widgets/substitution_widgets.dart';
 import 'package:mobile/features/schedule/data/series_changes.dart';
 import 'package:mobile/features/schedule/data/schedule_service_types.dart';
+import 'package:mobile/features/schedule/presentation/calendar_sync_screen.dart';
 import 'package:mobile/features/schedule/presentation/service_type_filter_labels.dart';
+import 'package:mobile/features/schedule/presentation/widgets/add_to_calendar.dart';
 import 'package:mobile/features/schedule/presentation/trainer_schedule_filter.dart';
 import 'package:mobile/features/schedule/presentation/widgets/schedule_calendar.dart';
 import 'package:mobile/features/schedule/presentation/widgets/series_change_widgets.dart';
@@ -84,7 +86,10 @@ class _TrainerScheduleScreenState extends ConsumerState<TrainerScheduleScreen>
     final serviceTypes =
         ref.watch(scheduleServiceTypesProvider).value ?? const {};
     return Scaffold(
-      appBar: AppBar(title: Text(AppLocalizations.of(context).navSchedule)),
+      appBar: AppBar(
+        title: Text(AppLocalizations.of(context).navSchedule),
+        actions: const [CalendarSyncAction()],
+      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _addEvent,
         icon: const Icon(Icons.add),
@@ -183,19 +188,25 @@ class _TrainerScheduleScreenState extends ConsumerState<TrainerScheduleScreen>
             .asData
             ?.value;
         if (snapshot == null) return const SizedBox();
-        return PersonalTrainingScheduleTile(
-          training: event,
-          checkedAt: snapshot.checkedAt,
-          footer: badge,
+        return AddToCalendarLongPress(
+          event: event,
+          child: PersonalTrainingScheduleTile(
+            training: event,
+            checkedAt: snapshot.checkedAt,
+            footer: badge,
+          ),
         );
       }
       if (_handedOver(event, scope.staffId)) {
         return _HandedOverTile(event);
       }
-      return ScheduleEventTile(
-        event,
-        onTap: () => _openEvent(event),
-        footer: badge,
+      return AddToCalendarLongPress(
+        event: event,
+        child: ScheduleEventTile(
+          event,
+          onTap: () => _openEvent(event),
+          footer: badge,
+        ),
       );
     },
     movedBuilder: (context, event) => MovedAwayTile(

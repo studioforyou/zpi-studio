@@ -58,6 +58,11 @@ resource "google_cloud_run_v2_service" "backend" {
         value = var.invitation_link_base_url
       }
       env {
+        # Private calendar feed links (#121) point at the backend's public address.
+        name  = "CALENDAR_FEED_BASE_URL"
+        value = local.backend_url
+      }
+      env {
         name  = "PUSH_PROVIDER"
         value = "FCM"
       }

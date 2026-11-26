@@ -10,6 +10,7 @@ import 'package:mobile/features/schedule/data/schedule_service_types.dart';
 import 'package:mobile/features/schedule/data/series_changes.dart';
 import 'package:mobile/features/schedule/data/studio_trainers.dart';
 import 'package:mobile/features/schedule/presentation/client_schedule_filter.dart';
+import 'package:mobile/features/schedule/presentation/widgets/add_to_calendar.dart';
 import 'package:mobile/features/schedule/presentation/widgets/client_schedule_event_tile.dart';
 import 'package:mobile/features/schedule/presentation/widgets/client_schedule_filters.dart';
 import 'package:mobile/features/schedule/presentation/widgets/group_class_timeline.dart';
@@ -171,38 +172,68 @@ class _ClientCalendarState extends ConsumerState<_ClientCalendar> {
 
     if (event is PersonalSession) {
       final personal = event;
-      return PersonalTrainingTile(
-        session: personal,
+      return _withCalendar(
+        event,
+        owned,
+        PersonalTrainingTile(
+          session: personal,
+          participant: participant,
+          onTap: () {
+            if (!isCurrentBookingScope(ref, widget.scope)) return;
+            selectParticipant();
+            Navigator.of(context).push<void>(
+              MaterialPageRoute(
+                builder: (_) => PersonalTrainingScreen(
+                  query: (scope: scope, reservationId: personal.reservationId),
+                ),
+              ),
+            );
+          },
+        ),
+      );
+    }
+    final groupClass = (event as ClientScheduleEvent).groupClass;
+    return _withCalendar(
+      event,
+      owned,
+      ClientScheduleEventTile(
+        event: groupClass,
         participant: participant,
         onTap: () {
           if (!isCurrentBookingScope(ref, widget.scope)) return;
           selectParticipant();
+          // Choosing is synchronous; details now act for this participant.
           Navigator.of(context).push<void>(
             MaterialPageRoute(
-              builder: (_) => PersonalTrainingScreen(
-                query: (scope: scope, reservationId: personal.reservationId),
+              builder: (_) => GroupClassDetailsScreen(
+                query: (scope: scope, eventId: groupClass.id),
               ),
             ),
           );
         },
-      );
-    }
-    final groupClass = (event as ClientScheduleEvent).groupClass;
-    return ClientScheduleEventTile(
-      event: groupClass,
-      participant: participant,
-      onTap: () {
-        if (!isCurrentBookingScope(ref, widget.scope)) return;
-        selectParticipant();
-        // Choosing is synchronous; details now act for this participant.
-        Navigator.of(context).push<void>(
-          MaterialPageRoute(
-            builder: (_) => GroupClassDetailsScreen(
-              query: (scope: scope, eventId: groupClass.id),
-            ),
-          ),
-        );
-      },
+      ),
+    );
+  }
+
+  /// In "Mój grafik" an event held down can be added to the phone's calendar.
+  Widget _withCalendar(
+    ScheduleEvent event,
+    ProfileScheduleEvent? owned,
+    Widget tile,
+  ) {
+    if (!widget.reservationsOnly) return tile;
+    final profile =
+        owned?.profile ??
+        widget.session.profiles
+            .where((p) => p.id == widget.scope.profileId)
+            .firstOrNull;
+    return AddToCalendarLongPress(
+      event: event,
+      // A guardian sees whose event it is, e.g. "Zosia: Pole dance".
+      participant: profile != null && profile.isChild
+          ? profile.displayName.split(' ').first
+          : null,
+      child: tile,
     );
   }
 

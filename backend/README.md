@@ -69,6 +69,16 @@ New messages (`NEW_MESSAGE`, #153) work this way inside `communication`: `Messag
 
 A status change without an author that only the owner can make (accepting the invitation, registering) is shown as the owner's; any other one has no actor (the system). The reasons the backend saves when the administrator gives none (e.g. `Suspended by an administrator`) are left out. Roles given when an account is created (by invitation or as a new administrator) are recorded in `audit_log` since #63; accounts created earlier have no such entry. Personal data edits are not part of this history.
 
+## Calendar feeds
+
+`integrations` gives every client and trainer account a private, one-way iCalendar feed (#121) that Google Calendar, Apple Calendar and other calendars subscribe to. Nothing is written to the external calendar directly; it downloads the feed again from time to time (Google every few hours, Apple usually more often), so changes in the studio reach it with a delay and changes made in the calendar never come back.
+
+- **Link.** `POST /api/v1/me/calendar-feed` creates a link and returns `url` (https) and `webcalUrl` (opens Apple Calendar's subscription dialog) once: `calendar_feed` keeps only the SHA-256 hash of its 43-character token, one row per account. A new link replaces the previous one, which stops working. `GET /api/v1/me/calendar-feed` tells whether a working link exists and when it was created; `DELETE` turns it off. The address comes from `CALENDAR_FEED_BASE_URL` (`app.calendar-feeds.base-url`).
+- **Feed.** `GET /api/v1/calendar-feeds/{token}/events.ics` is a token operation without `Authorization`. It answers 404 for an unknown or revoked token and for an account that is no longer active. Events are written in UTC, from 30 days ago on, without an upper limit. `?role=CLIENT` or `?role=TRAINER` limits the feed to one part; without it the feed has every part the account's roles allow, and each event's title then starts with `Klient · ` or `Trener · `.
+- **Client part.** Reservations that were not cancelled, of the account's own profile and of the children it is a current guardian of (`Zosia: Pole dance`), from `Participations.findForCalendar`. A reservation the studio cancelled together with its event stays as `STATUS:CANCELLED`, so calendars show or remove it; one the participant cancelled disappears.
+- **Trainer part.** Events the account's staff profile runs or assists, including cancelled ones (`STATUS:CANCELLED`), from `CalendarEvents.findAssignedTo`. Blocks are left out.
+- **Contents.** The title, the rooms as `LOCATION` and the leads as `DESCRIPTION`. Participants' and guests' names are left out, because the feed leaves the studio's systems. `UID` stays the same for an event (and participant) in every download and `SEQUENCE` is the event's version, so calendars update events in place.
+
 ## Tests
 
 Requires JDK 21. From `backend/`, run only the module architecture test without a Spring context, database, or Docker:

@@ -45,6 +45,8 @@ The backend receives `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME` and `
 
 For e-mail invitations it also gets `MAIL_PROVIDER=BREVO`, `MAIL_FROM` (the `mail_from` variable, a sender verified in Brevo), `BREVO_API_KEY` (from Secret Manager) and `INVITATION_LINK_BASE_URL`.
 
+Private calendar feed links (#121) contain the backend's public address, so the backend gets `CALENDAR_FEED_BASE_URL` set to the service URL (the same value as `JOBS_OIDC_AUDIENCE`). Google Calendar and Apple Calendar download the feed from there, so the service needs public ingress.
+
 ### Notifications
 
 The backend sends push notifications through FCM (`PUSH_PROVIDER=FCM`, with the backend service account's credentials). Cloud Run scales to zero and has no CPU between requests, so timed work (class reminders, retries of failed pushes, re-delivery of unfinished domain events) is triggered from outside: Cloud Scheduler calls the job endpoint every 5 minutes (`notification_job_schedule`). The request carries a Google-signed OIDC token of `zpi-scheduler-<env>`. The backend accepts it only with audience `JOBS_OIDC_AUDIENCE` (the service URL) and e-mail `JOBS_OIDC_SERVICE_ACCOUNT`, and Terraform sets both. The service URL is built from the project number (`https://zpi-backend-<env>-<number>.<region>.run.app`), because the service cannot refer to its own `uri`.
