@@ -22,7 +22,8 @@ import studioforyou.pl.backend.offering.PassServiceCoverage;
  * same participant already holds another usable pass (active or scheduled, with entries left or
  * without a limit) that lasts longer and covers every service the ending pass covers, e.g. a
  * new Pole Dance pass or an Open pass after a Pole Dance pass, but not a personal training
- * package. Such a participant needs no reminder.
+ * package. Such a participant needs no reminder, and neither does one who said they will not renew
+ * the pass.
  */
 @Repository
 public class ExpiringPasses {
@@ -41,7 +42,8 @@ public class ExpiringPasses {
 
 	/**
 	 * Usable passes whose last day is in {@code [from, to]} (studio dates). Passes with no entries
-	 * left are left out, because they cannot be used anyway, and so are followed passes.
+	 * left are left out, because they cannot be used anyway, and so are followed passes and passes
+	 * the participant will not renew.
 	 */
 	public List<ExpiringPass> findExpiringBetween(LocalDate from, LocalDate to) {
 		List<Held> expiring = jdbc.sql("""
@@ -50,6 +52,7 @@ public class ExpiringPasses {
 				WHERE status IN %s
 				  AND valid_until BETWEEN :from AND :to
 				  AND (entries_remaining IS NULL OR entries_remaining > 0)
+				  AND renewal_declined_at IS NULL
 				ORDER BY valid_until, id
 				""".formatted(RUNNING))
 			.param("from", from)
@@ -92,6 +95,15 @@ public class ExpiringPasses {
 		}
 		List<Held> usable = usablePasses(Set.of(pass.get().customerId()));
 		return followed(pass.get(), day, usable, services(List.of(pass.get()), usable));
+	}
+
+	/** Whether the participant said they will not renew the pass, so it needs no reminder. */
+	public boolean isRenewalDeclined(UUID passId) {
+		return jdbc.sql("SELECT renewal_declined_at IS NOT NULL FROM customer_pass WHERE id = :id")
+			.param("id", passId)
+			.query(Boolean.class)
+			.optional()
+			.orElse(false);
 	}
 
 	/** Usable passes of the participants, with entries left or without a limit. */

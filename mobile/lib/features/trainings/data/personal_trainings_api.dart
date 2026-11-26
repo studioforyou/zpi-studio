@@ -48,16 +48,29 @@ class PersonalDispute {
   const PersonalDispute({
     required this.status,
     required this.reason,
+    this.resolution,
+    this.resolutionEffect,
     this.resolutionNote,
   });
   factory PersonalDispute.fromJson(Map<String, dynamic> json) =>
       PersonalDispute(
         status: json['status'] as String,
         reason: json['reason'] as String,
+        resolution: json['resolution'] as String?,
+        resolutionEffect: json['resolutionEffect'] as String?,
         resolutionNote: json['resolutionNote'] as String?,
       );
   final String status;
   final String reason;
+
+  /// `UPHELD`, `UPHELD_MAKEUP` or `REJECTED` once the studio decided.
+  final String? resolution;
+
+  /// What the decision did: `ENTRY_RETURNED`, `MAKEUP_RETURNED`,
+  /// `MAKEUP_GRANTED` or `NO_CHANGE`.
+  final String? resolutionEffect;
+
+  /// The studio's explanation of the decision.
   final String? resolutionNote;
 }
 

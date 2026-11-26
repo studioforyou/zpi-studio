@@ -264,6 +264,7 @@ class _NotificationTile extends ConsumerWidget {
       'PASS_LAST_ENTRY_USED' => Icons.confirmation_number_outlined,
       'WAITLIST_PLACE_OFFERED' => Icons.event_seat_outlined,
       'WAITLIST_PLACE_GRANTED' => Icons.event_available_outlined,
+      'CLASS_BOOKING_OPENED' => Icons.notifications_active_outlined,
       'TIME_OFF_APPROVED' ||
       'TIME_OFF_REJECTED' ||
       'TIME_OFF_CANCELLED' => Icons.event_busy_outlined,

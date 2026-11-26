@@ -8,6 +8,7 @@ import 'package:mobile/core/auth/session.dart';
 import 'package:mobile/core/network/api_exception.dart';
 import 'package:mobile/features/passes/data/passes_api.dart';
 import 'package:mobile/features/passes/data/pass_usage_api.dart';
+import 'package:mobile/features/passes/presentation/pass_renewal_screen.dart';
 import 'package:mobile/features/passes/presentation/pass_usage_screen.dart';
 import 'package:mobile/features/passes/presentation/passes_screen.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
@@ -41,13 +42,56 @@ class _FakePassesApi implements PassesApi {
   final PassOffer? offer;
   bool fails;
 
+  /// Passes whose renewal is declined now, by id.
+  final Set<String> declinedIds = {};
+
+  /// Renewal declines and their undos, as `profileId|passId`.
+  final List<String> declined = [];
+  final List<String> undone = [];
+
   @override
   Future<List<OwnPass>> fetchOwnPasses(String profileId) async {
     if (fails) {
       throw const ApiException(statusCode: 500, message: 'Server error');
     }
-    return passes[profileId] ?? const [];
+    return [
+      for (final pass in passes[profileId] ?? const <OwnPass>[])
+        _withDecline(
+          pass,
+          declinedIds.contains(pass.id) || pass.renewalDeclined,
+        ),
+    ];
   }
+
+  @override
+  Future<OwnPass> declineRenewal(String profileId, String passId) async {
+    declined.add('$profileId|$passId');
+    declinedIds.add(passId);
+    return _withDecline(_find(profileId, passId), true);
+  }
+
+  @override
+  Future<OwnPass> undoRenewalDecline(String profileId, String passId) async {
+    undone.add('$profileId|$passId');
+    declinedIds.remove(passId);
+    return _withDecline(_find(profileId, passId), false);
+  }
+
+  OwnPass _find(String profileId, String passId) =>
+      passes[profileId]!.firstWhere((pass) => pass.id == passId);
+
+  static OwnPass _withDecline(OwnPass pass, bool declined) => OwnPass(
+    id: pass.id,
+    variantId: pass.variantId,
+    productName: pass.productName,
+    entriesTotal: pass.entriesTotal,
+    entriesRemaining: pass.entriesRemaining,
+    status: pass.status,
+    validFrom: pass.validFrom,
+    validUntil: pass.validUntil,
+    expiringSoon: pass.expiringSoon,
+    renewalDeclined: declined,
+  );
 
   @override
   Future<PassOffer> fetchOffer() async =>
@@ -145,11 +189,13 @@ OwnPass _pass(
   required DateTime validUntil,
   String? variantId,
   bool expiringSoon = false,
+  bool renewalDeclined = false,
 }) {
   return OwnPass(
     id: name,
     variantId: variantId,
     expiringSoon: expiringSoon,
+    renewalDeclined: renewalDeclined,
     productName: name,
     entriesTotal: total,
     entriesRemaining: remaining,
@@ -564,6 +610,249 @@ void main() {
       expect(find.text('Zakup karnetu'), findsNothing);
     },
   );
+
+  testWidgets(
+    'declining the renewal of an expiring pass stops the reminders and can be '
+    'undone',
+    (tester) async {
+      final today = _today();
+      final api = _FakePassesApi(
+        passes: {
+          'self': [
+            _pass(
+              'Karnet Pole Dance',
+              PassStatus.active,
+              remaining: 2,
+              validFrom: DateTime(today.year, today.month, today.day - 26),
+              validUntil: DateTime(today.year, today.month, today.day + 3),
+              variantId: 'v1',
+              expiringSoon: true,
+            ),
+          ],
+        },
+        offer: _poleDanceOffer,
+      );
+      await pumpScreen(tester, api);
+      await tester.tap(find.text('Kup kolejny'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('checkout-decline-renewal')));
+      await tester.pumpAndSettle();
+      expect(find.text('Nie odnawiać karnetu?'), findsOneWidget);
+      // Going back changes nothing.
+      await tester.tap(find.text('Wróć'));
+      await tester.pumpAndSettle();
+      expect(api.declined, isEmpty);
+      expect(find.text('Zakup karnetu'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('checkout-decline-renewal')));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(const Key('checkout-decline-renewal-confirm')),
+      );
+      await tester.pumpAndSettle();
+
+      expect(api.declined, ['self|Karnet Pole Dance']);
+      expect(api.orders, isEmpty);
+      expect(find.text('Zakup karnetu'), findsNothing);
+      expect(
+        find.text('Nie przypomnimy o odnowieniu tego karnetu.'),
+        findsOneWidget,
+      );
+      expect(find.byKey(const Key('pass-renewal-declined')), findsOneWidget);
+      // The pass can still be bought, but no longer in red.
+      expect(find.byKey(const Key('pass-buy-next-urgent')), findsNothing);
+      expect(find.text('Kup kolejny'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('pass-renewal-decline-undo')));
+      await tester.pumpAndSettle();
+
+      expect(api.undone, ['self|Karnet Pole Dance']);
+      expect(find.byKey(const Key('pass-renewal-declined')), findsNothing);
+      expect(find.byKey(const Key('pass-buy-next-urgent')), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'an expired pass or one already declined offers no decline in checkout',
+    (tester) async {
+      final today = _today();
+      final api = _FakePassesApi(
+        passes: {
+          'self': [
+            _pass(
+              'Declined',
+              PassStatus.active,
+              validFrom: DateTime(today.year, today.month, today.day - 26),
+              validUntil: DateTime(today.year, today.month, today.day + 3),
+              variantId: 'v1',
+              renewalDeclined: true,
+            ),
+            _pass(
+              'Old',
+              PassStatus.expired,
+              validFrom: DateTime(today.year, today.month, today.day - 40),
+              validUntil: DateTime(today.year, today.month, today.day - 11),
+              variantId: 'v1',
+            ),
+          ],
+        },
+        offer: _poleDanceOffer,
+      );
+      await pumpScreen(tester, api);
+      expect(find.byKey(const Key('pass-renewal-declined')), findsOneWidget);
+
+      await tester.tap(find.text('Kup kolejny').first);
+      await tester.pumpAndSettle();
+      expect(find.text('Zakup karnetu'), findsOneWidget);
+      expect(find.byKey(const Key('checkout-decline-renewal')), findsNothing);
+      Navigator.of(tester.element(find.text('Zakup karnetu'))).pop();
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Wygasłe (1)'));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Kup kolejny').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Kup kolejny').last);
+      await tester.pumpAndSettle();
+      expect(find.text('Zakup karnetu'), findsOneWidget);
+      expect(find.byKey(const Key('checkout-decline-renewal')), findsNothing);
+    },
+  );
+
+  group('renewal opened from a reminder', () {
+    Future<void> pumpRenewal(
+      WidgetTester tester,
+      PassesApi api,
+      String passId,
+    ) async {
+      final container = ProviderContainer(
+        overrides: [
+          authControllerProvider.overrideWith(
+            () => _SignedInAuthController(_session),
+          ),
+          passesApiProvider.overrideWithValue(api),
+        ],
+      );
+      addTearDown(container.dispose);
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp(
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            locale: const Locale('pl'),
+            home: PassRenewalScreen(passId: passId),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('opens buying the same variant after the pass ends', (
+      tester,
+    ) async {
+      final today = _today();
+      final lastDay = DateTime(today.year, today.month, today.day + 1);
+      final api = _FakePassesApi(
+        passes: {
+          'self': [
+            _pass(
+              'Karnet Pole Dance',
+              PassStatus.active,
+              validFrom: DateTime(today.year, today.month, today.day - 28),
+              validUntil: lastDay,
+              variantId: 'v1',
+              expiringSoon: true,
+            ),
+          ],
+        },
+        offer: _poleDanceOffer,
+      );
+      await pumpRenewal(tester, api, 'Karnet Pole Dance');
+
+      expect(find.text('Zakup karnetu'), findsOneWidget);
+      expect(find.text('Pole Dance'), findsOneWidget);
+      final firstDay = DateTime(lastDay.year, lastDay.month, lastDay.day + 1);
+      final until = DateTime(firstDay.year, firstDay.month, firstDay.day + 29);
+      expect(
+        find.text('Ważny od ${_date(firstDay)} do ${_date(until)}'),
+        findsOneWidget,
+      );
+      expect(find.byKey(const Key('checkout-decline-renewal')), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('checkout-terms')));
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('checkout-pay')));
+      await tester.pumpAndSettle();
+      expect(api.orders, ['v1||Karnet Pole Dance']);
+    });
+
+    testWidgets('declines the renewal from the reminder', (tester) async {
+      final today = _today();
+      final api = _FakePassesApi(
+        passes: {
+          'self': [
+            _pass(
+              'Karnet Pole Dance',
+              PassStatus.active,
+              validFrom: DateTime(today.year, today.month, today.day - 28),
+              validUntil: DateTime(today.year, today.month, today.day + 1),
+              variantId: 'v1',
+            ),
+          ],
+        },
+        offer: _poleDanceOffer,
+      );
+      await pumpRenewal(tester, api, 'Karnet Pole Dance');
+
+      await tester.tap(find.byKey(const Key('checkout-decline-renewal')));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(const Key('checkout-decline-renewal-confirm')),
+      );
+      await tester.pumpAndSettle();
+
+      expect(api.declined, ['self|Karnet Pole Dance']);
+      expect(api.orders, isEmpty);
+    });
+
+    testWidgets('a pass no longer on sale points to the offer', (tester) async {
+      final today = _today();
+      final api = _FakePassesApi(
+        passes: {
+          'self': [
+            _pass(
+              'Retired',
+              PassStatus.active,
+              validFrom: DateTime(today.year, today.month, today.day - 28),
+              validUntil: DateTime(today.year, today.month, today.day + 1),
+              variantId: 'retired',
+            ),
+          ],
+        },
+        offer: _poleDanceOffer,
+      );
+      await pumpRenewal(tester, api, 'Retired');
+      expect(
+        find.text(
+          'Ten karnet nie jest już w sprzedaży. Wybierz karnet w zakładce Oferta.',
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('Moje karnety'), findsOneWidget);
+    });
+
+    testWidgets('a pass that is gone cannot be renewed', (tester) async {
+      await pumpRenewal(
+        tester,
+        _FakePassesApi(offer: _poleDanceOffer),
+        'unknown',
+      );
+      expect(find.text('Zakup karnetu'), findsNothing);
+      expect(find.text('Moje karnety'), findsOneWidget);
+    });
+  });
 
   testWidgets('a pass from the offer starts on the chosen day', (tester) async {
     final api = _FakePassesApi(offer: _poleDanceOffer);

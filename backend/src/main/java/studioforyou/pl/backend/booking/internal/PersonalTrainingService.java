@@ -210,7 +210,8 @@ class PersonalTrainingService {
 		return jdbc.sql("SELECT * FROM training_dispute WHERE reservation_id = :id ORDER BY raised_at DESC, id DESC LIMIT 1")
 			.param("id", reservationId).query((rs, n) -> new Dispute(rs.getObject("id", UUID.class), rs.getString("status"),
 					rs.getString("reason"), instant(rs, "raised_at"), rs.getString("resolution"),
-					rs.getString("resolution_note"), instant(rs, "resolved_at"))).optional().orElse(null);
+					rs.getString("resolution_effect"), rs.getString("resolution_note"), instant(rs, "resolved_at")))
+			.optional().orElse(null);
 	}
 
 	private List<Row> rows(UUID customerId) {

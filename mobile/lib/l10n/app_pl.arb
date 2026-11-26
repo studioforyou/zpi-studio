@@ -345,6 +345,25 @@
   "passBuyNext": "Kup kolejny",
   "passBuyNextUnavailable": "Ten karnet nie jest już w sprzedaży. Wybierz karnet w zakładce Oferta.",
   "passOfferBuy": "Kup",
+  "passRenewalDeclined": "Nie odnawiasz tego karnetu, więc nie przypomnimy o kolejnym.",
+  "passRenewalDeclineUndo": "Cofnij",
+  "passRenewalDeclineUndone": "Przypomnimy o odnowieniu tego karnetu.",
+  "passRenewalDeclineError": "Nie udało się zapisać decyzji. Spróbuj ponownie.",
+  "passRenewalTitle": "Odnowienie karnetu",
+  "passRenewalShowPasses": "Moje karnety",
+  "checkoutDeclineRenewal": "Nie odnawiam tego karnetu",
+  "checkoutDeclineRenewalTitle": "Nie odnawiać karnetu?",
+  "checkoutDeclineRenewalMessage": "Nie będziemy przypominać o kupnie kolejnego karnetu {name}. Możesz to cofnąć na liście karnetów albo kupić karnet później.",
+  "@checkoutDeclineRenewalMessage": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "checkoutDeclineRenewalBack": "Wróć",
+  "checkoutDeclineRenewalConfirm": "Nie odnawiam",
+  "checkoutDeclineRenewalDone": "Nie przypomnimy o odnowieniu tego karnetu.",
   "checkoutTitle": "Zakup karnetu",
   "checkoutFor": "Dla: {name}",
   "@checkoutFor": {
@@ -494,6 +513,10 @@
   "classesAlreadyStarted": "Zajęcia już się rozpoczęły. Nie można odwołać rezerwacji.",
   "classesReservationInactive": "Ta rezerwacja nie jest już aktywna.",
   "classesProfileInactive": "Profil uczestnika jest nieaktywny. Skontaktuj się ze studiem.",
+  "classInterestTitle": "Powiadamiaj o zapisach: {name}",
+  "@classInterestTitle": {"placeholders": {"name": {"type": "String"}}},
+  "classInterestInfo": "Damy znać, gdy ruszą zapisy na kolejne takie zajęcia.",
+  "classInterestFailed": "Nie udało się zapisać ustawienia powiadomień. Spróbuj ponownie.",
   "classesWaitlistJoin": "Dołącz do listy rezerwowej",
   "classesWaitlistNoPlaces": "Brak wolnych miejsc.",
   "classesWaitlistInvite": "Dołącz do listy rezerwowej — gdy zwolni się miejsce, zapiszemy Cię automatycznie.",
@@ -1211,6 +1234,13 @@
   "personalAwaitingTrainer": "Oczekuje na potwierdzenie trenera",
   "personalDisputed": "Spór w toku",
   "personalDisputeResolved": "Zgłoszenie rozpatrzone",
+  "personalDisputeUpheldEntry": "Zgłoszenie uznane: wejście wróciło do pakietu.",
+  "personalDisputeUpheldMakeupReturned": "Zgłoszenie uznane: odróbka wróciła na konto z tym samym terminem ważności.",
+  "personalDisputeUpheld": "Zgłoszenie uznane.",
+  "personalDisputeUpheldMakeup": "Zgłoszenie uznane: otrzymujesz nową odróbkę.",
+  "personalDisputeRejected": "Zgłoszenie odrzucone: wejście pozostaje wykorzystane.",
+  "personalDisputeNote": "Uzasadnienie studia: {note}",
+  "@personalDisputeNote": {"placeholders": {"note": {"type": "String"}}},
   "personalCancelDeadline": "Odwołanie w terminie: do {date}",
   "@personalCancelDeadline": {"placeholders": {"date": {"type": "String"}}},
   "personalDisputeDeadline": "Zgłoś niezgodność do {date}",
@@ -1485,6 +1515,7 @@
   "traineeMakeupsReasonStudio": "odwołane przez studio",
   "traineeMakeupsReasonInTime": "odwołane w terminie",
   "traineeMakeupsReasonOther": "odwołane zajęcia",
+  "traineeMakeupsReasonDispute": "uznane zgłoszenie niezgodności",
   "traineeMakeupsUnknownClass": "zajęcia",
   "traineeMakeupsGrantedByStudio": "Przyznana przez studio",
   "traineeMakeupsExpiresIn": "{days, plural, =1{Wygasa za 1 dzień} few{Wygasa za {days} dni} many{Wygasa za {days} dni} other{Wygasa za {days} dni}}",

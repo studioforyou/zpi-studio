@@ -175,6 +175,34 @@ public class Participations {
 	public record Cancellation(UUID eventId, boolean late, Instant cancelledAt) {
 	}
 
+	/**
+	 * Per service type, the participants who took part in a class of that type that started in
+	 * {@code [from, to)}: their reservation was not cancelled and they were not marked absent, so a
+	 * class whose attendance nobody marked counts. Cancelled classes are left out.
+	 */
+	public Map<UUID, Set<UUID>> findRecentParticipants(Collection<UUID> serviceTypeIds, Instant from, Instant to) {
+		if (serviceTypeIds.isEmpty() || !from.isBefore(to)) {
+			return Map.of();
+		}
+		Map<UUID, Set<UUID>> participants = new HashMap<>();
+		jdbc.sql("""
+				SELECT DISTINCT e.service_type_id, r.customer_id
+				FROM reservation r
+				JOIN schedule_event e ON e.id = r.event_id
+				WHERE e.service_type_id IN (:services) AND e.starts_at >= :from AND e.starts_at < :to
+				  AND e.status <> 'CANCELLED' AND r.status = 'ACTIVE' AND r.attendance <> 'ABSENT'
+				""")
+			.param("services", List.copyOf(serviceTypeIds))
+			.param("from", from.atOffset(java.time.ZoneOffset.UTC))
+			.param("to", to.atOffset(java.time.ZoneOffset.UTC))
+			.query((rs, rowNum) -> Map.entry(rs.getObject("service_type_id", UUID.class),
+					rs.getObject("customer_id", UUID.class)))
+			.list()
+			.forEach((entry) -> participants.computeIfAbsent(entry.getKey(), (key) -> new HashSet<>())
+				.add(entry.getValue()));
+		return participants;
+	}
+
 	/** Events any of the participants has a reservation for that was not cancelled. */
 	public Set<UUID> findActiveEventIds(Collection<UUID> profileIds) {
 		if (profileIds.isEmpty()) {

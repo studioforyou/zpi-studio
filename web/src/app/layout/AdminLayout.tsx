@@ -5,6 +5,7 @@ import { NavLink as RouterNavLink, Outlet, useMatch, useNavigate } from 'react-r
 import { paths } from '@/app/paths';
 import { useAuth } from '@/features/auth/AuthProvider';
 import { ChangePasswordModal } from '@/features/auth/ChangePasswordModal';
+import { countOpenDisputes, disputeKeys } from '@/features/disputes/disputesApi';
 import { countPendingTimeOff, timeOffKeys } from '@/features/staff/timeOffApi';
 import { pl } from '@/shared/i18n/pl';
 import { navigation, type NavigationItem } from './navigation';
@@ -68,7 +69,13 @@ function NavigationLink({ item }: { item: NavigationItem }) {
       to={item.path}
       label={pl.nav[item.labelKey]}
       active={match !== null}
-      rightSection={item.path === paths.timeOff ? <PendingTimeOffBadge /> : undefined}
+      rightSection={
+        item.path === paths.timeOff ? (
+          <PendingTimeOffBadge />
+        ) : item.path === paths.disputes ? (
+          <OpenDisputesBadge />
+        ) : undefined
+      }
     />
   );
 }
@@ -86,6 +93,24 @@ function PendingTimeOffBadge() {
   }
   return (
     <Badge size="sm" color="red" circle aria-label={pl.timeOff.pendingBadge(count)}>
+      {count}
+    </Badge>
+  );
+}
+
+/** How many personal-training disputes wait for a decision, next to the menu item. */
+function OpenDisputesBadge() {
+  const open = useQuery({
+    queryKey: disputeKeys.openCount(),
+    queryFn: countOpenDisputes,
+    refetchInterval: 60_000,
+  });
+  const count = open.data ?? 0;
+  if (count === 0) {
+    return null;
+  }
+  return (
+    <Badge size="sm" color="red" circle aria-label={pl.disputes.openBadge(count)}>
       {count}
     </Badge>
   );

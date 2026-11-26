@@ -17,7 +17,7 @@ import studioforyou.pl.backend.membership.PassLastEntryUsed;
  * Tells the participant that a booking used the last entry of a pass
  * ({@code PASS_LAST_ENTRY_USED}), right after the booking commits. Sent once per pass: taking the
  * last entry again after a cancellation notifies nobody. Not sent when the participant already
- * has a following pass.
+ * has a following pass or said they will not renew this one.
  */
 @Component
 class PassLastEntryNotifications {
@@ -40,7 +40,7 @@ class PassLastEntryNotifications {
 	void on(PassLastEntryUsed event) {
 		Instant now = Instant.now();
 		LocalDate today = now.atZone(requests.studioZone()).toLocalDate();
-		if (passes.isFollowed(event.passId(), today)) {
+		if (passes.isRenewalDeclined(event.passId()) || passes.isFollowed(event.passId(), today)) {
 			return;
 		}
 		notifications.notifyNow(requests.forPass(NotificationType.PASS_LAST_ENTRY_USED, event.passId(),
