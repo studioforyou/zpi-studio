@@ -174,6 +174,57 @@ The button in the app bar of **Mój grafik** (client) and **Grafik** (trainer) o
 
 A single event can also be added to the phone's calendar with `add_2_calendar`: the **Dodaj do kalendarza** button on the details of a class, a personal training and a trainer's event, or by holding the event down in **Mój grafik** and **Grafik**. The phone's calendar app opens with the event filled in. Such an entry is a copy that later changes in the studio do not update. Android needs the `INSERT` calendar intent in `<queries>`; iOS needs the calendar and contacts usage descriptions in `Info.plist`.
 
+## Message attachments
+
+In every conversation the **+** button next to the text field adds up to 5
+attachments (#149, #152): a photo from the camera or the gallery
+(`image_picker`), or a PDF, Word (DOC, DOCX), Excel (XLS, XLSX) or TXT
+document, or a JPEG or PNG photo, from the phone's files (`file_picker`).
+Photos from the camera or the gallery are scaled to at most 2560 px on the
+longer side and saved as JPEG of quality 85 before they are sent, a HEIC photo
+too. A HEIC photo is not taken from the files, where it would be sent as it is,
+without compression or a thumbnail: the app says to send it from the gallery. The app
+checks the limits the backend has (10 MB a file, 30 MB a message) and sends the
+message as `multipart/form-data`, showing the upload progress; the text is
+optional. The picker keeps the photo's EXIF, location included; the backend
+removes the location before it stores the photo. See `lib/features/communication/data/attachment_picker.dart`.
+
+Received files are downloaded once into the app's cache, kept by attachment
+id (`attachment_files.dart`). The cache keeps at most 300 MB: when a download
+takes it over, the files used longest ago are removed down to 250 MB. A photo
+with a thumbnail (`hasThumbnail`, a JPEG of at most 1024 px made by the
+backend) is shown by it in the conversation and the photos of a conversation;
+the whole photo is downloaded only full screen, where the thumbnail shows
+until it is there. Photos are shown in the conversation and open
+full screen (`PhotoViewerScreen`): swipe through all the photos of the
+conversation (the ones loaded in the conversation first, then older ones from
+`GET .../attachments?kind=PHOTO` as the user gets to them). Opened in the
+conversation, older photos are to the left, as they are above in it; opened in
+the grid of a conversation's photos, the next photo to the right is the older
+one, as in the grid. Zoom with two fingers or a double tap, and save it in the phone's
+gallery (`gal`):
+Photos on iPhone, the Pictures album on Android. A photo the gallery does not
+take (e.g. HEIC on an older Android) is saved as a file instead. Other files
+open in an app of the phone with `open_filex` (the system preview on iPhone,
+e.g. a PDF viewer or Word on Android); when no app opens the file, or with the
+download button of a file, a copy can be saved on the phone
+(`FilePicker.saveFile`: Files on iPhone, a folder the user picks on Android).
+
+Every conversation, a private one too, has details behind the info button of
+its bar, with the way to all its photos and all its other files
+(`conversation_media_screen.dart`): a grid of photos and a list of files,
+newest first and by month, loaded page by page as the user scrolls.
+
+Platform settings: `ios/Runner/Info.plist` describes the camera and photo
+library use (`NSCameraUsageDescription`, `NSPhotoLibraryUsageDescription`; the
+picker runs with `requestFullMetadata: false`, so iOS does not ask for the
+library permission) and adding photos to the library
+(`NSPhotoLibraryAddUsageDescription`, asked the first time a photo is saved).
+`android/app/src/main/AndroidManifest.xml` removes the storage and media
+permissions `open_filex` declares, since the app opens only files in its own
+cache, and declares `WRITE_EXTERNAL_STORAGE` up to Android 10 only, which `gal`
+needs there; later versions save to the gallery without any permission.
+
 ## Push notifications and inbox
 
 Push notifications use Firebase Cloud Messaging (`firebase_messaging`).

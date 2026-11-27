@@ -11,10 +11,16 @@ export const eventKinds = [
 export type EventKind = (typeof eventKinds)[number];
 
 /**
- * Kinds an administrator plans in the panel; consultations have their own story. A block, e.g. a
+ * Kinds an administrator plans in the panel. Consultations are one-off events. A block, e.g. a
  * maintenance, has no service or staff and takes its rooms whole.
  */
-export const plannableKinds = ['CLASS', 'WORKSHOP', 'PERSONAL_TRAINING', 'BLOCK'] as const;
+export const plannableKinds = [
+  'CLASS',
+  'WORKSHOP',
+  'PERSONAL_TRAINING',
+  'CONSULTATION',
+  'BLOCK',
+] as const;
 export type PlannableKind = (typeof plannableKinds)[number];
 
 export const eventStatuses = ['SCHEDULED', 'COMPLETED', 'CANCELLED'] as const;
@@ -24,6 +30,38 @@ export const eventVisibilities = ['PUBLIC', 'PRIVATE'] as const;
 export type EventVisibility = (typeof eventVisibilities)[number];
 
 export type StaffRole = 'LEAD' | 'ASSISTANT';
+
+type HistoryChange<T> = { old: T; new: T };
+export type EventHistoryChanges = {
+  time?: HistoryChange<{ startsAt: string; endsAt: string }>;
+  title?: HistoryChange<string | null>;
+  capacity?: HistoryChange<number | null>;
+  staff?: HistoryChange<AssignedStaff[]>;
+  resources?: HistoryChange<AssignedResource[]>;
+  visibility?: HistoryChange<EventVisibility>;
+  status?: HistoryChange<EventStatus>;
+  guestName?: HistoryChange<string | null>;
+  blockReason?: HistoryChange<string | null>;
+  forceRun?: HistoryChange<boolean>;
+};
+
+export type EventHistoryEntry = {
+  id: string;
+  occurredAt: string;
+  kind:
+    | 'CREATED'
+    | 'MANUAL'
+    | 'SERIES_RESTORED'
+    | 'SUBSTITUTION'
+    | 'AUTOMATIC_SUBSTITUTION'
+    | 'CANCELLED'
+    | 'COMPLETED'
+    | 'FORCE_RUN_CHANGED';
+  actorAccountId: string | null;
+  actorName: string | null;
+  changes: EventHistoryChanges;
+  reason: string | null;
+};
 
 export type AssignedStaff = {
   staffId: string;
@@ -113,7 +151,7 @@ export type ResourceAssignment = { resourceId: string; blocksWholeRoom: boolean 
 
 export type EventDetailsInput = {
   kind: PlannableKind;
-  /** `null` only for a block. */
+  /** Not used for blocks or consultations. */
   serviceTypeId: string | null;
   /** `null` = the service type's name. */
   title: string | null;
@@ -124,7 +162,11 @@ export type EventDetailsInput = {
   resources: ResourceAssignment[];
 };
 
-export type OneOffEventInput = EventDetailsInput & { startsAt: string; endsAt: string };
+export type OneOffEventInput = EventDetailsInput & {
+  startsAt: string;
+  endsAt: string;
+  guestName?: string | null;
+};
 
 export type SeriesInput = EventDetailsInput & {
   /** ISO weekdays, 1 = Monday. */
@@ -204,6 +246,7 @@ export type AssignmentsChange = {
 
 /** The new time, title, capacity, staff and rooms of one event (or one occurrence of a series). */
 export type EventChange = {
+  guestName?: string | null;
   version: number;
   startsAt: string;
   endsAt: string;
@@ -221,6 +264,7 @@ export const scheduleKeys = {
   all: ['schedule'] as const,
   events: (from: string, to: string) => [...scheduleKeys.all, 'events', from, to] as const,
   series: (id: string) => [...scheduleKeys.all, 'series', id] as const,
+  history: (id: string) => [...scheduleKeys.all, 'history', id] as const,
   staff: ['schedule', 'staff'] as const,
   serviceTypes: ['schedule', 'service-types'] as const,
   trainingGroups: ['schedule', 'training-groups'] as const,
@@ -230,6 +274,13 @@ export const scheduleKeys = {
 export async function listScheduleEvents(from: string, to: string): Promise<ScheduleEvent[]> {
   const query = new URLSearchParams({ from, to });
   const response = await apiFetch<ListResponse<ScheduleEvent>>(`/api/v1/schedule-events?${query}`);
+  return response.items;
+}
+
+export async function getEventHistory(eventId: string): Promise<EventHistoryEntry[]> {
+  const response = await apiFetch<ListResponse<EventHistoryEntry>>(
+    `/api/v1/schedule-events/${eventId}/history`,
+  );
   return response.items;
 }
 

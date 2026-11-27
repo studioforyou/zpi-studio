@@ -22,6 +22,24 @@ public enum NotificationType {
 			new Placeholder(Placeholder.TIME, "Start and end time"),
 			new Placeholder(Placeholder.ROOM, "Names of the event's rooms"))),
 
+	/**
+	 * The trainer who asked for a substitute has one: the studio approved a claim, assigned a
+	 * trainer itself, or a trainer took the event without the studio's approval.
+	 */
+	SUBSTITUTION_COVERED((short) 16, false, substitutionPlaceholders(true)),
+
+	/** The studio approved the trainer's claim of a substitution, or assigned them to it directly. */
+	SUBSTITUTION_ASSIGNED((short) 17, false, substitutionPlaceholders(false)),
+
+	/**
+	 * The studio turned down the trainer's claim of a substitution, or closed the request while the
+	 * claim was waiting.
+	 */
+	SUBSTITUTION_CLAIM_REJECTED((short) 18, false, substitutionPlaceholders(false)),
+
+	/** The studio closed the trainer's substitution request without a substitute: they keep the event. */
+	SUBSTITUTION_CLOSED((short) 19, false, substitutionPlaceholders(false)),
+
 	/** Reminder about a class or training the participant has an active reservation for. */
 	CLASS_REMINDER((short) 1, true, List.of(
 			new Placeholder(Placeholder.CLASS, "Name of the class or training"),
@@ -152,6 +170,21 @@ public enum NotificationType {
 		this.placeholders = placeholders;
 	}
 
+	private static List<Placeholder> substitutionPlaceholders(boolean substitute) {
+		var placeholders = new java.util.ArrayList<>(List.of(
+				new Placeholder(Placeholder.CLASS, "Name of the class or service; no participant data"),
+				new Placeholder(Placeholder.DAY, "Day of the event in the studio time zone, e.g. \"wt., 2.12\""),
+				new Placeholder(Placeholder.TIME, "Start and end time, e.g. \"18:00–19:00\""),
+				new Placeholder(Placeholder.ROOM, "Names of the event's rooms")));
+		if (substitute) {
+			placeholders.add(new Placeholder(Placeholder.SUBSTITUTE, "The trainer who takes the event, e.g. \"Anna Nowak\""));
+		}
+		else {
+			placeholders.add(new Placeholder(Placeholder.NOTE, "\"Notatka studia: …\" with the administrator's note, or nothing"));
+		}
+		return List.copyOf(placeholders);
+	}
+
 	public short id() {
 		return id;
 	}
@@ -245,6 +278,9 @@ public enum NotificationType {
 
 		/** How many participants the class needed. */
 		public static final String MINIMUM = "minimum";
+
+		/** The trainer who takes a substitution. */
+		public static final String SUBSTITUTE = "zastępca";
 
 	}
 

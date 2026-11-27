@@ -6,6 +6,10 @@ output "artifact_registry_repository" {
   value = module.app.artifact_registry_repository
 }
 
+output "files_bucket" {
+  value = module.app.files_bucket
+}
+
 output "db_private_ip" {
   value = module.app.db_private_ip
 }

@@ -38,12 +38,22 @@ spring:
         # The event_publication table comes from a Flyway migration.
         schema-initialization:
           enabled: false
+  servlet:
+    multipart:
+      # Message attachments: at most 10 MB each, and the whole request under Cloud Run's 32 MiB limit.
+      max-file-size: 10MB
+      max-request-size: 30MB
   data:
     web:
       pageable:
         default-page-size: 20
         max-page-size: 100
         one-indexed-parameters: false
+
+server:
+  tomcat:
+    # Reads the rest of a too large upload, so the client gets the 413 response instead of a reset connection.
+    max-swallow-size: 32MB
 
 management:
   endpoints:
@@ -77,6 +87,12 @@ app:
   push:
     # LOG only writes push notifications to the log (local default); FCM sends them (stage, prod).
     provider: ${PUSH_PROVIDER:LOG}
+  files:
+    # Content of stored files (message attachments). LOCAL keeps it in local-directory (local default,
+    # a Docker volume in docker-compose.yml); GCS keeps it in the private Cloud Storage bucket (stage, prod).
+    provider: ${FILE_STORAGE_PROVIDER:LOCAL}
+    local-directory: ${FILE_STORAGE_LOCAL_DIRECTORY:./data/files}
+    bucket: ${FILE_STORAGE_BUCKET:}
   jobs:
     oidc:
       # Cloud Scheduler calls /internal/jobs/** with a Google OIDC token for this audience and service

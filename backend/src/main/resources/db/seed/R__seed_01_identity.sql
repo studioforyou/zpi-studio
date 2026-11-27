@@ -134,7 +134,5 @@ ON CONFLICT DO NOTHING;
 
 INSERT INTO stored_file (id, owner_module, uploaded_by, bucket, object_key, original_name, mime_type, size_bytes, sha256, sensitivity) VALUES
     ('02000000-0000-0000-0000-000000000001', 'staff',         '03000000-0000-0000-0000-000000000001', 'zpi-studio-seed', 'seed/staff/anna-kowalska.jpg',     'anna.jpg',               'image/jpeg',      184320, encode(sha256('seed-file-1'::bytea), 'hex'), 'NORMAL'),
-    ('02000000-0000-0000-0000-000000000002', 'documents',     '03000000-0000-0000-0000-000000000001', 'zpi-studio-seed', 'seed/documents/zgoda-pole-v1.pdf', 'zgoda-pole-dance.pdf',   'application/pdf', 96256,  encode(sha256('seed-file-2'::bytea), 'hex'), 'NORMAL'),
-    ('02000000-0000-0000-0000-000000000003', 'communication', '03000000-0000-0000-0000-000000000002', 'zpi-studio-seed', 'seed/chat/plan-treningowy.pdf',    'plan-treningowy.pdf',    'application/pdf', 51200,  encode(sha256('seed-file-3'::bytea), 'hex'), 'NORMAL'),
-    ('02000000-0000-0000-0000-000000000004', 'communication', '03000000-0000-0000-0000-000000000005', 'zpi-studio-seed', 'seed/health/zaswiadczenie.pdf',    'zaswiadczenie-lekarz.pdf','application/pdf', 70144,  encode(sha256('seed-file-4'::bytea), 'hex'), 'HEALTH')
+    ('02000000-0000-0000-0000-000000000002', 'documents',     '03000000-0000-0000-0000-000000000001', 'zpi-studio-seed', 'seed/documents/zgoda-pole-v1.pdf', 'zgoda-pole-dance.pdf',   'application/pdf', 96256,  encode(sha256('seed-file-2'::bytea), 'hex'), 'NORMAL')
 ON CONFLICT DO NOTHING;

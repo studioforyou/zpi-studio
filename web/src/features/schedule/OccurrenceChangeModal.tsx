@@ -62,6 +62,7 @@ export function OccurrenceChangeModal({ event, lookups, onClose }: OccurrenceCha
   const [startTime, setStartTime] = useState(minutesToTime(start.minutes));
   const [duration, setDuration] = useState<number | string>(initialDuration);
   const [title, setTitle] = useState(event.title ?? '');
+  const [guestName, setGuestName] = useState(event.guestName ?? '');
   const [capacity, setCapacity] = useState<number | string>(event.capacity ?? '');
   const [staff, setStaff] = useState<StaffAssignment[]>(
     event.staff.map(({ staffId, role }) => ({ staffId, role })),
@@ -72,6 +73,7 @@ export function OccurrenceChangeModal({ event, lookups, onClose }: OccurrenceCha
   const [submitted, setSubmitted] = useState(false);
   // A block keeps the rules it was planned with: a title, rooms taken whole, no staff or capacity.
   const isBlock = event.kind === 'BLOCK';
+  const isConsultation = event.kind === 'CONSULTATION';
 
   const durationValid =
     typeof duration === 'number' && Number.isInteger(duration) && duration >= 5 && duration <= 720;
@@ -79,20 +81,28 @@ export function OccurrenceChangeModal({ event, lookups, onClose }: OccurrenceCha
     capacity === '' ||
     (typeof capacity === 'number' && Number.isInteger(capacity) && capacity >= 1);
   const blockValid = !isBlock || (title.trim() !== '' && resources.length > 0);
-  const valid = date !== '' && startTime !== '' && durationValid && capacityValid && blockValid;
+  const valid =
+    date !== '' &&
+    startTime !== '' &&
+    durationValid &&
+    capacityValid &&
+    blockValid &&
+    (!isConsultation || resources.length === 1);
 
   function change(): EventChange {
     const startsAt = toInstant(date, startTime, timeZone);
     return {
+      ...(isConsultation ? { guestName: guestName.trim() || null } : {}),
       version: event.version,
       startsAt: startsAt.toISOString(),
       endsAt: new Date(startsAt.getTime() + Number(duration) * 60000).toISOString(),
       title: title.trim() === '' ? null : title.trim(),
-      capacity: isBlock || capacity === '' ? null : Number(capacity),
+      capacity: isBlock || isConsultation || capacity === '' ? null : Number(capacity),
       staff: isBlock ? [] : staff,
-      resources: isBlock
-        ? resources.map((resource) => ({ ...resource, blocksWholeRoom: true }))
-        : resources,
+      resources:
+        isBlock || isConsultation
+          ? resources.map((resource) => ({ ...resource, blocksWholeRoom: true }))
+          : resources,
     };
   }
 
@@ -197,7 +207,7 @@ export function OccurrenceChangeModal({ event, lookups, onClose }: OccurrenceCha
               error={error(!durationValid, texts.durationRange)}
             />
           </SimpleGrid>
-          <SimpleGrid cols={{ base: 1, sm: isBlock ? 1 : 2 }}>
+          <SimpleGrid cols={{ base: 1, sm: isBlock || isConsultation ? 1 : 2 }}>
             <TextInput
               label={texts.eventTitle}
               placeholder={event.serviceTypeName ?? undefined}
@@ -207,7 +217,7 @@ export function OccurrenceChangeModal({ event, lookups, onClose }: OccurrenceCha
               onChange={(input) => setTitle(input.currentTarget.value)}
               error={error(isBlock && title.trim() === '', texts.required)}
             />
-            {!isBlock && (
+            {!isBlock && !isConsultation && (
               <NumberInput
                 label={texts.capacity}
                 description={texts.capacityDescription}
@@ -221,8 +231,19 @@ export function OccurrenceChangeModal({ event, lookups, onClose }: OccurrenceCha
               />
             )}
           </SimpleGrid>
+          {isConsultation && (
+            <TextInput
+              label={pl.schedule.consultation.guest}
+              placeholder={pl.schedule.consultation.guestPlaceholder}
+              maxLength={120}
+              value={guestName}
+              onChange={(input) => setGuestName(input.currentTarget.value)}
+            />
+          )}
           <AssignmentFields
             block={isBlock}
+            consultation={isConsultation}
+            roomError={error(isConsultation && resources.length !== 1, texts.required)}
             serviceTypeId={event.serviceTypeId}
             staff={staff}
             onStaffChange={edited(setStaff)}

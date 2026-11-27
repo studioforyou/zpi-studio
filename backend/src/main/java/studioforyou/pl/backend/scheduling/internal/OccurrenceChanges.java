@@ -69,12 +69,14 @@ class OccurrenceChanges {
 
 	private final ScheduleChangeNotices notices;
 
+	private final EventHistory history;
+
 	private final Clock clock = Clock.systemUTC();
 
 	OccurrenceChanges(ScheduleEventRepository events, RecurrenceSeriesRepository seriesRepository,
 			SchedulePlanner planner, ScheduleConflicts conflicts, ScheduleQueries queries, ServiceTypes serviceTypes,
 			EventParticipantCounts participants, StudioSettings studio, ApplicationEventPublisher publisher,
-			ScheduleChangeNotices notices) {
+			ScheduleChangeNotices notices, EventHistory history) {
 		this.events = events;
 		this.seriesRepository = seriesRepository;
 		this.planner = planner;
@@ -85,6 +87,7 @@ class OccurrenceChanges {
 		this.studio = studio;
 		this.publisher = publisher;
 		this.notices = notices;
+		this.history = history;
 	}
 
 	/**
@@ -97,7 +100,7 @@ class OccurrenceChanges {
 		requireEditable(event);
 		ZoneId zone = this.studio.zone();
 		Occurrence occurrence = this.planner.checkedOccurrence(request.startsAt(), request.endsAt(), zone);
-		Short capacity = (event.getKind() == EventKind.BLOCK) ? null : capacity(request.capacity());
+		Short capacity = (event.getKind() == EventKind.BLOCK || event.getKind() == EventKind.CONSULTATION) ? null : capacity(request.capacity());
 		Assignments assignments = assignments(event, capacity, request.staff(), request.resources());
 		List<ScheduleIssue> issues = this.conflicts.find(List.of(occurrence), assignments, zone, List.of(eventId))
 			.get(0);
@@ -111,8 +114,8 @@ class OccurrenceChanges {
 	 * Applies the change to the event only. A change of an occurrence of a series marks it as an
 	 * exception; a request that changes nothing leaves the event as it is.
 	 */
-	ScheduleEventResponse change(UUID eventId, ChangeEventRequest request) {
-		return change(eventId, request, Set.of());
+	ScheduleEventResponse change(UUID eventId, ChangeEventRequest request, UUID actor) {
+		return change(eventId, request, Set.of(), actor);
 	}
 
 	/**
@@ -129,8 +132,8 @@ class OccurrenceChanges {
 	 * title, capacity and staff stay as they are. The participants and the other staff members are
 	 * told about the change; the trainer who made it is not.
 	 */
-	ScheduleEventResponse rescheduleOwn(UUID eventId, UUID staffId, OwnRescheduleRequest request) {
-		return change(eventId, ownChange(eventId, staffId, request), Set.of(staffId));
+	ScheduleEventResponse rescheduleOwn(UUID eventId, UUID staffId, OwnRescheduleRequest request, UUID actor) {
+		return change(eventId, ownChange(eventId, staffId, request), Set.of(staffId), actor);
 	}
 
 	/**
@@ -163,30 +166,34 @@ class OccurrenceChanges {
 			resources = List.of(new ResourceAssignmentRequest(request.resourceId(), blocksWholeRoom));
 		}
 		return new ChangeEventRequest(request.version(), request.startsAt(), request.endsAt(), event.getTitle(),
-				toInteger(event.getCapacity()), staff, resources);
+				toInteger(event.getCapacity()), staff, resources, event.getGuestName());
 	}
 
 	/**
 	 * Applies the change; the staff members in {@code silentStaff} get no notice of it.
 	 */
-	private ScheduleEventResponse change(UUID eventId, ChangeEventRequest request, Set<UUID> silentStaff) {
+	private ScheduleEventResponse change(UUID eventId, ChangeEventRequest request, Set<UUID> silentStaff,
+			UUID actor) {
 		ScheduleEvent event = lockForChange(eventId, request.version());
 		ZoneId zone = this.studio.zone();
 		Occurrence occurrence = this.planner.checkedOccurrence(request.startsAt(), request.endsAt(), zone);
-		Short capacity = (event.getKind() == EventKind.BLOCK) ? null : capacity(request.capacity());
+		Short capacity = (event.getKind() == EventKind.BLOCK || event.getKind() == EventKind.CONSULTATION) ? null : capacity(request.capacity());
 		requireRoomForParticipants(event, capacity);
 		Assignments assignments = assignments(event, capacity, request.staff(), request.resources());
 		this.planner.lockAndRejectConflicts(List.of(occurrence), assignments, zone, List.of(eventId));
 
 		TimeAndCapacity before = TimeAndCapacity.of(event);
 		Map<UUID, ScheduleChangeNotices.Snapshot> noticeBefore = this.notices.snapshots(List.of(eventId));
+		var historyBefore = this.history.snapshots(List.of(eventId));
 		boolean moved = event.reschedule(occurrence.startsAt(), occurrence.endsAt());
 		boolean detailsChanged = event.changeDetails(title(request.title(), event), capacity);
 		boolean assignmentsChanged = event.replaceAssignments(assignments.staff(), assignments.resources());
+		if (event.getKind() == EventKind.CONSULTATION) event.setGuestName(SchedulePlanner.guestName(request.guestName()));
 		if (moved || detailsChanged || assignmentsChanged) {
 			event.markSeriesException();
 		}
 		this.events.flush();
+		this.history.record(historyBefore, actor, EventHistory.Kind.MANUAL, null);
 		publishChange(before, event);
 		this.notices.record(noticeBefore, silentStaff);
 		return this.queries.findEvent(eventId).orElseThrow();
@@ -197,7 +204,7 @@ class OccurrenceChanges {
 	 * the series' title and capacity, and the staff and rooms of the closest occurrence that still
 	 * follows the rule (the series' default lead and room when there is none).
 	 */
-	ScheduleEventResponse restoreSeries(UUID eventId, RestoreSeriesRequest request) {
+	ScheduleEventResponse restoreSeries(UUID eventId, RestoreSeriesRequest request, UUID actor) {
 		ScheduleEvent event = lockForChange(eventId, request.version());
 		if (event.getSeriesId() == null) {
 			throw new ApiException(ErrorCode.EVENT_NOT_EDITABLE, "A one-off event has no series to restore.");
@@ -236,11 +243,13 @@ class OccurrenceChanges {
 
 		TimeAndCapacity before = TimeAndCapacity.of(event);
 		Map<UUID, ScheduleChangeNotices.Snapshot> noticeBefore = this.notices.snapshots(List.of(eventId));
+		var historyBefore = this.history.snapshots(List.of(eventId));
 		event.reschedule(occurrence.startsAt(), occurrence.endsAt());
 		event.changeDetails(title(series.getTitle(), event), capacity);
 		event.replaceAssignments(assignments.staff(), assignments.resources());
 		event.clearSeriesException();
 		this.events.flush();
+		this.history.record(historyBefore, actor, EventHistory.Kind.SERIES_RESTORED, null);
 		publishChange(before, event);
 		this.notices.record(noticeBefore);
 		return this.queries.findEvent(eventId).orElseThrow();
@@ -252,6 +261,9 @@ class OccurrenceChanges {
 	 */
 	private Assignments assignments(ScheduleEvent event, @Nullable Short capacity,
 			List<StaffAssignmentRequest> staff, List<ResourceAssignmentRequest> resources) {
+		if (event.getKind() == EventKind.CONSULTATION) {
+			return this.planner.consultationAssignments(staff, resources, event);
+		}
 		if (event.getKind() == EventKind.BLOCK) {
 			return this.planner.assignments(null, null, List.of(), SchedulePlanner.blockRooms(staff, resources),
 					event);
@@ -317,7 +329,7 @@ class OccurrenceChanges {
 			title = requested.strip();
 		}
 		else if (event.getServiceTypeId() == null) {
-			title = event.getTitle();
+			title = event.getKind() == EventKind.CONSULTATION ? "Konsultacja" : event.getTitle();
 		}
 		else {
 			title = this.serviceTypes.findById(event.getServiceTypeId())

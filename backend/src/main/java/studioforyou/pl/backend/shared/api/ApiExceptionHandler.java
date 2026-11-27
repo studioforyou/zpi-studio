@@ -197,6 +197,8 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 			case 403 -> ErrorCode.ACCESS_DENIED;
 			case 404 -> ErrorCode.NOT_FOUND;
 			case 405 -> ErrorCode.METHOD_NOT_ALLOWED;
+			// A multipart request over spring.servlet.multipart.max-file-size or max-request-size.
+			case 413 -> ErrorCode.FILE_TOO_LARGE;
 			case 415 -> ErrorCode.UNSUPPORTED_MEDIA_TYPE;
 			default -> status.is5xxServerError() ? ErrorCode.INTERNAL_ERROR : ErrorCode.MALFORMED_REQUEST;
 		};

@@ -87,12 +87,14 @@ class SchedulePlanner {
 
 	private final ScheduleChangeNotices notices;
 
+	private final EventHistory history;
+
 	private final Clock clock = Clock.systemUTC();
 
 	SchedulePlanner(ScheduleEventRepository events, RecurrenceSeriesRepository seriesRepository,
 			ResourceRepository resources, ServiceTypeResourceRepository roomRules, ScheduleQueries queries,
 			ScheduleConflicts conflicts, ScheduleLocks locks, ServiceTypes serviceTypes, StaffProfiles staffProfiles,
-			StudioSettings studio, ScheduleChangeNotices notices) {
+			StudioSettings studio, ScheduleChangeNotices notices, EventHistory history) {
 		this.events = events;
 		this.seriesRepository = seriesRepository;
 		this.resources = resources;
@@ -103,6 +105,7 @@ class SchedulePlanner {
 		this.serviceTypes = serviceTypes;
 		this.staffProfiles = staffProfiles;
 		this.notices = notices;
+		this.history = history;
 		this.studio = studio;
 	}
 
@@ -120,6 +123,7 @@ class SchedulePlanner {
 		lockAndRejectConflicts(List.of(occurrence), details.assignments(), zone, Set.of());
 
 		ScheduleEvent event = newEvent(details, null, occurrence, actorAccountId);
+		if (details.kind() == EventKind.CONSULTATION) event.setGuestName(guestName(request.guestName()));
 		this.events.save(event);
 		this.events.flush();
 		return this.queries.findEvent(event.getId()).orElseThrow();
@@ -138,33 +142,57 @@ class SchedulePlanner {
 		Occurrence occurrence = occurrence(request.startsAt(), request.endsAt(), zone);
 		lockAndRejectConflicts(List.of(occurrence), details.assignments(), zone, Set.of());
 		ScheduleEvent event = newEvent(details, null, occurrence, actorAccountId);
-		String guestName = request.guestName();
-		event.setGuestName((guestName == null || guestName.isBlank()) ? null : guestName.strip());
+		event.setGuestName(guestName(request.guestName()));
 		this.events.save(event);
 		this.events.flush();
 		return this.queries.findEvent(event.getId()).orElseThrow();
 	}
 
 	private Details consultationDetails(OwnConsultationRequest request, UUID staffId) {
-		Assignments assignments = assignments(null, null,
+		Assignments assignments = consultationAssignments(
 				List.of(new StaffAssignmentRequest(staffId, StaffRole.LEAD)),
 				List.of(new ResourceAssignmentRequest(request.resourceId(), true)), null);
-		if (rooms(assignments).size() != 1) {
-			throw ApiException.invalidField("resourceId", FieldErrorCode.INVALID_VALUE, "A consultation requires a room.");
-		}
 		return new Details(EventKind.CONSULTATION, null, "Konsultacja", null, EventVisibility.PRIVATE, assignments);
+	}
+
+	static String guestName(String value) {
+		return value == null || value.isBlank() ? null : value.strip();
+	}
+
+	/** Consultations reserve one whole room and, optionally, one lead; they have no booked places. */
+	Assignments consultationAssignments(@Nullable List<StaffAssignmentRequest> staff,
+			@Nullable List<ResourceAssignmentRequest> resources, @Nullable ScheduleEvent current) {
+		if (resources == null || resources.size() != 1) {
+			throw ApiException.invalidField("resources", FieldErrorCode.REQUIRED, "Choose one room for the consultation.");
+		}
+		if (staff != null && (staff.size() > 1 || staff.stream().anyMatch(member -> member.role() == StaffRole.ASSISTANT))) {
+			throw ApiException.invalidField("staff", FieldErrorCode.INVALID_VALUE, "Choose at most one consultation trainer.");
+		}
+		Assignments result = assignments(null, null, staff,
+				List.of(new ResourceAssignmentRequest(resources.getFirst().resourceId(), true)), current);
+		if (rooms(result).size() != 1) {
+			throw ApiException.invalidField("resources", FieldErrorCode.INVALID_VALUE, "A consultation requires a room.");
+		}
+		return result;
+	}
+
+	private Details seriesDetails(CreateSeriesRequest request) {
+		if (request.kind() == EventKind.CONSULTATION) {
+			throw ApiException.invalidField("kind", FieldErrorCode.INVALID_VALUE, "Consultations are one-off events.");
+		}
+		return details(request.details());
 	}
 
 	@Transactional(readOnly = true)
 	PlanPreviewResponse previewSeries(CreateSeriesRequest request) {
 		ZoneId zone = this.studio.zone();
-		Details details = details(request.details());
+		Details details = seriesDetails(request);
 		return preview(details, occurrences(request, zone), zone);
 	}
 
 	SeriesPlanResponse createSeries(CreateSeriesRequest request, UUID actorAccountId) {
 		ZoneId zone = this.studio.zone();
-		Details details = details(request.details());
+		Details details = seriesDetails(request);
 		List<Occurrence> planned = occurrences(request, zone).stream().filter((o) -> !o.excluded()).toList();
 		lockAndRejectConflicts(planned, details.assignments(), zone, Set.of());
 
@@ -208,7 +236,13 @@ class SchedulePlanner {
 	 * Replaces the staff and rooms of an event, or of the event and the later scheduled
 	 * occurrences of its series. A change of one occurrence marks it as an exception to its series.
 	 */
-	ScheduleEventResponse changeAssignments(UUID eventId, ChangeAssignmentsRequest request) {
+	ScheduleEventResponse changeAssignments(UUID eventId, ChangeAssignmentsRequest request, UUID actor) {
+		return changeAssignments(eventId, request, actor, null, false, Set.of());
+	}
+
+	/** Records the occurrence's history while skipping notices sent as a substitution decision instead. */
+	ScheduleEventResponse changeAssignments(UUID eventId, ChangeAssignmentsRequest request, UUID actor,
+			@Nullable UUID substitutionRequestId, boolean automatic, Set<UUID> silentStaff) {
 		ScheduleEvent event = this.events.findByIdForUpdate(eventId)
 			.orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "Event not found."));
 		if (event.getVersion() != request.version()) {
@@ -226,8 +260,13 @@ class SchedulePlanner {
 		Short capacity = event.getCapacity();
 		List<ResourceAssignmentRequest> resources = (event.getKind() == EventKind.BLOCK)
 				? blockRooms(request.staff(), request.resources()) : request.resources();
-		Assignments assignments = assignments(event.getServiceTypeId(), (capacity != null) ? capacity.intValue() : null,
-				request.staff(), resources, event);
+		if (event.getKind() == EventKind.CONSULTATION && !event.getStartsAt().isAfter(this.clock.instant())) {
+			throw new ApiException(ErrorCode.EVENT_NOT_EDITABLE, "The consultation has already started.");
+		}
+		Assignments assignments = event.getKind() == EventKind.CONSULTATION
+				? consultationAssignments(request.staff(), resources, event)
+				: assignments(event.getServiceTypeId(), (capacity != null) ? capacity.intValue() : null,
+						request.staff(), resources, event);
 		ZoneId zone = this.studio.zone();
 		List<Occurrence> occurrences = targets.stream()
 			.map((target) -> new Occurrence(LocalDate.ofInstant(target.getStartsAt(), zone), target.getStartsAt(),
@@ -237,6 +276,7 @@ class SchedulePlanner {
 
 		Map<UUID, ScheduleChangeNotices.Snapshot> before = this.notices
 			.snapshots(targets.stream().map(ScheduleEvent::getId).toList());
+		var historyBefore = this.history.snapshots(targets.stream().map(ScheduleEvent::getId).toList());
 		for (ScheduleEvent target : targets) {
 			boolean changed = target.replaceAssignments(assignments.staff(), assignments.resources());
 			if (changed && !following) {
@@ -248,7 +288,10 @@ class SchedulePlanner {
 				.ifPresent((series) -> series.setDefaults(assignments.leadStaffId(), assignments.mainResourceId()));
 		}
 		this.events.flush();
-		this.notices.record(before);
+		this.history.record(historyBefore, actor, substitutionRequestId == null ? EventHistory.Kind.MANUAL
+				: automatic ? EventHistory.Kind.AUTOMATIC_SUBSTITUTION : EventHistory.Kind.SUBSTITUTION,
+				substitutionRequestId);
+		this.notices.record(before, silentStaff);
 		return this.queries.findEvent(eventId).orElseThrow();
 	}
 
@@ -310,10 +353,15 @@ class SchedulePlanner {
 	private Details details(EventDetailsRequest request) {
 		if (!EventKind.PLANNABLE.contains(request.kind())) {
 			throw ApiException.invalidField("kind", FieldErrorCode.INVALID_VALUE,
-					"Only CLASS, PERSONAL_TRAINING, WORKSHOP and BLOCK events can be planned here.");
+					"This event kind cannot be planned here.");
 		}
 		if (request.kind() == EventKind.BLOCK) {
 			return blockDetails(request);
+		}
+		if (request.kind() == EventKind.CONSULTATION) {
+			String title = request.title() == null || request.title().isBlank() ? "Konsultacja" : request.title().strip();
+			return new Details(EventKind.CONSULTATION, null, title, null, EventVisibility.PRIVATE,
+					consultationAssignments(request.staff(), request.resources(), null));
 		}
 		if (request.serviceTypeId() == null) {
 			throw ApiException.invalidField("serviceTypeId", FieldErrorCode.REQUIRED, "The service type is required.");

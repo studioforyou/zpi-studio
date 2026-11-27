@@ -13,4 +13,6 @@ FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
 COPY --from=builder /app/target/*.jar app.jar
 EXPOSE 8080
-ENTRYPOINT ["java", "-jar", "app.jar"]
+# Sterta to 60% pamięci kontenera (domyślnie JVM bierze 25%); reszta zostaje na klasy, wątki
+# i pliki tymczasowe, które na Cloud Run też zajmują pamięć.
+ENTRYPOINT ["java", "-XX:MaxRAMPercentage=60", "-jar", "app.jar"]

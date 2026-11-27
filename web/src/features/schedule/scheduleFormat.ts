@@ -38,7 +38,8 @@ export function eventColor(
 }
 
 export function eventTitle(event: ScheduleEvent): string {
-  return event.title || event.serviceTypeName || pl.schedule.kinds[event.kind];
+  const title = event.title || event.serviceTypeName || pl.schedule.kinds[event.kind];
+  return event.kind === 'CONSULTATION' && event.guestName ? `${title} · ${event.guestName}` : title;
 }
 
 /** `18:00–19:00` in the studio's time zone. */

@@ -430,7 +430,12 @@ class _ConversationTile extends StatelessWidget {
           ? l10n.messagesClosedPreview
           : l10n.messagesNoMessagesYet;
     }
-    final text = last.isDeleted ? l10n.messagesDeleted : last.body ?? '';
+    final body = last.body;
+    final text = last.isDeleted
+        ? l10n.messagesDeleted
+        : (body == null || body.isEmpty) && last.attachmentCount > 0
+        ? attachmentsSummary(last.attachmentCount, last.imageCount, l10n)
+        : body ?? '';
     if (last.isMine) {
       return l10n.messagesYou(text);
     }

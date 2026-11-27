@@ -2,7 +2,14 @@
  * Tabs of the statistics page, in order. A new report adds its value here, its label in
  * `pl.statistics.tabs` and its panel in `StatisticsPage`.
  */
-export const statisticsTabs = ['overview', 'attendance', 'outcomes', 'customers', 'sales'] as const;
+export const statisticsTabs = [
+  'overview',
+  'attendance',
+  'outcomes',
+  'customers',
+  'lapsed',
+  'sales',
+] as const;
 export type StatisticsTab = (typeof statisticsTabs)[number];
 
 export const defaultStatisticsTab: StatisticsTab = 'overview';

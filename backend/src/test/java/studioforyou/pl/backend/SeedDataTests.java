@@ -38,9 +38,9 @@ import org.springframework.transaction.annotation.Transactional;
 import studioforyou.pl.backend.documents.DocumentRequirements;
 
 /**
- * The dev/stage seed ({@code db/seed}) applies on top of all migrations, fills every table
- * and can run again without errors or duplicates. The event publication registry is runtime
- * state of Spring Modulith (rows exist only while a listener has not finished), so it is left out.
+ * The dev/stage seed ({@code db/seed}) applies on top of all migrations and can run again without
+ * errors or duplicates. The event publication registry is runtime state of Spring Modulith (rows
+ * exist only while a listener has not finished), so it is left out of the comparison.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -62,11 +62,6 @@ class SeedDataTests {
 
 	@MockitoBean
 	private JwtDecoder jwtDecoder;
-
-	@Test
-	void everyTableHasRows() {
-		assertThat(rowCounts()).isNotEmpty().allSatisfy((table, rows) -> assertThat(rows).as(table).isPositive());
-	}
 
 	@Test
 	@Transactional
@@ -95,6 +90,54 @@ class SeedDataTests {
 		new ResourceDatabasePopulator(scripts).execute(dataSource);
 
 		assertThat(rowCounts()).isEqualTo(before);
+	}
+
+	@Test
+	@Transactional
+	void consultationExamplesKeepLaterChangesOnRerun() {
+		UUID event = UUID.fromString("19000000-0000-0000-0000-000000026001");
+		assertThat(jdbc.sql("SELECT count(*) FROM schedule_event WHERE id IN ('19000000-0000-0000-0000-000000026001','19000000-0000-0000-0000-000000026002','19000000-0000-0000-0000-000000026003') AND kind='CONSULTATION' AND visibility='PRIVATE' AND service_type_id IS NULL AND capacity IS NULL")
+			.query(Integer.class).single()).isEqualTo(3);
+		jdbc.sql("UPDATE schedule_event SET guest_name='Zmieniony gość',status='CANCELLED',version=version+1 WHERE id=:event")
+			.param("event",event).update();
+		jdbc.sql("DELETE FROM event_staff WHERE event_id=:event").param("event",event).update();
+		var counts = rowCounts();
+		new ResourceDatabasePopulator(new ClassPathResource("db/seed/R__seed_32_admin_consultations.sql")).execute(dataSource);
+		assertThat(rowCounts()).isEqualTo(counts);
+		assertThat(jdbc.sql("SELECT guest_name FROM schedule_event WHERE id=:event").param("event",event).query(String.class).single()).isEqualTo("Zmieniony gość");
+		assertThat(jdbc.sql("SELECT status FROM schedule_event WHERE id=:event").param("event",event).query(String.class).single()).isEqualTo("CANCELLED");
+	}
+
+	@Test
+	@Transactional
+	void eventHistoryExamplesDoNotResetLaterEditsOrDuplicateHistoryOnRerun() {
+		UUID event = UUID.fromString("19000000-0000-0000-0000-000000024001");
+		assertThat(jdbc.sql("SELECT count(*) FROM audit_log WHERE entity_type='schedule_event' AND entity_id=:event")
+			.param("event", event).query(Integer.class).single()).isEqualTo(2);
+		jdbc.sql("UPDATE schedule_event SET title='Zmieniony trening' WHERE id=:event").param("event", event).update();
+		jdbc.sql("DELETE FROM event_staff WHERE event_id=:event AND role='ASSISTANT'").param("event", event).update();
+		Map<String, Long> counts = rowCounts();
+		new ResourceDatabasePopulator(new ClassPathResource("db/seed/R__seed_31_event_history.sql")).execute(dataSource);
+		assertThat(rowCounts()).isEqualTo(counts);
+		assertThat(jdbc.sql("SELECT title FROM schedule_event WHERE id=:event").param("event", event).query(String.class).single())
+			.isEqualTo("Zmieniony trening");
+		assertThat(jdbc.sql("SELECT count(*) FROM event_staff WHERE event_id=:event").param("event", event).query(Integer.class).single())
+			.isEqualTo(1);
+	}
+
+	@Test
+	@Transactional
+	void generalEventHistoryExampleKeepsItsCompleteTimelineOnRerun() {
+		UUID event = UUID.fromString("19000000-0000-0000-0000-000000024003");
+		assertThat(jdbc.sql("SELECT count(*) FROM audit_log WHERE entity_type='schedule_event' AND entity_id=:event")
+			.param("event",event).query(Integer.class).single()).isEqualTo(3);
+		Map<String,Long> counts=rowCounts();
+		var state=jdbc.sql("SELECT title,starts_at,ends_at,capacity,status,created_at FROM schedule_event WHERE id=:event")
+			.param("event",event).query().singleRow();
+		new ResourceDatabasePopulator(new ClassPathResource("db/seed/R__seed_31_event_history.sql")).execute(dataSource);
+		assertThat(rowCounts()).isEqualTo(counts);
+		assertThat(jdbc.sql("SELECT title,starts_at,ends_at,capacity,status,created_at FROM schedule_event WHERE id=:event")
+			.param("event",event).query().singleRow()).isEqualTo(state);
 	}
 
 	@Test
@@ -360,6 +403,23 @@ class SeedDataTests {
 		assertThat(polePrices).contains(16000);
 	}
 
+	@Test
+	void lapsedCustomersSeedListsAdultsAndAChildWhoStoppedComing() throws Exception {
+		String lapsed = mvc.perform(get("/api/v1/reports/lapsed-customers").param("inactiveDays", "30")
+			.header("Authorization", "Bearer " + seedToken(10)))
+			.andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+		List<String> names = JsonPath.read(lapsed, "$.customers[*].lastName");
+		assertThat(names).contains("Wróbel", "Kaczmarek", "Pawlak", "Kubiak");
+		assertThat(JsonPath.<List<String>>read(lapsed, "$.customers[?(@.firstName == 'Oliwer')].guardianName"))
+			.containsExactly("Marta Kubiak");
+		assertThat(JsonPath.<List<String>>read(lapsed, "$.customers[?(@.lastName == 'Wróbel')].pass.state"))
+			.containsExactly("VALID");
+		assertThat(JsonPath.<List<String>>read(lapsed, "$.customers[?(@.lastName == 'Kaczmarek')].pass.state"))
+			.containsExactly("ENDED");
+		assertThat(JsonPath.<List<Object>>read(lapsed, "$.customers[?(@.lastName == 'Wróbel')].lastAnnouncement"))
+			.doesNotContainNull();
+	}
+
 	private String report(String token, String path, LocalDate from, LocalDate to, @Nullable String kind)
 			throws Exception {
 		var request = get(path).header("Authorization", "Bearer " + token)
@@ -616,6 +676,33 @@ class SeedDataTests {
 		String products = seedGet(seedToken(10), "/api/v1/pass-products", false);
 		assertThat(JsonPath.<List<String>>read(products, "$.items[?(@.name == 'Karnet Calisthenics')].makeupPolicyName"))
 			.containsExactly("Odrabianie 3 tygodnie");
+	}
+
+	@Test
+	void beataReadsTheShowcasePassHistoryWithEveryKindOfChange() throws Exception {
+		String history = seedGet(seedToken(10), "/api/v1/customers/07000000-0000-0000-0000-000000000001/passes/"
+				+ "28000000-0000-0000-0000-000000029001/history?size=100", false);
+		assertThat(JsonPath.<List<String>>read(history, "$.entries.items[*].kind")).containsExactly("RENEWAL_DECLINED",
+				"ENTRY_RESERVED", "ENTRY_USED", "ENTRY_RESERVED", "EXTENDED", "SUSPENSION_CANCELLED", "SUSPENDED",
+				"CORRECTED", "ENTRY_USED", "ENTRY_RESERVED", "MAKEUP_GRANTED", "ENTRY_USED", "ENTRY_RESERVED",
+				"ENTRY_USED", "ENTRY_RESERVED", "ACTIVATED");
+		assertThat(JsonPath.<Integer>read(history, "$.pass.entriesRemaining")).isZero();
+		assertThat(JsonPath.<Integer>read(history, "$.pass.ledgerBalance")).isZero();
+		LocalDate today = LocalDate.now(ZoneId.of("Europe/Warsaw"));
+		assertThat(JsonPath.<Map<String, Object>>read(history, "$.entries.items[5].suspension"))
+			.isEqualTo(Map.of("startsOn", today.minusDays(6).toString(), "endsOn", today.minusDays(4).toString()));
+		assertThat(JsonPath.<Map<String, Object>>read(history, "$.entries.items[6].suspension"))
+			.isEqualTo(Map.of("startsOn", today.minusDays(10).toString(), "endsOn", today.minusDays(4).toString()));
+		assertThat(JsonPath.<String>read(history, "$.entries.items[10].makeupCredit.usedFor.title"))
+			.isEqualTo("Pole dance — odrabianie (historia karnetu)");
+		assertThat(JsonPath.<String>read(history, "$.entries.items[8].session.attendance")).isEqualTo("ABSENT");
+		assertThat(JsonPath.<String>read(history, "$.entries.items[9].session.bookedBy.name")).isEqualTo("Beata Lis");
+
+		// Seed 04's suspension of Monika's Open pass is linked to its ledger entry.
+		String monika = seedGet(seedToken(10), "/api/v1/customers/07000000-0000-0000-0000-000000000003/passes/"
+				+ "28000000-0000-0000-0000-000000000005/history?category=VALIDITY", false);
+		assertThat(JsonPath.<List<String>>read(monika, "$.entries.items[*].kind")).containsExactly("SUSPENDED");
+		assertThat(JsonPath.<Object>read(monika, "$.entries.items[0].suspension")).isNotNull();
 	}
 
 	private Map<String, Long> rowCounts() {

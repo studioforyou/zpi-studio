@@ -67,6 +67,15 @@ resource "google_cloud_run_v2_service" "backend" {
         value = "FCM"
       }
       env {
+        # Message attachments go to the private bucket in storage.tf.
+        name  = "FILE_STORAGE_PROVIDER"
+        value = "GCS"
+      }
+      env {
+        name  = "FILE_STORAGE_BUCKET"
+        value = google_storage_bucket.files.name
+      }
+      env {
         # Cloud Scheduler's OIDC token for /internal/** must carry this audience and e-mail (see scheduler.tf).
         name  = "JOBS_OIDC_AUDIENCE"
         value = local.backend_url
@@ -97,8 +106,15 @@ resource "google_cloud_run_v2_service" "backend" {
   }
 
   # Obraz podmienia CI/CD. Terraform nie powinien go cofać przy każdym apply.
+  # Wdrożenie z GitHub Actions (gcloud) dopisuje też klienta i etykiety rewizji
+  # (commit-sha, managed-by); Terraform ich nie ustawia, więc ich nie usuwa.
   lifecycle {
-    ignore_changes = [template[0].containers[0].image]
+    ignore_changes = [
+      template[0].containers[0].image,
+      template[0].labels,
+      client,
+      client_version,
+    ]
   }
 
   depends_on = [
@@ -106,6 +122,7 @@ resource "google_cloud_run_v2_service" "backend" {
     google_secret_manager_secret_version.db_password,
     google_secret_manager_secret_iam_member.backend_db_password,
     google_secret_manager_secret_iam_member.backend_brevo_api_key,
+    google_storage_bucket_iam_member.backend_files,
   ]
 }
 
