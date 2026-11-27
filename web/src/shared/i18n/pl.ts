@@ -11,6 +11,37 @@ function countOf(count: number, one: string, few: string, many: string): string 
   return `${count.toLocaleString('pl-PL')} ${unit}`;
 }
 
+const substitutionEventFields = {
+  zajęcia: {
+    label: 'Zajęcia',
+    description: 'Nazwa zajęć lub usługi, bez danych uczestnika',
+    example: 'Pole dance',
+  },
+  dzień: {
+    label: 'Dzień',
+    description: 'Data terminu w strefie czasowej studia',
+    example: 'wt., 1.12',
+  },
+  godzina: {
+    label: 'Godziny',
+    description: 'Początek i koniec zajęć',
+    example: '18:00–19:00',
+  },
+  sala: {
+    label: 'Sala',
+    description: 'Sale zajęte przez wydarzenie',
+    example: 'Sala treningowa 1',
+  },
+};
+
+const substitutionNoteField = {
+  notatka: {
+    label: 'Notatka studia',
+    description: '„Notatka studia: …” z notatką administratora do decyzji albo nic',
+    example: 'Notatka studia: Dziękujemy za pomoc!',
+  },
+};
+
 const waitlistClassFields = {
   zajęcia: {
     label: 'Nazwa zajęć',
@@ -88,6 +119,7 @@ export const pl = {
     accounts: 'Konta',
     passes: 'Karnety',
     trainings: 'Treningi',
+    disputes: 'Niezgodności',
     communication: 'Komunikacja',
     statistics: 'Statystyki',
     system: 'Status systemu',
@@ -1068,6 +1100,98 @@ export const pl = {
       unknown: 'Nie udało się zapisać zmiany. Spróbuj ponownie.',
     },
   },
+  passHistory: {
+    open: 'Historia',
+    title: 'Historia karnetu',
+    loading: 'Wczytywanie historii…',
+    loadError: 'Nie udało się wczytać historii karnetu.',
+    notFound: 'Nie znaleziono tego karnetu uczestnika. Zamknij panel i odśwież listę.',
+    retry: 'Spróbuj ponownie',
+    empty: 'Ten karnet nie ma jeszcze zapisanych zmian.',
+    emptyCategory: 'Brak zmian tego rodzaju.',
+    total: (count: number) => countOf(count, 'zmiana', 'zmiany', 'zmian'),
+    filter: 'Rodzaj zmian',
+    balance: (remaining: number, total: number) => `Saldo: ${remaining} z ${total}`,
+    unlimited: 'Bez limitu wejść',
+    validity: (from: string, to: string) => `Ważny ${from} – ${to}`,
+    mismatch: (ledger: number, stored: number) =>
+      `Zmiany w historii dają saldo ${ledger}, a karnet ma ${stored}. Część zmian mogła zostać wprowadzona, zanim historia była prowadzona.`,
+    all: 'Wszystkie',
+    categories: {
+      ENTRIES: 'Wejścia na zajęcia',
+      CORRECTIONS: 'Korekty',
+      VALIDITY: 'Ważność i zawieszenia',
+      MAKEUP: 'Odrabiania',
+      PASS: 'Zakup i odnowienie',
+    },
+    kinds: {
+      ACTIVATED: 'Aktywacja karnetu',
+      ENTRY_RESERVED: 'Rezerwacja zajęć',
+      ENTRY_USED: 'Wejście rozliczone jako wykorzystane',
+      ENTRY_RETURNED: 'Zwrot wejścia',
+      CORRECTED: 'Korekta salda',
+      DISPUTE_REFUND: 'Zwrot wejścia po uznaniu zgłoszenia',
+      EXTENDED: 'Przedłużenie ważności',
+      SUSPENDED: 'Zawieszenie karnetu',
+      SUSPENSION_CANCELLED: 'Anulowanie zawieszenia',
+      EXPIRED: 'Wygaśnięcie karnetu',
+      MAKEUP_GRANTED: 'Przyznano odrabianie',
+      RENEWAL_DECLINED: 'Rezygnacja z odnowienia',
+    },
+    change: (delta: number) => (delta === 0 ? '±0' : `${delta > 0 ? '+' : '−'}${Math.abs(delta)}`),
+    changeLabel: (delta: number) =>
+      delta === 0
+        ? 'Saldo bez zmian'
+        : `${delta > 0 ? 'Dodano' : 'Odjęto'} ${passEntryCount(Math.abs(delta))}`,
+    balanceAfter: (balance: number) => `saldo po: ${balance}`,
+    details: {
+      purchased: 'Zakup w aplikacji',
+      assigned: 'Przypisany przez studio',
+      validUntil: (date: string) => `ważny do ${date}`,
+      validityChange: (before: string, after: string) => `Ważny do: ${before} → ${after}`,
+      settledAtBooking: 'Wejście pobrano przy rezerwacji, saldo się nie zmienia.',
+      suspended: (from: string, to: string, days: number) =>
+        `Zawieszony ${from} – ${to} (${countOf(days, 'dzień', 'dni', 'dni')})`,
+      suspensionCancelled: (from: string, to: string, days: number) =>
+        `Anulowane dni zawieszenia: ${from} – ${to} (${countOf(days, 'dzień', 'dni', 'dni')})`,
+      renewalDeclined:
+        'Klient lub opiekun zaznaczył w aplikacji, że nie odnowi karnetu. Przypomnienia o zakupie kolejnego są wyłączone.',
+      makeupFor: 'Za zajęcia',
+      makeupGrantedDirectly: 'Przyznane bezpośrednio przez studio',
+      makeupStates: {
+        AVAILABLE: (date: string) => `Dostępne do ${date}`,
+        USED: 'Wykorzystane',
+        EXPIRED: (date: string) => `Niewykorzystane, wygasło ${date}`,
+      },
+      makeupUsedFor: 'Wykorzystane na',
+    },
+    session: {
+      unknown: 'Zajęcia niedostępne',
+      eventCancelled: 'zajęcia odwołane przez studio',
+      sources: {
+        SELF: 'Zapis w aplikacji',
+        STAFF: 'Zapis przez studio',
+        WAITLIST: 'Z listy oczekujących',
+      },
+      cancelKinds: {
+        IN_TIME: 'Odwołane w terminie',
+        LATE: 'Odwołane po terminie',
+        STUDIO: 'Odwołane przez studio',
+      },
+      by: (name: string) => `przez: ${name}`,
+      attendance: {
+        UNMARKED: 'Obecność nieoznaczona',
+        PRESENT: 'Obecność na zajęciach',
+        ABSENT: 'Nieobecność na zajęciach',
+      },
+    },
+    actor: {
+      system: 'System',
+      participant: 'Klient lub opiekun w aplikacji',
+      unknownName: 'Konto bez nazwy',
+      roles: { CLIENT: 'klient', GUARDIAN: 'opiekun', STAFF: 'studio' },
+    },
+  },
   schedule: {
     title: 'Grafik',
     consultation: {
@@ -1205,6 +1329,46 @@ export const pl = {
       notEditable: 'Obsadę można zmieniać tylko w zaplanowanych wydarzeniach.',
       started: 'Wydarzenie już się rozpoczęło, więc nie można go zmieniać.',
       close: 'Zamknij',
+    },
+    eventHistory: {
+      title: 'Historia zajęć',
+      loading: 'Wczytywanie historii…',
+      error: 'Nie udało się wczytać historii zajęć.',
+      retry: 'Spróbuj ponownie',
+      empty: 'Brak zapisanych zmian.',
+      before: 'Przed zmianą',
+      after: 'Po zmianie',
+      unknownActor: 'Użytkownik studia',
+      system: 'System',
+      more: 'Pokaż starsze zmiany',
+      field: 'Zmiana',
+      changedValues: 'Zmienione wartości',
+      none: 'Brak',
+      unlimited: 'Bez limitu',
+      forceRun: 'Zajęcia odbędą się',
+      automaticDecision: 'Według liczby zapisów',
+      fields: {
+        time: 'Termin',
+        resources: 'Sala',
+        staff: 'Obsada',
+        title: 'Nazwa',
+        capacity: 'Miejsca',
+        status: 'Status',
+        visibility: 'Widoczność',
+        guestName: 'Gość',
+        blockReason: 'Powód blokady',
+        forceRun: 'Mała frekwencja',
+      },
+      kinds: {
+        CREATED: 'Utworzono zajęcia',
+        MANUAL: 'Zmieniono zajęcia',
+        SERIES_RESTORED: 'Przywrócono ustawienia cyklu',
+        SUBSTITUTION: 'Zastępstwo',
+        AUTOMATIC_SUBSTITUTION: 'Samodzielne przyjęcie zastępstwa',
+        CANCELLED: 'Odwołano zajęcia',
+        COMPLETED: 'Oznaczono jako odbyte',
+        FORCE_RUN_CHANGED: 'Decyzja o przeprowadzeniu zajęć',
+      },
     },
     attendance: {
       title: 'Uczestnicy i obecność',
@@ -1587,6 +1751,7 @@ export const pl = {
     announcements: {
       intro: 'Komunikat trafia do skrzynki powiadomień w aplikacji i jako powiadomienie push.',
       newAnnouncement: '+ Nowy komunikat',
+      templatesButton: 'Szablony',
       loading: 'Wczytywanie komunikatów…',
       loadError: 'Nie udało się wczytać komunikatów.',
       retry: 'Spróbuj ponownie',
@@ -1603,6 +1768,40 @@ export const pl = {
         author: 'Wysłał(a)',
       },
       marketingBadge: 'Marketing',
+      templates: {
+        title: 'Szablony komunikatów',
+        intro:
+          'Zapisz treść, którą wysyłasz często. W oknie nowego komunikatu wybierz szablon, a tytuł, treść i rodzaj wypełnią się same. Zmiana lub usunięcie szablonu nie zmienia wysłanych komunikatów.',
+        newTemplate: '+ Nowy szablon',
+        loading: 'Wczytywanie szablonów…',
+        loadError: 'Nie udało się wczytać szablonów.',
+        retry: 'Spróbuj ponownie',
+        empty: 'Nie ma jeszcze żadnego szablonu.',
+        columns: { name: 'Nazwa', title: 'Tytuł', kind: 'Rodzaj' },
+        kinds: { STUDIO: 'Komunikat studia', OFFER: 'Oferta' },
+        edit: 'Edytuj',
+        remove: 'Usuń',
+        editTitle: 'Edytuj szablon',
+        createTitle: 'Nowy szablon',
+        name: 'Nazwa szablonu',
+        nameHint: 'Widoczna tylko w panelu, np. „Zamknięcie studia w święto”.',
+        messageTitle: 'Tytuł',
+        body: 'Treść',
+        counter: (length: number, max: number) => `${length} / ${max}`,
+        kind: 'Rodzaj',
+        offerHint:
+          'Oferta trafi tylko do osób, które zgodziły się na powiadomienia marketingowe w aplikacji.',
+        required: 'To pole jest wymagane.',
+        nameTaken: 'Szablon o tej nazwie już istnieje.',
+        saveError: 'Nie udało się zapisać szablonu.',
+        deleteError: 'Nie udało się usunąć szablonu.',
+        confirmDelete: (name: string) =>
+          `Usunąć szablon „${name}”? Wysłane komunikaty zostaną w historii.`,
+        back: 'Wróć',
+        cancel: 'Anuluj',
+        save: 'Zapisz',
+        close: 'Zamknij',
+      },
       readOf: (read: number, total: number) => `${read} z ${total}`,
       today: (time: string) => `dziś, ${time}`,
       yesterday: (time: string) => `wczoraj, ${time}`,
@@ -1631,6 +1830,9 @@ export const pl = {
         nothingFound: 'Nic nie znaleziono',
         roleClient: 'klient',
         roleTrainer: 'trener',
+        template: 'Szablon',
+        templatePlaceholder: 'Bez szablonu',
+        templateHint: 'Wypełnia tytuł, treść i rodzaj. Przed wysłaniem możesz je jeszcze zmienić.',
         messageTitle: 'Tytuł',
         body: 'Treść',
         counter: (length: number, max: number) => `${length} / ${max}`,
@@ -1777,6 +1979,26 @@ export const pl = {
           description:
             'Wysyłane aktywnym trenerom z odpowiednimi kwalifikacjami i wolnym terminem. Otwiera ofertę przejęcia zastępstwa.',
         },
+        SUBSTITUTION_COVERED: {
+          name: 'Zastępstwo potwierdzone',
+          description:
+            'Wysyłane trenerowi, który poprosił o zastępstwo, gdy ktoś przejmie jego zajęcia: po zatwierdzeniu przez studio, po bezpośrednim przydziale albo od razu po przejęciu, gdy studio nie wymaga akceptacji. Otwiera zajęcia w grafiku.',
+        },
+        SUBSTITUTION_ASSIGNED: {
+          name: 'Przydzielone zastępstwo',
+          description:
+            'Wysyłane trenerowi, gdy studio zatwierdzi jego zgłoszenie na zastępstwo albo samo przydzieli mu zajęcia. Gdy trener przejmie zastępstwo bez akceptacji studia, nic nie jest wysyłane.',
+        },
+        SUBSTITUTION_CLAIM_REJECTED: {
+          name: 'Zgłoszenie na zastępstwo nieprzyjęte',
+          description:
+            'Wysyłane trenerowi, gdy studio odrzuci jego zgłoszenie na zastępstwo albo zamknie prośbę, na którą czekało jego zgłoszenie.',
+        },
+        SUBSTITUTION_CLOSED: {
+          name: 'Zastępstwo nieprzydzielone',
+          description:
+            'Wysyłane trenerowi, który poprosił o zastępstwo, gdy studio zamknie prośbę bez zastępcy: zajęcia zostają przy nim. Przy odwołaniu zajęć wysyłane jest tylko powiadomienie o odwołaniu.',
+        },
         WAITLIST_PLACE_OFFERED: {
           name: 'Miejsce z listy rezerwowej do potwierdzenia',
           description:
@@ -1839,6 +2061,11 @@ export const pl = {
           description:
             'Wysyłane trenerom od razu, gdy zajęcia grupowe zostaną odwołane automatycznie, bo zapisało się mniej osób niż wymagane minimum.',
         },
+        CLASS_BOOKING_OPENED: {
+          name: 'Otwarcie zapisów na zajęcia',
+          description:
+            'Wysyłane w chwili otwarcia zapisów na zajęcia grupowe klientom zainteresowanym danym rodzajem zajęć: tym, którzy zaznaczyli go w aplikacji, i tym, którzy byli na takich zajęciach w ostatnich 60 dniach. Pomijane, gdy klient jest już zapisany lub na liście rezerwowej albo brak wolnych miejsc. Powiadomienia dziecka dostaje rodzic.',
+        },
       },
       placeholders: {
         SUBSTITUTION_AVAILABLE: {
@@ -1863,6 +2090,17 @@ export const pl = {
             example: 'Sala treningowa 1',
           },
         },
+        SUBSTITUTION_COVERED: {
+          ...substitutionEventFields,
+          zastępca: {
+            label: 'Zastępca',
+            description: 'Trener, który poprowadzi zajęcia',
+            example: 'Marek Lis',
+          },
+        },
+        SUBSTITUTION_ASSIGNED: { ...substitutionEventFields, ...substitutionNoteField },
+        SUBSTITUTION_CLAIM_REJECTED: { ...substitutionEventFields, ...substitutionNoteField },
+        SUBSTITUTION_CLOSED: { ...substitutionEventFields, ...substitutionNoteField },
         WAITLIST_PLACE_OFFERED: {
           ...waitlistClassFields,
           'potwierdź do': {
@@ -2094,6 +2332,28 @@ export const pl = {
             example: '4',
           },
         },
+        CLASS_BOOKING_OPENED: {
+          zajęcia: {
+            label: 'Nazwa zajęć',
+            description: 'Nazwa zajęć',
+            example: 'Pole dance',
+          },
+          dzień: {
+            label: 'Dzień',
+            description: '„dziś”, „jutro” albo dzień tygodnia z datą, np. „wtorek 12.11”',
+            example: 'wtorek 12.11',
+          },
+          godzina: {
+            label: 'Godzina',
+            description: 'Godzina rozpoczęcia, np. „18:00”',
+            example: '18:00',
+          },
+          sala: {
+            label: 'Sala',
+            description: 'Nazwa sali albo „studio”, gdy sala nie jest przypisana',
+            example: 'Sala 1',
+          },
+        },
       },
       form: {
         leadTimes: 'Kiedy wysłać',
@@ -2125,6 +2385,9 @@ export const pl = {
         invalidValue: 'Nieprawidłowa wartość.',
         saveError: 'Nie udało się zapisać ustawień.',
         network: 'Nie można połączyć się z backendem.',
+        restoreDefault: 'Przywróć domyślną treść',
+        restoreDefaultHint:
+          'Wstawia do formularza tytuł i treść, z którymi studio zaczynało. Zapisze się po kliknięciu Zapisz.',
         cancel: 'Anuluj',
         save: 'Zapisz',
       },
@@ -2137,6 +2400,7 @@ export const pl = {
       attendance: 'Frekwencja i obłożenie',
       outcomes: 'Nieobecności i anulowania',
       customers: 'Klienci',
+      lapsed: 'Nieaktywni klienci',
       sales: 'Sprzedaż',
     },
     filters: {
@@ -2275,6 +2539,57 @@ export const pl = {
         `poprzednio ${value} (${from} – ${to})`,
       noChange: 'bez zmian',
       loadError: 'Nie udało się wczytać liczby klientów.',
+    },
+    lapsed: {
+      note: 'Klienci i dzieci, którzy byli na co najmniej jednych zajęciach, od wybranej liczby dni nie przyszli i nie mają żadnej rezerwacji na przyszłe zajęcia. Wizyta to rezerwacja, która nie została anulowana ani oznaczona jako nieobecność. Stan na dziś: filtry okresu i zajęć nie dotyczą tej listy. Konta zablokowane się nie liczą.',
+      loadError: 'Nie udało się wczytać listy nieaktywnych klientów.',
+      lapsedTile: (days: number) => `Nieaktywni od ${days}+ dni`,
+      lapsedDetail: (everVisited: number) =>
+        `spośród ${countOf(everVisited, 'klienta', 'klientów', 'klientów')} z co najmniej jedną wizytą`,
+      withPassTile: 'Mają ważny karnet',
+      withPassDetail: 'płacą, a nie przychodzą: warto zadzwonić w pierwszej kolejności',
+      withoutPassTile: 'Karnet wygasł lub brak',
+      withoutPassDetail: 'do odzyskania nową ofertą',
+      threshold: 'Nie przychodzą od',
+      days: (days: number) => `${days} dni`,
+      search: 'Szukaj',
+      searchPlaceholder: 'Imię, nazwisko, e-mail, telefon',
+      validPassOnly: 'Tylko z ważnym karnetem',
+      columns: {
+        customer: 'Klient',
+        contact: 'Kontakt',
+        lastVisit: 'Ostatnia wizyta',
+        visits: 'Wizyty',
+        visitsHint: 'w 90 dni przed',
+        pass: 'Karnet',
+        marketing: 'Zgoda marketingowa',
+        lastAnnouncement: 'Ostatni komunikat',
+        actions: 'Akcje',
+      },
+      child: (guardian: string | null) =>
+        guardian ? `dziecko · opiekun: ${guardian}` : 'dziecko · bez opiekuna z kontem',
+      daysAgo: (days: number) => `${countOf(days, 'dzień', 'dni', 'dni')} temu`,
+      passValid: (until: string | null, entries: number | null) =>
+        [
+          until ? `Ważny do ${until}` : 'Ważny bezterminowo',
+          entries === null ? 'bez limitu' : countOf(entries, 'wejście', 'wejścia', 'wejść'),
+        ].join(' · '),
+      passSuspended: (until: string | null) =>
+        until ? `Zawieszony, ważny do ${until}` : 'Zawieszony',
+      passEnded: (until: string | null) => (until ? `Wygasł ${until}` : 'Wygasł'),
+      passUsedUp: 'Wejścia wykorzystane',
+      noPass: 'Brak karnetu',
+      yes: 'Tak',
+      no: 'Nie',
+      none: '—',
+      noContact: 'brak konta do kontaktu',
+      send: 'Wyślij komunikat',
+      account: 'Konto',
+      summary: (shown: number, total: number) => `Od najdłużej nieobecnych · ${shown} z ${total}`,
+      empty: 'Nikt nie przestał przychodzić',
+      emptyDetail: (days: number) =>
+        `Każdy klient był w studiu w ciągu ostatnich ${days} dni albo ma zaplanowaną rezerwację.`,
+      noMatches: 'Nikt z tej listy nie pasuje do wyszukiwania.',
     },
     attendance: {
       loadError: 'Nie udało się wczytać frekwencji.',
@@ -2506,6 +2821,120 @@ export const pl = {
         `${from} – ${to} (${count} ${count === 1 ? 'dzień' : 'dni'})`,
       sameDay: (date: string, from: string, to: string) => `${date}, ${from}–${to}`,
       range: (from: string, to: string) => `${from} – ${to}`,
+    },
+  },
+  disputes: {
+    title: 'Niezgodności treningów personalnych',
+    intro:
+      'Zgłoszenia klientów, że trening personalny nie odbył się tak, jak go rozliczono. Decyzja ostatecznie rozlicza trening.',
+    openBadge: (count: number) => `${count} do rozstrzygnięcia`,
+    tabsLabel: 'Widok zgłoszeń',
+    tabs: { OPEN: 'Do rozstrzygnięcia', RESOLVED: 'Rozstrzygnięte' },
+    loading: 'Wczytywanie zgłoszeń…',
+    loadError: 'Nie udało się wczytać zgłoszeń.',
+    retry: 'Spróbuj ponownie',
+    empty: {
+      OPEN: 'Brak zgłoszeń do rozstrzygnięcia.',
+      RESOLVED: 'Nie rozstrzygnięto jeszcze żadnego zgłoszenia.',
+    },
+    columns: {
+      customer: 'Klient',
+      session: 'Trening',
+      trainer: 'Trener',
+      reason: 'Zgłoszenie',
+      raisedAt: 'Zgłoszono',
+      resolution: 'Decyzja',
+      resolvedAt: 'Rozstrzygnięto',
+      actions: '',
+    },
+    review: 'Rozstrzygnij',
+    details: 'Szczegóły',
+    child: 'dziecko',
+    reportedBy: (name: string) => `zgłoszenie: ${name}`,
+    none: '—',
+    studio: 'studio',
+    resolutions: {
+      UPHELD: 'Uznane',
+      UPHELD_MAKEUP: 'Uznane z odróbką',
+      REJECTED: 'Odrzucone',
+    },
+    effects: {
+      ENTRY_RETURNED: 'Wejście zwrócone do pakietu',
+      MAKEUP_RETURNED: 'Odróbka zwrócona',
+      MAKEUP_GRANTED: 'Przyznano nową odróbkę',
+      NO_CHANGE: 'Bez zmian w rozliczeniu',
+    },
+    attendance: { UNMARKED: 'Bez oznaczenia', PRESENT: 'Obecność', ABSENT: 'Nieobecność' },
+    drawer: {
+      title: 'Zgłoszenie niezgodności',
+      loading: 'Wczytywanie zgłoszenia…',
+      loadError: 'Nie udało się wczytać zgłoszenia.',
+      customer: 'Klient',
+      openAccount: 'Konto klienta',
+      session: 'Trening',
+      trainer: 'Trener',
+      attendance: 'Obecność',
+      confirmed: (date: string) => `Trener potwierdził odbycie ${date}`,
+      notConfirmed: 'Trener nie potwierdził odbycia',
+      reason: 'Zgłoszenie klienta',
+      raised: 'Zgłoszono',
+      funding: 'Rozliczenie',
+      fundingPass: (name: string, remaining: number) => `${name} · pozostało wejść: ${remaining}`,
+      fundingPassUntil: (date: string) => `ważny do ${date}`,
+      fundingUnlimited: (name: string) => `${name} (bez limitu wejść)`,
+      fundingMakeup: (name: string, date: string) =>
+        `Odróbka z pakietu „${name}”, ważna do ${date}`,
+      fundingNone: 'Trening nie był opłacony pakietem ani odróbką',
+      decision: 'Decyzja',
+      upheld: 'Uznaj zgłoszenie',
+      upheldMakeup: 'Uznaj i przyznaj odróbkę',
+      rejected: 'Odrzuć zgłoszenie',
+      upheldEffects: {
+        ENTRY_RETURNED: 'Wejście wróci do pakietu klienta.',
+        MAKEUP_RETURNED: 'Klient odzyska odróbkę z tym samym terminem ważności.',
+        MAKEUP_GRANTED: 'Klient dostanie nową odróbkę.',
+        NO_CHANGE: 'Rozliczenie w aplikacji się nie zmieni.',
+      },
+      upheldMakeupEffect:
+        'Wejście zostaje wykorzystane, a klient dostaje nową odróbkę na zajęcia z tego pakietu.',
+      rejectedEffect: 'Trening odbył się zgodnie z rozliczeniem, wejście zostaje wykorzystane.',
+      notices: {
+        PASS_EXPIRED:
+          'Pakiet jest już nieważny. Wejście wróci do salda, ale klient skorzysta z niego dopiero po przedłużeniu pakietu.',
+        PASS_CANCELLED:
+          'Pakiet jest anulowany. Wejście wróci do salda, ale klient nie zarezerwuje za nie treningu. Rozważ przyznanie odróbki.',
+        NO_ALLOCATED_ENTRY:
+          'Za ten trening nie pobrano wejścia z pakietu, więc nie ma czego zwracać.',
+        UNLIMITED_PASS:
+          'Pakiet bez limitu wejść: saldo się nie zmienia, a odróbki z niego nie przysługują.',
+        NOT_FUNDED:
+          'Trening nie był opłacony w aplikacji. Ewentualny zwrot płatności rozlicz poza systemem.',
+        MAKEUP_EXPIRED:
+          'Odróbka, którą opłacono trening, już wygasła. Przyznaj nową odróbkę z nowym terminem.',
+        MAKEUP_NOT_USABLE: 'Z tego pakietu nie można przyznać odróbki.',
+      },
+      validityDays: 'Ważność odróbki (dni)',
+      validityUntil: (date: string) => `Odróbka będzie ważna do ${date}.`,
+      validityRange: 'Podaj od 1 do 365 dni.',
+      note: 'Uzasadnienie dla klienta',
+      notePlaceholder: 'Np. trener potwierdził, że zajęcia skończyły się wcześniej.',
+      noteHint: 'Klient zobaczy uzasadnienie w aplikacji. Decyzji nie można później zmienić.',
+      submit: 'Zapisz decyzję',
+      cancel: 'Anuluj',
+      resolvedTitle: 'Rozstrzygnięcie',
+      resolvedBy: 'Rozstrzygnął(-ęła)',
+      resolvedNote: 'Uzasadnienie',
+    },
+    errors: {
+      DISPUTE_ALREADY_RESOLVED: 'Ktoś już rozstrzygnął to zgłoszenie. Wczytano jego aktualny stan.',
+      VERSION_CONFLICT:
+        'Trening zmienił się w międzyczasie, np. skorygowano obecność. Sprawdź dane i zapisz decyzję ponownie.',
+      DISPUTE_RESOLUTION_UNAVAILABLE:
+        'Ta decyzja nie jest już dostępna dla tego treningu. Wczytano aktualne możliwości.',
+      VALIDATION_FAILED: 'Sprawdź uzasadnienie i ważność odróbki (1–365 dni).',
+      NOT_FOUND: 'To zgłoszenie już nie istnieje.',
+      network: 'Brak połączenia z serwerem.',
+      unexpected: 'Wystąpił nieoczekiwany błąd.',
     },
   },
   system: {

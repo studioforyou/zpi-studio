@@ -22,6 +22,24 @@ public enum NotificationType {
 			new Placeholder(Placeholder.TIME, "Start and end time"),
 			new Placeholder(Placeholder.ROOM, "Names of the event's rooms"))),
 
+	/**
+	 * The trainer who asked for a substitute has one: the studio approved a claim, assigned a
+	 * trainer itself, or a trainer took the event without the studio's approval.
+	 */
+	SUBSTITUTION_COVERED((short) 16, false, substitutionPlaceholders(true)),
+
+	/** The studio approved the trainer's claim of a substitution, or assigned them to it directly. */
+	SUBSTITUTION_ASSIGNED((short) 17, false, substitutionPlaceholders(false)),
+
+	/**
+	 * The studio turned down the trainer's claim of a substitution, or closed the request while the
+	 * claim was waiting.
+	 */
+	SUBSTITUTION_CLAIM_REJECTED((short) 18, false, substitutionPlaceholders(false)),
+
+	/** The studio closed the trainer's substitution request without a substitute: they keep the event. */
+	SUBSTITUTION_CLOSED((short) 19, false, substitutionPlaceholders(false)),
+
 	/** Reminder about a class or training the participant has an active reservation for. */
 	CLASS_REMINDER((short) 1, true, List.of(
 			new Placeholder(Placeholder.CLASS, "Name of the class or training"),
@@ -32,7 +50,8 @@ public enum NotificationType {
 
 	/**
 	 * Reminder that a pass is about to expire, sent before 9:00 on its last day. Not sent when the
-	 * participant already has a following pass or no entries are left.
+	 * participant already has a following pass, no entries are left or the participant said they
+	 * will not renew it.
 	 */
 	PASS_EXPIRING((short) 2, true, List.of(
 			new Placeholder(Placeholder.PASS, "Name of the pass"),
@@ -41,7 +60,7 @@ public enum NotificationType {
 
 	/**
 	 * A booking used the last entry of a pass. Sent once per pass, and not when the participant
-	 * already has a following pass.
+	 * already has a following pass or said they will not renew it.
 	 */
 	PASS_LAST_ENTRY_USED((short) 3, false, List.of(
 			new Placeholder(Placeholder.PASS, "Name of the pass"),
@@ -125,7 +144,19 @@ public enum NotificationType {
 			new Placeholder(Placeholder.MINIMUM, "How many participants the class needed, e.g. \"4\""))),
 
 	/** A message the administrator wrote; its title and text come from the announcement, not a template. */
-	ANNOUNCEMENT((short) 14, false, List.of());
+	ANNOUNCEMENT((short) 14, false, List.of()),
+
+	/**
+	 * Booking opened for a class the participant is interested in: they marked its service type, or
+	 * took part in a class of that type in the last 60 days. Sent when booking opens to those who
+	 * have not booked it or joined its waiting list (to a child's guardians), while it has a free
+	 * place.
+	 */
+	CLASS_BOOKING_OPENED((short) 15, false, List.of(
+			new Placeholder(Placeholder.CLASS, "Name of the class"),
+			new Placeholder(Placeholder.DAY, "Day of the class: \"dziś\", \"jutro\" or the weekday and date, e.g. \"wtorek 12.11\""),
+			new Placeholder(Placeholder.TIME, "Start time, e.g. \"18:00\""),
+			new Placeholder(Placeholder.ROOM, "Room names, or \"studio\" when no room is assigned")));
 
 	private final short id;
 
@@ -137,6 +168,21 @@ public enum NotificationType {
 		this.id = id;
 		this.timed = timed;
 		this.placeholders = placeholders;
+	}
+
+	private static List<Placeholder> substitutionPlaceholders(boolean substitute) {
+		var placeholders = new java.util.ArrayList<>(List.of(
+				new Placeholder(Placeholder.CLASS, "Name of the class or service; no participant data"),
+				new Placeholder(Placeholder.DAY, "Day of the event in the studio time zone, e.g. \"wt., 2.12\""),
+				new Placeholder(Placeholder.TIME, "Start and end time, e.g. \"18:00–19:00\""),
+				new Placeholder(Placeholder.ROOM, "Names of the event's rooms")));
+		if (substitute) {
+			placeholders.add(new Placeholder(Placeholder.SUBSTITUTE, "The trainer who takes the event, e.g. \"Anna Nowak\""));
+		}
+		else {
+			placeholders.add(new Placeholder(Placeholder.NOTE, "\"Notatka studia: …\" with the administrator's note, or nothing"));
+		}
+		return List.copyOf(placeholders);
 	}
 
 	public short id() {
@@ -232,6 +278,9 @@ public enum NotificationType {
 
 		/** How many participants the class needed. */
 		public static final String MINIMUM = "minimum";
+
+		/** The trainer who takes a substitution. */
+		public static final String SUBSTITUTE = "zastępca";
 
 	}
 

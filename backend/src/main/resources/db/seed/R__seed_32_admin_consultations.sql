@@ -1,4 +1,4 @@
--- Seed 26: administrator consultations (#139), DEV/STAGE only.
+-- Seed 32: administrator consultations (#139), DEV/STAGE only.
 -- Insert examples once; later guest, room, trainer and cancellation edits remain intact.
 WITH examples(id,title,guest,hour,staff,status) AS (VALUES
     ('19000000-0000-0000-0000-000000026001'::UUID,'Konsultacja — nowy gość','Alicja Zielińska','08:15'::TIME,

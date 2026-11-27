@@ -101,6 +101,9 @@ class _OwnPassesTab extends ConsumerWidget {
                       pass.status == PassStatus.pendingPayment
                   ? null
                   : () => _buyNext(context, ref, pass, profileId, profileName),
+              onUndoDecline: pass.renewalDeclined && pass.isRunning
+                  ? () => _undoRenewalDecline(context, ref, pass, profileId)
+                  : null,
             );
 
             return RefreshIndicator(
@@ -185,8 +188,37 @@ Future<void> _buyNext(
   messenger.showSnackBar(SnackBar(content: Text(l10n.passBuyNextUnavailable)));
 }
 
+/// Undoes declining the renewal of [pass]: reminders to buy the next one
+/// come again.
+Future<void> _undoRenewalDecline(
+  BuildContext context,
+  WidgetRef ref,
+  OwnPass pass,
+  String profileId,
+) async {
+  final l10n = AppLocalizations.of(context);
+  final messenger = ScaffoldMessenger.of(context);
+  try {
+    await ref.read(passesApiProvider).undoRenewalDecline(profileId, pass.id);
+  } on Exception {
+    messenger.showSnackBar(
+      SnackBar(content: Text(l10n.passRenewalDeclineError)),
+    );
+    return;
+  }
+  ref.invalidate(ownPassesProvider(profileId));
+  messenger.showSnackBar(
+    SnackBar(content: Text(l10n.passRenewalDeclineUndone)),
+  );
+}
+
 class _OwnPassCard extends StatelessWidget {
-  const _OwnPassCard(this.pass, {required this.onHistory, this.onBuyNext});
+  const _OwnPassCard(
+    this.pass, {
+    required this.onHistory,
+    this.onBuyNext,
+    this.onUndoDecline,
+  });
 
   final OwnPass pass;
   final VoidCallback onHistory;
@@ -194,6 +226,10 @@ class _OwnPassCard extends StatelessWidget {
   /// Buys the same variant again; `null` when the pass has no variant or
   /// still waits for its payment.
   final VoidCallback? onBuyNext;
+
+  /// Undoes declining the renewal; `null` when the renewal was not declined
+  /// or the pass is no longer running.
+  final VoidCallback? onUndoDecline;
 
   @override
   Widget build(BuildContext context) {
@@ -255,6 +291,25 @@ class _OwnPassCard extends StatelessWidget {
                   ),
                 ],
               ),
+            if (onUndoDecline != null)
+              Row(
+                key: const Key('pass-renewal-declined'),
+                spacing: 4,
+                children: [
+                  Icon(Icons.notifications_off_outlined, size: 18),
+                  Expanded(
+                    child: Text(
+                      l10n.passRenewalDeclined,
+                      style: textTheme.bodyMedium,
+                    ),
+                  ),
+                  TextButton(
+                    key: const Key('pass-renewal-decline-undo'),
+                    onPressed: onUndoDecline,
+                    child: Text(l10n.passRenewalDeclineUndo),
+                  ),
+                ],
+              ),
             Wrap(
               alignment: WrapAlignment.end,
               spacing: 8,
@@ -266,7 +321,7 @@ class _OwnPassCard extends StatelessWidget {
                   label: Text(l10n.passUsageTitle),
                 ),
                 if (onBuyNext != null)
-                  pass.expiringSoon
+                  pass.expiringSoon && !pass.renewalDeclined
                       ? FilledButton(
                           key: const Key('pass-buy-next-urgent'),
                           style: FilledButton.styleFrom(

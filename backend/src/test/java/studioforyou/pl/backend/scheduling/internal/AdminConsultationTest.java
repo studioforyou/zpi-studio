@@ -89,6 +89,11 @@ class AdminConsultationTest extends ScheduleTestSupport {
 			.andExpect(jsonPath("$.guestName").isEmpty()).andExpect(jsonPath("$.capacity").isEmpty())
 			.andExpect(jsonPath("$.staff").isEmpty()).andExpect(jsonPath("$.resources[0].blocksWholeRoom").value(true));
 		put("/api/v1/schedule-events/" + event, change).andExpect(status().isConflict());
+		get("/api/v1/schedule-events/" + event + "/history").andExpect(status().isOk())
+			.andExpect(jsonPath("$.items[0].changes.guestName.old").value("Jan"))
+			.andExpect(jsonPath("$.items[0].changes.guestName.new").isEmpty())
+			.andExpect(jsonPath("$.items[0].changes.time.new.startsAt").value(at(this.monday.plusDays(1), "17:00").toString()))
+			.andExpect(jsonPath("$.items[0].changes.resources.new[0].resourceId").value(POLE_ROOM.toString()));
 		assertThat(count("schedule_event")).isEqualTo(1);
 	}
 

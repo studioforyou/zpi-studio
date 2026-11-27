@@ -9,6 +9,7 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import studioforyou.pl.backend.customer.ProfileChangeLog;
 import studioforyou.pl.backend.shared.api.ApiException;
 import studioforyou.pl.backend.shared.api.ErrorCode;
 
@@ -21,9 +22,12 @@ class CustomerPersonalDetails {
 
 	private final Validator validator;
 
-	CustomerPersonalDetails(JdbcClient jdbc, Validator validator) {
+	private final ProfileChangeLog changeLog;
+
+	CustomerPersonalDetails(JdbcClient jdbc, Validator validator, ProfileChangeLog changeLog) {
 		this.jdbc = jdbc;
 		this.validator = validator;
+		this.changeLog = changeLog;
 	}
 
 	@Transactional(readOnly = true)
@@ -31,9 +35,15 @@ class CustomerPersonalDetails {
 		return find(profileId, false);
 	}
 
-	PersonalDetails update(UUID profileId, UpdateCustomerProfileRequest request) {
+	/**
+	 * Saves the supplied fields and records the change in the profile's history.
+	 *
+	 * @param changedBy the account that makes the change: the participant or a guardian
+	 */
+	PersonalDetails update(UUID profileId, UpdateCustomerProfileRequest request, UUID changedBy) {
 		// Lock while merging a partial update so concurrent edits preserve omitted fields.
-		PersonalDetails updated = request.applyTo(find(profileId, true));
+		PersonalDetails current = find(profileId, true);
+		PersonalDetails updated = request.applyTo(current);
 		var violations = validator.validate(updated);
 		if (!violations.isEmpty()) {
 			throw new ConstraintViolationException(violations);
@@ -53,6 +63,7 @@ class CustomerPersonalDetails {
 			.param("emergencyPhone", updated.emergencyPhone())
 			.param("id", profileId)
 			.update();
+		changeLog.record(profileId, changedBy, details(current), details(updated));
 		return updated;
 	}
 
@@ -66,6 +77,11 @@ class CustomerPersonalDetails {
 			.query(PersonalDetails.class)
 			.optional()
 			.orElseThrow(CustomerPersonalDetails::notFound);
+	}
+
+	private static ProfileChangeLog.Details details(PersonalDetails details) {
+		return new ProfileChangeLog.Details(details.firstName(), details.lastName(), details.birthDate(),
+				details.phone(), details.emergencyContactName(), details.emergencyPhone());
 	}
 
 	static ApiException notFound() {

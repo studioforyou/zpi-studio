@@ -70,11 +70,16 @@ class SeedGroupClassBookingTests {
 				    (SELECT coalesce(sum(entries_delta), 0) FROM pass_ledger WHERE pass_id = p.id)
 				""").query(Integer.class).single()).isZero();
 		// Only the accounts and profiles of seeds 01-02; the showcase adds none. The sales history
-		// (seed 19) adds clients without an account of its own, with IDs ending in 19NNNNNN.
-		assertThat(jdbc.sql("SELECT count(*) FROM account").query(Integer.class).single()).isEqualTo(11);
+		// (seed 19) adds clients without an account of its own, with IDs ending in 19NNNNNN, and the
+		// lapsed customers (seed 29) add clients with IDs ending in 171NNN.
+		assertThat(jdbc.sql("""
+				SELECT count(*) FROM account
+				WHERE id::text NOT LIKE '03000000-0000-0000-0000-000000171%'
+				""").query(Integer.class).single()).isEqualTo(11);
 		assertThat(jdbc.sql("""
 				SELECT count(*) FROM customer_profile
 				WHERE id::text NOT LIKE '07000000-0000-0000-0000-000019%'
+				  AND id::text NOT LIKE '07000000-0000-0000-0000-000000171%'
 				""").query(Integer.class).single()).isEqualTo(10);
 		assertThat(jdbc.sql("SELECT count(*) FROM staff_profile").query(Integer.class).single()).isEqualTo(5);
 		assertThat(jdbc.sql("""

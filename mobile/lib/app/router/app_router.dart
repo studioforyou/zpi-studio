@@ -22,6 +22,7 @@ import 'package:mobile/features/communication/presentation/new_group_chat_screen
 import 'package:mobile/features/communication/presentation/notifications_screen.dart';
 import 'package:mobile/features/documents/presentation/document_screen.dart';
 import 'package:mobile/features/documents/presentation/documents_screen.dart';
+import 'package:mobile/features/passes/presentation/pass_renewal_screen.dart';
 import 'package:mobile/features/passes/presentation/passes_screen.dart';
 import 'package:mobile/features/schedule/data/series_changes.dart';
 import 'package:mobile/features/schedule/presentation/add_class_screen.dart';
@@ -53,6 +54,11 @@ const invitePath = '/invite';
 
 const clientSchedulePath = '/client/schedule';
 const clientPassesPath = '/client/passes';
+const clientPassRenewalSubPath = 'renew/:passId';
+
+/// The renewal of one pass, opened from a reminder that it runs out.
+String clientPassRenewalLocation(String passId) =>
+    '$clientPassesPath/renew/${Uri.encodeComponent(passId)}';
 const clientReservationsPath = '/client/reservations';
 const clientClassDetailsSubPath = 'classes/:eventId';
 
@@ -158,6 +164,13 @@ StatefulShellRoute _clientShell() => _roleShell([
     const PassesScreen(),
     Icons.card_membership,
     (l10n) => l10n.navPasses,
+    routes: [
+      GoRoute(
+        path: clientPassRenewalSubPath,
+        builder: (_, state) =>
+            PassRenewalScreen(passId: state.pathParameters['passId']!),
+      ),
+    ],
   ),
   _tab(
     clientReservationsPath,

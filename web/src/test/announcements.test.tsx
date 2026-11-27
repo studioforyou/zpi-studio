@@ -49,11 +49,68 @@ function json(body: unknown, status = 200) {
 
 type Request = { url: string; method: string; body: Record<string, unknown> | null };
 
-function stubApi(history: unknown[], sendStatus = 201) {
+type Template = {
+  id: string;
+  name: string;
+  title: string;
+  body: string;
+  marketing: boolean;
+  updatedAt: string;
+};
+
+const closedTemplate: Template = {
+  id: 't-1',
+  name: 'Studio zamknięte',
+  title: 'Studio zamknięte w święto',
+  body: 'W poniedziałek studio jest zamknięte.',
+  marketing: false,
+  updatedAt: '2026-11-20T10:00:00Z',
+};
+
+const promoTemplate: Template = {
+  id: 't-2',
+  name: 'Promocja karnetów',
+  title: 'Karnety −20%',
+  body: 'Tylko do niedzieli karnety taniej.',
+  marketing: true,
+  updatedAt: '2026-11-20T10:00:00Z',
+};
+
+function stubApi(history: unknown[], sendStatus = 201, initialTemplates: Template[] = []) {
   const requests: Request[] = [];
+  let templates = [...initialTemplates];
   const fetchMock = vi.fn(async (url: string, init: RequestInit) => {
     const body = init.body ? JSON.parse(init.body as string) : null;
-    requests.push({ url, method: init.method ?? 'GET', body });
+    const method = init.method ?? 'GET';
+    requests.push({ url, method, body });
+    if (url === '/api/v1/announcement-templates' && method === 'GET') {
+      return json({ items: templates });
+    }
+    if (url === '/api/v1/announcement-templates' && method === 'POST') {
+      if (templates.some((template) => template.name.toLowerCase() === body.name.toLowerCase())) {
+        return json({ status: 409, code: 'ANNOUNCEMENT_TEMPLATE_NAME_ALREADY_USED' }, 409);
+      }
+      const created = {
+        ...body,
+        id: `t-${templates.length + 10}`,
+        updatedAt: closedTemplate.updatedAt,
+      };
+      templates = [...templates, created];
+      return json(created, 201);
+    }
+    if (url.startsWith('/api/v1/announcement-templates/')) {
+      const id = url.split('/').at(-1);
+      if (method === 'PATCH') {
+        templates = templates.map((template) =>
+          template.id === id ? { ...template, ...body } : template,
+        );
+        return json(templates.find((template) => template.id === id));
+      }
+      if (method === 'DELETE') {
+        templates = templates.filter((template) => template.id !== id);
+        return new Response(null, { status: 204 });
+      }
+    }
     if (url.startsWith('/api/v1/announcements?')) {
       return json({ items: history, page: 0, size: 20, totalItems: history.length, totalPages: 1 });
     }
@@ -228,4 +285,105 @@ test('explains a refused announcement', async () => {
   expect(
     await within(dialog).findByText('Nikt nie dostanie tego komunikatu. Zmień odbiorców.'),
   ).toBeInTheDocument();
+});
+
+test('defines, edits and deletes announcement templates', async () => {
+  const requests = stubApi([sent], 201, [closedTemplate]);
+  renderWithProviders(<CommunicationPage />);
+  await userEvent.click(await screen.findByRole('button', { name: 'Szablony' }));
+  const dialog = await screen.findByRole('dialog', { name: 'Szablony komunikatów' });
+  expect(await within(dialog).findByText('Studio zamknięte')).toBeInTheDocument();
+  expect(within(dialog).getByText('Komunikat studia')).toBeInTheDocument();
+
+  await userEvent.click(within(dialog).getByRole('button', { name: '+ Nowy szablon' }));
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Zapisz' }));
+  expect(within(dialog).getAllByText('To pole jest wymagane.')).toHaveLength(3);
+
+  await userEvent.type(
+    within(dialog).getByRole('textbox', { name: /^Nazwa szablonu/ }),
+    'studio ZAMKNIĘTE',
+  );
+  await userEvent.type(within(dialog).getByRole('textbox', { name: /^Tytuł/ }), 'Karnety −20%');
+  await userEvent.type(within(dialog).getByRole('textbox', { name: /^Treść/ }), 'Taniej.');
+  await userEvent.click(within(dialog).getByText('Oferta'));
+  expect(
+    within(dialog).getByText(/zgodziły się na powiadomienia marketingowe/),
+  ).toBeInTheDocument();
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Zapisz' }));
+  expect(await within(dialog).findByText('Szablon o tej nazwie już istnieje.')).toBeInTheDocument();
+
+  const name = within(dialog).getByRole('textbox', { name: /^Nazwa szablonu/ });
+  await userEvent.clear(name);
+  await userEvent.type(name, 'Promocja');
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Zapisz' }));
+  expect(await within(dialog).findByText('Promocja')).toBeInTheDocument();
+  expect(within(dialog).getByText('Oferta')).toBeInTheDocument();
+  const created = requests.filter(
+    (request) => request.url === '/api/v1/announcement-templates' && request.method === 'POST',
+  );
+  expect(created.at(-1)?.body).toEqual({
+    name: 'Promocja',
+    title: 'Karnety −20%',
+    body: 'Taniej.',
+    marketing: true,
+  });
+
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Edytuj: Studio zamknięte' }));
+  const title = within(dialog).getByRole('textbox', { name: /^Tytuł/ });
+  expect(title).toHaveValue('Studio zamknięte w święto');
+  await userEvent.clear(title);
+  await userEvent.type(title, 'Zamknięte w poniedziałek');
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Zapisz' }));
+  expect(await within(dialog).findByText('Zamknięte w poniedziałek')).toBeInTheDocument();
+  expect(requests.find((request) => request.method === 'PATCH')?.body).toMatchObject({
+    title: 'Zamknięte w poniedziałek',
+    marketing: false,
+  });
+
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Usuń: Studio zamknięte' }));
+  expect(within(dialog).getByText(/Usunąć szablon „Studio zamknięte”\?/)).toBeInTheDocument();
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Usuń' }));
+  await waitFor(() =>
+    expect(within(dialog).queryByText('Zamknięte w poniedziałek')).not.toBeInTheDocument(),
+  );
+  expect(
+    requests.some((request) => request.method === 'DELETE' && request.url.endsWith('/t-1')),
+  ).toBe(true);
+});
+
+test('fills a new announcement from a template and lets the administrator change it', async () => {
+  const requests = stubApi([sent], 201, [closedTemplate, promoTemplate]);
+  renderWithProviders(<CommunicationPage />);
+  await userEvent.click(await screen.findByRole('button', { name: '+ Nowy komunikat' }));
+  const dialog = await screen.findByRole('dialog');
+  await userEvent.click(within(dialog).getByText('Wszyscy klienci'));
+
+  const select = await within(dialog).findByRole('combobox', { name: /^Szablon/ });
+  await userEvent.click(select);
+  await waitFor(() => expect(select.getAttribute('aria-controls')).toBeTruthy());
+  const listbox = document.getElementById(select.getAttribute('aria-controls')!)!;
+  await userEvent.click(
+    within(listbox).getByRole('option', { name: 'Promocja karnetów', hidden: true }),
+  );
+
+  expect(within(dialog).getByRole('textbox', { name: 'Tytuł' })).toHaveValue('Karnety −20%');
+  expect(within(dialog).getByRole('textbox', { name: 'Treść' })).toHaveValue(
+    'Tylko do niedzieli karnety taniej.',
+  );
+  expect(within(dialog).getByRole('checkbox', { name: /Treść marketingowa/ })).toBeChecked();
+
+  await userEvent.type(within(dialog).getByRole('textbox', { name: 'Tytuł' }), '!');
+  await within(dialog).findByText(/Trafi do 61 osób/);
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Wyślij' }));
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Wyślij do 61 osób' }));
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+  const post = requests.find(
+    (request) => request.url === '/api/v1/announcements' && request.method === 'POST',
+  );
+  expect(post?.body).toMatchObject({
+    audience: 'ALL',
+    marketing: true,
+    title: 'Karnety −20%!',
+    body: 'Tylko do niedzieli karnety taniej.',
+  });
 });

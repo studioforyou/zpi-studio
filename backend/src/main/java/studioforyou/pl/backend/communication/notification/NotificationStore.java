@@ -14,6 +14,8 @@ import java.util.UUID;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 
+import org.jspecify.annotations.Nullable;
+
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
@@ -50,10 +52,11 @@ public class NotificationStore {
 
 	/** The administrator's settings of the type, with its push template. */
 	public TypeSettings settings(NotificationType type) {
-		record Row(boolean isEnabled, OffsetDateTime updatedAt, String subject, String bodyTemplate) {
+		record Row(boolean isEnabled, OffsetDateTime updatedAt, String subject, String bodyTemplate,
+				String defaultSubject, String defaultBody) {
 		}
 		Row row = jdbc.sql("""
-				SELECT t.is_enabled, t.updated_at, tpl.subject, tpl.body_template
+				SELECT t.is_enabled, t.updated_at, tpl.subject, tpl.body_template, tpl.default_subject, tpl.default_body
 				FROM notification_type t
 				LEFT JOIN notification_template tpl ON tpl.notification_type_id = t.id
 				  AND tpl.channel = :channel AND tpl.locale = :locale
@@ -67,7 +70,7 @@ public class NotificationStore {
 			.orElseThrow(() -> new IllegalStateException("Notification type " + type + " is missing in the database"));
 		return new TypeSettings(type, row.isEnabled(), type.timed() ? leadTimes(type) : List.of(),
 				row.subject() == null ? "" : row.subject(), row.bodyTemplate() == null ? "" : row.bodyTemplate(),
-				row.updatedAt().toInstant());
+				row.defaultSubject(), row.defaultBody(), row.updatedAt().toInstant());
 	}
 
 	/** Reminder times of a timed type, in minutes before the start, longest first. */
@@ -383,9 +386,11 @@ public class NotificationStore {
 	 * @param leadTimes minutes before the start, longest first; empty for a type that is not timed
 	 * @param subject the push title template
 	 * @param body the push text template
+	 * @param defaultSubject the title template the type was created with; {@code null} when it has none
+	 * @param defaultBody the text template the type was created with; {@code null} when it has none
 	 */
 	public record TypeSettings(NotificationType type, boolean enabled, List<Integer> leadTimes, String subject,
-			String body, Instant updatedAt) {
+			String body, @Nullable String defaultSubject, @Nullable String defaultBody, Instant updatedAt) {
 	}
 
 	/** A stored notification ready to send. */

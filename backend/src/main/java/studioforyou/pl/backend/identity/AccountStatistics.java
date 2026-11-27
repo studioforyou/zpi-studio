@@ -3,12 +3,16 @@ package studioforyou.pl.backend.identity;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.Collection;
+import java.util.List;
+import java.util.Set;
+import java.util.UUID;
 
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
 /**
- * Account counts for reports.
+ * Account counts and statuses for reports.
  */
 @Repository
 public class AccountStatistics {
@@ -37,6 +41,17 @@ public class AccountStatistics {
 			.param("to", OffsetDateTime.ofInstant(to, ZoneOffset.UTC))
 			.query(Long.class)
 			.single();
+	}
+
+	/** Accounts among the given ones whose status is not {@code ACTIVE}, e.g. suspended or closed. */
+	public Set<UUID> findNotActive(Collection<UUID> accountIds) {
+		if (accountIds.isEmpty()) {
+			return Set.of();
+		}
+		return jdbc.sql("SELECT id FROM account WHERE id IN (:ids) AND status <> 'ACTIVE'")
+			.param("ids", List.copyOf(accountIds))
+			.query(UUID.class)
+			.set();
 	}
 
 }

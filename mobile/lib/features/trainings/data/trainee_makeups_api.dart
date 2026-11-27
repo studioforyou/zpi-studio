@@ -6,11 +6,12 @@ import 'package:mobile/core/network/dio_provider.dart';
 import 'package:mobile/features/trainings/data/trainee_overview_api.dart';
 
 /// Why a make-up credit was granted.
-enum MakeupReason { cancelledByStudio, cancelledInTime, other }
+enum MakeupReason { cancelledByStudio, cancelledInTime, disputeUpheld, other }
 
 MakeupReason _reason(String? value) => switch (value) {
   'CANCELLED_BY_STUDIO' => MakeupReason.cancelledByStudio,
   'CANCELLED_IN_TIME' => MakeupReason.cancelledInTime,
+  'DISPUTE_UPHELD' => MakeupReason.disputeUpheld,
   _ => MakeupReason.other,
 };
 

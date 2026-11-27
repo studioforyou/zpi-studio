@@ -13,6 +13,11 @@ const serviceTypesPath = '/api/v1/service-types';
 String ownPassesPath(String profileId) =>
     '/api/v1/me/profiles/$profileId/passes';
 
+/// Declining the renewal of a pass of a customer profile the account acts
+/// for: `PUT` declines it, `DELETE` undoes it (`OwnPassController`).
+String ownPassRenewalDeclinePath(String profileId, String passId) =>
+    '${ownPassesPath(profileId)}/$passId/renewal-decline';
+
 /// Pass orders of a customer profile the account acts for
 /// (`OwnPassOrderController`).
 String ownPassOrdersPath(String profileId) =>
@@ -72,6 +77,7 @@ class OwnPass {
     required this.validFrom,
     required this.validUntil,
     this.expiringSoon = false,
+    this.renewalDeclined = false,
   });
 
   factory OwnPass.fromJson(Map<String, dynamic> json) {
@@ -85,6 +91,7 @@ class OwnPass {
       validFrom: _date(json['validFrom']),
       validUntil: _date(json['validUntil']),
       expiringSoon: json['expiringSoon'] as bool? ?? false,
+      renewalDeclined: json['renewalDeclined'] as bool? ?? false,
     );
   }
 
@@ -108,6 +115,17 @@ class OwnPass {
   /// An active or suspended pass with at most 7 days or at most 2 entries
   /// left, as the backend decides.
   final bool expiringSoon;
+
+  /// Whether the participant said they will not renew the pass, so the
+  /// studio sends no more reminders to buy the next one.
+  final bool renewalDeclined;
+
+  /// Whether the pass can still be used or starts later, so its renewal can
+  /// be declined.
+  bool get isRunning =>
+      status == PassStatus.active ||
+      status == PassStatus.suspended ||
+      status == PassStatus.scheduled;
 
   static DateTime? _date(Object? value) =>
       value == null ? null : DateTime.parse(value as String);
@@ -270,6 +288,32 @@ class PassesApi {
   Future<List<OwnPass>> fetchOwnPasses(String profileId) async {
     final items = await _items(ownPassesPath(profileId));
     return [for (final item in items) OwnPass.fromJson(item)];
+  }
+
+  /// Says the participant of [profileId] will not renew [passId]: no more
+  /// reminders to buy the next one. Returns the pass as it is now.
+  Future<OwnPass> declineRenewal(String profileId, String passId) => _pass(
+    () => _dio.put<Map<String, dynamic>>(
+      ownPassRenewalDeclinePath(profileId, passId),
+    ),
+  );
+
+  /// Undoes [declineRenewal]: reminders to buy the next pass come again.
+  Future<OwnPass> undoRenewalDecline(String profileId, String passId) => _pass(
+    () => _dio.delete<Map<String, dynamic>>(
+      ownPassRenewalDeclinePath(profileId, passId),
+    ),
+  );
+
+  Future<OwnPass> _pass(
+    Future<Response<Map<String, dynamic>>> Function() request,
+  ) async {
+    try {
+      final response = await request();
+      return OwnPass.fromJson(response.data!);
+    } on DioException catch (e) {
+      throw ApiException.fromDio(e);
+    }
   }
 
   /// Products on sale; the backend returns only active products and variants

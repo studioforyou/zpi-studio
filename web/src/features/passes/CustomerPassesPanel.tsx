@@ -26,6 +26,7 @@ import {
 import { ExtendPassModal } from './ExtendPassModal';
 import { formatDate, formatMoney, todayIsoDate } from './passFormat';
 import { listPassProducts } from './passesApi';
+import { PassHistoryDrawer } from './PassHistoryDrawer';
 import { SuspendPassModal } from './SuspendPassModal';
 
 const statusColors: Record<CustomerPassStatus, string> = {
@@ -47,7 +48,8 @@ const PAGE_SIZE = 20;
 
 /**
  * Passes of all participants matching a search of their name, phone number or e-mail address,
- * with each holder's name and e-mail address: assigning, correcting entries, extending and suspending.
+ * with each holder's name and e-mail address: assigning, correcting entries, extending, suspending
+ * and reading a pass's history.
  */
 export function CustomerPassesPanel() {
   const [search, setSearch] = useState('');
@@ -57,6 +59,7 @@ export function CustomerPassesPanel() {
   const [correcting, setCorrecting] = useState<HeldPass | null>(null);
   const [extending, setExtending] = useState<CustomerPass | null>(null);
   const [suspending, setSuspending] = useState<CustomerPass | null>(null);
+  const [historyOf, setHistoryOf] = useState<HeldPass | null>(null);
   const searching = debouncedSearch !== '';
 
   const passes = useQuery({
@@ -153,6 +156,13 @@ export function CustomerPassesPanel() {
                   </Table.Td>
                   <Table.Td>
                     <Group gap="xs" wrap="wrap">
+                      <Button
+                        size="xs"
+                        variant="default"
+                        onClick={() => setHistoryOf({ holder, pass })}
+                      >
+                        {pl.passHistory.open}
+                      </Button>
                       {pass.entriesTotal !== null && pass.entriesRemaining !== null && (
                         <Button
                           size="xs"
@@ -195,6 +205,13 @@ export function CustomerPassesPanel() {
           customer={correcting.holder}
           pass={correcting.pass}
           onClose={() => setCorrecting((current) => (current === correcting ? null : current))}
+        />
+      )}
+      {historyOf && (
+        <PassHistoryDrawer
+          key={historyOf.pass.id}
+          held={historyOf}
+          onClose={() => setHistoryOf(null)}
         />
       )}
       <AssignPassModal opened={assigning} onClose={() => setAssigning(false)} />

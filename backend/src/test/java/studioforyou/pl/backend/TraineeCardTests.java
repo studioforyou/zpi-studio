@@ -105,6 +105,7 @@ class TraineeCardTests {
 		jdbc.sql("DELETE FROM customer_profile WHERE id IN (:ids)").param("ids", customers).update();
 		jdbc.sql("DELETE FROM account_permission_override WHERE account_id IN (" + accounts + ")").update();
 		jdbc.sql("DELETE FROM staff_profile WHERE account_id IN (" + accounts + ")").update();
+		jdbc.sql("DELETE FROM audit_log WHERE actor_account_id IN (" + accounts + ")").update();
 		jdbc.sql("DELETE FROM account_role WHERE account_id IN (" + accounts + ")").update();
 		jdbc.sql("DELETE FROM identity_link WHERE account_id IN (" + accounts + ")").update();
 		jdbc.sql("DELETE FROM account WHERE email LIKE 'card-%@example.com'").update();

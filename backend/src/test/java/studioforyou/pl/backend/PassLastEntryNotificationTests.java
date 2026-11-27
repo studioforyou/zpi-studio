@@ -178,6 +178,17 @@ class PassLastEntryNotificationTests {
 	}
 
 	@Test
+	void nothingWhenTheParticipantWillNotRenewThePass() {
+		UUID pass = addPass(adult, "ACTIVE", 1, CLASS_DAY.plusDays(20));
+		jdbc.sql("UPDATE customer_pass SET renewal_declined_at = now() WHERE id = :id").param("id", pass).update();
+
+		book(adult, pass);
+
+		await(() -> incomplete() == 0);
+		assertThat(notifications(adultAccount)).isZero();
+	}
+
+	@Test
 	void aPassForOtherServicesDoesNotCountAsAFollowingPass() {
 		UUID pass = addPass(adult, "ACTIVE", 1, CLASS_DAY.plusDays(20));
 		// E.g. a personal training package, which does not replace a group class pass.
