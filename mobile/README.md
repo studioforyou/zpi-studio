@@ -170,9 +170,12 @@ and `POST .../health-notes/{noteId}/archive`.
 
 In every conversation the **+** button next to the text field adds up to 5
 attachments (#149, #152): a photo from the camera or the gallery
-(`image_picker`), or a PDF, Word (DOCX), Excel (XLSX) or TXT document from the
-phone's files (`file_picker`). Photos are scaled to at most 2560 px on the
-longer side and saved as JPEG of quality 85 before they are sent. The app
+(`image_picker`), or a PDF, Word (DOC, DOCX), Excel (XLS, XLSX) or TXT
+document, or a JPEG or PNG photo, from the phone's files (`file_picker`).
+Photos from the camera or the gallery are scaled to at most 2560 px on the
+longer side and saved as JPEG of quality 85 before they are sent, a HEIC photo
+too. A HEIC photo is not taken from the files, where it would be sent as it is,
+without compression or a thumbnail: the app says to send it from the gallery. The app
 checks the limits the backend has (10 MB a file, 30 MB a message) and sends the
 message as `multipart/form-data`, showing the upload progress; the text is
 optional. The picker keeps the photo's EXIF, location included; the backend
@@ -186,9 +189,11 @@ backend) is shown by it in the conversation and the photos of a conversation;
 the whole photo is downloaded only full screen, where the thumbnail shows
 until it is there. Photos are shown in the conversation and open
 full screen (`PhotoViewerScreen`): swipe through all the photos of the
-conversation, older ones to the left (the ones loaded in the conversation
-first, then older ones from `GET .../attachments?kind=PHOTO` as the user gets
-to them), zoom with two fingers or a double tap, and save it in the phone's
+conversation (the ones loaded in the conversation first, then older ones from
+`GET .../attachments?kind=PHOTO` as the user gets to them). Opened in the
+conversation, older photos are to the left, as they are above in it; opened in
+the grid of a conversation's photos, the next photo to the right is the older
+one, as in the grid. Zoom with two fingers or a double tap, and save it in the phone's
 gallery (`gal`):
 Photos on iPhone, the Pictures album on Android. A photo the gallery does not
 take (e.g. HEIC on an older Android) is saved as a file instead. Other files

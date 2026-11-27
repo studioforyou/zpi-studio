@@ -1002,6 +1002,9 @@ void main() {
       picker.documents = [
         _picked('skan.pdf', 11 * 1024 * 1024),
         _picked('plan.docx', 200 * 1024),
+        // Word and Excel files from before 2007 too.
+        _picked('stary plan.doc', 90 * 1024),
+        _picked('tabela.xls', 40 * 1024),
         _picked('lista.csv', 1024),
       ];
       await pump(
@@ -1015,16 +1018,44 @@ void main() {
       await tester.tap(find.text('Plik'));
       await tester.pumpAndSettle();
 
-      expect(find.byTooltip('Usuń załącznik'), findsOneWidget);
+      expect(find.byTooltip('Usuń załącznik'), findsNWidgets(3));
       expect(find.text('plan.docx'), findsOneWidget);
+      expect(find.text('stary plan.doc'), findsOneWidget);
+      expect(find.text('tabela.xls'), findsOneWidget);
       expect(
         find.textContaining('Tego pliku nie można wysłać'),
         findsOneWidget,
       );
 
-      await tester.tap(find.byTooltip('Usuń załącznik'));
+      await tester.tap(find.byTooltip('Usuń załącznik').first);
       await tester.pumpAndSettle();
+      expect(find.byTooltip('Usuń załącznik'), findsNWidgets(2));
+    });
+
+    testWidgets('a HEIC photo is sent from the gallery, not as a file', (
+      tester,
+    ) async {
+      api.conversations['d'] = _direct('d', 'Ewa Lis');
+      picker.documents = [_picked('IMG_0001.HEIC', 2 * 1024 * 1024)];
+      await pump(
+        tester,
+        session: _client,
+        initialLocation: '/client/messages/chat/d',
+      );
+
+      await tester.tap(find.byTooltip('Dodaj załącznik'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Plik'));
+      await tester.pumpAndSettle();
+
       expect(find.byTooltip('Usuń załącznik'), findsNothing);
+      expect(
+        find.text(
+          'Zdjęcie HEIC wyślij przez „Zdjęcia z galerii”: zostanie zapisane '
+          'jako JPG.',
+        ),
+        findsOneWidget,
+      );
     });
 
     testWidgets('shows photos and opens documents in another app', (
@@ -1404,11 +1435,15 @@ void main() {
         lessThan(tester.getTopLeft(_thumbnailOf('photo-a')).dy),
       );
 
-      // A photo opens among all of them, the newer ones to the right.
-      await tester.tap(_thumbnailOf('photo-a'));
+      // A photo opens among all of them in the grid's order: the next one,
+      // to the right, is older.
+      await tester.tap(_thumbnailOf('photo-b'));
+      await tester.pumpAndSettle();
+      expect(_shownPhoto(tester), '/cache/photo-b/b.jpg');
+      await tester.fling(find.byType(PageView), const Offset(-500, 0), 1500);
       await tester.pumpAndSettle();
       expect(_shownPhoto(tester), '/cache/photo-a/a.jpg');
-      await tester.fling(find.byType(PageView), const Offset(-500, 0), 1500);
+      await tester.fling(find.byType(PageView), const Offset(500, 0), 1500);
       await tester.pumpAndSettle();
       expect(_shownPhoto(tester), '/cache/photo-b/b.jpg');
 

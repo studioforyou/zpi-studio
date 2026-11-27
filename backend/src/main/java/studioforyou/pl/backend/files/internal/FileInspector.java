@@ -92,6 +92,9 @@ final class FileInspector {
 		if (startsWith(head, ZIP_SIGNATURE)) {
 			return officeDocument(content);
 		}
+		if (startsWith(head, CompoundFile.SIGNATURE)) {
+			return oldOfficeDocument(content);
+		}
 		if (name != null && FileType.TXT.matchesName(name) && isUtf8Text(content)) {
 			return FileType.TXT;
 		}
@@ -131,6 +134,29 @@ final class FileInspector {
 		finally {
 			Files.deleteIfExists(copy);
 		}
+	}
+
+	/**
+	 * A Word or Excel document from before 2007, a compound file, by the streams at its top: a
+	 * {@code WordDocument} or a {@code Workbook} ({@code Book} in Excel 95). An embedded object is
+	 * below the top, so a Word document with a spreadsheet in it is still a Word document.
+	 */
+	private static @Nullable FileType oldOfficeDocument(InputStreamSource content) throws IOException {
+		byte[] bytes;
+		try (InputStream in = content.getInputStream()) {
+			bytes = in.readAllBytes();
+		}
+		Set<String> names = CompoundFile.rootNames(bytes);
+		if (names == null) {
+			return null;
+		}
+		boolean word = names.stream().anyMatch("WordDocument"::equalsIgnoreCase);
+		boolean excel = names.stream()
+			.anyMatch((name) -> name.equalsIgnoreCase("Workbook") || name.equalsIgnoreCase("Book"));
+		if (word == excel) {
+			return null;
+		}
+		return word ? FileType.DOC : FileType.XLS;
 	}
 
 	/** Valid UTF-8 (with or without a byte order mark) without NUL characters. */

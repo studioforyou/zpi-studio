@@ -16,6 +16,10 @@ public enum FileType {
 	PDF("application/pdf", List.of("pdf"), false),
 	DOCX("application/vnd.openxmlformats-officedocument.wordprocessingml.document", List.of("docx"), false),
 	XLSX("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", List.of("xlsx"), false),
+	/** A Word document from before 2007. */
+	DOC("application/msword", List.of("doc"), false),
+	/** An Excel workbook from before 2007. */
+	XLS("application/vnd.ms-excel", List.of("xls"), false),
 	/** UTF-8 text; recognized only in a file named {@code *.txt}. */
 	TXT("text/plain", List.of("txt"), false);
 

@@ -234,6 +234,54 @@ public final class TestFiles {
 		return zip("[Content_Types].xml", "xl/workbook.xml");
 	}
 
+	/** A Word document from before 2007: a compound file with a {@code WordDocument} stream at the top. */
+	public static byte[] doc() {
+		return compoundFile("WordDocument", null);
+	}
+
+	/** An Excel workbook from before 2007: a compound file with a {@code Workbook} stream at the top. */
+	public static byte[] xls() {
+		return compoundFile("Workbook", null);
+	}
+
+	/**
+	 * A compound file (OLE, the format of Office files from before 2007) of 512-byte sectors: the
+	 * header, a FAT sector and a directory sector. Its root has a {@code stream}, and with
+	 * {@code nested} also a storage {@code ObjectPool} with that stream in it, as an embedded object.
+	 */
+	public static byte[] compoundFile(String stream, String nested) {
+		ByteBuffer file = ByteBuffer.allocate(3 * 512).order(ByteOrder.LITTLE_ENDIAN);
+		file.put(new byte[] { (byte) 0xD0, (byte) 0xCF, 0x11, (byte) 0xE0, (byte) 0xA1, (byte) 0xB1, 0x1A, (byte) 0xE1 });
+		file.putShort(0x18, (short) 0x3E).putShort(0x1A, (short) 3).putShort(0x1C, (short) 0xFFFE);
+		file.putShort(0x1E, (short) 9).putShort(0x20, (short) 6);
+		// One FAT sector (0), the directory in sector 1, no mini FAT and no DIFAT sectors.
+		file.putInt(0x2C, 1).putInt(0x30, 1).putInt(0x38, 4096).putInt(0x3C, -2).putInt(0x44, -2);
+		for (int i = 0; i < 109; i++) {
+			file.putInt(0x4C + 4 * i, (i == 0) ? 0 : -1);
+		}
+		for (int i = 0; i < 128; i++) {
+			file.putInt(512 + 4 * i, (i == 0) ? -3 : (i == 1) ? -2 : -1);
+		}
+		directoryEntry(file, 0, "Root Entry", 5, -1, -1, 1);
+		directoryEntry(file, 1, stream, 2, -1, (nested != null) ? 2 : -1, -1);
+		if (nested != null) {
+			directoryEntry(file, 2, "ObjectPool", 1, -1, -1, 3);
+			directoryEntry(file, 3, nested, 2, -1, -1, -1);
+		}
+		return file.array();
+	}
+
+	private static void directoryEntry(ByteBuffer file, int id, String name, int type, int left, int right,
+			int child) {
+		int at = 2 * 512 + 128 * id;
+		byte[] utf16 = name.getBytes(StandardCharsets.UTF_16LE);
+		file.put(at, utf16);
+		file.putShort(at + 0x40, (short) (utf16.length + 2));
+		file.put(at + 0x42, (byte) type);
+		file.putInt(at + 0x44, left).putInt(at + 0x48, right).putInt(at + 0x4C, child);
+		file.putInt(at + 0x74, -2);
+	}
+
 	/** A ZIP archive with empty XML entries of the given names. */
 	public static byte[] zip(String... entries) {
 		ByteArrayOutputStream out = new ByteArrayOutputStream();

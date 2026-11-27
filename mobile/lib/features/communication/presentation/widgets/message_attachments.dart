@@ -555,10 +555,18 @@ class _FileKind {
         Icons.picture_as_pdf_outlined,
         Color(0xFFD93025),
       ),
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document' =>
-        const _FileKind('Word', Icons.description_outlined, Color(0xFF2B579A)),
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' =>
-        const _FileKind('Excel', Icons.table_chart_outlined, Color(0xFF217346)),
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+      'application/msword' => const _FileKind(
+        'Word',
+        Icons.description_outlined,
+        Color(0xFF2B579A),
+      ),
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+      'application/vnd.ms-excel' => const _FileKind(
+        'Excel',
+        Icons.table_chart_outlined,
+        Color(0xFF217346),
+      ),
       'text/plain' => const _FileKind(
         'TXT',
         Icons.article_outlined,
@@ -603,13 +611,16 @@ Future<void> saveAttachment(
 ///
 /// [photos] are newest first; [hasOlder] says whether the conversation has
 /// photos older than the last of them, which the viewer loads as the user
-/// swipes to them.
+/// swipes to them. With [olderToTheRight] the next photo is an older one, as
+/// in the grid of a conversation's photos; otherwise older ones are to the
+/// left, as in the conversation, where they are above.
 Future<void> openPhotoViewer(
   BuildContext context, {
   required String conversationId,
   required List<ConversationAttachment> photos,
   required int initialIndex,
   required bool hasOlder,
+  bool olderToTheRight = false,
 }) => Navigator.of(context).push(
   // Opaque, so the screen below is not shown, and its snack bars neither.
   PageRouteBuilder<void>(
@@ -618,16 +629,16 @@ Future<void> openPhotoViewer(
       photos: photos,
       initialIndex: initialIndex,
       hasOlder: hasOlder,
+      olderToTheRight: olderToTheRight,
     ),
     transitionsBuilder: (_, animation, _, child) =>
         FadeTransition(opacity: animation, child: child),
   ),
 );
 
-/// The photos of a conversation full screen, the older ones to the left:
-/// swiped through across all its messages, zoomed with two fingers or a
-/// double tap, saved in the gallery or opened in another app. Older photos
-/// are loaded as the user gets to them.
+/// The photos of a conversation full screen: swiped through across all its
+/// messages, zoomed with two fingers or a double tap, saved in the gallery or
+/// opened in another app. Older photos are loaded as the user gets to them.
 class PhotoViewerScreen extends ConsumerStatefulWidget {
   const PhotoViewerScreen({
     super.key,
@@ -635,6 +646,7 @@ class PhotoViewerScreen extends ConsumerStatefulWidget {
     required this.photos,
     required this.initialIndex,
     this.hasOlder = false,
+    this.olderToTheRight = false,
   });
 
   final String conversationId;
@@ -645,6 +657,11 @@ class PhotoViewerScreen extends ConsumerStatefulWidget {
 
   /// Whether the conversation has photos older than the last of [photos].
   final bool hasOlder;
+
+  /// Whether swiping to the next photo, to the right, goes to an older one,
+  /// as in the grid of a conversation's photos; otherwise older ones are to
+  /// the left, as in the conversation.
+  final bool olderToTheRight;
 
   @override
   ConsumerState<PhotoViewerScreen> createState() => _PhotoViewerScreenState();
@@ -826,9 +843,9 @@ class _PhotoViewerScreenState extends ConsumerState<PhotoViewerScreen> {
           : null,
       body: PageView.builder(
         controller: _pages,
-        // Newest first, from the right: older photos are to the left, and
-        // loading more of them adds pages without moving the one shown.
-        reverse: true,
+        // Newest first. Older photos are added at the end, to the left or to
+        // the right, so loading them does not move the one shown.
+        reverse: !widget.olderToTheRight,
         physics: _zoomed
             ? const NeverScrollableScrollPhysics()
             : const PageScrollPhysics(),

@@ -345,21 +345,34 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
       return;
     }
     if (mounted && picked.isNotEmpty) {
-      _addAttachments(picked, l10n);
+      _addAttachments(
+        picked,
+        l10n,
+        fromFiles: source == _AttachmentSource.document,
+      );
     }
   }
 
   /// Adds the picked files the backend will accept, and says why the others
-  /// were left out.
-  void _addAttachments(List<OutgoingAttachment> picked, AppLocalizations l10n) {
+  /// were left out. A HEIC photo is taken only from the gallery, which sends
+  /// it as JPEG.
+  void _addAttachments(
+    List<OutgoingAttachment> picked,
+    AppLocalizations l10n, {
+    required bool fromFiles,
+  }) {
     final accepted = [..._attachments];
     String? problem;
     for (final attachment in picked) {
       final total = accepted.fold(0, (sum, file) => sum + file.sizeBytes);
+      final extension = _extension(attachment.name);
       if (accepted.length >= maxAttachments) {
         problem = l10n.chatAttachmentsLimit(maxAttachments);
         break;
-      } else if (!_isAllowed(attachment.name)) {
+      } else if (fromFiles && heicExtensions.contains(extension)) {
+        problem = l10n.chatHeicFromGallery;
+      } else if (!documentExtensions.contains(extension) &&
+          (fromFiles || !heicExtensions.contains(extension))) {
         problem = l10n.chatAttachmentTypeNotAllowed;
       } else if (attachment.sizeBytes > maxAttachmentBytes) {
         problem = l10n.chatAttachmentTooLarge(attachment.name);
@@ -375,10 +388,9 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     }
   }
 
-  static bool _isAllowed(String name) {
+  static String _extension(String name) {
     final dot = name.lastIndexOf('.');
-    return dot >= 0 &&
-        documentExtensions.contains(name.substring(dot + 1).toLowerCase());
+    return dot < 0 ? '' : name.substring(dot + 1).toLowerCase();
   }
 
   void _snack(String text) {

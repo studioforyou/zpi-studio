@@ -5,7 +5,7 @@ enum AttachmentKind {
 
 	/** JPEG, PNG and HEIC photos. */
 	PHOTO,
-	/** Documents: PDF, DOCX, XLSX and TXT. */
+	/** Documents: PDF, DOC, DOCX, XLS, XLSX and TXT. */
 	FILE
 
 }

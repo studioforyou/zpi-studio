@@ -24,19 +24,25 @@ const maxPhotoDimension = 2560.0;
 /// difference on a phone.
 const photoQuality = 85;
 
-/// Documents that can be picked; photos can be picked from files too.
+/// What can be picked from the phone's files: documents, and photos in JPEG
+/// or PNG.
 const documentExtensions = [
   'pdf',
+  'doc',
   'docx',
+  'xls',
   'xlsx',
   'txt',
   'jpg',
   'jpeg',
   'png',
-  'heic',
 ];
 
-const _imageExtensions = {'jpg', 'jpeg', 'png', 'heic', 'heif'};
+/// HEIC photos are not picked from files: sent as they are, they would get
+/// no thumbnail and no compression. The gallery picker sends them as JPEG.
+const heicExtensions = {'heic', 'heif'};
+
+const _imageExtensions = {'jpg', 'jpeg', 'png'};
 
 /// Picks photos and documents to attach to a message.
 class AttachmentPicker {
@@ -68,7 +74,8 @@ class AttachmentPicker {
     return [for (var i = 0; i < photos.length; i++) await _photo(photos[i], i)];
   }
 
-  /// PDF, Word, Excel and text documents (and photos) from the phone's files.
+  /// PDF, Word, Excel and text documents (and JPEG and PNG photos) from the
+  /// phone's files.
   Future<List<OutgoingAttachment>> pickDocuments() async {
     final files = await FilePicker.pickFiles(
       type: FileType.custom,

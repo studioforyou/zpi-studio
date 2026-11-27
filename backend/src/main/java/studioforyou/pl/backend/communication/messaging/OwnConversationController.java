@@ -273,7 +273,7 @@ class OwnConversationController {
 	@PostMapping(path = "/{conversationId}/messages", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
 	@Operation(summary = "Send a message with attachments", operationId = "sendOwnConversationMessageWithAttachments",
 			description = "Up to 5 files (part `files`) of at most 10 MB each and 30 MB together, with optional text "
-					+ "(part `body`, up to 2000 characters): JPEG, PNG and HEIC photos, PDF, DOCX, XLSX and TXT "
+					+ "(part `body`, up to 2000 characters): JPEG, PNG and HEIC photos, PDF, DOC, DOCX, XLS, XLSX and TXT "
 					+ "documents. The type is recognized from the content, and the file name gets its extension. "
 					+ "Either the text or a file is required.")
 	@ApiResponse(responseCode = "201", description = "The sent message.")

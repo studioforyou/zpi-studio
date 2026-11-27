@@ -331,6 +331,14 @@ class MessageAttachmentTests {
 			.single()).isZero();
 		assertThat(storedFiles(id)).isEmpty();
 
+		// Word and Excel files from before 2007 too.
+		send(CLIENT, id, null, file("stary plan", TestFiles.doc()), file("tabela.xls", TestFiles.xls()))
+			.andExpect(status().isCreated())
+			.andExpect(jsonPath("$.attachments[*].fileName").value(contains("stary plan.doc", "tabela.xls")))
+			.andExpect(jsonPath("$.attachments[*].contentType")
+				.value(contains("application/msword", "application/vnd.ms-excel")))
+			.andExpect(jsonPath("$.attachments[*].isImage").value(contains(false, false)));
+
 		// A HEIC photo straight from an iPhone is fine.
 		send(CLIENT, id, null, file("IMG_0001.HEIC", TestFiles.heic())).andExpect(status().isCreated())
 			.andExpect(jsonPath("$.attachments[0].contentType").value("image/heic"))

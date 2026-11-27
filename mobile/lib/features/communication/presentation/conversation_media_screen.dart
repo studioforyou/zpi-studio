@@ -69,6 +69,8 @@ class _ConversationPhotosScreenState
               photos: items,
               initialIndex: index,
               hasOlder: hasMore,
+              // As in the grid: the next photo is the older one.
+              olderToTheRight: true,
             ),
           );
         },

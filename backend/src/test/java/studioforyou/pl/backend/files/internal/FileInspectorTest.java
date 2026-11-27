@@ -3,7 +3,10 @@ package studioforyou.pl.backend.files.internal;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 
 import org.junit.jupiter.api.Test;
 
@@ -23,6 +26,37 @@ class FileInspectorTest {
 		assertThat(type(TestFiles.pdf(), "wyniki.docx")).isEqualTo(FileType.PDF);
 		assertThat(type(TestFiles.docx(), "plan.zip")).isEqualTo(FileType.DOCX);
 		assertThat(type(TestFiles.xlsx(), null)).isEqualTo(FileType.XLSX);
+		assertThat(type(TestFiles.doc(), "plan")).isEqualTo(FileType.DOC);
+		assertThat(type(TestFiles.xls(), "tabela.doc")).isEqualTo(FileType.XLS);
+	}
+
+	@Test
+	void anOldOfficeFileIsWhatItsTopStreamSays() throws IOException {
+		// Excel 95 calls its stream Book.
+		assertThat(type(TestFiles.compoundFile("Book", null), "a.xls")).isEqualTo(FileType.XLS);
+		// A spreadsheet embedded in a Word document is below the top: still a Word document.
+		assertThat(type(TestFiles.compoundFile("WordDocument", "Workbook"), "a.doc")).isEqualTo(FileType.DOC);
+		// Other compound files: a PowerPoint presentation, an Outlook message.
+		assertThat(type(TestFiles.compoundFile("PowerPoint Document", null), "a.ppt")).isNull();
+		assertThat(type(TestFiles.compoundFile("__properties_version1.0", null), "a.msg")).isNull();
+	}
+
+	@Test
+	void aBrokenCompoundFileIsNoDocument() throws IOException {
+		// The directory's sector chain runs in a circle.
+		byte[] circle = TestFiles.doc();
+		ByteBuffer.wrap(circle).order(ByteOrder.LITTLE_ENDIAN).putInt(512 + 4, 1);
+		assertThat(type(circle, "a.doc")).isNull();
+		// The directory is in a sector the file does not have.
+		byte[] outside = TestFiles.doc();
+		ByteBuffer.wrap(outside).order(ByteOrder.LITTLE_ENDIAN).putInt(0x30, 40);
+		assertThat(type(outside, "a.doc")).isNull();
+		// A sibling that is the entry itself.
+		byte[] loop = TestFiles.doc();
+		ByteBuffer.wrap(loop).order(ByteOrder.LITTLE_ENDIAN).putInt(2 * 512 + 128 + 0x48, 1);
+		assertThat(type(loop, "a.doc")).isNull();
+		// Only the signature.
+		assertThat(type(Arrays.copyOf(TestFiles.doc(), 8), "a.doc")).isNull();
 	}
 
 	@Test
