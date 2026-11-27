@@ -10,6 +10,7 @@ import {
   bucketLabel,
   describePolicy,
   formatPercent,
+  formatWorkedTime,
   noClassCounts,
   occupancyGrid,
   occupancyStep,
@@ -18,6 +19,14 @@ import {
   sortSummaries,
   summarizeClasses,
 } from '@/features/statistics/statisticsMath';
+
+test('formats elapsed hours without decimal-hour or per-session rounding', () => {
+  expect(formatWorkedTime(7380)).toBe('2 h 3 min');
+  expect(formatWorkedTime(4500)).toBe('1 h 15 min');
+  expect(formatWorkedTime(3599)).toBe('59 min 59 s');
+  expect(formatWorkedTime(3601)).toBe('1 h 1 s');
+  expect(formatWorkedTime(0)).toBe('0 h');
+});
 
 function counts(values: Partial<ClassAttendanceCounts>): ClassAttendanceCounts {
   return { ...noClassCounts, ...values };
