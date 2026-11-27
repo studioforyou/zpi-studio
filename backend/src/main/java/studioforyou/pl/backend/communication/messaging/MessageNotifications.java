@@ -20,7 +20,8 @@ import studioforyou.pl.backend.communication.notification.Notifications;
  * Notifies the other participants of a conversation about new messages ({@code NEW_MESSAGE}),
  * right after each one is saved. A recipient has one notification per conversation for the
  * messages it has not read yet: each new message updates it (how many, from whom, the latest
- * text), moves it to the top, makes it unread and sends it again, replacing the push shown before.
+ * text, or what it has attached when it has no text), moves it to the top, makes it unread and
+ * sends it again, replacing the push shown before.
  * Once the recipient reads the conversation the notification is read too, and the next message
  * starts a new one. Tapping it opens the conversation in the role it concerns.
  */
@@ -60,7 +61,7 @@ class MessageNotifications {
 			String sender = (message.chatTitle() != null) ? message.chatTitle() + " · " + senders : senders;
 			String conversation = (message.chatTitle() != null) ? message.chatTitle() : senders;
 			Map<String, String> values = Map.of(Placeholder.SENDER, sender, Placeholder.CONVERSATION, conversation,
-					Placeholder.COUNT, count(unread.count()), Placeholder.TEXT, preview(unread.latestBody()));
+					Placeholder.COUNT, count(unread.count()), Placeholder.TEXT, text(unread));
 			// The key stays the same until the recipient reads the conversation: one notification for
 			// all the messages it has not read.
 			String dedupKey = NotificationType.NEW_MESSAGE.name() + ":" + message.conversationId() + ":" + account + ":"
@@ -97,6 +98,25 @@ class MessageNotifications {
 		int lastDigit = count % 10;
 		int lastTwo = count % 100;
 		return (lastDigit >= 2 && lastDigit <= 4 && (lastTwo < 12 || lastTwo > 14)) ? few : many;
+	}
+
+	/** What the notification shows of the newest message: its text, or what is attached when it has none. */
+	static String text(UnreadMessages unread) {
+		if (!unread.latestBody().isBlank()) {
+			return preview(unread.latestBody());
+		}
+		return attachments(unread.latestAttachmentCount(), unread.latestImageCount());
+	}
+
+	/** What a message without text has attached, e.g. "Zdjęcie", "3 zdjęcia", "Załącznik", "2 załączniki". */
+	static String attachments(int count, int images) {
+		if (count <= 0) {
+			return "";
+		}
+		if (images == count) {
+			return (count == 1) ? "Zdjęcie" : count + " " + polish(count, "zdjęcie", "zdjęcia", "zdjęć");
+		}
+		return (count == 1) ? "Załącznik" : count + " " + polish(count, "załącznik", "załączniki", "załączników");
 	}
 
 	/** The message on one line, cut at a word to at most {@link #PREVIEW_LENGTH} characters. */

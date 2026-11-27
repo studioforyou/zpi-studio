@@ -49,6 +49,12 @@ resource "google_cloud_scheduler_job" "notifications" {
     }
   }
 
+  # The API does not return a retry count of 0, so the plan would add retry_config every time.
+  # A changed retry_count is ignored as well: to change it, remove it from here first.
+  lifecycle {
+    ignore_changes = [retry_config]
+  }
+
   depends_on = [
     google_project_service.required,
     google_cloud_run_v2_service_iam_member.scheduler_invoker,

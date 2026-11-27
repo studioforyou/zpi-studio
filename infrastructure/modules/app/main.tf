@@ -12,6 +12,7 @@ resource "google_project_service" "required" {
     "identitytoolkit.googleapis.com",
     "fcm.googleapis.com",
     "cloudscheduler.googleapis.com",
+    "storage.googleapis.com",
   ])
 
   project            = var.project_id

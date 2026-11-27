@@ -20,15 +20,10 @@ ON CONFLICT DO NOTHING;
 
 INSERT INTO message (id, conversation_id, sender_id, body, created_at, edited_at, deleted_at) VALUES
     ('41000000-0000-0000-0000-000000000001', '40000000-0000-0000-0000-000000000001', '03000000-0000-0000-0000-000000000005', 'Cześć, czy możemy przesunąć trening na 18:00?',     now() - interval '3 days',  NULL,                      NULL),
-    ('41000000-0000-0000-0000-000000000002', '40000000-0000-0000-0000-000000000001', '03000000-0000-0000-0000-000000000002', 'Jasne. W załączniku plan na ten tydzień.',          now() - interval '2 days',  now() - interval '2 days' + interval '3 minutes', NULL),
+    ('41000000-0000-0000-0000-000000000002', '40000000-0000-0000-0000-000000000001', '03000000-0000-0000-0000-000000000002', 'Jasne, 18:00 mi pasuje.',                           now() - interval '2 days',  now() - interval '2 days' + interval '3 minutes', NULL),
     ('41000000-0000-0000-0000-000000000003', '40000000-0000-0000-0000-000000000001', '03000000-0000-0000-0000-000000000005', 'Dzięki!',                                           now() - interval '1 day',   NULL,                      NULL),
     ('41000000-0000-0000-0000-000000000004', '40000000-0000-0000-0000-000000000002', '03000000-0000-0000-0000-000000000001', 'Przypominam o wygodnym stroju z krótkimi spodenkami.',now() - interval '4 days', NULL,                      NULL),
     ('41000000-0000-0000-0000-000000000005', '40000000-0000-0000-0000-000000000003', '03000000-0000-0000-0000-000000000006', 'Pomyłka',                                           now() - interval '2 days',  NULL,                      now() - interval '2 days')
-ON CONFLICT DO NOTHING;
-
-INSERT INTO message_attachment (message_id, file_id) VALUES
-    ('41000000-0000-0000-0000-000000000002', '02000000-0000-0000-0000-000000000003'),
-    ('41000000-0000-0000-0000-000000000003', '02000000-0000-0000-0000-000000000004')
 ON CONFLICT DO NOTHING;
 
 INSERT INTO announcement (id, author_id, audience, target_account_id, training_group_id, event_id, is_marketing, title, body, created_at, sent_at) VALUES

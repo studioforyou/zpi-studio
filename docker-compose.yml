@@ -47,11 +47,16 @@ services:
       JOBS_LOCAL_SCHEDULER_ENABLED: ${JOBS_LOCAL_SCHEDULER_ENABLED:-true}
       # Firebase Admin SDK key (accepting invitations, push): put the key file at ./secrets/firebase-admin.json
       GOOGLE_APPLICATION_CREDENTIALS: /run/secrets/firebase-admin.json
+      # Message attachments: LOCAL keeps them in the backend_files volume (stage uses a Cloud Storage bucket)
+      FILE_STORAGE_PROVIDER: LOCAL
+      FILE_STORAGE_LOCAL_DIRECTORY: /data/files
     volumes:
       - ./secrets:/run/secrets:ro
+      - backend_files:/data/files
     depends_on:
       postgres:
         condition: service_healthy
 
 volumes:
-  postgres_data:
+  postgres_data:
+  backend_files:

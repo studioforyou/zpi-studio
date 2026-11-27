@@ -16,6 +16,7 @@ infrastructure/
 │       ├── registry.tf      # Artifact Registry (Docker images)
 │       ├── cloud_run.tf     # Backend service on Cloud Run
 │       ├── scheduler.tf     # Cloud Scheduler job for notifications
+│       ├── storage.tf       # Private bucket for message attachments
 │       ├── variables.tf
 │       ├── outputs.tf
 │       └── versions.tf
@@ -40,10 +41,17 @@ Each environment lives in its own directory under `envs/` and has its own state.
 - Cloud Run service `zpi-backend-<env>` connected to the database through the VPC
 - Firebase Cloud Messaging access for the backend (`roles/firebasecloudmessaging.admin`)
 - Service account `zpi-scheduler-<env>` and the Cloud Scheduler job `zpi-notifications-<env>`, which calls `POST /internal/jobs/notifications/run` every 5 minutes with that account's OIDC token
+- Private Cloud Storage bucket `<project_id>-files` for message attachments, writable only by the backend service account (`roles/storage.objectUser` on that bucket)
 
 The backend receives `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME` and `SPRING_DATASOURCE_PASSWORD` (the last one from Secret Manager), and `FIREBASE_PROJECT_ID` set to the GCP project ID, because Firebase Authentication runs in the same project. Flyway migrations run when the application starts.
 
 For e-mail invitations it also gets `MAIL_PROVIDER=BREVO`, `MAIL_FROM` (the `mail_from` variable, a sender verified in Brevo), `BREVO_API_KEY` (from Secret Manager) and `INVITATION_LINK_BASE_URL`.
+
+### Message attachments
+
+Photos and documents attached to messages are kept in the bucket `<project_id>-files` (`terraform output files_bucket`). The backend gets `FILE_STORAGE_PROVIDER=GCS` and `FILE_STORAGE_BUCKET`, and uses its service account's credentials. The bucket has uniform bucket-level access and enforced public access prevention: nothing in it is public and there are no signed URLs. The app downloads a file through the backend (`GET /api/v1/me/conversations/{id}/messages/{messageId}/attachments/{attachmentId}`), which checks that the user may see the message and streams the content. Soft delete is off, so deleting a message removes its files for good.
+
+Cloud Run accepts requests up to 32 MiB, so a message takes at most 30 MB of files (`spring.servlet.multipart.max-request-size`), at most 10 MB each.
 
 ### Notifications
 

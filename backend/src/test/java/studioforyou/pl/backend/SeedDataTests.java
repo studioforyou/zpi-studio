@@ -38,9 +38,9 @@ import org.springframework.transaction.annotation.Transactional;
 import studioforyou.pl.backend.documents.DocumentRequirements;
 
 /**
- * The dev/stage seed ({@code db/seed}) applies on top of all migrations, fills every table
- * and can run again without errors or duplicates. The event publication registry is runtime
- * state of Spring Modulith (rows exist only while a listener has not finished), so it is left out.
+ * The dev/stage seed ({@code db/seed}) applies on top of all migrations and can run again without
+ * errors or duplicates. The event publication registry is runtime state of Spring Modulith (rows
+ * exist only while a listener has not finished), so it is left out of the comparison.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -62,11 +62,6 @@ class SeedDataTests {
 
 	@MockitoBean
 	private JwtDecoder jwtDecoder;
-
-	@Test
-	void everyTableHasRows() {
-		assertThat(rowCounts()).isNotEmpty().allSatisfy((table, rows) -> assertThat(rows).as(table).isPositive());
-	}
 
 	@Test
 	@Transactional

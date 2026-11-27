@@ -4,8 +4,10 @@ import java.text.Collator;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
@@ -23,17 +25,23 @@ import java.util.stream.Collectors;
 import org.jspecify.annotations.Nullable;
 
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.core.io.InputStreamSource;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import studioforyou.pl.backend.booking.Participations;
 import studioforyou.pl.backend.booking.Participations.ActiveReservation;
 import studioforyou.pl.backend.communication.messaging.ConversationAudience.Role;
+import studioforyou.pl.backend.communication.messaging.ConversationStore.AttachmentCursor;
 import studioforyou.pl.backend.communication.messaging.ConversationStore.Conversation;
+import studioforyou.pl.backend.communication.messaging.ConversationStore.ListedAttachment;
 import studioforyou.pl.backend.communication.messaging.ConversationStore.Message;
 import studioforyou.pl.backend.communication.messaging.ConversationStore.Participant;
 import studioforyou.pl.backend.communication.messaging.ConversationStore.Summary;
+import studioforyou.pl.backend.communication.messaging.MessagingDtos.AttachmentPage;
+import studioforyou.pl.backend.communication.messaging.MessagingDtos.AttachmentResponse;
 import studioforyou.pl.backend.communication.messaging.MessagingDtos.ClientResponse;
+import studioforyou.pl.backend.communication.messaging.MessagingDtos.ConversationAttachmentResponse;
 import studioforyou.pl.backend.communication.messaging.MessagingDtos.ConversationResponse;
 import studioforyou.pl.backend.communication.messaging.MessagingDtos.ConversationSummaryResponse;
 import studioforyou.pl.backend.communication.messaging.MessagingDtos.CreateGroupChatRequest;
@@ -54,6 +62,12 @@ import studioforyou.pl.backend.customer.CustomerProfiles;
 import studioforyou.pl.backend.customer.CustomerProfiles.ProfileDetails;
 import studioforyou.pl.backend.customer.StaffAssignments;
 import studioforyou.pl.backend.customer.TrainerAccounts;
+import studioforyou.pl.backend.files.FileType;
+import studioforyou.pl.backend.files.StoredFiles;
+import studioforyou.pl.backend.files.StoredFiles.Content;
+import studioforyou.pl.backend.files.StoredFiles.StoredFile;
+import studioforyou.pl.backend.files.StoredFiles.Thumbnail;
+import studioforyou.pl.backend.files.StoredFiles.Upload;
 import studioforyou.pl.backend.identity.AccountRoles;
 import studioforyou.pl.backend.scheduling.ScheduledEvents;
 import studioforyou.pl.backend.scheduling.ScheduledEvents.EventSummary;
@@ -80,6 +94,12 @@ class MessagingService {
 	static final Duration CLIENT_CLASS_WINDOW = Duration.ofDays(30);
 
 	private static final int MAX_PAGE_SIZE = 100;
+
+	/** What can be attached to a message: photos and documents. */
+	static final Set<FileType> ATTACHMENT_TYPES = EnumSet.allOf(FileType.class);
+
+	/** The module attachments are stored for. */
+	private static final String FILE_OWNER = "communication";
 
 	private static final Comparator<Person> BY_NAME;
 
@@ -114,11 +134,13 @@ class MessagingService {
 
 	private final ApplicationEventPublisher publisher;
 
+	private final StoredFiles files;
+
 	MessagingService(ConversationStore store, ConversationAudience audience, ScheduledEvents events,
 			TrainingGroups groups, Participations participations, CustomerProfiles customers,
 			StaffAssignments assignments, StaffProfiles staff, TrainerAccounts trainerAccounts,
 			StudioSettings settings, AccountRoles accountRoles, ApplicationEventPublisher publisher,
-			Notifications notifications) {
+			Notifications notifications, StoredFiles files) {
 		this.store = store;
 		this.audience = audience;
 		this.events = events;
@@ -132,6 +154,7 @@ class MessagingService {
 		this.accountRoles = accountRoles;
 		this.notifications = notifications;
 		this.publisher = publisher;
+		this.files = files;
 	}
 
 	List<ConversationSummaryResponse> list(UUID accountId) {
@@ -152,16 +175,22 @@ class MessagingService {
 			.filter((summary) -> summary.kind() == ConversationKind.EVENT)
 			.map(Summary::eventId)
 			.toList()).stream().collect(Collectors.toMap(EventSummary::id, Function.identity()));
+		Map<UUID, List<StoredFile>> lastAttachments = attachments(summaries.stream()
+			.filter((summary) -> summary.lastMessageId() != null && !Boolean.TRUE.equals(summary.lastDeleted()))
+			.map(Summary::lastMessageId)
+			.toList());
 		Instant now = audience.now();
 		return summaries.stream().map((summary) -> {
 			Conversation chat = summary.conversation();
 			Person counterpart = (chat.kind() == ConversationKind.DIRECT) ? person(counterparts.get(chat.id()), names) : null;
 			EventSummary event = (chat.eventId() != null) ? classes.get(chat.eventId()) : null;
+			List<StoredFile> attached = lastAttachments.getOrDefault(summary.lastMessageId(), List.of());
 			MessagePreview last = (summary.lastMessageId() == null) ? null
 					: new MessagePreview(summary.lastMessageId(),
 							accountId.equals(summary.lastSenderId()) ? null : name(summary.lastSenderId(), names),
 							accountId.equals(summary.lastSenderId()), summary.lastBody(),
-							Boolean.TRUE.equals(summary.lastDeleted()), summary.lastCreatedAt().toInstant());
+							Boolean.TRUE.equals(summary.lastDeleted()), summary.lastCreatedAt().toInstant(),
+							attached.size(), imageCount(attached));
 			return new ConversationSummaryResponse(chat.id(), chat.kind(),
 					title(chat, counterpart,
 							(chat.trainingGroupId() != null) ? groupNames.get(chat.trainingGroupId()) : null, event),
@@ -197,25 +226,115 @@ class MessagingService {
 			page = (after != null) ? page.subList(0, size) : page.subList(1, page.size());
 		}
 		Map<UUID, String> names = names(page.stream().map(Message::senderId).collect(Collectors.toSet()));
+		Map<UUID, List<StoredFile>> attachments = attachments(
+				page.stream().filter((message) -> message.deletedAt() == null).map(Message::id).toList());
 		List<UUID> deleted = (deletedSince != null)
 				? store.findDeletedSince(conversationId, deletedSince, access.visibleUntil()) : List.of();
-		return new MessagePage(page.stream().map((message) -> message(message, access, accountId, names)).toList(),
-				hasMore, deleted, store.deletionCursor());
+		return new MessagePage(page.stream()
+			.map((message) -> message(message, access, accountId, names,
+					attachments.getOrDefault(message.id(), List.of())))
+			.toList(), hasMore, deleted, store.deletionCursor());
 	}
 
-	MessageResponse send(UUID conversationId, UUID accountId, String body) {
+	/**
+	 * Sends a message with text, attachments or both. Each attachment is checked (size, type
+	 * recognized from its content) and stored before the message is saved; if anything fails,
+	 * nothing is sent and the stored files are removed.
+	 *
+	 * @param body the text; blank when the message has attachments only
+	 */
+	MessageResponse send(UUID conversationId, UUID accountId, @Nullable String body,
+			List<NewAttachment> attachments) {
 		Access access = open(conversationId, accountId);
 		if (!access.canWrite()) {
 			throw new ApiException(ErrorCode.CONVERSATION_READ_ONLY, "You cannot write in this conversation.");
 		}
-		String text = UserText.trim(body);
-		if (text == null || text.isEmpty()) {
+		String text = (body != null) ? UserText.trimToNull(body) : null;
+		if (text != null && text.length() > MessagingDtos.MAX_MESSAGE_LENGTH) {
+			throw ApiException.invalidField("body", FieldErrorCode.TOO_LONG,
+					"A message can have at most " + MessagingDtos.MAX_MESSAGE_LENGTH + " characters.");
+		}
+		if (attachments.size() > MessagingDtos.MAX_ATTACHMENTS) {
+			throw ApiException.invalidField("files", FieldErrorCode.TOO_LONG,
+					"A message can have at most " + MessagingDtos.MAX_ATTACHMENTS + " attachments.");
+		}
+		if (text == null && attachments.isEmpty()) {
 			throw ApiException.invalidField("body", FieldErrorCode.REQUIRED, "The message is empty.");
 		}
+		List<StoredFile> saved = new ArrayList<>();
+		for (NewAttachment attachment : attachments) {
+			saved.add(files.save(new Upload(FILE_OWNER, "chat/" + conversationId, accountId, attachment.name(),
+					attachment.size(), attachment.content()), ATTACHMENT_TYPES, MessagingDtos.MAX_ATTACHMENT_SIZE));
+		}
 		Message message = store.insertMessage(conversationId, accountId, text);
+		for (int i = 0; i < saved.size(); i++) {
+			store.insertAttachment(message.id(), saved.get(i).id(), i, saved.get(i).isImage());
+		}
 		read(conversationId, accountId);
 		publisher.publishEvent(new MessageSent(conversationId, message.id(), accountId));
-		return message(message, access, accountId, names(List.of(accountId)));
+		return message(message, access, accountId, names(List.of(accountId)), saved);
+	}
+
+	/**
+	 * The content of a file attached to a message the account can see: not deleted, and from
+	 * before it left the group or class.
+	 */
+	Content attachment(UUID conversationId, UUID messageId, UUID fileId, UUID accountId) {
+		requireVisibleAttachment(conversationId, messageId, fileId, accountId);
+		return files.open(fileId);
+	}
+
+	/** The thumbnail of a photo attached to a message the account can see, as for {@link #attachment}. */
+	Thumbnail thumbnail(UUID conversationId, UUID messageId, UUID fileId, UUID accountId) {
+		requireVisibleAttachment(conversationId, messageId, fileId, accountId);
+		return files.openThumbnail(fileId)
+			.orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "The attachment has no thumbnail."));
+	}
+
+	private void requireVisibleAttachment(UUID conversationId, UUID messageId, UUID fileId, UUID accountId) {
+		Access access = open(conversationId, accountId);
+		Message message = store.findMessage(conversationId, messageId).orElseThrow(MessagingService::attachmentNotFound);
+		boolean hidden = access.visibleUntil() != null
+				&& message.createdAt().toInstant().isAfter(access.visibleUntil());
+		if (message.deletedAt() != null || hidden
+				|| !store.findAttachments(List.of(messageId)).getOrDefault(messageId, List.of()).contains(fileId)) {
+			throw attachmentNotFound();
+		}
+	}
+
+	/**
+	 * The photos or the other files of the messages the account can see, oldest first: the latest
+	 * page, the page before an attachment of the conversation (older ones) or the page after one
+	 * (newer ones). Deleted messages are left out, and so are the ones from after the account left
+	 * the group or class.
+	 */
+	AttachmentPage attachments(UUID conversationId, UUID accountId, AttachmentKind kind, @Nullable UUID before,
+			@Nullable UUID after, int limit) {
+		if (before != null && after != null) {
+			throw ApiException.invalidField("after", FieldErrorCode.INVALID_VALUE, "Use either before or after.");
+		}
+		Access access = open(conversationId, accountId);
+		int size = Math.clamp(limit, 1, MAX_PAGE_SIZE);
+		AttachmentCursor beforeCursor = (before != null) ? requireAttachmentCursor(conversationId, before) : null;
+		AttachmentCursor afterCursor = (after != null) ? requireAttachmentCursor(conversationId, after) : null;
+		List<ListedAttachment> page = store.listAttachments(conversationId, kind == AttachmentKind.PHOTO,
+				access.visibleUntil(), beforeCursor, afterCursor, size + 1);
+		boolean hasMore = page.size() > size;
+		if (hasMore) {
+			page = (after != null) ? page.subList(0, size) : page.subList(1, page.size());
+		}
+		Map<UUID, StoredFile> stored = files.findAll(page.stream().map(ListedAttachment::fileId).toList());
+		Map<UUID, String> names = names(page.stream().map(ListedAttachment::senderId).collect(Collectors.toSet()));
+		return new AttachmentPage(page.stream()
+			.filter((attachment) -> stored.containsKey(attachment.fileId()))
+			.map((attachment) -> new ConversationAttachmentResponse(attachment.messageId(), attachment.senderId(),
+					name(attachment.senderId(), names), attachment.senderId().equals(accountId),
+					attachment.createdAt().toInstant(), attachmentResponse(stored.get(attachment.fileId()))))
+			.toList(), hasMore);
+	}
+
+	private AttachmentCursor requireAttachmentCursor(UUID conversationId, UUID fileId) {
+		return store.findAttachmentCursor(conversationId, fileId).orElseThrow(MessagingService::attachmentNotFound);
 	}
 
 	/**
@@ -261,6 +380,8 @@ class MessagingService {
 			}
 		});
 		Map<UUID, String> names = names(senders);
+		Map<UUID, List<StoredFile>> latestAttachments = attachments(
+				unread.values().stream().map((messages) -> messages.get(messages.size() - 1).id()).distinct().toList());
 		Map<UUID, UnreadMessages> result = new HashMap<>();
 		unread.forEach((account, messages) -> {
 			// Who wrote them, the latest writer first.
@@ -269,9 +390,10 @@ class MessagingService {
 				writers.add(name(messages.get(i).senderId(), names));
 			}
 			Message latest = messages.get(messages.size() - 1);
+			List<StoredFile> attached = latestAttachments.getOrDefault(latest.id(), List.of());
 			result.put(account, new UnreadMessages(recipients.get(account), messages.get(0).id(), latest.id(),
 					latest.createdAt().toInstant(), messages.size(), List.copyOf(writers),
-					Objects.requireNonNullElse(latest.body(), "")));
+					Objects.requireNonNullElse(latest.body(), ""), attached.size(), imageCount(attached)));
 		});
 		return Optional.of(new NewMessage(chat.id(), chat.kind() == ConversationKind.DIRECT ? null : chatTitle,
 				result));
@@ -301,6 +423,8 @@ class MessagingService {
 			throw new ApiException(ErrorCode.ACCESS_DENIED, "You cannot delete this message.");
 		}
 		store.deleteMessage(messageId);
+		// Deleting a message deletes its files too.
+		files.delete(store.findAttachments(List.of(messageId)).getOrDefault(messageId, List.of()));
 	}
 
 	void markRead(UUID conversationId, UUID accountId) {
@@ -586,10 +710,36 @@ class MessagingService {
 				access.canHide(), access.visibleUntil(), leaders, members);
 	}
 
-	private MessageResponse message(Message message, Access access, UUID accountId, Map<UUID, String> names) {
+	private MessageResponse message(Message message, Access access, UUID accountId, Map<UUID, String> names,
+			List<StoredFile> attachments) {
+		List<AttachmentResponse> attached = (message.deletedAt() != null) ? List.of()
+				: attachments.stream().map(MessagingService::attachmentResponse).toList();
 		return new MessageResponse(message.id(), message.senderId(), name(message.senderId(), names),
 				message.senderId().equals(accountId), message.body(), message.deletedAt() != null,
-				message.createdAt().toInstant(), canDelete(message, access, accountId));
+				message.createdAt().toInstant(), canDelete(message, access, accountId), attached);
+	}
+
+	private static AttachmentResponse attachmentResponse(StoredFile file) {
+		return new AttachmentResponse(file.id(), file.name(), file.mimeType(), file.sizeBytes(), file.isImage(),
+				file.imageWidth(), file.imageHeight(), file.hasThumbnail());
+	}
+
+	/** The files attached to each of the given messages, in their order; deleted files are left out. */
+	private Map<UUID, List<StoredFile>> attachments(Collection<UUID> messageIds) {
+		Map<UUID, List<UUID>> attached = store.findAttachments(messageIds);
+		Map<UUID, StoredFile> stored = files.findAll(attached.values().stream().flatMap(List::stream).toList());
+		Map<UUID, List<StoredFile>> result = new HashMap<>();
+		attached.forEach((messageId, fileIds) -> {
+			List<StoredFile> found = fileIds.stream().map(stored::get).filter(Objects::nonNull).toList();
+			if (!found.isEmpty()) {
+				result.put(messageId, found);
+			}
+		});
+		return result;
+	}
+
+	private static int imageCount(List<StoredFile> files) {
+		return (int) files.stream().filter(StoredFile::isImage).count();
 	}
 
 	private static boolean canDelete(Message message, Access access, UUID accountId) {
@@ -657,14 +807,10 @@ class MessagingService {
 		return new ApiException(ErrorCode.NOT_FOUND, "Message not found.");
 	}
 
-	/**
-	 * A sent message to notify about.
-	 *
-	 * @param chatTitle the name of a group or class chat; {@code null} for a 1:1 conversation
-	 * @param senderName who wrote it
-	 * @param body the message text
-	 * @param recipients the accounts to notify and the role it concerns for each
-	 */
+	private static ApiException attachmentNotFound() {
+		return new ApiException(ErrorCode.NOT_FOUND, "Attachment not found.");
+	}
+
 	/**
 	 * What a notification about new messages shows to each recipient (by account).
 	 *
@@ -682,10 +828,22 @@ class MessagingService {
 	 * @param latestAt when the newest one was written
 	 * @param count how many there are
 	 * @param senders who wrote them, the latest writer first
-	 * @param latestBody the text of the newest one
+	 * @param latestBody the text of the newest one; empty when it has attachments only
+	 * @param latestAttachmentCount how many files are attached to the newest one
+	 * @param latestImageCount how many of them are photos
 	 */
 	record UnreadMessages(NotificationRole role, UUID firstId, UUID latestId, Instant latestAt, int count,
-			List<String> senders, String latestBody) {
+			List<String> senders, String latestBody, int latestAttachmentCount, int latestImageCount) {
+	}
+
+	/**
+	 * A file sent with a message.
+	 *
+	 * @param name the name the client gave it, if any
+	 * @param size its size in bytes
+	 * @param content its content, which can be read more than once
+	 */
+	record NewAttachment(@Nullable String name, long size, InputStreamSource content) {
 	}
 
 	/** A conversation that was opened, and whether it was created by this request. */

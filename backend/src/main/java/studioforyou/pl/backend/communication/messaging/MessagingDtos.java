@@ -19,6 +19,12 @@ final class MessagingDtos {
 	/** Longest title of a group or class chat, as in {@code conversation.title}. */
 	static final int MAX_TITLE_LENGTH = 120;
 
+	/** Most attachments in one message. */
+	static final int MAX_ATTACHMENTS = 5;
+
+	/** Largest attachment, in bytes (10 MB); the whole request is limited by spring.servlet.multipart. */
+	static final long MAX_ATTACHMENT_SIZE = 10L * 1024 * 1024;
+
 	private MessagingDtos() {
 	}
 
@@ -67,21 +73,68 @@ final class MessagingDtos {
 
 	/**
 	 * @param senderName the author's name; {@code null} for the user's own message
-	 * @param body the text; {@code null} for a deleted message
+	 * @param body the text; {@code null} for a deleted message or one with attachments only
+	 * @param attachmentCount how many files are attached; 0 for a deleted message
+	 * @param imageCount how many of them are photos
 	 */
 	@Schema(name = "MessagePreview")
 	record MessagePreview(UUID id, @Nullable String senderName, boolean isMine, @Nullable String body,
-			boolean isDeleted, Instant createdAt) {
+			boolean isDeleted, Instant createdAt, int attachmentCount, int imageCount) {
 	}
 
 	/**
-	 * @param body the text; {@code null} for a deleted message, which keeps its place
+	 * @param body the text; {@code null} for a deleted message, which keeps its place, or one with
+	 * attachments only
 	 * @param canDelete whether the signed-in user may delete it: their own message, or anyone's for
 	 * the staff running the group or class
+	 * @param attachments the attached files in the order they were sent; empty for a deleted message
 	 */
 	@Schema(name = "Message")
 	record MessageResponse(UUID id, UUID senderAccountId, @Schema(example = "Ola Lewandowska") String senderName,
-			boolean isMine, @Nullable String body, boolean isDeleted, Instant createdAt, boolean canDelete) {
+			boolean isMine, @Nullable String body, boolean isDeleted, Instant createdAt, boolean canDelete,
+			List<AttachmentResponse> attachments) {
+	}
+
+	/**
+	 * A file attached to a message; its content is at
+	 * {@code GET .../messages/{messageId}/attachments/{id}}.
+	 *
+	 * @param fileName the name to show and save it with, ending with the extension of its type
+	 * @param contentType its media type, recognized from the content
+	 * @param isImage whether it is a photo (JPEG, PNG or HEIC), shown in the conversation
+	 * @param width the width of a photo as displayed, in pixels; {@code null} for other files or when unknown
+	 * @param height the height of a photo as displayed, in pixels; {@code null} for other files or when unknown
+	 * @param hasThumbnail whether a photo has a thumbnail, at {@code .../attachments/{id}/thumbnail}: a
+	 * JPEG of at most 1024 px on its longer side, to show instead of the whole photo
+	 */
+	@Schema(name = "MessageAttachment")
+	record AttachmentResponse(UUID id, @Schema(example = "plan-treningowy.pdf") String fileName,
+			@Schema(example = "application/pdf") String contentType, long sizeBytes, boolean isImage,
+			@Nullable Integer width, @Nullable Integer height, boolean hasThumbnail) {
+	}
+
+	/**
+	 * A file attached to a message of the conversation, with the message it came with.
+	 *
+	 * @param messageId the message; the content is at {@code GET .../messages/{messageId}/attachments/{id}}
+	 * @param senderName the name of who sent it
+	 * @param isMine whether the signed-in user sent it
+	 * @param sentAt when the message was sent
+	 */
+	@Schema(name = "ConversationAttachment")
+	record ConversationAttachmentResponse(UUID messageId, UUID senderAccountId,
+			@Schema(example = "Ola Lewandowska") String senderName, boolean isMine, Instant sentAt,
+			AttachmentResponse attachment) {
+	}
+
+	/**
+	 * Photos or other files of a conversation, oldest first, in the order they were sent.
+	 *
+	 * @param hasMore whether there are older ones than the first one ({@code before} or the latest
+	 * page) or newer ones than the last one ({@code after})
+	 */
+	@Schema(name = "ConversationAttachmentPage")
+	record AttachmentPage(List<ConversationAttachmentResponse> items, boolean hasMore) {
 	}
 
 	/**
