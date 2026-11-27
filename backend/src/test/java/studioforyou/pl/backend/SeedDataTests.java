@@ -110,6 +110,30 @@ class SeedDataTests {
 
 	@Test
 	@Transactional
+	void trainerHoursExamplesKeepEditedTimeAndAssignmentsOnRerun() {
+		UUID event = UUID.fromString("19000000-0000-0000-0000-000000033001");
+		assertThat(jdbc.sql("""
+				SELECT count(*) FROM schedule_event e JOIN event_resource er ON er.event_id=e.id
+				WHERE e.id BETWEEN '19000000-0000-0000-0000-000000033001' AND '19000000-0000-0000-0000-000000033008'
+				  AND e.service_type_id IS NOT NULL AND NOT EXISTS (
+				    SELECT 1 FROM service_type_resource allowed
+				    WHERE allowed.service_type_id=e.service_type_id AND allowed.resource_id=er.resource_id)
+				""").query(Integer.class).single()).isZero();
+		jdbc.sql("UPDATE schedule_event SET title='Zmieniony przykład',ends_at=starts_at+interval '45 minutes' WHERE id=:id")
+			.param("id",event).update();
+		jdbc.sql("DELETE FROM event_staff WHERE event_id=:id AND role='ASSISTANT'").param("id",event).update();
+		var counts = rowCounts();
+		new ResourceDatabasePopulator(new ClassPathResource("db/seed/R__seed_33_trainer_hours.sql")).execute(dataSource);
+		assertThat(rowCounts()).isEqualTo(counts);
+		assertThat(jdbc.sql("SELECT title FROM schedule_event WHERE id=:id").param("id",event).query(String.class).single())
+			.isEqualTo("Zmieniony przykład");
+		assertThat(jdbc.sql("SELECT extract(epoch FROM ends_at-starts_at)::int FROM schedule_event WHERE id=:id")
+			.param("id",event).query(Integer.class).single()).isEqualTo(2700);
+		assertThat(jdbc.sql("SELECT count(*) FROM event_staff WHERE event_id=:id").param("id",event).query(Integer.class).single()).isEqualTo(1);
+	}
+
+	@Test
+	@Transactional
 	void eventHistoryExamplesDoNotResetLaterEditsOrDuplicateHistoryOnRerun() {
 		UUID event = UUID.fromString("19000000-0000-0000-0000-000000024001");
 		assertThat(jdbc.sql("SELECT count(*) FROM audit_log WHERE entity_type='schedule_event' AND entity_id=:event")
