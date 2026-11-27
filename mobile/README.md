@@ -179,7 +179,12 @@ optional. The picker keeps the photo's EXIF, location included; the backend
 removes the location before it stores the photo. See `lib/features/communication/data/attachment_picker.dart`.
 
 Received files are downloaded once into the app's cache, kept by attachment
-id (`attachment_files.dart`). Photos are shown in the conversation and open
+id (`attachment_files.dart`). The cache keeps at most 300 MB: when a download
+takes it over, the files used longest ago are removed down to 250 MB. A photo
+with a thumbnail (`hasThumbnail`, a JPEG of at most 1024 px made by the
+backend) is shown by it in the conversation and the photos of a conversation;
+the whole photo is downloaded only full screen, where the thumbnail shows
+until it is there. Photos are shown in the conversation and open
 full screen (`PhotoViewerScreen`): swipe through all the photos of the
 conversation, older ones to the left (the ones loaded in the conversation
 first, then older ones from `GET .../attachments?kind=PHOTO` as the user gets

@@ -137,7 +137,8 @@ class _PhotoGrid extends StatelessWidget {
   }
 }
 
-/// A photo of a message, downloaded into the cache when it is first shown.
+/// A photo of a message, downloaded into the cache when it is first shown:
+/// its thumbnail when it has one, otherwise the whole photo.
 class PhotoThumbnail extends ConsumerStatefulWidget {
   const PhotoThumbnail({
     super.key,
@@ -161,7 +162,7 @@ class _PhotoThumbnailState extends ConsumerState<PhotoThumbnail> {
 
   Future<File> _load() => ref
       .read(attachmentFilesProvider)
-      .file(widget.conversationId, widget.messageId, widget.photo);
+      .preview(widget.conversationId, widget.messageId, widget.photo);
 
   @override
   void didUpdateWidget(PhotoThumbnail oldWidget) {
@@ -903,13 +904,34 @@ class _ZoomablePhotoState extends ConsumerState<_ZoomablePhoto>
 
   late Future<File> _file = _load();
 
+  /// The thumbnail already in the cache, shown until the whole photo is.
+  File? _preview;
+
   Future<File> _load() => ref
       .read(attachmentFilesProvider)
       .file(widget.conversationId, widget.messageId, widget.photo);
 
+  void _loadPreview() {
+    final photo = widget.photo;
+    ref
+        .read(attachmentFilesProvider)
+        .cachedPreview(photo)
+        .then(
+          (file) {
+            if (mounted && file != null && widget.photo.id == photo.id) {
+              setState(() => _preview = file);
+            }
+          },
+          onError: (_) {
+            // Then the photo shows when it is downloaded.
+          },
+        );
+  }
+
   @override
   void initState() {
     super.initState();
+    _loadPreview();
     _transform.addListener(() {
       widget.onZoomed(_transform.value.getMaxScaleOnAxis() > 1.01);
     });
@@ -920,6 +942,8 @@ class _ZoomablePhotoState extends ConsumerState<_ZoomablePhoto>
     super.didUpdateWidget(oldWidget);
     if (oldWidget.photo.id != widget.photo.id) {
       _file = _load();
+      _preview = null;
+      _loadPreview();
       _transform.value = Matrix4.identity();
     }
   }
@@ -957,6 +981,10 @@ class _ZoomablePhotoState extends ConsumerState<_ZoomablePhoto>
 
   @override
   Widget build(BuildContext context) {
+    final preview = _preview;
+    final previewImage = preview == null
+        ? null
+        : SizedBox.expand(child: Image.file(preview, fit: BoxFit.contain));
     return FutureBuilder<File>(
       future: _file,
       builder: (context, snapshot) {
@@ -971,8 +999,14 @@ class _ZoomablePhotoState extends ConsumerState<_ZoomablePhoto>
           );
         }
         if (file == null) {
-          return const Center(
-            child: CircularProgressIndicator(color: Colors.white),
+          return Stack(
+            fit: StackFit.expand,
+            children: [
+              ?previewImage,
+              const Center(
+                child: CircularProgressIndicator(color: Colors.white),
+              ),
+            ],
           );
         }
         return GestureDetector(
@@ -987,6 +1021,11 @@ class _ZoomablePhotoState extends ConsumerState<_ZoomablePhoto>
               child: Image.file(
                 file,
                 fit: BoxFit.contain,
+                // The thumbnail stays until the whole photo is decoded.
+                frameBuilder: (_, child, frame, synchronous) =>
+                    frame == null && !synchronous && previewImage != null
+                    ? previewImage
+                    : child,
                 errorBuilder: (_, _, _) => const Center(
                   child: Icon(
                     Icons.broken_image_outlined,

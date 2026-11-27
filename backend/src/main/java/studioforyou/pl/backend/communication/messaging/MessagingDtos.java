@@ -104,11 +104,13 @@ final class MessagingDtos {
 	 * @param isImage whether it is a photo (JPEG, PNG or HEIC), shown in the conversation
 	 * @param width the width of a photo as displayed, in pixels; {@code null} for other files or when unknown
 	 * @param height the height of a photo as displayed, in pixels; {@code null} for other files or when unknown
+	 * @param hasThumbnail whether a photo has a thumbnail, at {@code .../attachments/{id}/thumbnail}: a
+	 * JPEG of at most 1024 px on its longer side, to show instead of the whole photo
 	 */
 	@Schema(name = "MessageAttachment")
 	record AttachmentResponse(UUID id, @Schema(example = "plan-treningowy.pdf") String fileName,
 			@Schema(example = "application/pdf") String contentType, long sizeBytes, boolean isImage,
-			@Nullable Integer width, @Nullable Integer height) {
+			@Nullable Integer width, @Nullable Integer height, boolean hasThumbnail) {
 	}
 
 	/**

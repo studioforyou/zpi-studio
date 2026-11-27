@@ -150,6 +150,18 @@ final class FileInspector {
 		}
 	}
 
+	/**
+	 * The size of a JPEG or PNG image as its pixels are stored, and the EXIF orientation of a JPEG
+	 * (1 when it has none, and for a PNG).
+	 */
+	static @Nullable ImageHeader imageHeader(byte[] content, FileType type) {
+		if (type == FileType.PNG) {
+			int[] size = pngSize(content);
+			return (size != null) ? new ImageHeader(size[0], size[1], 1) : null;
+		}
+		return (type == FileType.JPEG) ? jpegHeader(content) : null;
+	}
+
 	/** Width and height from the PNG's IHDR chunk. */
 	private static int @Nullable [] pngSize(byte[] head) {
 		if (head.length < 24 || head[12] != 'I' || head[13] != 'H' || head[14] != 'D' || head[15] != 'R') {
@@ -163,6 +175,16 @@ final class FileInspector {
 	 * image, so they are the size it is displayed with.
 	 */
 	static int @Nullable [] jpegSize(byte[] head) {
+		ImageHeader header = jpegHeader(head);
+		if (header == null) {
+			return null;
+		}
+		return TURNED_ORIENTATIONS.contains(header.orientation()) ? positive(header.height(), header.width())
+				: positive(header.width(), header.height());
+	}
+
+	/** Width and height from the JPEG's frame header, and the EXIF orientation before it. */
+	private static @Nullable ImageHeader jpegHeader(byte[] head) {
 		int i = 2;
 		Integer orientation = null;
 		while (i + 4 <= head.length) {
@@ -195,8 +217,10 @@ final class FileInspector {
 				}
 				int height = u16(head, data + 1, false);
 				int width = u16(head, data + 3, false);
-				return (orientation != null && TURNED_ORIENTATIONS.contains(orientation)) ? positive(height, width)
-						: positive(width, height);
+				if (width == 0 || height == 0) {
+					return null;
+				}
+				return new ImageHeader(width, height, (orientation != null) ? orientation : 1);
 			}
 			i = data + length - 2;
 		}
@@ -281,6 +305,14 @@ final class FileInspector {
 	 * @param height the displayed height of a JPEG or PNG image, if known
 	 */
 	record Inspection(@Nullable FileType type, String sha256, @Nullable Integer width, @Nullable Integer height) {
+	}
+
+	/**
+	 * An image's pixels as stored.
+	 *
+	 * @param orientation the EXIF orientation, 1 to 8; 1 keeps the image as stored
+	 */
+	record ImageHeader(int width, int height, int orientation) {
 	}
 
 }

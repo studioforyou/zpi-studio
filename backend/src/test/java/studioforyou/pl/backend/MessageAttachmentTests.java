@@ -16,6 +16,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -31,6 +33,8 @@ import java.util.List;
 import java.util.UUID;
 import java.util.function.BooleanSupplier;
 import java.util.stream.Stream;
+
+import javax.imageio.ImageIO;
 
 import com.jayway.jsonpath.JsonPath;
 import org.junit.jupiter.api.AfterEach;
@@ -409,6 +413,54 @@ class MessageAttachmentTests {
 		perform(TRAINER, get(attachments(id, "PHOTO", "&before=" + a + "&after=" + b)))
 			.andExpect(status().isBadRequest());
 		perform(TRAINER, get(attachments(id, "VIDEO", ""))).andExpect(status().isBadRequest());
+	}
+
+	@Test
+	void aPhotoHasAThumbnailToShowInsteadOfTheWholePhoto() throws Exception {
+		String id = direct();
+		// Taken with the phone turned: stored as 2400 x 1800, shown as 1800 x 2400.
+		byte[] photo = TestFiles.photo(2400, 1800, 6);
+
+		byte[] icon = TestFiles.pngPhoto(64, 64);
+
+		String message = idOf(send(CLIENT, id, null, file("IMG_0100.jpg", photo), file("ikona.png", icon))
+			.andExpect(status().isCreated())
+			.andExpect(jsonPath("$.attachments[0].width").value(1800))
+			.andExpect(jsonPath("$.attachments[0].hasThumbnail").value(true))
+			// Its thumbnail would not be much smaller.
+			.andExpect(jsonPath("$.attachments[1].hasThumbnail").value(false)));
+		String messages = perform(TRAINER, get(CONVERSATIONS + "/" + id + "/messages"))
+			.andExpect(jsonPath("$.items[0].attachments[*].hasThumbnail").value(contains(true, false)))
+			.andReturn()
+			.getResponse()
+			.getContentAsString();
+		String photoId = JsonPath.read(messages, "$.items[0].attachments[0].id");
+		String iconId = JsonPath.read(messages, "$.items[0].attachments[1].id");
+		perform(TRAINER, get(attachments(id, "PHOTO", "")))
+			.andExpect(jsonPath("$.items[0].attachment.hasThumbnail").value(true));
+
+		byte[] thumbnail = perform(TRAINER, get(attachment(id, message, photoId) + "/thumbnail"))
+			.andExpect(status().isOk())
+			.andExpect(content().contentType("image/jpeg"))
+			.andExpect(header().string("Cache-Control", "max-age=604800, private"))
+			.andReturn()
+			.getResponse()
+			.getContentAsByteArray();
+		// Upright and at most 1024 px on its longer side.
+		BufferedImage image = ImageIO.read(new ByteArrayInputStream(thumbnail));
+		assertThat(image.getWidth()).isEqualTo(768);
+		assertThat(image.getHeight()).isEqualTo(1024);
+		assertThat(thumbnail.length).isLessThan(photo.length / 2);
+		// The whole photo is still there for the full screen.
+		perform(TRAINER, get(attachment(id, message, photoId))).andExpect(content().bytes(photo));
+		perform(OUTSIDER, get(attachment(id, message, photoId) + "/thumbnail")).andExpect(status().isNotFound());
+		perform(TRAINER, get(attachment(id, message, iconId) + "/thumbnail")).andExpect(status().isNotFound());
+		assertThat(storedFiles(id)).hasSize(3);
+
+		// Deleting the message deletes the thumbnail with the photo.
+		perform(CLIENT, delete(CONVERSATIONS + "/" + id + "/messages/" + message)).andExpect(status().isNoContent());
+		await(() -> storedFiles(id).isEmpty());
+		assertThat(storedFiles(id)).isEmpty();
 	}
 
 	@Test

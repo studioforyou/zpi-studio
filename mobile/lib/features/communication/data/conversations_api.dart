@@ -209,6 +209,7 @@ class ChatAttachment {
     required this.isImage,
     this.width,
     this.height,
+    this.hasThumbnail = false,
   });
 
   factory ChatAttachment.fromJson(Map<String, dynamic> json) => ChatAttachment(
@@ -219,6 +220,7 @@ class ChatAttachment {
     isImage: json['isImage'] as bool,
     width: (json['width'] as num?)?.toInt(),
     height: (json['height'] as num?)?.toInt(),
+    hasThumbnail: json['hasThumbnail'] as bool? ?? false,
   );
 
   final String id;
@@ -237,6 +239,10 @@ class ChatAttachment {
   /// The size a photo is displayed with, when the backend knows it.
   final int? width;
   final int? height;
+
+  /// Whether a photo has a thumbnail, a JPEG of at most 1024 px on its longer
+  /// side, to show instead of the whole photo.
+  final bool hasThumbnail;
 }
 
 class ChatMessage {
@@ -656,18 +662,19 @@ class ConversationsApi {
     return ChatMessage.fromJson(response.data!);
   });
 
-  /// Downloads a file attached to a message to [savePath], reporting the
-  /// share received so far to [onProgress].
+  /// Downloads a file attached to a message, or the [thumbnail] of a photo,
+  /// to [savePath], reporting the share received so far to [onProgress].
   Future<void> downloadAttachment(
     String conversationId,
     String messageId,
     String attachmentId,
     String savePath, {
+    bool thumbnail = false,
     void Function(double progress)? onProgress,
   }) => _call(() async {
     await _dio.download(
       '$conversationsPath/$conversationId/messages/$messageId/attachments/'
-      '$attachmentId',
+      '$attachmentId${thumbnail ? '/thumbnail' : ''}',
       savePath,
       options: Options(receiveTimeout: transferTimeout),
       onReceiveProgress: onProgress == null

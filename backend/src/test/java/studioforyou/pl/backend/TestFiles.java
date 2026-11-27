@@ -1,5 +1,8 @@
 package studioforyou.pl.backend;
 
+import java.awt.Color;
+import java.awt.Graphics2D;
+import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -9,6 +12,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.zip.CRC32;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
+
+import javax.imageio.ImageIO;
 
 /** The smallest files of each accepted type that are recognized from their content. */
 public final class TestFiles {
@@ -34,6 +39,66 @@ public final class TestFiles {
 		write(out, 0xFF, 0xC0, 0x00, 0x11, 0x08, 0x00, 0x64, 0x00, 0xC8, 0x03);
 		write(out, 0x01, 0x22, 0x00, 0x02, 0x11, 0x01, 0x03, 0x11, 0x01);
 		write(out, 0xFF, 0xD9);
+		return out.toByteArray();
+	}
+
+	/**
+	 * A real JPEG photo of the given size as its pixels are stored, in four quarters: red top left,
+	 * green top right, blue bottom left and yellow bottom right; with an EXIF orientation unless it
+	 * is 1.
+	 */
+	public static byte[] photo(int width, int height, int orientation) {
+		byte[] jpeg = encode(quarters(width, height, BufferedImage.TYPE_INT_RGB), "jpeg");
+		if (orientation == 1) {
+			return jpeg;
+		}
+		// After the JFIF APP0 segment: APP1 with "Exif\0\0" and an IFD with the Orientation (SHORT).
+		int app0End = 4 + (((jpeg[4] & 0xFF) << 8) | (jpeg[5] & 0xFF));
+		ByteArrayOutputStream out = new ByteArrayOutputStream();
+		out.write(jpeg, 0, app0End);
+		write(out, 0xFF, 0xE1, 0x00, 0x22, 'E', 'x', 'i', 'f', 0, 0);
+		write(out, 'M', 'M', 0x00, 0x2A, 0x00, 0x00, 0x00, 0x08, 0x00, 0x01);
+		write(out, 0x01, 0x12, 0x00, 0x03, 0x00, 0x00, 0x00, 0x01, 0x00, orientation, 0x00, 0x00);
+		write(out, 0x00, 0x00, 0x00, 0x00);
+		out.write(jpeg, app0End, jpeg.length - app0End);
+		return out.toByteArray();
+	}
+
+	/**
+	 * A real PNG image of the given size in the quarters of {@link #photo}, its top left corner (a
+	 * tenth of the shorter side) transparent.
+	 */
+	public static byte[] pngPhoto(int width, int height) {
+		BufferedImage image = quarters(width, height, BufferedImage.TYPE_INT_ARGB);
+		int corner = Math.max(1, Math.min(width, height) / 10);
+		for (int x = 0; x < corner; x++) {
+			for (int y = 0; y < corner; y++) {
+				image.setRGB(x, y, 0);
+			}
+		}
+		return encode(image, "png");
+	}
+
+	private static BufferedImage quarters(int width, int height, int type) {
+		BufferedImage image = new BufferedImage(width, height, type);
+		Graphics2D graphics = image.createGraphics();
+		Color[] colors = { Color.RED, Color.GREEN, Color.BLUE, Color.YELLOW };
+		for (int i = 0; i < 4; i++) {
+			graphics.setColor(colors[i]);
+			graphics.fillRect((i % 2) * width / 2, (i / 2) * height / 2, width - width / 2, height - height / 2);
+		}
+		graphics.dispose();
+		return image;
+	}
+
+	private static byte[] encode(BufferedImage image, String format) {
+		ByteArrayOutputStream out = new ByteArrayOutputStream();
+		try {
+			ImageIO.write(image, format, out);
+		}
+		catch (IOException ex) {
+			throw new UncheckedIOException(ex);
+		}
 		return out.toByteArray();
 	}
 

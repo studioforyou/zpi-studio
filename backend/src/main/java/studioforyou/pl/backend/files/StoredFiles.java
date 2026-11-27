@@ -3,6 +3,7 @@ package studioforyou.pl.backend.files;
 import java.io.InputStream;
 import java.util.Collection;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -23,7 +24,8 @@ public interface StoredFiles {
 	 * Saves an uploaded file. Its type is recognized from the content (see {@link FileType}), and
 	 * its name gets that type's extension. A photo is stored without where it was taken: its EXIF
 	 * GPS block and XMP GPS values are removed, the rest of its metadata (e.g. the orientation)
-	 * and its pixels stay as they are.
+	 * and its pixels stay as they are. A JPEG or PNG photo also gets a thumbnail (see
+	 * {@link #openThumbnail(UUID)}) when one can be made and is much smaller.
 	 *
 	 * @param allowed the types the caller accepts
 	 * @param maxSize the largest accepted size, in bytes
@@ -42,6 +44,15 @@ public interface StoredFiles {
 	 * deleted or its content is missing from the storage
 	 */
 	Content open(UUID id);
+
+	/**
+	 * Opens the thumbnail of a photo: a JPEG of at most 1024 px on its longer side, upright and
+	 * without metadata. The caller closes the stream.
+	 *
+	 * @return empty when the file has no thumbnail, is deleted, or the thumbnail's content is
+	 * missing from the storage
+	 */
+	Optional<Thumbnail> openThumbnail(UUID id);
 
 	/** Marks the files deleted and removes their content once the transaction commits. */
 	void delete(Collection<UUID> ids);
@@ -68,9 +79,10 @@ public interface StoredFiles {
 	 * @param mimeType the media type it is served with
 	 * @param imageWidth the width of an image as displayed; {@code null} for other files or when unknown
 	 * @param imageHeight the height of an image as displayed; {@code null} for other files or when unknown
+	 * @param hasThumbnail whether it is a photo with a thumbnail
 	 */
 	record StoredFile(UUID id, String name, String mimeType, long sizeBytes, @Nullable Integer imageWidth,
-			@Nullable Integer imageHeight) {
+			@Nullable Integer imageHeight, boolean hasThumbnail) {
 
 		public boolean isImage() {
 			return mimeType.startsWith("image/");
@@ -80,6 +92,13 @@ public interface StoredFiles {
 
 	/** The content of a file, to be read once and closed. */
 	record Content(StoredFile file, InputStream stream) {
+	}
+
+	/** The content of a photo's thumbnail, a JPEG, to be read once and closed. */
+	record Thumbnail(long sizeBytes, InputStream stream) {
+
+		public static final String MIME_TYPE = "image/jpeg";
+
 	}
 
 }

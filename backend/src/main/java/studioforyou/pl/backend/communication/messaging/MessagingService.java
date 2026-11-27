@@ -66,6 +66,7 @@ import studioforyou.pl.backend.files.FileType;
 import studioforyou.pl.backend.files.StoredFiles;
 import studioforyou.pl.backend.files.StoredFiles.Content;
 import studioforyou.pl.backend.files.StoredFiles.StoredFile;
+import studioforyou.pl.backend.files.StoredFiles.Thumbnail;
 import studioforyou.pl.backend.files.StoredFiles.Upload;
 import studioforyou.pl.backend.identity.AccountRoles;
 import studioforyou.pl.backend.scheduling.ScheduledEvents;
@@ -279,6 +280,18 @@ class MessagingService {
 	 * before it left the group or class.
 	 */
 	Content attachment(UUID conversationId, UUID messageId, UUID fileId, UUID accountId) {
+		requireVisibleAttachment(conversationId, messageId, fileId, accountId);
+		return files.open(fileId);
+	}
+
+	/** The thumbnail of a photo attached to a message the account can see, as for {@link #attachment}. */
+	Thumbnail thumbnail(UUID conversationId, UUID messageId, UUID fileId, UUID accountId) {
+		requireVisibleAttachment(conversationId, messageId, fileId, accountId);
+		return files.openThumbnail(fileId)
+			.orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "The attachment has no thumbnail."));
+	}
+
+	private void requireVisibleAttachment(UUID conversationId, UUID messageId, UUID fileId, UUID accountId) {
 		Access access = open(conversationId, accountId);
 		Message message = store.findMessage(conversationId, messageId).orElseThrow(MessagingService::attachmentNotFound);
 		boolean hidden = access.visibleUntil() != null
@@ -287,7 +300,6 @@ class MessagingService {
 				|| !store.findAttachments(List.of(messageId)).getOrDefault(messageId, List.of()).contains(fileId)) {
 			throw attachmentNotFound();
 		}
-		return files.open(fileId);
 	}
 
 	/**
@@ -709,7 +721,7 @@ class MessagingService {
 
 	private static AttachmentResponse attachmentResponse(StoredFile file) {
 		return new AttachmentResponse(file.id(), file.name(), file.mimeType(), file.sizeBytes(), file.isImage(),
-				file.imageWidth(), file.imageHeight());
+				file.imageWidth(), file.imageHeight(), file.hasThumbnail());
 	}
 
 	/** The files attached to each of the given messages, in their order; deleted files are left out. */

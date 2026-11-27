@@ -6,6 +6,7 @@ import java.io.UncheckedIOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
@@ -38,6 +39,9 @@ public class JdbcStoredFiles implements StoredFiles {
 
 	private static final Logger log = LoggerFactory.getLogger(JdbcStoredFiles.class);
 
+	/** Added to a photo's key for its thumbnail's. */
+	private static final String THUMBNAIL_SUFFIX = ".thumbnail.jpg";
+
 	private final JdbcClient jdbc;
 
 	private final FileStorage storage;
@@ -58,6 +62,7 @@ public class JdbcStoredFiles implements StoredFiles {
 		}
 		InputStreamSource content = upload.content();
 		Inspection inspection;
+		byte[] thumbnail = null;
 		try {
 			inspection = FileInspector.inspect(content, upload.originalName());
 			FileType type = inspection.type();
@@ -71,6 +76,7 @@ public class JdbcStoredFiles implements StoredFiles {
 					content = new ByteArrayResource(bytes);
 					inspection = FileInspector.inspect(content, upload.originalName());
 				}
+				thumbnail = Thumbnails.of(bytes, type);
 			}
 		}
 		catch (IOException ex) {
@@ -84,26 +90,40 @@ public class JdbcStoredFiles implements StoredFiles {
 		UUID id = UUID.randomUUID();
 		String bucket = storage.bucket();
 		String key = upload.keyPrefix() + "/" + id;
-		try {
-			storage.put(key, content, type.mimeType());
-		}
-		catch (IOException ex) {
-			throw new UncheckedIOException("Could not save the uploaded file", ex);
-		}
+		String thumbnailKey = key + THUMBNAIL_SUFFIX;
 		// The content is saved before the transaction commits, so it goes away if it rolls back.
 		TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
 			@Override
 			public void afterCompletion(int status) {
 				if (status != STATUS_COMMITTED) {
 					remove(bucket, key);
+					remove(bucket, thumbnailKey);
 				}
 			}
 		});
+		try {
+			storage.put(key, content, type.mimeType());
+		}
+		catch (IOException ex) {
+			throw new UncheckedIOException("Could not save the uploaded file", ex);
+		}
+		if (thumbnail != null) {
+			try {
+				storage.put(thumbnailKey, new ByteArrayResource(thumbnail), Thumbnail.MIME_TYPE);
+			}
+			catch (IOException | RuntimeException ex) {
+				// The photo is shown whole instead.
+				log.warn("Could not save the thumbnail of a stored file ({}/{})", bucket, thumbnailKey, ex);
+				thumbnail = null;
+			}
+		}
 		String name = FileNames.of(upload.originalName(), type);
 		jdbc.sql("""
 				INSERT INTO stored_file (id, owner_module, uploaded_by, bucket, object_key, original_name, mime_type,
-				                         size_bytes, sha256, image_width, image_height)
-				VALUES (:id, :ownerModule, :uploadedBy, :bucket, :key, :name, :mimeType, :size, :sha256, :width, :height)
+				                         size_bytes, sha256, image_width, image_height, thumbnail_key,
+				                         thumbnail_size_bytes)
+				VALUES (:id, :ownerModule, :uploadedBy, :bucket, :key, :name, :mimeType, :size, :sha256, :width, :height,
+				        :thumbnailKey, :thumbnailSize)
 				""")
 			.param("id", id)
 			.param("ownerModule", upload.ownerModule())
@@ -116,8 +136,11 @@ public class JdbcStoredFiles implements StoredFiles {
 			.param("sha256", inspection.sha256())
 			.param("width", inspection.width())
 			.param("height", inspection.height())
+			.param("thumbnailKey", (thumbnail != null) ? thumbnailKey : null)
+			.param("thumbnailSize", (thumbnail != null) ? thumbnail.length : null)
 			.update();
-		return new StoredFile(id, name, type.mimeType(), upload.size(), inspection.width(), inspection.height());
+		return new StoredFile(id, name, type.mimeType(), upload.size(), inspection.width(), inspection.height(),
+				thumbnail != null);
 	}
 
 	@Override
@@ -127,7 +150,8 @@ public class JdbcStoredFiles implements StoredFiles {
 			return Map.of();
 		}
 		return jdbc.sql("""
-				SELECT id, original_name AS name, mime_type, size_bytes, image_width, image_height
+				SELECT id, original_name AS name, mime_type, size_bytes, image_width, image_height,
+				       thumbnail_key IS NOT NULL AS has_thumbnail
 				FROM stored_file
 				WHERE id IN (:ids) AND deleted_at IS NULL
 				""")
@@ -142,7 +166,8 @@ public class JdbcStoredFiles implements StoredFiles {
 	@Transactional(propagation = Propagation.SUPPORTS, readOnly = true)
 	public Content open(UUID id) {
 		Located located = jdbc.sql("""
-				SELECT id, original_name AS name, mime_type, size_bytes, image_width, image_height, bucket, object_key
+				SELECT id, original_name AS name, mime_type, size_bytes, image_width, image_height,
+				       thumbnail_key IS NOT NULL AS has_thumbnail, bucket, object_key
 				FROM stored_file
 				WHERE id = :id AND deleted_at IS NULL
 				""")
@@ -165,6 +190,35 @@ public class JdbcStoredFiles implements StoredFiles {
 	}
 
 	@Override
+	@Transactional(propagation = Propagation.SUPPORTS, readOnly = true)
+	public Optional<Thumbnail> openThumbnail(UUID id) {
+		Optional<ThumbnailLocation> found = jdbc.sql("""
+				SELECT bucket, thumbnail_key, thumbnail_size_bytes
+				FROM stored_file
+				WHERE id = :id AND deleted_at IS NULL AND thumbnail_key IS NOT NULL
+				""")
+			.param("id", id)
+			.query(ThumbnailLocation.class)
+			.optional();
+		if (found.isEmpty()) {
+			return Optional.empty();
+		}
+		ThumbnailLocation location = found.get();
+		Optional<InputStream> stream;
+		try {
+			stream = storage.open(location.bucket(), location.thumbnailKey());
+		}
+		catch (IOException ex) {
+			throw new UncheckedIOException("Could not read the thumbnail of a stored file", ex);
+		}
+		if (stream.isEmpty()) {
+			log.warn("The thumbnail of stored file {} is missing ({}/{})", id, location.bucket(),
+					location.thumbnailKey());
+		}
+		return stream.map((in) -> new Thumbnail(location.thumbnailSizeBytes(), in));
+	}
+
+	@Override
 	public void delete(Collection<UUID> ids) {
 		if (ids.isEmpty()) {
 			return;
@@ -173,7 +227,7 @@ public class JdbcStoredFiles implements StoredFiles {
 				UPDATE stored_file
 				SET deleted_at = now()
 				WHERE id IN (:ids) AND deleted_at IS NULL
-				RETURNING bucket, object_key
+				RETURNING bucket, object_key, thumbnail_key
 				""")
 			.param("ids", ids)
 			.query(Location.class)
@@ -184,7 +238,12 @@ public class JdbcStoredFiles implements StoredFiles {
 		TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
 			@Override
 			public void afterCommit() {
-				deleted.forEach((location) -> remove(location.bucket(), location.objectKey()));
+				deleted.forEach((location) -> {
+					remove(location.bucket(), location.objectKey());
+					if (location.thumbnailKey() != null) {
+						remove(location.bucket(), location.thumbnailKey());
+					}
+				});
 			}
 		});
 	}
@@ -203,14 +262,17 @@ public class JdbcStoredFiles implements StoredFiles {
 		return new ApiException(ErrorCode.NOT_FOUND, "File not found.");
 	}
 
-	private record Location(String bucket, String objectKey) {
+	private record Location(String bucket, String objectKey, @Nullable String thumbnailKey) {
+	}
+
+	private record ThumbnailLocation(String bucket, String thumbnailKey, long thumbnailSizeBytes) {
 	}
 
 	private record Located(UUID id, String name, String mimeType, long sizeBytes, @Nullable Integer imageWidth,
-			@Nullable Integer imageHeight, String bucket, String objectKey) {
+			@Nullable Integer imageHeight, boolean hasThumbnail, String bucket, String objectKey) {
 
 		StoredFile file() {
-			return new StoredFile(id, name, mimeType, sizeBytes, imageWidth, imageHeight);
+			return new StoredFile(id, name, mimeType, sizeBytes, imageWidth, imageHeight, hasThumbnail);
 		}
 
 	}

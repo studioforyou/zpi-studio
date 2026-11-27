@@ -54,6 +54,7 @@ import studioforyou.pl.backend.communication.messaging.MessagingService.NewAttac
 import studioforyou.pl.backend.communication.messaging.MessagingService.Started;
 import studioforyou.pl.backend.files.StoredFiles;
 import studioforyou.pl.backend.files.StoredFiles.StoredFile;
+import studioforyou.pl.backend.files.StoredFiles.Thumbnail;
 import studioforyou.pl.backend.shared.api.AccountAuthentication;
 import studioforyou.pl.backend.shared.api.ApiProblem;
 import studioforyou.pl.backend.shared.api.ListResponse;
@@ -69,6 +70,9 @@ import studioforyou.pl.backend.shared.api.ListResponse;
 class OwnConversationController {
 
 	private static final String BASE = "/api/v1/me/conversations/";
+
+	/** Files never change; only the user's own device keeps them. */
+	private static final CacheControl CACHE = CacheControl.maxAge(Duration.ofDays(7)).cachePrivate();
 
 	private final MessagingService messaging;
 
@@ -350,8 +354,30 @@ class OwnConversationController {
 			.contentType(type)
 			.contentLength(file.sizeBytes())
 			.header(HttpHeaders.CONTENT_DISPOSITION, disposition.build().toString())
-			.cacheControl(CacheControl.maxAge(Duration.ofDays(7)).cachePrivate())
+			.cacheControl(CACHE)
 			.body(new InputStreamResource(content.stream()));
+	}
+
+	@GetMapping("/{conversationId}/messages/{messageId}/attachments/{attachmentId}/thumbnail")
+	@Operation(summary = "Download the thumbnail of a photo", operationId = "getOwnConversationMessageAttachmentThumbnail",
+			description = "A JPEG of at most 1024 px on its longer side, upright and without metadata, to show in the "
+					+ "conversation and its photos instead of the whole photo; only for an attachment with "
+					+ "`hasThumbnail`. Who may see it is as for the attachment. The content never changes.")
+	@ApiResponse(responseCode = "200", description = "The thumbnail.", content = @Content(mediaType = "image/jpeg",
+			schema = @Schema(type = "string", format = "binary")))
+	@ApiResponse(responseCode = "404", description = "As for the attachment, or the attachment has no thumbnail.",
+			content = @Content(mediaType = "application/problem+json",
+					schema = @Schema(implementation = ApiProblem.class)))
+	ResponseEntity<Resource> thumbnail(@PathVariable UUID conversationId, @PathVariable UUID messageId,
+			@PathVariable UUID attachmentId, AccountAuthentication authentication) {
+		Thumbnail thumbnail = messaging.thumbnail(conversationId, messageId, attachmentId,
+				authentication.requireActiveAccountId());
+		return ResponseEntity.ok()
+			.contentType(MediaType.parseMediaType(Thumbnail.MIME_TYPE))
+			.contentLength(thumbnail.sizeBytes())
+			.header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.inline().build().toString())
+			.cacheControl(CACHE)
+			.body(new InputStreamResource(thumbnail.stream()));
 	}
 
 	@DeleteMapping("/{conversationId}/messages/{messageId}")

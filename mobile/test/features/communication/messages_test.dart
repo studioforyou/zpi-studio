@@ -273,6 +273,18 @@ class _FakeAttachmentFiles extends AttachmentFiles {
   }) async => File('/cache/${attachment.id}/${attachment.fileName}');
 
   @override
+  Future<File> preview(
+    String conversationId,
+    String messageId,
+    ChatAttachment photo,
+  ) async => photo.hasThumbnail
+      ? File('/cache/thumbnails/${photo.id}.jpg')
+      : file(conversationId, messageId, photo);
+
+  @override
+  Future<File?> cachedPreview(ChatAttachment photo) async => null;
+
+  @override
   Future<OpenOutcome> open(File file, String contentType) async {
     opened.add(file.path);
     return outcome;
@@ -1092,6 +1104,51 @@ void main() {
         expect(files.opened, ['/cache/photo-1/IMG_0042.jpg']);
       },
     );
+
+    testWidgets('a photo is shown by its thumbnail, whole full screen', (
+      tester,
+    ) async {
+      const photo = ChatAttachment(
+        id: 'photo-t',
+        fileName: 'IMG_0100.jpg',
+        contentType: 'image/jpeg',
+        sizeBytes: 900 * 1024,
+        isImage: true,
+        width: 1800,
+        height: 2400,
+        hasThumbnail: true,
+      );
+      api.conversations['d'] = _direct('d', 'Ewa Lis');
+      api.messages['d'] = [
+        _message(
+          '1',
+          null,
+          sender: 'x',
+          name: 'Ewa Lis',
+          attachments: const [photo],
+        ),
+      ];
+      await pump(
+        tester,
+        session: _client,
+        initialLocation: '/client/messages/chat/d',
+      );
+
+      final shown = tester.widget<Image>(
+        find.descendant(
+          of: find.byType(PhotoThumbnail),
+          matching: find.byType(Image),
+        ),
+      );
+      expect(
+        ((shown.image as ResizeImage).imageProvider as FileImage).file.path,
+        '/cache/thumbnails/photo-t.jpg',
+      );
+
+      await tester.tap(find.byType(PhotoThumbnail));
+      await tester.pumpAndSettle();
+      expect(_shownPhoto(tester), '/cache/photo-t/IMG_0100.jpg');
+    });
 
     testWidgets('a photo the gallery does not take is saved as a file', (
       tester,
