@@ -53,6 +53,8 @@ Photos and documents attached to messages are kept in the bucket `<project_id>-f
 
 Cloud Run accepts requests up to 32 MiB, so a message takes at most 30 MB of files (`spring.servlet.multipart.max-request-size`), at most 10 MB each.
 
+Private calendar feed links (#121) contain the backend's public address, so the backend gets `CALENDAR_FEED_BASE_URL` set to the service URL (the same value as `JOBS_OIDC_AUDIENCE`). Google Calendar and Apple Calendar download the feed from there, so the service needs public ingress.
+
 ### Notifications
 
 The backend sends push notifications through FCM (`PUSH_PROVIDER=FCM`, with the backend service account's credentials). Cloud Run scales to zero and has no CPU between requests, so timed work (class reminders, retries of failed pushes, re-delivery of unfinished domain events) is triggered from outside: Cloud Scheduler calls the job endpoint every 5 minutes (`notification_job_schedule`). The request carries a Google-signed OIDC token of `zpi-scheduler-<env>`. The backend accepts it only with audience `JOBS_OIDC_AUDIENCE` (the service URL) and e-mail `JOBS_OIDC_SERVICE_ACCOUNT`, and Terraform sets both. The service URL is built from the project number (`https://zpi-backend-<env>-<number>.<region>.run.app`), because the service cannot refer to its own `uri`.

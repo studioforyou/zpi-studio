@@ -274,6 +274,37 @@ public class Participations {
 			.set();
 	}
 
+	/**
+	 * What each of the participants has in their schedule, e.g. for a private calendar feed: events
+	 * ending after {@code endingAfter} with a reservation that was not cancelled, and events the
+	 * studio cancelled together with such a reservation. One entry per participant and event.
+	 */
+	public List<CalendarParticipation> findForCalendar(Collection<UUID> profileIds, Instant endingAfter) {
+		if (profileIds.isEmpty()) {
+			return List.of();
+		}
+		return jdbc.sql("""
+				SELECT DISTINCT ON (r.event_id, r.customer_id) r.event_id, r.customer_id, r.status
+				FROM reservation r
+				JOIN schedule_event e ON e.id = r.event_id
+				WHERE r.customer_id IN (:ids) AND e.ends_at > :endingAfter
+				  AND (r.status = 'ACTIVE' OR (r.cancel_kind = 'STUDIO' AND e.status = 'CANCELLED'))
+				ORDER BY r.event_id, r.customer_id, r.status = 'ACTIVE' DESC, r.created_at DESC
+				""")
+			.param("ids", List.copyOf(profileIds))
+			.param("endingAfter", endingAfter.atOffset(java.time.ZoneOffset.UTC))
+			.query((rs, rowNum) -> new CalendarParticipation(rs.getObject("event_id", UUID.class),
+					rs.getObject("customer_id", UUID.class), !"ACTIVE".equals(rs.getString("status"))))
+			.list();
+	}
+
+	/**
+	 * @param customerId the participant's customer profile
+	 * @param cancelledWithEvent the studio cancelled the event, and the reservation with it
+	 */
+	public record CalendarParticipation(UUID eventId, UUID customerId, boolean cancelledWithEvent) {
+	}
+
 	/** Rechecks an allocation before delayed notification processing or a push retry. */
 	public boolean isCurrentWaitlistAllocation(WaitlistPlaceAllocated allocation, Instant now) {
 		if (allocation.offerExpiresAt() != null) {

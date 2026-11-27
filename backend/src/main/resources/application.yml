@@ -107,3 +107,7 @@ app:
     # The default is the local web panel as seen from the Android emulator; differs per environment.
     link-base-url: ${INVITATION_LINK_BASE_URL:http://10.0.2.2:5173/invite}
     valid-for: ${INVITATION_VALID_FOR:7d}
+  calendar-feeds:
+    # Public address of this backend that external calendars download private calendar feeds from
+    # (the links contain /api/v1/calendar-feeds/<token>/events.ics). Differs per environment.
+    base-url: ${CALENDAR_FEED_BASE_URL:http://localhost:8080}

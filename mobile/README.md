@@ -166,6 +166,14 @@ refresh button and when the app returns to the foreground. It reads
 `GET`/`PATCH /api/v1/me/trainees/{customerId}/card`, `POST .../health-notes`
 and `POST .../health-notes/{noteId}/archive`.
 
+## Calendar sync
+
+The button in the app bar of **Mój grafik** (client) and **Grafik** (trainer) opens **Synchronizacja z kalendarzem** (#121). It turns on the account's private calendar feed (`POST /api/v1/me/calendar-feed`) and adds it to Google Calendar (the "add calendar" page with the feed's https address) or Apple Calendar (the `webcal://` address), copies the link or replaces it, and turns it off. An account that is both a client and a trainer chooses what to add: everything, only its own classes or only the classes it runs (`?role=` on the link). The backend returns the link only when it is created, so the app keeps it in secure storage per account; on another phone the screen offers a new link, which turns the previous one off.
+
+**Synchronizuj teraz** on the same screen writes the schedule to a calendar on the phone right away with `device_calendar_plus`, instead of waiting for a subscribed calendar to download the feed again. Every sync of an account with both roles asks what to add: everything, only its own classes or only the classes it runs. The first sync also asks which calendar to use, e.g. the user's Google account calendar, which the phone sends to Google Calendar at once. The app fetches the feed's entries as JSON (`GET /api/v1/me/calendar-events`) and keeps which phone event it wrote for each entry's `uid` in secure storage per account, so syncing again adds only what is missing (also events the user deleted), updates what changed in the studio, marks events the studio cancelled as cancelled and removes upcoming events that left the schedule. Syncing one part leaves the events of the other part as they are. Ended events are not added, past ones are never removed, and nothing the app did not write is touched. **Zmień kalendarz** moves the upcoming events to another calendar; **Usuń dodane zajęcia** removes them. Android needs `READ_CALENDAR` and `WRITE_CALENDAR`; iOS uses the calendar usage descriptions in `Info.plist`.
+
+A single event can also be added to the phone's calendar with `add_2_calendar`: the **Dodaj do kalendarza** button on the details of a class, a personal training and a trainer's event, or by holding the event down in **Mój grafik** and **Grafik**. The phone's calendar app opens with the event filled in. Such an entry is a copy that later changes in the studio do not update. Android needs the `INSERT` calendar intent in `<queries>`; iOS needs the calendar and contacts usage descriptions in `Info.plist`.
+
 ## Message attachments
 
 In every conversation the **+** button next to the text field adds up to 5
