@@ -21,8 +21,10 @@ CalendarEntry _entry(
   String title = 'Pole dance',
   bool cancelled = false,
   String? location = 'Sala 1',
+  String role = 'CLIENT',
 }) => CalendarEntry(
   uid: uid,
+  role: role,
   startsAt: _now.add(Duration(days: inDays)),
   endsAt: _now.add(Duration(days: inDays, hours: 1)),
   title: title,
@@ -128,6 +130,7 @@ void main() {
   test('reads an entry of the backend', () {
     final entry = CalendarEntry.fromJson({
       'uid': 'e1-p1@studioforyou.pl',
+      'role': 'CLIENT',
       'startsAt': '2026-11-27T17:00:00Z',
       'endsAt': '2026-11-27T18:00:00Z',
       'title': 'Zosia: Kids acrobatics',
@@ -154,12 +157,16 @@ void main() {
       synced = {};
     });
 
-    Future<CalendarSyncResult> sync(List<CalendarEntry> entries) => syncer.run(
+    Future<CalendarSyncResult> sync(
+      List<CalendarEntry> entries, {
+      CalendarFeedScope scope = CalendarFeedScope.all,
+    }) => syncer.run(
       calendarId: 'google',
       entries: entries,
       events: synced,
       cancelledPrefix: 'Odwołane · ',
       now: _now,
+      scope: scope,
     );
 
     test('adds upcoming events but not past or cancelled ones', () async {
@@ -215,6 +222,7 @@ void main() {
           eventId: synced['soon']!.eventId,
           fingerprint: synced['soon']!.fingerprint,
           startsAt: _now.subtract(const Duration(hours: 1)),
+          role: 'CLIENT',
         );
 
         final result = await sync([]);
@@ -224,6 +232,20 @@ void main() {
         expect(synced, isEmpty);
       },
     );
+
+    test('syncing one part leaves the events of the other part', () async {
+      await sync([_entry('class'), _entry('runs', role: 'TRAINER')]);
+
+      final clientOnly = await sync([], scope: CalendarFeedScope.client);
+      expect(clientOnly.removed, 1);
+      expect(synced.keys, ['runs']);
+
+      final trainerOnly = await sync([
+        _entry('runs', role: 'TRAINER'),
+      ], scope: CalendarFeedScope.trainer);
+      expect(trainerOnly.unchanged, isTrue);
+      expect(phone.events, hasLength(1));
+    });
 
     test('adds again an event the user deleted from the calendar', () async {
       await sync([_entry('a')]);
@@ -305,7 +327,7 @@ void main() {
       },
     );
 
-    testWidgets('an account with both roles chooses what to add', (
+    testWidgets('an account with both roles chooses what to add every time', (
       tester,
     ) async {
       await pump(tester, [AppRole.trainer, AppRole.client]);
@@ -319,6 +341,15 @@ void main() {
 
       expect(api.scopes, [CalendarFeedScope.trainer]);
       expect(phone.inCalendar('local'), hasLength(2));
+
+      await tester.tap(find.byKey(const Key('calendarSyncNow')));
+      await tester.pumpAndSettle();
+      expect(find.text('Co dodać do kalendarza?'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('calendarSyncScope.client')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('W którym kalendarzu zapisać zajęcia?'), findsNothing);
+      expect(api.scopes, [CalendarFeedScope.trainer, CalendarFeedScope.client]);
     });
 
     testWidgets('changing the calendar moves the upcoming events', (

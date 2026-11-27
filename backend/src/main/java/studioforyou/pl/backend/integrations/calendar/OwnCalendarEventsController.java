@@ -46,7 +46,8 @@ class OwnCalendarEventsController {
 			description = "The entries of the account's calendar feed, from 30 days ago on, ordered by start: "
 					+ "reservations that were not cancelled, of the account's own profile and of the children it is a "
 					+ "guardian of, events the studio cancelled (`cancelled`), and the events the account runs or "
-					+ "assists as a trainer. It does not need a feed link.")
+					+ "assists as a trainer. It does not need a feed link. For an account that is both a client and a "
+					+ "trainer, titles start with `Klient · ` or `Trener · ` whichever part is asked for.")
 	@ApiResponse(responseCode = "200", description = "The entries.")
 	@ApiResponse(responseCode = "400", description = "VALIDATION_FAILED for an unknown role.",
 			content = @Content(mediaType = "application/problem+json",
@@ -54,7 +55,7 @@ class OwnCalendarEventsController {
 	ItemsResponse<CalendarEntry> list(Authentication authentication,
 			@Parameter(description = "Only this part of the schedule; both parts the account has without it.")
 			@RequestParam(required = false) @Nullable CalendarFeedRole role) {
-		return new ItemsResponse<>(this.feeds.entries(accountId(authentication), role, Instant.now())
+		return new ItemsResponse<>(this.feeds.entries(accountId(authentication), role, Instant.now(), true)
 			.stream()
 			.map(CalendarEntry::of)
 			.toList());
@@ -71,6 +72,7 @@ class OwnCalendarEventsController {
 	 * One event of the account's schedule.
 	 *
 	 * @param uid stays the same for the event (and participant) in every response
+	 * @param role the part of the schedule the entry belongs to: {@code CLIENT} or {@code TRAINER}
 	 * @param title already says whose event it is, e.g. "Zosia: Pole dance"
 	 * @param location the rooms
 	 * @param description the leads
@@ -78,12 +80,13 @@ class OwnCalendarEventsController {
 	 * @param sequence the event's version, which grows with every change
 	 */
 	@Schema(name = "CalendarEntry")
-	record CalendarEntry(String uid, Instant startsAt, Instant endsAt, String title, @Nullable String location,
-			@Nullable String description, boolean cancelled, int sequence) {
+	record CalendarEntry(String uid, CalendarFeedRole role, Instant startsAt, Instant endsAt, String title,
+			@Nullable String location, @Nullable String description, boolean cancelled, int sequence) {
 
-		static CalendarEntry of(ICalendarWriter.Entry entry) {
-			return new CalendarEntry(entry.uid(), entry.startsAt(), entry.endsAt(), entry.summary(), entry.location(),
-					entry.description(), entry.cancelled(), entry.sequence());
+		static CalendarEntry of(CalendarFeedService.ScheduleEntry scheduled) {
+			ICalendarWriter.Entry entry = scheduled.entry();
+			return new CalendarEntry(entry.uid(), scheduled.role(), entry.startsAt(), entry.endsAt(), entry.summary(),
+					entry.location(), entry.description(), entry.cancelled(), entry.sequence());
 		}
 
 	}

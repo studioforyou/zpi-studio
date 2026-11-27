@@ -235,6 +235,7 @@ class CalendarFeedTests {
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.items.length()").value(3))
 			.andExpect(jsonPath("$.items[0].uid").value(own + "-" + parentProfile + "@studioforyou.pl"))
+			.andExpect(jsonPath("$.items[0].role").value("CLIENT"))
 			.andExpect(jsonPath("$.items[0].title").value("Pole dance, beginners"))
 			.andExpect(jsonPath("$.items[0].location").value("Pole room"))
 			.andExpect(jsonPath("$.items[0].startsAt").value(start.toString()))
@@ -245,6 +246,30 @@ class CalendarFeedTests {
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.items.length()").value(0));
 		mvc.perform(get(EVENTS)).andExpect(status().isUnauthorized());
+	}
+
+	@Test
+	void theAppGetsEntriesOfBothRolesWithTheSameTitlesWhicheverPartItAsksFor() throws Exception {
+		UUID trainer = addAccount("trainer", "TRAINER", "CLIENT");
+		UUID staff = jdbc.sql("""
+				INSERT INTO staff_profile (account_id, first_name, last_name) VALUES (:account, 'Anna', 'Kowalska')
+				RETURNING id
+				""").param("account", trainer).query(UUID.class).single();
+		UUID runs = addEvent("CLASS", null, start, "SCHEDULED");
+		jdbc.sql("INSERT INTO event_staff (event_id, staff_id) VALUES (:event, :staff)")
+			.param("event", runs).param("staff", staff).update();
+		UUID booked = addEvent("WORKSHOP", "Stretching workshop", start.plus(Duration.ofDays(1)), "SCHEDULED");
+		addReservation(booked, addProfile(trainer, "ADULT", "Anna"), "ACTIVE", null);
+
+		mvc.perform(get(EVENTS).header("Authorization", "Bearer trainer"))
+			.andExpect(jsonPath("$.items.length()").value(2))
+			.andExpect(jsonPath("$.items[0].role").value("TRAINER"))
+			.andExpect(jsonPath("$.items[0].title").value("Trener · Pole dance, beginners"))
+			.andExpect(jsonPath("$.items[1].role").value("CLIENT"))
+			.andExpect(jsonPath("$.items[1].title").value("Klient · Stretching workshop"));
+		mvc.perform(get(EVENTS).param("role", "CLIENT").header("Authorization", "Bearer trainer"))
+			.andExpect(jsonPath("$.items.length()").value(1))
+			.andExpect(jsonPath("$.items[0].title").value("Klient · Stretching workshop"));
 	}
 
 	private String create(String account) throws Exception {

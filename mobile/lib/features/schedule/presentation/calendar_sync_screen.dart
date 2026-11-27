@@ -338,8 +338,8 @@ Future<bool> _confirmDialog(
 }
 
 /// "Synchronizuj teraz": writes the schedule to a calendar on the phone at
-/// once. The first sync asks what to add (an account with both roles) and
-/// which calendar to use; later ones reuse both.
+/// once. Every sync asks what to add (an account with both roles); the first
+/// one also asks which calendar to use, which later ones reuse.
 class _SyncNow extends ConsumerStatefulWidget {
   const _SyncNow({required this.session});
 
@@ -446,18 +446,17 @@ class _SyncNowState extends ConsumerState<_SyncNow> {
       // A calendar removed from the phone since the last sync is chosen again.
       final keepsCalendar =
           !choose && calendars.any((c) => c.id == record?.calendarId);
-      CalendarFeedScope? scope;
+      if (!keepsCalendar && calendars.isEmpty) {
+        messenger.showSnackBar(
+          SnackBar(content: Text(l10n.calendarSyncNowNoCalendars)),
+        );
+        return;
+      }
+      if (!mounted) return;
+      final scope = await chooseCalendarScope(context, widget.session);
+      if (scope == null || !mounted) return;
       PhoneCalendarInfo? calendar;
       if (!keepsCalendar) {
-        if (calendars.isEmpty) {
-          messenger.showSnackBar(
-            SnackBar(content: Text(l10n.calendarSyncNowNoCalendars)),
-          );
-          return;
-        }
-        if (!mounted) return;
-        scope = await chooseCalendarScope(context, widget.session);
-        if (scope == null || !mounted) return;
         calendar = await _chooseCalendar(calendars);
         if (calendar == null) return;
       }

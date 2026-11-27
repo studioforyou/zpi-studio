@@ -111,16 +111,22 @@ class CalendarFeedService {
 		UUID accountId = this.store.findAccountByActiveTokenHash(CalendarFeedTokens.hash(token))
 			.filter((id) -> !this.accountRoles.findActive(Set.of(id)).isEmpty())
 			.orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "Calendar feed not found."));
-		return ICalendarWriter.write(calendarName(role), entries(accountId, role, now), now);
+		return ICalendarWriter.write(calendarName(role),
+				entries(accountId, role, now, false).stream().map(ScheduleEntry::entry).toList(), now);
 	}
 
 	/**
 	 * The account's schedule as calendar entries, the same as in its feed: the parts that the role
 	 * selects, or every part for its roles when {@code role} is {@code null}. The app writes them to
 	 * the phone's calendar when the user syncs it right away.
+	 *
+	 * @param labelHeldRoles prefix titles with the role whenever the account is both a client and a
+	 * trainer, even for one part, so an event keeps its title whichever part the app syncs; otherwise
+	 * only when both parts are in one calendar
 	 */
 	@Transactional(readOnly = true)
-	List<Entry> entries(UUID accountId, @Nullable CalendarFeedRole role, Instant now) {
+	List<ScheduleEntry> entries(UUID accountId, @Nullable CalendarFeedRole role, Instant now,
+			boolean labelHeldRoles) {
 		Set<String> held = this.accountRoles.rolesOf(Set.of(accountId)).getOrDefault(accountId, Set.of());
 		Set<CalendarFeedRole> parts = EnumSet.noneOf(CalendarFeedRole.class);
 		for (CalendarFeedRole part : (role == null) ? EnumSet.allOf(CalendarFeedRole.class) : EnumSet.of(role)) {
@@ -129,16 +135,21 @@ class CalendarFeedService {
 			}
 		}
 		// An account with both parts in one calendar sees which role each event concerns.
-		boolean labelRoles = parts.size() > 1;
+		boolean labelRoles = labelHeldRoles
+				? held.contains(CalendarFeedRole.CLIENT.name()) && held.contains(CalendarFeedRole.TRAINER.name())
+				: parts.size() > 1;
 		Instant endingAfter = now.minus(PAST);
-		List<Entry> entries = new ArrayList<>();
+		List<ScheduleEntry> entries = new ArrayList<>();
 		if (parts.contains(CalendarFeedRole.CLIENT)) {
-			entries.addAll(clientEntries(accountId, endingAfter, labelRoles));
+			clientEntries(accountId, endingAfter, labelRoles)
+				.forEach((entry) -> entries.add(new ScheduleEntry(CalendarFeedRole.CLIENT, entry)));
 		}
 		if (parts.contains(CalendarFeedRole.TRAINER)) {
-			entries.addAll(trainerEntries(accountId, endingAfter, labelRoles));
+			trainerEntries(accountId, endingAfter, labelRoles)
+				.forEach((entry) -> entries.add(new ScheduleEntry(CalendarFeedRole.TRAINER, entry)));
 		}
-		entries.sort(Comparator.comparing(Entry::startsAt).thenComparing(Entry::uid));
+		entries.sort(Comparator.comparing((ScheduleEntry scheduled) -> scheduled.entry().startsAt())
+			.thenComparing((scheduled) -> scheduled.entry().uid()));
 		return entries;
 	}
 
@@ -216,6 +227,12 @@ class CalendarFeedService {
 
 	private static Map<UUID, CalendarEvent> byId(List<CalendarEvent> events) {
 		return events.stream().collect(Collectors.toMap(CalendarEvent::id, Function.identity()));
+	}
+
+	/**
+	 * A calendar entry with the part of the schedule it belongs to.
+	 */
+	record ScheduleEntry(CalendarFeedRole role, Entry entry) {
 	}
 
 	/**

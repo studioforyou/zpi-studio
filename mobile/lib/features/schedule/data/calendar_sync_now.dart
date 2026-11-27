@@ -11,12 +11,14 @@ class SyncedEvent {
     required this.eventId,
     required this.fingerprint,
     required this.startsAt,
+    required this.role,
   });
 
   factory SyncedEvent.fromJson(Map<String, dynamic> json) => SyncedEvent(
     eventId: json['eventId'] as String,
     fingerprint: json['fingerprint'] as String,
     startsAt: DateTime.parse(json['startsAt'] as String),
+    role: json['role'] as String?,
   );
 
   /// The event's id in the phone's calendar.
@@ -26,10 +28,14 @@ class SyncedEvent {
   final String fingerprint;
   final DateTime startsAt;
 
+  /// The part of the schedule the event belongs to (`CLIENT` or `TRAINER`).
+  final String? role;
+
   Map<String, dynamic> toJson() => {
     'eventId': eventId,
     'fingerprint': fingerprint,
     'startsAt': startsAt.toUtc().toIso8601String(),
+    'role': role,
   };
 }
 
@@ -38,7 +44,6 @@ class CalendarSyncRecord {
   const CalendarSyncRecord({
     required this.calendarId,
     required this.calendarName,
-    required this.scope,
     required this.syncedAt,
     required this.events,
   });
@@ -47,7 +52,6 @@ class CalendarSyncRecord {
       CalendarSyncRecord(
         calendarId: json['calendarId'] as String,
         calendarName: json['calendarName'] as String,
-        scope: CalendarFeedScope.values.byName(json['scope'] as String),
         syncedAt: DateTime.parse(json['syncedAt'] as String),
         events: {
           for (final MapEntry(:key, :value)
@@ -58,7 +62,6 @@ class CalendarSyncRecord {
 
   final String calendarId;
   final String calendarName;
-  final CalendarFeedScope scope;
   final DateTime syncedAt;
 
   /// The written events by their entry's uid.
@@ -67,7 +70,6 @@ class CalendarSyncRecord {
   Map<String, dynamic> toJson() => {
     'calendarId': calendarId,
     'calendarName': calendarName,
-    'scope': scope.name,
     'syncedAt': syncedAt.toUtc().toIso8601String(),
     'events': {
       for (final MapEntry(:key, :value) in events.entries) key: value.toJson(),
@@ -99,6 +101,8 @@ class CalendarSyncResult {
 ///   as busy, like `STATUS:CANCELLED` in the calendar feed.
 /// - An upcoming event that is no longer in the schedule, e.g. a reservation
 ///   the client cancelled, is removed. Past ones stay in the calendar.
+/// - Syncing one part of the schedule ([scope]) leaves the events of the
+///   other part as they are.
 ///
 /// Only events this app wrote are ever changed, so nothing else in the
 /// calendar is touched, and syncing again never adds duplicates. [run]
@@ -115,6 +119,7 @@ class CalendarSyncer {
     required Map<String, SyncedEvent> events,
     required String cancelledPrefix,
     required DateTime now,
+    CalendarFeedScope scope = CalendarFeedScope.all,
   }) async {
     final seen = <String>{};
     var added = 0;
@@ -134,6 +139,7 @@ class CalendarSyncer {
           eventId: previous.eventId,
           fingerprint: fingerprint,
           startsAt: entry.startsAt,
+          role: entry.role,
         );
       } else if (entry.cancelled || !entry.endsAt.isAfter(now)) {
         events.remove(entry.uid);
@@ -144,12 +150,15 @@ class CalendarSyncer {
           eventId: eventId,
           fingerprint: fingerprint,
           startsAt: entry.startsAt,
+          role: entry.role,
         );
       }
     }
     for (final uid in events.keys.toList()) {
       if (seen.contains(uid)) continue;
       final event = events[uid]!;
+      // An event of the other part was not asked for, so it is not gone.
+      if (scope.role != null && event.role != scope.role) continue;
       if (event.startsAt.isAfter(now)) {
         await _phone.delete(event.eventId);
         removed++;
@@ -230,13 +239,13 @@ class CalendarSyncNowController extends AsyncNotifier<CalendarSyncRecord?> {
     }
   }
 
-  /// Syncs to [calendar] with [scope], or to the calendar and scope of the
-  /// last sync when they are `null`. Moving to another calendar first removes
-  /// the upcoming events from the previous one.
+  /// Syncs [scope] to [calendar], or to the calendar of the last sync when it
+  /// is `null`. Moving to another calendar first removes the upcoming events
+  /// from the previous one.
   Future<CalendarSyncResult> sync({
     required String cancelledPrefix,
+    required CalendarFeedScope scope,
     PhoneCalendarInfo? calendar,
-    CalendarFeedScope? scope,
   }) async {
     final previous = await future;
     final calendarId = calendar?.id ?? previous?.calendarId;
@@ -249,17 +258,13 @@ class CalendarSyncNowController extends AsyncNotifier<CalendarSyncRecord?> {
     if (movesCalendar) {
       await _syncer.removeUpcoming(previous.events, now);
     }
-    final chosenScope = scope ?? previous?.scope ?? CalendarFeedScope.all;
-    final entries = await ref
-        .read(calendarEventsApiProvider)
-        .fetch(chosenScope);
+    final entries = await ref.read(calendarEventsApiProvider).fetch(scope);
     final events = previous == null || movesCalendar
         ? <String, SyncedEvent>{}
         : Map.of(previous.events);
     CalendarSyncRecord record(DateTime syncedAt) => CalendarSyncRecord(
       calendarId: calendarId,
       calendarName: calendarName,
-      scope: chosenScope,
       syncedAt: syncedAt,
       events: events,
     );
@@ -270,6 +275,7 @@ class CalendarSyncNowController extends AsyncNotifier<CalendarSyncRecord?> {
         events: events,
         cancelledPrefix: cancelledPrefix,
         now: now,
+        scope: scope,
       );
       await _write(record(now));
       state = AsyncData(record(now));

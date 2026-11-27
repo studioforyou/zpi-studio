@@ -13,6 +13,7 @@ const ownCalendarEventsPath = '/api/v1/me/calendar-events';
 class CalendarEntry {
   const CalendarEntry({
     required this.uid,
+    required this.role,
     required this.startsAt,
     required this.endsAt,
     required this.title,
@@ -24,6 +25,7 @@ class CalendarEntry {
 
   factory CalendarEntry.fromJson(Map<String, dynamic> json) => CalendarEntry(
     uid: json['uid'] as String,
+    role: json['role'] as String,
     startsAt: DateTime.parse(json['startsAt'] as String),
     endsAt: DateTime.parse(json['endsAt'] as String),
     title: json['title'] as String,
@@ -35,6 +37,10 @@ class CalendarEntry {
 
   /// Stays the same for the event (and participant) in every response.
   final String uid;
+
+  /// The part of the schedule the entry belongs to: `CLIENT` or `TRAINER`,
+  /// as [CalendarFeedScope.role].
+  final String role;
   final DateTime startsAt;
   final DateTime endsAt;
 
