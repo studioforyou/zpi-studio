@@ -52,4 +52,29 @@ public class AccountRoles {
 				""").param("ids", accountIds).query(UUID.class).set();
 	}
 
+	/** The accounts among the given ones whose status is active. */
+	public Set<UUID> findActive(Collection<UUID> accountIds) {
+		if (accountIds.isEmpty()) {
+			return Set.of();
+		}
+		return jdbc.sql("SELECT id FROM account WHERE id IN (:ids) AND status = 'ACTIVE'")
+			.param("ids", accountIds)
+			.query(UUID.class)
+			.set();
+	}
+
+	/** Active accounts that have the role, e.g. {@code CLIENT}. */
+	public Set<UUID> findActiveWithRole(String role) {
+		return jdbc.sql("""
+				SELECT a.id
+				FROM account a
+				JOIN account_role ar ON ar.account_id = a.id
+				JOIN role r ON r.id = ar.role_id
+				WHERE r.code = :role AND a.status = 'ACTIVE'
+				""")
+			.param("role", role)
+			.query(UUID.class)
+			.set();
+	}
+
 }

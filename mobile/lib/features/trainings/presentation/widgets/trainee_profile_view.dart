@@ -4,6 +4,8 @@ import 'package:intl/intl.dart';
 import 'package:mobile/core/network/api_exception.dart';
 import 'package:mobile/features/trainings/data/trainee_overview_api.dart';
 import 'package:mobile/features/trainings/data/trainee_profile_api.dart';
+import 'package:mobile/features/trainings/data/trainee_profile_history_api.dart';
+import 'package:mobile/features/trainings/presentation/widgets/trainee_history_entry.dart';
 import 'package:mobile/l10n/generated/app_localizations.dart';
 
 /// The "Profil" tab of a trainee: personal and contact details.
@@ -18,6 +20,7 @@ class TraineeProfileView extends ConsumerWidget {
     final provider = traineeProfileProvider(query);
     Future<void> refresh() async {
       ref.invalidate(provider);
+      ref.invalidate(traineeProfileHistoryProvider(query));
       try {
         await ref.read(provider.future);
       } catch (_) {
@@ -58,6 +61,11 @@ class TraineeProfileView extends ConsumerWidget {
               physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.all(16),
               children: [
+                TraineeHistoryEntry(
+                  query: query,
+                  traineeName: profile.displayName,
+                ),
+                const SizedBox(height: 16),
                 _Section(
                   title: l10n.traineeProfileDetails,
                   rows: [

@@ -31,9 +31,12 @@ public class CustomerProfiles {
 
 	private final AccountEmails accountEmails;
 
-	public CustomerProfiles(JdbcClient jdbc, AccountEmails accountEmails) {
+	private final ProfileChangeLog changeLog;
+
+	public CustomerProfiles(JdbcClient jdbc, AccountEmails accountEmails, ProfileChangeLog changeLog) {
 		this.jdbc = jdbc;
 		this.accountEmails = accountEmails;
+		this.changeLog = changeLog;
 	}
 
 	/** Names for a caller-authorized participant set; no contacts or participant details. */
@@ -124,6 +127,21 @@ public class CustomerProfiles {
 			.optional();
 	}
 
+	/** The own profile of each of the given accounts; accounts without one are left out. */
+	public Map<UUID, UUID> ownProfileIds(Collection<UUID> accountIds) {
+		if (accountIds.isEmpty()) {
+			return Map.of();
+		}
+		record Row(UUID accountId, UUID id) {
+		}
+		return jdbc.sql("SELECT account_id, id FROM customer_profile WHERE account_id IN (:ids)")
+			.param("ids", accountIds)
+			.query(Row.class)
+			.list()
+			.stream()
+			.collect(Collectors.toMap(Row::accountId, Row::id, (first, second) -> first));
+	}
+
 	/** Names of the own profiles of the given accounts, whatever their status; accounts without one are left out. */
 	public Map<UUID, String> displayNamesByAccount(Collection<UUID> accountIds) {
 		if (accountIds.isEmpty()) {
@@ -156,34 +174,69 @@ public class CustomerProfiles {
 
 	/**
 	 * Changes the name and phone number of the account's own profile, whatever its status. A blank
-	 * phone clears it.
+	 * phone clears it. The change is recorded in the profile's history.
 	 *
+	 * @param changedBy the account that makes the change
 	 * @return whether the account has an own profile
 	 */
-	public boolean updateOwnProfile(UUID accountId, String firstName, String lastName, String phone) {
-		return jdbc.sql("""
+	public boolean updateOwnProfile(UUID accountId, String firstName, String lastName, String phone,
+			UUID changedBy) {
+		Optional<LockedProfile> before = lockOwnProfile(accountId);
+		if (before.isEmpty()) {
+			return false;
+		}
+		String newPhone = (phone == null || phone.isBlank()) ? null : phone.strip();
+		jdbc.sql("""
 				UPDATE customer_profile
 				SET first_name = :firstName, last_name = :lastName, phone = :phone, updated_at = now()
-				WHERE account_id = :accountId
+				WHERE id = :id
 				""")
-			.param("accountId", accountId)
+			.param("id", before.get().id())
 			.param("firstName", firstName.strip())
 			.param("lastName", lastName.strip())
-			.param("phone", (phone == null || phone.isBlank()) ? null : phone.strip())
-			.update() > 0;
+			.param("phone", newPhone)
+			.update();
+		ProfileChangeLog.Details old = before.get().details();
+		changeLog.record(before.get().id(), changedBy, old, new ProfileChangeLog.Details(firstName.strip(),
+				lastName.strip(), old.birthDate(), newPhone, old.emergencyContactName(), old.emergencyPhone()));
+		return true;
 	}
 
-	/** Changes only the name of the account's own profile, whatever its status. */
-	public void renameOwnProfile(UUID accountId, String firstName, String lastName) {
+	/**
+	 * Changes only the name of the account's own profile, whatever its status. The change is
+	 * recorded in the profile's history.
+	 *
+	 * @param changedBy the account that makes the change
+	 */
+	public void renameOwnProfile(UUID accountId, String firstName, String lastName, UUID changedBy) {
+		Optional<LockedProfile> before = lockOwnProfile(accountId);
+		if (before.isEmpty()) {
+			return;
+		}
 		jdbc.sql("""
 				UPDATE customer_profile
 				SET first_name = :firstName, last_name = :lastName, updated_at = now()
-				WHERE account_id = :accountId
+				WHERE id = :id
 				""")
-			.param("accountId", accountId)
+			.param("id", before.get().id())
 			.param("firstName", firstName.strip())
 			.param("lastName", lastName.strip())
 			.update();
+		ProfileChangeLog.Details old = before.get().details();
+		changeLog.record(before.get().id(), changedBy, old, new ProfileChangeLog.Details(firstName.strip(),
+				lastName.strip(), old.birthDate(), old.phone(), old.emergencyContactName(), old.emergencyPhone()));
+	}
+
+	private Optional<LockedProfile> lockOwnProfile(UUID accountId) {
+		return jdbc.sql("""
+				SELECT id, first_name, last_name, birth_date, phone, emergency_contact_name, emergency_phone
+				FROM customer_profile
+				WHERE account_id = :accountId
+				FOR UPDATE
+				""")
+			.param("accountId", accountId)
+			.query(LockedProfile.class)
+			.optional();
 	}
 
 	/**
@@ -206,29 +259,47 @@ public class CustomerProfiles {
 
 	/**
 	 * Replaces the details of an active child the account's own profile is a current guardian of.
-	 * The caller validates and trims the details.
+	 * The caller validates and trims the details. The change is recorded in the child's history.
 	 *
+	 * @param changedBy the account that makes the change
 	 * @return {@code false} if there is no such child
 	 */
-	public boolean updateChildOfAccount(UUID accountId, ChildDetails child) {
-		return jdbc.sql("""
-				UPDATE customer_profile c
+	public boolean updateChildOfAccount(UUID accountId, ChildDetails child, UUID changedBy) {
+		Optional<LockedProfile> before = jdbc.sql("""
+				SELECT c.id, c.first_name, c.last_name, c.birth_date, c.phone, c.emergency_contact_name,
+				       c.emergency_phone
+				FROM customer_profile c
+				JOIN guardianship g ON g.child_id = c.id AND g.ended_at IS NULL
+				JOIN customer_profile guardian ON guardian.id = g.guardian_id
+				WHERE c.id = :childId AND c.status = 'ACTIVE' AND guardian.account_id = :accountId
+				FOR UPDATE OF c
+				""")
+			.param("accountId", accountId)
+			.param("childId", child.id())
+			.query(LockedProfile.class)
+			.optional();
+		if (before.isEmpty()) {
+			return false;
+		}
+		jdbc.sql("""
+				UPDATE customer_profile
 				SET first_name = :firstName, last_name = :lastName, birth_date = :birthDate,
 				    emergency_contact_name = :emergencyContactName, emergency_phone = :emergencyPhone,
 				    updated_at = now()
-				FROM guardianship g
-				JOIN customer_profile guardian ON guardian.id = g.guardian_id
-				WHERE c.id = :childId AND c.status = 'ACTIVE' AND g.child_id = c.id AND g.ended_at IS NULL
-				  AND guardian.account_id = :accountId
+				WHERE id = :childId
 				""")
-			.param("accountId", accountId)
 			.param("childId", child.id())
 			.param("firstName", child.firstName())
 			.param("lastName", child.lastName())
 			.param("birthDate", child.birthDate())
 			.param("emergencyContactName", child.emergencyContactName())
 			.param("emergencyPhone", child.emergencyPhone())
-			.update() > 0;
+			.update();
+		ProfileChangeLog.Details old = before.get().details();
+		changeLog.record(child.id(), changedBy, old, new ProfileChangeLog.Details(child.firstName(),
+				child.lastName(), child.birthDate(), old.phone(), child.emergencyContactName(),
+				child.emergencyPhone()));
+		return true;
 	}
 
 	/**
@@ -365,6 +436,65 @@ public class CustomerProfiles {
 					(row) -> new ParticipantContact(row.id(), row.kind(), row.firstName(), row.lastName(),
 							(row.accountId() != null) ? emails.get(row.accountId()) : null,
 							row.accountId() != null && row.viaGuardian())));
+	}
+
+	/**
+	 * Active participants among the given ones with the contact the studio reaches them by: an
+	 * adult's own account and phone number, or for a child the account and phone number of its
+	 * earliest current active guardian. Archived profiles are left out; a child without such a
+	 * guardian has no contact account.
+	 */
+	public List<ContactDetails> activeContactDetails(Collection<UUID> profileIds) {
+		if (profileIds.isEmpty()) {
+			return List.of();
+		}
+		record Row(UUID id, CustomerKind kind, String firstName, String lastName, @Nullable UUID accountId,
+				@Nullable String phone, @Nullable UUID guardianId, @Nullable String guardianFirstName,
+				@Nullable String guardianLastName, @Nullable UUID guardianAccountId, @Nullable String guardianPhone) {
+		}
+		List<Row> rows = jdbc.sql("""
+				SELECT p.id, p.kind, p.first_name, p.last_name, p.account_id, p.phone,
+				       guardian.id AS guardian_id, guardian.first_name AS guardian_first_name,
+				       guardian.last_name AS guardian_last_name, guardian.account_id AS guardian_account_id,
+				       guardian.phone AS guardian_phone
+				FROM customer_profile p
+				LEFT JOIN LATERAL (
+				    SELECT gp.id, gp.first_name, gp.last_name, gp.account_id, gp.phone
+				    FROM guardianship g
+				    JOIN customer_profile gp ON gp.id = g.guardian_id
+				    WHERE g.child_id = p.id AND g.ended_at IS NULL AND gp.status = 'ACTIVE'
+				    ORDER BY g.created_at, gp.id
+				    LIMIT 1) guardian ON p.account_id IS NULL
+				WHERE p.id IN (:ids) AND p.status = 'ACTIVE'
+				""")
+			.param("ids", profileIds)
+			.query(Row.class)
+			.list();
+		Map<UUID, String> emails = accountEmails.emailsOf(rows.stream()
+			.map((row) -> (row.accountId() != null) ? row.accountId() : row.guardianAccountId())
+			.filter(Objects::nonNull)
+			.collect(Collectors.toSet()));
+		return rows.stream().map((row) -> {
+			boolean viaGuardian = row.accountId() == null && row.guardianId() != null;
+			UUID contactAccount = viaGuardian ? row.guardianAccountId() : row.accountId();
+			return new ContactDetails(row.id(), row.kind(), row.firstName(), row.lastName(), contactAccount,
+					viaGuardian ? row.guardianId() : row.id(),
+					viaGuardian ? row.guardianFirstName() + " " + row.guardianLastName() : null,
+					(contactAccount != null) ? emails.get(contactAccount) : null,
+					viaGuardian ? row.guardianPhone() : row.phone());
+		}).toList();
+	}
+
+	/**
+	 * A participant with the contact the studio reaches them by.
+	 *
+	 * @param contactAccountId the participant's own account or, for a child, its guardian's
+	 * @param contactProfileId the profile of the person contacted: the participant or its guardian
+	 * @param guardianName the guardian's name when the contact is a child's guardian
+	 */
+	public record ContactDetails(UUID id, CustomerKind kind, String firstName, String lastName,
+			@Nullable UUID contactAccountId, UUID contactProfileId, @Nullable String guardianName,
+			@Nullable String email, @Nullable String phone) {
 	}
 
 	/**
@@ -528,6 +658,16 @@ public class CustomerProfiles {
 
 		public String displayName() {
 			return firstName + " " + lastName;
+		}
+
+	}
+
+	private record LockedProfile(UUID id, String firstName, String lastName, @Nullable LocalDate birthDate,
+			@Nullable String phone, @Nullable String emergencyContactName, @Nullable String emergencyPhone) {
+
+		ProfileChangeLog.Details details() {
+			return new ProfileChangeLog.Details(firstName, lastName, birthDate, phone, emergencyContactName,
+					emergencyPhone);
 		}
 
 	}

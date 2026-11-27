@@ -1,6 +1,7 @@
 package studioforyou.pl.backend.membership.internal;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Collection;
 import java.util.Comparator;
@@ -120,6 +121,42 @@ public class CustomerPassService {
 			throw new ApiException(ErrorCode.NOT_FOUND, "Participant not found.");
 		}
 		return passes.findByCustomerIdAndStatusNotOrderByCreatedAtDesc(profileId, CustomerPassStatus.CANCELLED);
+	}
+
+	/**
+	 * Records that the participant of a profile the account acts for will not renew the pass, so
+	 * reminders to buy the next one stop. Only a usable pass (active, suspended or scheduled, not
+	 * past its last day) can be declined; declining it again changes nothing.
+	 */
+	public CustomerPass declineRenewal(UUID accountId, UUID profileId, UUID passId) {
+		CustomerPass pass = lockOwnUsablePass(accountId, profileId, passId);
+		pass.declineRenewal(Instant.now());
+		passes.flush();
+		return pass;
+	}
+
+	/**
+	 * Undoes {@link #declineRenewal}: reminders to buy the next pass are sent again for a usable
+	 * pass. Undoing when there is no decision changes nothing.
+	 */
+	public CustomerPass undoRenewalDecline(UUID accountId, UUID profileId, UUID passId) {
+		CustomerPass pass = lockOwnUsablePass(accountId, profileId, passId);
+		pass.undoRenewalDecline();
+		passes.flush();
+		return pass;
+	}
+
+	private CustomerPass lockOwnUsablePass(UUID accountId, UUID profileId, UUID passId) {
+		if (!customers.isActingFor(accountId, profileId)) {
+			throw new ApiException(ErrorCode.NOT_FOUND, "Participant not found.");
+		}
+		CustomerPass pass = passes.findForUpdate(passId, profileId)
+			.orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "Pass not found."));
+		requireStatus(pass, CustomerPassStatus.ACTIVE, CustomerPassStatus.SCHEDULED);
+		if (pass.getValidUntil().isBefore(studio.today())) {
+			throw new ApiException(ErrorCode.PASS_NOT_USABLE, "The pass has expired.");
+		}
+		return pass;
 	}
 
 	/**
@@ -246,10 +283,11 @@ public class CustomerPassService {
 			}
 		}
 		String reason = blankToNull(command.reason());
-		suspensions.save(new PassSuspension(passId, startsOn, endsOn, reason, actorAccountId));
+		PassSuspension suspension = suspensions.save(new PassSuspension(passId, startsOn, endsOn, reason, actorAccountId));
 		LocalDate before = pass.getValidUntil();
 		pass.changeValidUntil(before.plusDays(days), today);
-		ledger.save(PassLedgerEntry.extension(passId, before, pass.getValidUntil(), reason, actorAccountId));
+		ledger.save(PassLedgerEntry.suspension(passId, suspension.getId(), before, pass.getValidUntil(), reason,
+				actorAccountId));
 		passes.flush();
 		return pass;
 	}
@@ -274,7 +312,7 @@ public class CustomerPassService {
 		long removed = suspension.cancelFrom(today);
 		LocalDate before = pass.getValidUntil();
 		pass.changeValidUntil(before.minusDays(removed), today);
-		ledger.save(PassLedgerEntry.extension(passId, before, pass.getValidUntil(), "Suspension cancelled",
+		ledger.save(PassLedgerEntry.suspension(passId, suspensionId, before, pass.getValidUntil(), "Suspension cancelled",
 				actorAccountId));
 		passes.flush();
 		return pass;

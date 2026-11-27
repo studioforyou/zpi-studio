@@ -193,7 +193,7 @@ class AccountManagementService {
 	 * {@code ACCOUNT_ALREADY_EXISTS} if another account or Firebase user has the e-mail
 	 */
 	@Transactional
-	public AccountDetails update(UUID accountId, UpdateAccountRequest request) {
+	public AccountDetails update(UUID accountId, UpdateAccountRequest request, UUID changedBy) {
 		LockedAccount account = lock(accountId);
 		if (account.status() == AccountStatus.CLOSED) {
 			throw new ApiException(ErrorCode.ACCOUNT_STATUS_CONFLICT, "A closed account cannot be changed.");
@@ -204,7 +204,7 @@ class AccountManagementService {
 			changeEmail(account, email);
 		}
 		boolean hasProfile = customerProfiles.updateOwnProfile(accountId, request.firstName(), request.lastName(),
-				request.phone());
+				request.phone(), changedBy);
 		if (staffProfiles.findByAccount(accountId).isPresent()) {
 			staffProfiles.updateByAccount(accountId, new ProfileChanges(true, request.firstName(), true,
 					request.lastName(), !hasProfile, request.phone()));
@@ -224,7 +224,7 @@ class AccountManagementService {
 	 * {@code ACCOUNT_STATUS_CONFLICT} for a closed account
 	 */
 	@Transactional
-	public AccountDetails updateStaffProfile(UUID accountId, UpdateStaffDetailsRequest request) {
+	public AccountDetails updateStaffProfile(UUID accountId, UpdateStaffDetailsRequest request, UUID changedBy) {
 		requireOpen(lock(accountId));
 		if (staffProfiles.findByAccount(accountId).isEmpty()) {
 			throw new ApiException(ErrorCode.NOT_FOUND, "Staff profile not found.");
@@ -233,7 +233,7 @@ class AccountManagementService {
 				request.lastName(), true, request.phone()));
 		staffProfiles.updateBioByAccount(accountId, request.bio());
 		customerProfiles.renameOwnProfile(accountId, UserText.trim(request.firstName()),
-				UserText.trim(request.lastName()));
+				UserText.trim(request.lastName()), changedBy);
 		return get(accountId);
 	}
 
@@ -244,12 +244,12 @@ class AccountManagementService {
 	 * {@code ACCOUNT_STATUS_CONFLICT} for a closed account
 	 */
 	@Transactional
-	public AccountDetails updateChild(UUID accountId, UUID childId, UpdateChildRequest request) {
+	public AccountDetails updateChild(UUID accountId, UUID childId, UpdateChildRequest request, UUID changedBy) {
 		requireOpen(lock(accountId));
 		boolean updated = customerProfiles.updateChildOfAccount(accountId,
 				new ChildDetails(childId, UserText.trim(request.firstName()), UserText.trim(request.lastName()),
 						request.birthDate(), UserText.trimToNull(request.emergencyContactName()),
-						UserText.trimToNull(request.emergencyPhone())));
+						UserText.trimToNull(request.emergencyPhone())), changedBy);
 		if (!updated) {
 			throw new ApiException(ErrorCode.NOT_FOUND, "Child profile not found.");
 		}

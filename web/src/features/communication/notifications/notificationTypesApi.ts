@@ -11,6 +11,9 @@ export type NotificationTypeSettings = {
   leadTimesMinutes: number[];
   title: string;
   body: string;
+  /** The content the type was created with, to restore it; `null` when it has none. */
+  defaultTitle: string | null;
+  defaultBody: string | null;
   placeholders: NotificationPlaceholder[];
   updatedAt: string | null;
 };

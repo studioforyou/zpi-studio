@@ -31,7 +31,8 @@ import studioforyou.pl.backend.shared.api.ListResponse;
 
 /**
  * The administrator's notification settings: which types the studio sends, when, and with what
- * content. Every new notification type appears here.
+ * content. Every new notification type appears here, except announcements, whose content the
+ * administrator writes for each one.
  */
 @RestController
 @RequestMapping("/api/v1/notification-types")
@@ -50,6 +51,7 @@ class NotificationTypeController {
 	@ApiResponse(responseCode = "200", description = "Every notification type the application knows.")
 	public ListResponse<NotificationTypeResponse> list() {
 		return new ListResponse<>(Arrays.stream(NotificationType.values())
+			.filter(NotificationType::configurable)
 			.map(store::settings)
 			.map(NotificationTypeResponse::from)
 			.toList());
@@ -67,7 +69,8 @@ class NotificationTypeController {
 	@Operation(summary = "Change a notification type's settings", operationId = "updateNotificationType",
 			description = "Switches the type on or off, replaces its reminder times (timed types only) and its "
 					+ "push title and text. Title and text may only use the type's placeholders. A change applies to "
-					+ "notifications created from now on; ones already sent stay as they were.")
+					+ "notifications created from now on; ones already sent stay as they were. To restore the default "
+					+ "content, send the type's defaultTitle and defaultBody as title and body.")
 	@ApiResponse(responseCode = "200", description = "The type's new settings.")
 	@ApiResponse(responseCode = "400", description = "Invalid settings, e.g. an unknown placeholder or duplicate reminder times.")
 	@ApiResponse(responseCode = "404", description = "No such notification type.")
@@ -114,6 +117,7 @@ class NotificationTypeController {
 
 	private static NotificationType type(String code) {
 		return NotificationType.fromCode(code)
+			.filter(NotificationType::configurable)
 			.orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "Notification type not found."));
 	}
 

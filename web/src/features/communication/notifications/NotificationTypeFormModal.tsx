@@ -168,6 +168,19 @@ export function NotificationTypeFormModal({ opened, onClose, type }: Props) {
     );
   }
 
+  const defaultTitle = type.defaultTitle ?? null;
+  const defaultBody = type.defaultBody ?? null;
+  const hasDefault = defaultTitle !== null && defaultBody !== null;
+  const isDefault = title.trim() === defaultTitle && body.trim() === defaultBody;
+
+  /** Puts the default content back into the form; it is saved with the other changes. */
+  function restoreDefault() {
+    if (defaultTitle === null || defaultBody === null) return;
+    setTitle(defaultTitle);
+    setBody(defaultBody);
+    setErrors((current) => ({ ...current, title: undefined, body: undefined }));
+  }
+
   const errorMessage =
     save.error instanceof ApiError && save.error.code === NETWORK_ERROR
       ? texts.network
@@ -260,6 +273,21 @@ export function NotificationTypeFormModal({ opened, onClose, type }: Props) {
             onChange={(event) => setBody(event.currentTarget.value)}
             error={errors.body}
           />
+          {hasDefault && (
+            <Group gap="xs" wrap="nowrap">
+              <Button
+                variant="subtle"
+                size="compact-sm"
+                disabled={isDefault}
+                onClick={restoreDefault}
+              >
+                {texts.restoreDefault}
+              </Button>
+              <Text size="xs" c="dimmed">
+                {texts.restoreDefaultHint}
+              </Text>
+            </Group>
+          )}
           <Stack gap={4}>
             <Text size="sm" fw={500}>
               {texts.placeholders}

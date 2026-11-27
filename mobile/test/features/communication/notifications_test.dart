@@ -253,6 +253,9 @@ void main() {
           scheduleServiceTypesProvider.overrideWith((ref) async => const {}),
           studioTrainersProvider.overrideWith((ref) async => const []),
           ownPassesProvider.overrideWith((ref, profileId) async => const []),
+          passOfferProvider.overrideWith(
+            (ref) async => const PassOffer(products: [], serviceNames: {}),
+          ),
           pushMessagingProvider.overrideWithValue(push),
           devicesApiProvider.overrideWithValue(devices),
           notificationsApiProvider.overrideWithValue(notifications),
@@ -391,6 +394,41 @@ void main() {
       });
     }
 
+    testWidgets('CLASS_BOOKING_OPENED opens the class in the child profile', (
+      tester,
+    ) async {
+      final push = _Push();
+      final reads = <ClassQuery>[];
+      final notifications = _Notifications();
+      final container = await pumpApp(
+        tester,
+        push: push,
+        devices: _Devices(),
+        notifications: notifications,
+        classReads: reads,
+      );
+      await tester.tap(find.text('Anna').first);
+      await tester.pumpAndSettle();
+      push.opened.add(
+        const PushMessage(
+          data: {
+            'type': 'CLASS_BOOKING_OPENED',
+            'notificationId': 'opened-note',
+            'profileId': 'child-2',
+            'eventId': 'class-1',
+          },
+        ),
+      );
+      await tester.pumpAndSettle();
+      final session =
+          (container.read(authControllerProvider) as Authenticated).session;
+      expect(session.activeRole, AppRole.client);
+      expect(session.activeProfileId, 'child-2');
+      expect(location(container), clientClassDetailsLocation('class-1'));
+      expect(reads.last.scope.profileId, 'child-2');
+      expect(notifications.read, ['opened-note']);
+    });
+
     testWidgets(
       'a waitlist notification tapped before login opens after choosing the account',
       (tester) async {
@@ -490,7 +528,8 @@ void main() {
     );
 
     testWidgets(
-      'a tapped pass notification about a child opens the child\'s passes',
+      'a tapped pass notification about a child opens the renewal of the '
+      'child\'s pass',
       (tester) async {
         final push = _Push();
         final notifications = _Notifications();
@@ -518,7 +557,7 @@ void main() {
         final session =
             (container.read(authControllerProvider) as Authenticated).session;
         expect(session.activeProfileId, 'child-2');
-        expect(location(container), clientPassesPath);
+        expect(location(container), clientPassRenewalLocation('pass-1'));
         expect(notifications.read, ['n2']);
       },
     );
@@ -630,6 +669,71 @@ void main() {
         await tester.pumpAndSettle();
         expect(location(container), clientClassDetailsLocation('class-1'));
         expect(reads.last.scope.profileId, 'child-2');
+      },
+    );
+
+    testWidgets(
+      'a studio announcement is labelled and opens its whole text in place',
+      (tester) async {
+        const body =
+            'W czwartek ćwiczymy w Sali 2 (piętro wyżej). Godzina bez zmian.';
+        final notifications = _Notifications(
+          items: [
+            AppNotification(
+              id: 'offer',
+              type: 'ANNOUNCEMENT',
+              title: 'Promocja −20% na karnety',
+              body: 'Karnety 20% taniej.',
+              data: {'announcementId': 'a-2', 'marketing': 'true'},
+              createdAt: DateTime.now(),
+            ),
+            AppNotification(
+              id: 'room',
+              type: 'ANNOUNCEMENT',
+              title: 'Zmiana sali w czwartek',
+              body: body,
+              data: {
+                'announcementId': 'a-1',
+                'marketing': 'false',
+                'author': 'Beata Lis',
+                'audience': 'grupa Pole dance początkujący',
+              },
+              createdAt: DateTime.now(),
+            ),
+          ],
+        );
+        final container = await pumpApp(
+          tester,
+          push: _Push(),
+          devices: _Devices(),
+          notifications: notifications,
+        );
+        await tester.tap(find.text('Anna').first);
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Wiadomości'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byTooltip('Powiadomienia'));
+        await tester.pumpAndSettle();
+
+        Finder inCards(String text) =>
+            find.descendant(of: find.byType(Card), matching: find.text(text));
+        expect(inCards('Oferta'), findsOneWidget);
+        expect(inCards('Komunikat studia'), findsOneWidget);
+        expect(find.byIcon(Icons.campaign_outlined), findsNWidgets(2));
+
+        await tester.tap(find.text('Zmiana sali w czwartek'));
+        await tester.pumpAndSettle();
+        expect(location(container), clientNotificationsPath);
+        expect(find.text('grupa Pole dance początkujący'), findsOneWidget);
+        expect(find.textContaining('Beata Lis'), findsOneWidget);
+        expect(find.textContaining('zgodziłeś(-aś)'), findsNothing);
+        expect(notifications.read, ['room']);
+        await tester.tap(find.text('Zamknij'));
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('Promocja −20% na karnety'));
+        await tester.pumpAndSettle();
+        expect(find.textContaining('zgodziłeś(-aś)'), findsOneWidget);
       },
     );
 
@@ -860,6 +964,58 @@ void main() {
       expect(session.activeRole, AppRole.trainer);
       expect(location(container), trainerSchedulePath);
       expect(notifications.read, ['n5']);
+    });
+
+    testWidgets('a tapped substitution decision opens the schedule for the '
+        'trainer who asked and the substitution for the candidate', (
+      tester,
+    ) async {
+      final push = _Push();
+      final notifications = _Notifications();
+      final container = await pumpApp(
+        tester,
+        push: push,
+        devices: _Devices(),
+        notifications: notifications,
+      );
+      await tester.tap(find.text('Anna').first);
+      await tester.pumpAndSettle();
+
+      push.opened.add(
+        const PushMessage(
+          data: {
+            'type': 'SUBSTITUTION_COVERED',
+            'notificationId': 'n6',
+            'requestId': 'r1',
+            'eventId': 'e1',
+            'role': 'TRAINER',
+          },
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final session =
+          (container.read(authControllerProvider) as Authenticated).session;
+      expect(session.activeRole, AppRole.trainer);
+      expect(location(container), trainerSchedulePath);
+
+      push.opened.add(
+        const PushMessage(
+          data: {
+            'type': 'SUBSTITUTION_CLAIM_REJECTED',
+            'notificationId': 'n7',
+            'requestId': 'r1',
+            'eventId': 'e1',
+            'role': 'TRAINER',
+            'candidate': 'true',
+          },
+        ),
+      );
+      await tester.pumpAndSettle();
+      // The substitutions screen opens the request and drops it from the
+      // location.
+      expect(location(container), trainerSubstitutionsPath);
+      expect(notifications.read, ['n6', 'n7']);
     });
 
     testWidgets('a message in the conversation on screen refreshes it without '

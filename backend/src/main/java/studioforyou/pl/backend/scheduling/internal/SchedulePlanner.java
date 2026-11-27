@@ -212,11 +212,12 @@ class SchedulePlanner {
 	 * occurrences of its series. A change of one occurrence marks it as an exception to its series.
 	 */
 	ScheduleEventResponse changeAssignments(UUID eventId, ChangeAssignmentsRequest request, UUID actor) {
-		return changeAssignments(eventId, request, actor, null, false);
+		return changeAssignments(eventId, request, actor, null, false, Set.of());
 	}
 
+	/** Records the occurrence's history while skipping notices sent as a substitution decision instead. */
 	ScheduleEventResponse changeAssignments(UUID eventId, ChangeAssignmentsRequest request, UUID actor,
-			@Nullable UUID substitutionRequestId, boolean automatic) {
+			@Nullable UUID substitutionRequestId, boolean automatic, Set<UUID> silentStaff) {
 		ScheduleEvent event = this.events.findByIdForUpdate(eventId)
 			.orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "Event not found."));
 		if (event.getVersion() != request.version()) {
@@ -260,7 +261,7 @@ class SchedulePlanner {
 		this.history.record(historyBefore, actor, substitutionRequestId == null ? EventHistory.Kind.MANUAL
 				: automatic ? EventHistory.Kind.AUTOMATIC_SUBSTITUTION : EventHistory.Kind.SUBSTITUTION,
 				substitutionRequestId);
-		this.notices.record(before);
+		this.notices.record(before, silentStaff);
 		return this.queries.findEvent(eventId).orElseThrow();
 	}
 

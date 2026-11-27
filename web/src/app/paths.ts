@@ -13,6 +13,7 @@ export const paths = {
   accountHistory: '/accounts/history',
   passes: '/passes',
   trainings: '/trainings',
+  disputes: '/disputes',
   communication: '/communication',
   statistics: '/statistics',
   system: '/system',

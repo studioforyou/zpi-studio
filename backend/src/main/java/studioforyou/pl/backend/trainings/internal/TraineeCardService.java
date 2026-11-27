@@ -3,9 +3,11 @@ package studioforyou.pl.backend.trainings.internal;
 import java.time.OffsetDateTime;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -16,6 +18,7 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import studioforyou.pl.backend.audit.AuditLog;
 import studioforyou.pl.backend.customer.CustomerProfiles;
 import studioforyou.pl.backend.customer.CustomerProfiles.ProfileDetails;
 import studioforyou.pl.backend.customer.StaffAssignments;
@@ -51,6 +54,21 @@ class TraineeCardService {
 
 	static final int MAX_HEALTH_NOTE_LENGTH = 1000;
 
+	/** The module of the card and health note change records. */
+	static final String MODULE = "trainings";
+
+	/** The record type of card changes; the record id is the participant's profile id. */
+	static final String CARD = "trainee_card";
+
+	/** The record type of health note changes; the record id is the note id. */
+	static final String HEALTH_NOTE = "health_note";
+
+	static final String CARD_UPDATED = "CARD_UPDATED";
+
+	static final String HEALTH_NOTE_ADDED = "HEALTH_NOTE_ADDED";
+
+	static final String HEALTH_NOTE_ARCHIVED = "HEALTH_NOTE_ARCHIVED";
+
 	private final JdbcClient jdbc;
 
 	private final StaffProfiles staff;
@@ -59,12 +77,15 @@ class TraineeCardService {
 
 	private final StaffAssignments assignments;
 
+	private final AuditLog auditLog;
+
 	TraineeCardService(JdbcClient jdbc, StaffProfiles staff, CustomerProfiles customers,
-			StaffAssignments assignments) {
+			StaffAssignments assignments, AuditLog auditLog) {
 		this.jdbc = jdbc;
 		this.staff = staff;
 		this.customers = customers;
 		this.assignments = assignments;
+		this.auditLog = auditLog;
 	}
 
 	@Transactional(readOnly = true)
@@ -96,6 +117,9 @@ class TraineeCardService {
 		if (!request.goalsPresent() && !request.sportExperiencePresent()) {
 			return card(customerId, access);
 		}
+		recordCardChange(customerId, trainer, current.orElse(null), request.goalsPresent() ? goals
+				: current.map(CardRow::goals).orElse(null), request.sportExperiencePresent() ? experience
+						: current.map(CardRow::sportExperience).orElse(null));
 		if (current.isPresent()) {
 			jdbc.sql("""
 					UPDATE trainee_card
@@ -143,6 +167,8 @@ class TraineeCardService {
 			.param("accountId", trainer.accountId())
 			.query(UUID.class)
 			.single();
+		auditLog.append(new AuditLog.Entry(trainer.accountId(), MODULE, HEALTH_NOTE, noteId, HEALTH_NOTE_ADDED, null,
+				null));
 		return note(customerId, noteId);
 	}
 
@@ -158,7 +184,7 @@ class TraineeCardService {
 	 */
 	HealthNoteResponse archiveHealthNote(UUID customerId, UUID noteId, Trainer trainer) {
 		requireHealthAccess(access(customerId, trainer));
-		jdbc.sql("""
+		int archived = jdbc.sql("""
 				UPDATE health_note
 				SET archived_at = now(), archived_by = :accountId
 				WHERE id = :noteId AND customer_id = :customerId AND archived_at IS NULL
@@ -167,14 +193,39 @@ class TraineeCardService {
 			.param("customerId", customerId)
 			.param("accountId", trainer.accountId())
 			.update();
+		if (archived > 0) {
+			auditLog.append(new AuditLog.Entry(trainer.accountId(), MODULE, HEALTH_NOTE, noteId,
+					HEALTH_NOTE_ARCHIVED, null, null));
+		}
 		return note(customerId, noteId);
+	}
+
+	/**
+	 * Records the changed card texts in the card's history; texts that stay the same are left out.
+	 * Health data is never part of the card texts.
+	 */
+	private void recordCardChange(UUID customerId, Trainer trainer, @Nullable CardRow before, @Nullable String goals,
+			@Nullable String experience) {
+		Map<String, AuditLog.Change> changes = new LinkedHashMap<>();
+		String oldGoals = (before == null) ? null : before.goals();
+		String oldExperience = (before == null) ? null : before.sportExperience();
+		if (!Objects.equals(oldGoals, goals)) {
+			changes.put("goals", new AuditLog.Change(oldGoals, goals));
+		}
+		if (!Objects.equals(oldExperience, experience)) {
+			changes.put("sportExperience", new AuditLog.Change(oldExperience, experience));
+		}
+		if (!changes.isEmpty()) {
+			auditLog.append(new AuditLog.Entry(trainer.accountId(), MODULE, CARD, customerId, CARD_UPDATED, changes,
+					null));
+		}
 	}
 
 	/**
 	 * What the trainer may see of the participant's health, after checking that they currently work
 	 * with the active participant.
 	 */
-	private HealthAccess access(UUID customerId, Trainer trainer) {
+	HealthAccess access(UUID customerId, Trainer trainer) {
 		UUID staffId = staff.getByAccount(trainer.accountId()).id();
 		ActiveAssignment assignment = assignments.findActive(customerId, staffId)
 			.orElseThrow(TraineeCardService::notAssigned);

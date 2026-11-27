@@ -1,13 +1,18 @@
 package studioforyou.pl.backend;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.BDDMockito.given;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
 import java.time.ZoneId;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.junit.jupiter.api.AfterEach;
@@ -24,6 +29,7 @@ import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
 /**
  * Clients see the passes of their own profile and of the children they are guardians of.
@@ -110,6 +116,7 @@ class OwnPassTests {
 			.andExpect(jsonPath("$.items[0].status").value("ACTIVE"))
 			.andExpect(jsonPath("$.items[0].validFrom").value(today().minusDays(3).toString()))
 			.andExpect(jsonPath("$.items[0].validUntil").value(today().plusDays(26).toString()))
+			.andExpect(jsonPath("$.items[0].renewalDeclined").value(false))
 			.andExpect(jsonPath("$.items[0].pricePaid").doesNotExist())
 			.andExpect(jsonPath("$.items[0].createdBy").doesNotExist());
 	}
@@ -180,6 +187,81 @@ class OwnPassTests {
 			.andExpect(jsonPath("$.items", hasSize(0)));
 	}
 
+	@Test
+	void aClientDeclinesRenewingAPassAndUndoesIt() throws Exception {
+		UUID pass = insertPass(parent, "ACTIVE", today().minusDays(25), today().plusDays(4), (short) 3);
+
+		perform(PARENT_TOKEN, put(renewalDeclineOf(parent, pass)))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.id").value(pass.toString()))
+			.andExpect(jsonPath("$.status").value("ACTIVE"))
+			.andExpect(jsonPath("$.renewalDeclined").value(true));
+		OffsetDateTime declinedAt = declinedAt(pass);
+		assertThat(declinedAt).isNotNull();
+
+		// Declining again keeps the first decision.
+		perform(PARENT_TOKEN, put(renewalDeclineOf(parent, pass))).andExpect(status().isOk());
+		assertThat(declinedAt(pass)).isEqualTo(declinedAt);
+		perform(PARENT_TOKEN, get(passesOf(parent))).andExpect(jsonPath("$.items[0].renewalDeclined").value(true));
+
+		perform(PARENT_TOKEN, delete(renewalDeclineOf(parent, pass)))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.renewalDeclined").value(false));
+		assertThat(declinedAt(pass)).isNull();
+	}
+
+	@Test
+	void aGuardianDeclinesRenewingTheChildsScheduledPass() throws Exception {
+		UUID pass = insertPass(child, "SCHEDULED", today().plusDays(1), today().plusDays(30), (short) 8);
+
+		perform(PARENT_TOKEN, put(renewalDeclineOf(child, pass)))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.status").value("SCHEDULED"))
+			.andExpect(jsonPath("$.renewalDeclined").value(true));
+	}
+
+	@Test
+	void onlyAUsablePassCanBeDeclined() throws Exception {
+		UUID expired = insertPass(parent, "ACTIVE", today().minusDays(30), today().minusDays(1), (short) 2);
+		UUID cancelled = insertPass(parent, "CANCELLED", today(), today().plusDays(29), (short) 8);
+		UUID unpaid = insertPass(parent, "PENDING_PAYMENT", today(), today().plusDays(29), (short) 8);
+
+		for (UUID pass : new UUID[] { expired, cancelled, unpaid }) {
+			perform(PARENT_TOKEN, put(renewalDeclineOf(parent, pass)))
+				.andExpect(status().isUnprocessableContent())
+				.andExpect(jsonPath("$.code").value("PASS_NOT_USABLE"));
+			perform(PARENT_TOKEN, delete(renewalDeclineOf(parent, pass)))
+				.andExpect(status().isUnprocessableContent());
+		}
+	}
+
+	@Test
+	void otherPeoplesPassesCannotBeDeclined() throws Exception {
+		UUID pass = insertPass(parent, "ACTIVE", today(), today().plusDays(29), (short) 8);
+		UUID otherPass = insertPass(other, "ACTIVE", today(), today().plusDays(29), (short) 8);
+
+		perform(OTHER_TOKEN, put(renewalDeclineOf(parent, pass)))
+			.andExpect(status().isNotFound())
+			.andExpect(jsonPath("$.code").value("NOT_FOUND"));
+		// A pass of another profile, under a profile the account acts for.
+		perform(OTHER_TOKEN, put(renewalDeclineOf(other, pass))).andExpect(status().isNotFound());
+		perform(PARENT_TOKEN, delete(renewalDeclineOf(parent, otherPass))).andExpect(status().isNotFound());
+		perform(PARENT_TOKEN, put(renewalDeclineOf(parent, UUID.randomUUID()))).andExpect(status().isNotFound());
+		assertThat(declinedAt(pass)).isNull();
+	}
+
+	private static String renewalDeclineOf(UUID profile, UUID pass) {
+		return passesOf(profile) + "/" + pass + "/renewal-decline";
+	}
+
+	private OffsetDateTime declinedAt(UUID pass) {
+		return jdbc.sql("SELECT renewal_declined_at FROM customer_pass WHERE id = :id")
+			.param("id", pass)
+			.query((rs, rowNum) -> Optional.ofNullable(rs.getObject(1, OffsetDateTime.class)))
+			.single()
+			.orElse(null);
+	}
+
 	private static String passesOf(UUID profile) {
 		return "/api/v1/me/profiles/" + profile + "/passes";
 	}
@@ -189,7 +271,11 @@ class OwnPassTests {
 	}
 
 	private ResultActions perform(String token, String path) throws Exception {
-		return mvc.perform(get(path).header("Authorization", "Bearer " + token));
+		return perform(token, get(path));
+	}
+
+	private ResultActions perform(String token, MockHttpServletRequestBuilder request) throws Exception {
+		return mvc.perform(request.header("Authorization", "Bearer " + token));
 	}
 
 	private UUID addAccount(String email, String firebaseUid, String token) {

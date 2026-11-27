@@ -177,6 +177,19 @@ class PassExpiryReminderTests {
 	}
 
 	@Test
+	void noMoreRemindersAfterTheParticipantDeclinesRenewingThePass() {
+		UUID pass = addPass(adult, "ACTIVE", 5, LAST_DAY);
+		assertThat(reminders.sendDue(THREE_DAYS_BEFORE)).isEqualTo(1);
+
+		jdbc.sql("UPDATE customer_pass SET renewal_declined_at = now() WHERE id = :id").param("id", pass).update();
+		assertThat(reminders.sendDue(ONE_DAY_BEFORE)).isZero();
+
+		// Undoing the decision brings the reminders back.
+		jdbc.sql("UPDATE customer_pass SET renewal_declined_at = NULL WHERE id = :id").param("id", pass).update();
+		assertThat(reminders.sendDue(ONE_DAY_BEFORE)).isEqualTo(1);
+	}
+
+	@Test
 	void anExtendedPassIsRemindedAgainBeforeItsNewLastDay() {
 		UUID pass = addPass(adult, "ACTIVE", 5, LAST_DAY);
 		assertThat(reminders.sendDue(THREE_DAYS_BEFORE)).isEqualTo(1);

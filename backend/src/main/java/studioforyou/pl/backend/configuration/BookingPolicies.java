@@ -21,6 +21,12 @@ public interface BookingPolicies {
 	/** Resolves the current studio, service, fixed-group and occurrence layers in that order. */
 	Definition forOccurrence(UUID serviceTypeId, UUID trainingGroupId, UUID eventId);
 
+	/**
+	 * The longest {@code bookingOpensDaysBefore} any current policy sets, studio defaults included:
+	 * no class's booking opens earlier than this many days before its start.
+	 */
+	int longestBookingOpensDaysBefore();
+
 	/** The caller serializes edits to the service. Null overrides restore studio defaults. */
 	void replaceForService(ServiceContext service, Values overrides, UUID changedBy);
 

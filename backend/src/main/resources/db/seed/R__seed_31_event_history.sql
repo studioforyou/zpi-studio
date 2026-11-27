@@ -1,4 +1,4 @@
--- Seed 24: occurrence history (#138), DEV/STAGE only.
+-- Seed 31: occurrence history (#138), DEV/STAGE only.
 -- A personal session has an approved substitution followed by adding an assistant.
 -- A group class has an older approved substitution without a staff audit entry.
 -- All related examples are inserted only with their new event: reruns preserve later edits.

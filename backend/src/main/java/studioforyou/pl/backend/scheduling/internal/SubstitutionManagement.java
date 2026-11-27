@@ -12,6 +12,8 @@ import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 import studioforyou.pl.backend.audit.AuditLog;
 import studioforyou.pl.backend.configuration.StudioSettings;
+import studioforyou.pl.backend.scheduling.SubstitutionDecided;
+import studioforyou.pl.backend.scheduling.SubstitutionDecided.Outcome;
 import studioforyou.pl.backend.scheduling.SubstitutionOffers;
 import studioforyou.pl.backend.scheduling.SubstitutionOpened;
 import studioforyou.pl.backend.scheduling.ScheduleEventChanged;
@@ -135,6 +137,7 @@ class SubstitutionManagement implements SubstitutionOffers {
 				""").param("id", id).param("status", approval ? "CLAIMED" : "APPROVED").param("staff", viewer)
 			.param("actor", approval ? null : actor).param("decidedAt", approval ? null : Timestamp.from(Instant.now())).update();
 		record(row, actor, approval ? "CLAIMED" : "APPROVED", viewer, null);
+		if (!approval) decided(id, Outcome.COVERED, viewer, true);
 		return offer(id, viewer);
 	}
 
@@ -156,6 +159,7 @@ class SubstitutionManagement implements SubstitutionOffers {
 		requireEligible(row, candidate);
 		transfer(event, row, candidate, actor, false);
 		decide(row, actor, "APPROVED", candidate, input.note());
+		decided(id, Outcome.COVERED, candidate, false);
 		return response(row(id), null, null, true);
 	}
 
@@ -164,6 +168,7 @@ class SubstitutionManagement implements SubstitutionOffers {
 		Row row = lock(id, input.version());
 		requireStatus(row, "CLAIMED");
 		closeAndReopen(row, actor, "REJECTED", input.note());
+		decided(id, Outcome.CLAIM_REJECTED, row.substituteStaffId(), false);
 		return response(row(id), null, null, true);
 	}
 
@@ -174,6 +179,7 @@ class SubstitutionManagement implements SubstitutionOffers {
 		requireEligible(row, input.staffId());
 		transfer(event, row, input.staffId(), actor, false);
 		decide(row, actor, "APPROVED", input.staffId(), input.note());
+		decided(id, Outcome.COVERED, input.staffId(), false);
 		return response(row(id), null, null, true);
 	}
 
@@ -182,7 +188,18 @@ class SubstitutionManagement implements SubstitutionOffers {
 		Row row = lock(id, input.version());
 		if (!row.actionable()) throw new ApiException(ErrorCode.SUBSTITUTION_ALREADY_DECIDED, "Request closed.");
 		decide(row, actor, "CANCELLED", row.substituteStaffId(), input.note());
+		// Only a pending claim has a candidate waiting for the answer.
+		decided(id, Outcome.CLOSED, row.status().equals("CLAIMED") ? row.substituteStaffId() : null, false);
 		return response(row(id), null, null, true);
+	}
+
+	/** Tells the trainers concerned after commit; reads the request as the decision left it. */
+	private void decided(UUID id, Outcome outcome, @Nullable UUID substitute, boolean selfClaimed) {
+		Row row = row(id);
+		String name = substitute == null ? null : substitute.equals(row.substituteStaffId()) ? row.substituteName()
+				: this.staff.findAllById(List.of(substitute)).stream().map(StaffProfiles.StaffMember::displayName).findFirst().orElse(null);
+		this.publisher.publishEvent(new SubstitutionDecided(id, row.version(), row.eventId(), outcome, row.originalStaffId(),
+				substitute, name, selfClaimed, row.title(), row.rooms(), row.startsAt(), row.endsAt(), row.decisionNote()));
 	}
 
 	@Override
@@ -215,8 +232,10 @@ class SubstitutionManagement implements SubstitutionOffers {
 			.map((s) -> new StaffAssignmentRequest(s.staffId(), s.role())).toList());
 		staff.add(new StaffAssignmentRequest(candidate, StaffRole.LEAD));
 		var rooms = event.getResources().stream().map((r) -> new ResourceAssignmentRequest(r.resourceId(), r.blocksWholeRoom())).toList();
+		// Both trainers hear about the substitution itself, not about a generic change of the class.
 		this.planner.changeAssignments(event.getId(), new ChangeAssignmentsRequest(event.getVersion(),
-				AssignmentScope.THIS_EVENT, staff, rooms), actor, row.id(), automatic);
+				AssignmentScope.THIS_EVENT, staff, rooms), actor, row.id(), automatic,
+				java.util.Set.of(row.originalStaffId(), candidate));
 	}
 
 	private void closeAndReopen(Row row, UUID actor, String status, @Nullable String note) {

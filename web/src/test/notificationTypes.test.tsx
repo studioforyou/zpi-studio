@@ -12,6 +12,8 @@ const reminder = {
   leadTimesMinutes: [1440, 120],
   title: 'Przypomnienie o zajęciach',
   body: '{{zajęcia}}: {{dzień}}, godz. {{godzina}}. Sala: {{sala}}.',
+  defaultTitle: 'Przypomnienie o zajęciach',
+  defaultBody: '{{zajęcia}}: {{dzień}}, godz. {{godzina}}. Sala: {{sala}}.',
   placeholders: [
     { name: 'zajęcia', description: 'Name of the class or training' },
     { name: 'dzień', description: 'Day' },
@@ -31,12 +33,14 @@ function json(body: unknown, status = 200) {
   });
 }
 
+let reminderOverride: Partial<Record<keyof typeof reminder, unknown>> = {};
+
 function stubApi() {
   let current = { ...reminder };
   const patches: Record<string, unknown>[] = [];
   const fetchMock = vi.fn(async (url: string, init: RequestInit) => {
     if (url === '/api/v1/notification-types' && init.method === 'GET') {
-      return json({ items: [current] });
+      return json({ items: [{ ...current, ...reminderOverride }] });
     }
     if (url === '/api/v1/notification-types/CLASS_REMINDER' && init.method === 'PATCH') {
       const patch = JSON.parse(init.body as string);
@@ -48,6 +52,12 @@ function stubApi() {
   });
   vi.stubGlobal('fetch', fetchMock);
   return patches;
+}
+
+/** Announcements are the first tab; the notification settings are the second. */
+async function openNotificationsTab() {
+  renderWithProviders(<CommunicationPage />);
+  await userEvent.click(screen.getByRole('tab', { name: 'Powiadomienia' }));
 }
 
 test('formats reminder times in the largest whole unit', () => {
@@ -62,7 +72,7 @@ test('formats reminder times in the largest whole unit', () => {
 
 test('shows each notification type with its reminder times and switches it off', async () => {
   const patches = stubApi();
-  renderWithProviders(<CommunicationPage />);
+  await openNotificationsTab();
   expect(screen.getByRole('tab', { name: 'Powiadomienia' })).toHaveAttribute(
     'aria-selected',
     'true',
@@ -83,7 +93,7 @@ test('shows each notification type with its reminder times and switches it off',
 
 test('edits reminder times and content, and rejects unknown placeholders', async () => {
   const patches = stubApi();
-  renderWithProviders(<CommunicationPage />);
+  await openNotificationsTab();
   await userEvent.click(await screen.findByRole('button', { name: 'Edytuj' }));
   const dialog = await screen.findByRole('dialog');
   const preview = within(dialog).getByLabelText('Podgląd');
@@ -138,9 +148,48 @@ test('edits reminder times and content, and rejects unknown placeholders', async
   expect(await screen.findByText('30 min przed')).toBeInTheDocument();
 });
 
+test('restores the default content and saves it with the other changes', async () => {
+  const patches = stubApi();
+  await openNotificationsTab();
+  await userEvent.click(await screen.findByRole('button', { name: 'Edytuj' }));
+  const dialog = await screen.findByRole('dialog');
+  const restore = within(dialog).getByRole('button', { name: 'Przywróć domyślną treść' });
+  expect(restore).toBeDisabled();
+
+  const title = within(dialog).getByRole('textbox', { name: /^Tytuł/ });
+  await userEvent.clear(title);
+  await userEvent.type(title, 'Nie zapomnij!');
+  expect(restore).toBeEnabled();
+  await userEvent.click(restore);
+  expect(title).toHaveValue('Przypomnienie o zajęciach');
+  expect(restore).toBeDisabled();
+
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Zapisz' }));
+  await vi.waitFor(() => expect(patches).toHaveLength(1));
+  expect(patches[0]).toMatchObject({
+    title: 'Przypomnienie o zajęciach',
+    body: '{{zajęcia}}: {{dzień}}, godz. {{godzina}}. Sala: {{sala}}.',
+  });
+});
+
+test('offers no restore for a type without default content', async () => {
+  stubApi();
+  reminderOverride = { defaultTitle: null, defaultBody: null };
+  try {
+    await openNotificationsTab();
+    await userEvent.click(await screen.findByRole('button', { name: 'Edytuj' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(
+      within(dialog).queryByRole('button', { name: 'Przywróć domyślną treść' }),
+    ).not.toBeInTheDocument();
+  } finally {
+    reminderOverride = {};
+  }
+});
+
 test('inserts a field into the title when the title was used last', async () => {
   stubApi();
-  renderWithProviders(<CommunicationPage />);
+  await openNotificationsTab();
   await userEvent.click(await screen.findByRole('button', { name: 'Edytuj' }));
   const dialog = await screen.findByRole('dialog');
   const title = within(dialog).getByRole('textbox', { name: /^Tytuł/ });
@@ -153,7 +202,7 @@ test('inserts a field into the title when the title was used last', async () => 
 
 test('does not save duplicate reminder times', async () => {
   const patches = stubApi();
-  renderWithProviders(<CommunicationPage />);
+  await openNotificationsTab();
   await userEvent.click(await screen.findByRole('button', { name: 'Edytuj' }));
   const dialog = await screen.findByRole('dialog');
   const amount = within(dialog).getByRole('textbox', { name: 'Przypomnienie 2: ile' });
@@ -188,7 +237,7 @@ test('counts a pass reminder back from 9:00 on the last day and previews pass fi
       throw new Error(`Unexpected request: ${init.method} ${url}`);
     }),
   );
-  renderWithProviders(<CommunicationPage />);
+  await openNotificationsTab();
   expect(await screen.findByText('Karnet wkrótce wygaśnie')).toBeInTheDocument();
   expect(screen.getByText('3 dni przed')).toBeInTheDocument();
   await userEvent.click(screen.getByRole('button', { name: 'Edytuj' }));
@@ -226,7 +275,7 @@ test('shows the new message notification without reminder times and previews mes
       throw new Error(`Unexpected request: ${init.method} ${url}`);
     }),
   );
-  renderWithProviders(<CommunicationPage />);
+  await openNotificationsTab();
   expect(await screen.findByText('Nowa wiadomość')).toBeInTheDocument();
   expect(
     screen.getByText(/Wiadomości z czatu grupowego dziecka dostaje rodzic\./),
@@ -279,7 +328,7 @@ test('configures both waiting-list messages and edits the deadline template with
       throw new Error(`Unexpected request: ${init.method} ${url}`);
     }),
   );
-  renderWithProviders(<CommunicationPage />);
+  await openNotificationsTab();
   expect(
     await screen.findByText('Miejsce z listy rezerwowej do potwierdzenia'),
   ).toBeInTheDocument();
@@ -352,7 +401,7 @@ test('shows the class change and cancellation notifications with their fields', 
       throw new Error(`Unexpected request: ${init.method} ${url}`);
     }),
   );
-  renderWithProviders(<CommunicationPage />);
+  await openNotificationsTab();
   expect(await screen.findByText('Zmiana zajęć')).toBeInTheDocument();
   expect(screen.getByText('Automatyczne odwołanie zajęć')).toBeInTheDocument();
   expect(screen.getByText(/mniej osób niż wymagane minimum\./)).toBeInTheDocument();

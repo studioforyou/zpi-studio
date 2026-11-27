@@ -32,8 +32,11 @@ final class PersonalTrainingDtos {
 	record DisputeAvailability(boolean allowed, String reason, Instant closesAt) {}
 
 	@Schema(name = "PersonalTrainingDispute")
-	record Dispute(UUID id, String status, String reason, Instant raisedAt, String resolution,
-			String resolutionNote, Instant resolvedAt) {}
+	record Dispute(UUID id, @Schema(description = "OPEN or RESOLVED.") String status, String reason, Instant raisedAt,
+			@Schema(description = "UPHELD, UPHELD_MAKEUP or REJECTED once resolved.") String resolution,
+			@Schema(description = "ENTRY_RETURNED, MAKEUP_RETURNED, MAKEUP_GRANTED or NO_CHANGE once resolved.")
+			String resolutionEffect,
+			@Schema(description = "The studio's explanation of the decision.") String resolutionNote, Instant resolvedAt) {}
 
 	@Schema(name = "CancelPersonalTrainingRequest")
 	record CancelRequest(@NotNull @Min(0) Integer expectedVersion, @NotNull Effect expectedEffect,

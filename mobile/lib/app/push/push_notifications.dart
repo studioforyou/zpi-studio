@@ -76,6 +76,10 @@ class PushNotifications {
     'PASS_LAST_ENTRY_USED': clientPassesPath,
   };
 
+  /// Notification types reminding to buy the next pass; with a `passId` they
+  /// open the renewal of that pass.
+  static const _passRenewalTypes = {'PASS_EXPIRING', 'PASS_LAST_ENTRY_USED'};
+
   static const _trainerPaths = {
     'TIME_OFF_APPROVED': trainerAvailabilityPath,
     'TIME_OFF_REJECTED': trainerAvailabilityPath,
@@ -83,11 +87,23 @@ class PushNotifications {
   };
 
   /// Notification types about a class a trainer runs; with the role
-  /// `TRAINER` they open the trainer's schedule.
+  /// `TRAINER` they open the trainer's schedule. A decision on a substitution
+  /// the trainer asked for belongs here too: the class stays in, or leaves,
+  /// their schedule.
   static const _trainerScheduleTypes = {
     'CLASS_CHANGED',
     'CLASS_CANCELLED',
     'CLASS_AUTO_CANCELLED',
+    'SUBSTITUTION_COVERED',
+    'SUBSTITUTION_CLOSED',
+  };
+
+  /// Notification types about a substitution the trainer may take or has
+  /// claimed; they open that substitution in the trainer's substitutions.
+  static const _substitutionOfferTypes = {
+    'SUBSTITUTION_AVAILABLE',
+    'SUBSTITUTION_ASSIGNED',
+    'SUBSTITUTION_CLAIM_REJECTED',
   };
 
   /// Opens what a notification is about (its `data`) and marks it read. A
@@ -103,7 +119,7 @@ class PushNotifications {
 
     final session = auth.session;
     final router = _ref.read(appRouterProvider);
-    if (data['type'] == 'SUBSTITUTION_AVAILABLE' &&
+    if (_substitutionOfferTypes.contains(data['type']) &&
         session.roles.contains(AppRole.trainer)) {
       if (session.activeRole != AppRole.trainer) {
         final choice = session.choices
@@ -127,7 +143,8 @@ class PushNotifications {
       return;
     }
     if ((data['type'] == 'WAITLIST_PLACE_OFFERED' ||
-            data['type'] == 'WAITLIST_PLACE_GRANTED') &&
+            data['type'] == 'WAITLIST_PLACE_GRANTED' ||
+            data['type'] == 'CLASS_BOOKING_OPENED') &&
         session.roles.contains(AppRole.client)) {
       final eventId = data['eventId'];
       final choice = session.choices
@@ -181,7 +198,14 @@ class PushNotifications {
               session.activeProfileId != choice.profile?.id)) {
         _ref.read(authControllerProvider.notifier).choose(choice);
       }
-      router.go(clientPath);
+      final passId = data['passId'];
+      router.go(
+        _passRenewalTypes.contains(data['type']) &&
+                passId != null &&
+                passId.isNotEmpty
+            ? clientPassRenewalLocation(passId)
+            : clientPath,
+      );
       return;
     }
     final trainerPath = _trainerPaths[data['type']];
