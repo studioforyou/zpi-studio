@@ -8,6 +8,11 @@ output "artifact_registry_repository" {
   value       = google_artifact_registry_repository.backend.name
 }
 
+output "files_bucket" {
+  description = "Private bucket with message attachments."
+  value       = google_storage_bucket.files.name
+}
+
 output "db_private_ip" {
   description = "Prywatny adres Cloud SQL."
   value       = google_sql_database_instance.main.private_ip_address
