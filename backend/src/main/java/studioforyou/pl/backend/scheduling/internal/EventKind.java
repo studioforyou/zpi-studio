@@ -23,6 +23,6 @@ enum EventKind {
 	BLOCK;
 
 	/** Kinds an administrator plans in the schedule, as one-off events or recurring series. */
-	static final Set<EventKind> PLANNABLE = EnumSet.of(CLASS, PERSONAL_TRAINING, WORKSHOP, BLOCK);
+	static final Set<EventKind> PLANNABLE = EnumSet.of(CLASS, PERSONAL_TRAINING, WORKSHOP, CONSULTATION, BLOCK);
 
 }

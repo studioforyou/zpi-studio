@@ -94,6 +94,7 @@ export function EventFormModal({
   const [serviceTypeId, setServiceTypeId] = useState<string | null>(null);
   const [kind, setKind] = useState<PlannableKind>('CLASS');
   const [title, setTitle] = useState('');
+  const [guestName, setGuestName] = useState('');
   const [date, setDate] = useState(initialDate);
   const [startTime, setStartTime] = useState(initialTime ?? '18:00');
   const [duration, setDuration] = useState<number | string>(60);
@@ -108,7 +109,8 @@ export function EventFormModal({
   const [submitted, setSubmitted] = useState(false);
 
   const isBlock = kind === 'BLOCK';
-  const recurring = mode === 'recurring';
+  const isConsultation = kind === 'CONSULTATION';
+  const recurring = !isConsultation && mode === 'recurring';
   const durationValid =
     typeof duration === 'number' && Number.isInteger(duration) && duration >= 5 && duration <= 720;
   const capacityValid =
@@ -117,7 +119,11 @@ export function EventFormModal({
   const endsOnValid = !recurring || (endsOn !== '' && endsOn >= date);
   const blockRoomChosen = resources.length > 0;
   const valid =
-    (isBlock ? title.trim() !== '' && blockRoomChosen : serviceTypeId !== null) &&
+    (isConsultation
+      ? resources.length === 1
+      : isBlock
+        ? title.trim() !== '' && blockRoomChosen
+        : serviceTypeId !== null) &&
     date !== '' &&
     startTime !== '' &&
     durationValid &&
@@ -128,15 +134,16 @@ export function EventFormModal({
   function details(): EventDetailsInput {
     return {
       kind,
-      serviceTypeId: isBlock ? null : serviceTypeId,
+      serviceTypeId: isBlock || isConsultation ? null : serviceTypeId,
       title: title.trim() === '' ? null : title.trim(),
-      capacity: isBlock || capacity === '' ? null : Number(capacity),
+      capacity: isBlock || isConsultation || capacity === '' ? null : Number(capacity),
       visibility,
       staff: isBlock ? [] : staff,
       // A block takes its rooms whole.
-      resources: isBlock
-        ? resources.map((resource) => ({ ...resource, blocksWholeRoom: true }))
-        : resources,
+      resources:
+        isBlock || isConsultation
+          ? resources.map((resource) => ({ ...resource, blocksWholeRoom: true }))
+          : resources,
     };
   }
 
@@ -144,6 +151,7 @@ export function EventFormModal({
     const start = toInstant(date, startTime, timeZone);
     return {
       ...details(),
+      ...(isConsultation ? { guestName: guestName.trim() || null } : {}),
       startsAt: start.toISOString(),
       endsAt: new Date(start.getTime() + Number(duration) * 60000).toISOString(),
     };
@@ -205,9 +213,23 @@ export function EventFormModal({
 
   function selectKind(value: PlannableKind) {
     setKind(value);
-    setVisibility(value === 'PERSONAL_TRAINING' || value === 'BLOCK' ? 'PRIVATE' : 'PUBLIC');
-    if (value === 'BLOCK') {
+    setVisibility(
+      value === 'PERSONAL_TRAINING' || value === 'BLOCK' || value === 'CONSULTATION'
+        ? 'PRIVATE'
+        : 'PUBLIC',
+    );
+    if (value === 'BLOCK' || value === 'CONSULTATION') {
       setCapacity('');
+    }
+    if (value === 'CONSULTATION') {
+      setMode('oneOff');
+      setDuration(30);
+      setStaff(staff.filter((member) => member.role === 'LEAD').slice(0, 1));
+      setResources(
+        resources
+          .filter((room) => lookups.resourceById.get(room.resourceId)?.kind === 'ROOM')
+          .slice(0, 1),
+      );
     }
   }
 
@@ -245,15 +267,17 @@ export function EventFormModal({
       {step === 'details' ? (
         <form onSubmit={handleNext} noValidate>
           <Stack>
-            <SegmentedControl
-              aria-label={texts.type}
-              value={mode}
-              onChange={(value) => setMode(value as Mode)}
-              data={[
-                { value: 'oneOff', label: texts.oneOff },
-                { value: 'recurring', label: texts.recurring },
-              ]}
-            />
+            {!isConsultation && (
+              <SegmentedControl
+                aria-label={texts.type}
+                value={mode}
+                onChange={(value) => setMode(value as Mode)}
+                data={[
+                  { value: 'oneOff', label: texts.oneOff },
+                  { value: 'recurring', label: texts.recurring },
+                ]}
+              />
+            )}
             <SimpleGrid cols={{ base: 1, sm: 2 }}>
               <Select
                 label={texts.kind}
@@ -266,7 +290,7 @@ export function EventFormModal({
                 value={kind}
                 onChange={(value) => value && selectKind(value as PlannableKind)}
               />
-              {!isBlock && (
+              {!isBlock && !isConsultation && (
                 <Select
                   label={texts.serviceType}
                   placeholder={texts.serviceTypePlaceholder}
@@ -279,12 +303,19 @@ export function EventFormModal({
                 />
               )}
             </SimpleGrid>
+            {isConsultation && (
+              <Text size="sm" c="dimmed">
+                {pl.schedule.consultation.description}
+              </Text>
+            )}
             <TextInput
               label={texts.eventTitle}
               placeholder={
                 isBlock
                   ? texts.blockTitlePlaceholder
-                  : (selectedService?.name ?? texts.eventTitlePlaceholder)
+                  : isConsultation
+                    ? pl.schedule.kinds.CONSULTATION
+                    : (selectedService?.name ?? texts.eventTitlePlaceholder)
               }
               required={isBlock}
               maxLength={120}
@@ -292,6 +323,15 @@ export function EventFormModal({
               onChange={(event) => setTitle(event.currentTarget.value)}
               error={error(isBlock && title.trim() === '', texts.required)}
             />
+            {isConsultation && (
+              <TextInput
+                label={pl.schedule.consultation.guest}
+                placeholder={pl.schedule.consultation.guestPlaceholder}
+                maxLength={120}
+                value={guestName}
+                onChange={(event) => setGuestName(event.currentTarget.value)}
+              />
+            )}
             {recurring && (
               <Stack gap={4}>
                 <Text size="sm" fw={500}>
@@ -378,7 +418,7 @@ export function EventFormModal({
                 w={220}
               />
             )}
-            {!isBlock && (
+            {!isBlock && !isConsultation && (
               <SimpleGrid cols={{ base: 1, sm: 2 }}>
                 <NumberInput
                   label={texts.capacity}
@@ -412,6 +452,8 @@ export function EventFormModal({
               lookups={lookups}
               roomRules={roomRules}
               block={isBlock}
+              consultation={isConsultation}
+              roomError={error(isConsultation && resources.length !== 1, texts.required)}
             />
             {submitted && isBlock && !blockRoomChosen && (
               <Text size="xs" c="red">
@@ -446,7 +488,11 @@ export function EventFormModal({
               {conflicting.length > 0 ? (
                 <Alert color="red">
                   <Stack gap="xs" align="flex-start">
-                    <Text size="sm">{texts.conflictsLeft(conflicting.length)}</Text>
+                    <Text size="sm">
+                      {isConsultation
+                        ? pl.schedule.consultation.conflict
+                        : texts.conflictsLeft(conflicting.length)}
+                    </Text>
                     {recurring && (
                       <Button
                         size="xs"

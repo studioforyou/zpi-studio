@@ -99,6 +99,22 @@ class SeedDataTests {
 
 	@Test
 	@Transactional
+	void consultationExamplesKeepLaterChangesOnRerun() {
+		UUID event = UUID.fromString("19000000-0000-0000-0000-000000026001");
+		assertThat(jdbc.sql("SELECT count(*) FROM schedule_event WHERE id IN ('19000000-0000-0000-0000-000000026001','19000000-0000-0000-0000-000000026002','19000000-0000-0000-0000-000000026003') AND kind='CONSULTATION' AND visibility='PRIVATE' AND service_type_id IS NULL AND capacity IS NULL")
+			.query(Integer.class).single()).isEqualTo(3);
+		jdbc.sql("UPDATE schedule_event SET guest_name='Zmieniony gość',status='CANCELLED',version=version+1 WHERE id=:event")
+			.param("event",event).update();
+		jdbc.sql("DELETE FROM event_staff WHERE event_id=:event").param("event",event).update();
+		var counts = rowCounts();
+		new ResourceDatabasePopulator(new ClassPathResource("db/seed/R__seed_32_admin_consultations.sql")).execute(dataSource);
+		assertThat(rowCounts()).isEqualTo(counts);
+		assertThat(jdbc.sql("SELECT guest_name FROM schedule_event WHERE id=:event").param("event",event).query(String.class).single()).isEqualTo("Zmieniony gość");
+		assertThat(jdbc.sql("SELECT status FROM schedule_event WHERE id=:event").param("event",event).query(String.class).single()).isEqualTo("CANCELLED");
+	}
+
+	@Test
+	@Transactional
 	void eventHistoryExamplesDoNotResetLaterEditsOrDuplicateHistoryOnRerun() {
 		UUID event = UUID.fromString("19000000-0000-0000-0000-000000024001");
 		assertThat(jdbc.sql("SELECT count(*) FROM audit_log WHERE entity_type='schedule_event' AND entity_id=:event")

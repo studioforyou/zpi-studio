@@ -99,13 +99,20 @@ export function EventDetailsDrawer({
         <Stack gap="md">
           {isChangeable(event) && (
             <Button variant="subtle" color="red" size="xs" onClick={() => setCancelEvent(true)}>
-              {pl.substitutions.cancelEvent}
+              {event.kind === 'CONSULTATION'
+                ? texts.consultation.cancel
+                : pl.substitutions.cancelEvent}
             </Button>
           )}
           <CancelStudioEventModal
             target={
               cancelEvent
-                ? { id: event.id, version: event.version, title: eventTitle(event) }
+                ? {
+                    id: event.id,
+                    version: event.version,
+                    title: eventTitle(event),
+                    kind: event.kind,
+                  }
                 : null
             }
             onClose={() => setCancelEvent(false)}
@@ -141,19 +148,30 @@ export function EventDetailsDrawer({
               <Text>{event.serviceTypeName}</Text>
             </Detail>
           )}
-          {event.kind !== 'BLOCK' && (
+          {event.kind !== 'BLOCK' && event.kind !== 'CONSULTATION' && (
             <Detail label={texts.details.capacity}>
               <Text>{texts.capacity(event.capacity)}</Text>
             </Detail>
           )}
           {event.kind !== 'BLOCK' && (
-            <Detail label={texts.details.staff}>
+            <Detail
+              label={
+                event.kind === 'CONSULTATION'
+                  ? texts.consultation.assignedTrainer
+                  : texts.details.staff
+              }
+            >
               {event.staff.length === 0 ? (
-                <Text c="red.7">{texts.details.none}</Text>
+                <Text c={event.kind === 'CONSULTATION' ? 'dimmed' : 'red.7'}>
+                  {event.kind === 'CONSULTATION'
+                    ? texts.consultation.noTrainer
+                    : texts.details.none}
+                </Text>
               ) : (
                 event.staff.map((member) => (
                   <Text key={member.staffId}>
-                    {member.displayName ?? texts.unknownStaff} — {texts.roles[member.role]}
+                    {member.displayName ?? texts.unknownStaff}
+                    {event.kind !== 'CONSULTATION' && ` — ${texts.roles[member.role]}`}
                   </Text>
                 ))
               )}
@@ -166,7 +184,11 @@ export function EventDetailsDrawer({
               </Text>
             </Detail>
           )}
-          <Detail label={texts.details.resources}>
+          <Detail
+            label={
+              event.kind === 'CONSULTATION' ? texts.consultation.room : texts.details.resources
+            }
+          >
             {event.resources.length === 0 ? (
               <Text c={event.kind === 'BLOCK' ? 'dimmed' : 'red.7'}>{texts.details.none}</Text>
             ) : (
@@ -223,7 +245,7 @@ export function EventDetailsDrawer({
             </Detail>
           )}
           <EventHistorySection key={event.id} eventId={event.id} timeZone={lookups.timeZone} />
-          {event.kind !== 'BLOCK' && (
+          {event.kind !== 'BLOCK' && event.kind !== 'CONSULTATION' && (
             <>
               <Divider />
               {managesBookings(event) ? (
@@ -245,12 +267,14 @@ export function EventDetailsDrawer({
                   {event.seriesId ? texts.details.editOccurrence : texts.details.editEvent}
                 </Button>
               )}
-              <Button
-                variant={isChangeable(event) ? 'light' : 'filled'}
-                onClick={() => onEditAssignments(event)}
-              >
-                {texts.details.editAssignments}
-              </Button>
+              {event.kind !== 'CONSULTATION' && (
+                <Button
+                  variant={isChangeable(event) ? 'light' : 'filled'}
+                  onClick={() => onEditAssignments(event)}
+                >
+                  {texts.details.editAssignments}
+                </Button>
+              )}
               {isChangeable(event) && event.isSeriesException && (
                 <Button variant="subtle" color="grape" onClick={() => setConfirmRestore(true)}>
                   {texts.details.restoreSeries}
@@ -265,9 +289,9 @@ export function EventDetailsDrawer({
                 <Alert color="red">{scheduleErrorMessage(restore.error)}</Alert>
               )}
             </Stack>
-          ) : (
+          ) : event.kind !== 'CONSULTATION' ? (
             <Alert color="gray">{texts.details.notEditable}</Alert>
-          )}
+          ) : null}
         </Stack>
       )}
       {event && confirmRestore && (

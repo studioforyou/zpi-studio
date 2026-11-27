@@ -11,10 +11,16 @@ export const eventKinds = [
 export type EventKind = (typeof eventKinds)[number];
 
 /**
- * Kinds an administrator plans in the panel; consultations have their own story. A block, e.g. a
+ * Kinds an administrator plans in the panel. Consultations are one-off events. A block, e.g. a
  * maintenance, has no service or staff and takes its rooms whole.
  */
-export const plannableKinds = ['CLASS', 'WORKSHOP', 'PERSONAL_TRAINING', 'BLOCK'] as const;
+export const plannableKinds = [
+  'CLASS',
+  'WORKSHOP',
+  'PERSONAL_TRAINING',
+  'CONSULTATION',
+  'BLOCK',
+] as const;
 export type PlannableKind = (typeof plannableKinds)[number];
 
 export const eventStatuses = ['SCHEDULED', 'COMPLETED', 'CANCELLED'] as const;
@@ -145,7 +151,7 @@ export type ResourceAssignment = { resourceId: string; blocksWholeRoom: boolean 
 
 export type EventDetailsInput = {
   kind: PlannableKind;
-  /** `null` only for a block. */
+  /** Not used for blocks or consultations. */
   serviceTypeId: string | null;
   /** `null` = the service type's name. */
   title: string | null;
@@ -156,7 +162,11 @@ export type EventDetailsInput = {
   resources: ResourceAssignment[];
 };
 
-export type OneOffEventInput = EventDetailsInput & { startsAt: string; endsAt: string };
+export type OneOffEventInput = EventDetailsInput & {
+  startsAt: string;
+  endsAt: string;
+  guestName?: string | null;
+};
 
 export type SeriesInput = EventDetailsInput & {
   /** ISO weekdays, 1 = Monday. */
@@ -236,6 +246,7 @@ export type AssignmentsChange = {
 
 /** The new time, title, capacity, staff and rooms of one event (or one occurrence of a series). */
 export type EventChange = {
+  guestName?: string | null;
   version: number;
   startsAt: string;
   endsAt: string;
