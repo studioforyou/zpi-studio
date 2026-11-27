@@ -87,12 +87,14 @@ class SchedulePlanner {
 
 	private final ScheduleChangeNotices notices;
 
+	private final EventHistory history;
+
 	private final Clock clock = Clock.systemUTC();
 
 	SchedulePlanner(ScheduleEventRepository events, RecurrenceSeriesRepository seriesRepository,
 			ResourceRepository resources, ServiceTypeResourceRepository roomRules, ScheduleQueries queries,
 			ScheduleConflicts conflicts, ScheduleLocks locks, ServiceTypes serviceTypes, StaffProfiles staffProfiles,
-			StudioSettings studio, ScheduleChangeNotices notices) {
+			StudioSettings studio, ScheduleChangeNotices notices, EventHistory history) {
 		this.events = events;
 		this.seriesRepository = seriesRepository;
 		this.resources = resources;
@@ -103,6 +105,7 @@ class SchedulePlanner {
 		this.serviceTypes = serviceTypes;
 		this.staffProfiles = staffProfiles;
 		this.notices = notices;
+		this.history = history;
 		this.studio = studio;
 	}
 
@@ -208,15 +211,13 @@ class SchedulePlanner {
 	 * Replaces the staff and rooms of an event, or of the event and the later scheduled
 	 * occurrences of its series. A change of one occurrence marks it as an exception to its series.
 	 */
-	ScheduleEventResponse changeAssignments(UUID eventId, ChangeAssignmentsRequest request) {
-		return changeAssignments(eventId, request, Set.of());
+	ScheduleEventResponse changeAssignments(UUID eventId, ChangeAssignmentsRequest request, UUID actor) {
+		return changeAssignments(eventId, request, actor, null, false, Set.of());
 	}
 
-	/**
-	 * As {@link #changeAssignments(UUID, ChangeAssignmentsRequest)}, but the staff members in
-	 * {@code silentStaff} get no change notice, e.g. trainers told about a substitution instead.
-	 */
-	ScheduleEventResponse changeAssignments(UUID eventId, ChangeAssignmentsRequest request, Set<UUID> silentStaff) {
+	/** Records the occurrence's history while skipping notices sent as a substitution decision instead. */
+	ScheduleEventResponse changeAssignments(UUID eventId, ChangeAssignmentsRequest request, UUID actor,
+			@Nullable UUID substitutionRequestId, boolean automatic, Set<UUID> silentStaff) {
 		ScheduleEvent event = this.events.findByIdForUpdate(eventId)
 			.orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "Event not found."));
 		if (event.getVersion() != request.version()) {
@@ -245,6 +246,7 @@ class SchedulePlanner {
 
 		Map<UUID, ScheduleChangeNotices.Snapshot> before = this.notices
 			.snapshots(targets.stream().map(ScheduleEvent::getId).toList());
+		var historyBefore = this.history.snapshots(targets.stream().map(ScheduleEvent::getId).toList());
 		for (ScheduleEvent target : targets) {
 			boolean changed = target.replaceAssignments(assignments.staff(), assignments.resources());
 			if (changed && !following) {
@@ -256,6 +258,9 @@ class SchedulePlanner {
 				.ifPresent((series) -> series.setDefaults(assignments.leadStaffId(), assignments.mainResourceId()));
 		}
 		this.events.flush();
+		this.history.record(historyBefore, actor, substitutionRequestId == null ? EventHistory.Kind.MANUAL
+				: automatic ? EventHistory.Kind.AUTOMATIC_SUBSTITUTION : EventHistory.Kind.SUBSTITUTION,
+				substitutionRequestId);
 		this.notices.record(before, silentStaff);
 		return this.queries.findEvent(eventId).orElseThrow();
 	}

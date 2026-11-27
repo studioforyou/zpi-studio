@@ -43,6 +43,11 @@ class SubstitutionManagementTest extends ScheduleTestSupport {
 		action(ADMIN_TOKEN, ADMIN, request, "approve", 1).andExpect(status().isOk())
 			.andExpect(jsonPath("$.status").value("APPROVED"));
 		assertThat(lead(event)).isEqualTo(MAREK);
+		get("/api/v1/schedule-events/" + event + "/history")
+			.andExpect(jsonPath("$.items.length()").value(2))
+			.andExpect(jsonPath("$.items[0].kind").value("SUBSTITUTION"))
+			.andExpect(jsonPath("$.items[0].changes.staff.old[0].staffId").value(ANNA.toString()))
+			.andExpect(jsonPath("$.items[0].changes.staff.new[0].staffId").value(MAREK.toString()));
 		assertThat(this.jdbcTemplate.queryForObject("SELECT count(*) FROM audit_log WHERE entity_id=?", Integer.class, UUID.fromString(request))).isEqualTo(2);
 	}
 
@@ -183,6 +188,10 @@ class SubstitutionManagementTest extends ScheduleTestSupport {
 			String event=createEvent(poleClass(this.monday, "18:00", "19:00")); String request=request(event); qualify();
 			action(MAREK_TOKEN, OFFERS, request, "claim", 0).andExpect(status().isOk()).andExpect(jsonPath("$.status").value("APPROVED"));
 			assertThat(lead(event)).isEqualTo(MAREK);
+			get("/api/v1/schedule-events/" + event + "/history")
+				.andExpect(jsonPath("$.items.length()").value(2))
+				.andExpect(jsonPath("$.items[0].kind").value("AUTOMATIC_SUBSTITUTION"))
+				.andExpect(jsonPath("$.items[0].actorName").value("Marek Nowak"));
 			assertThat(decisions()).singleElement().satisfies((d) -> {
 				assertThat(d.outcome()).isEqualTo(Outcome.COVERED);
 				assertThat(d.selfClaimed()).isTrue();

@@ -3,6 +3,7 @@ import { Alert, Badge, Button, Divider, Drawer, Group, Modal, Stack, Text } from
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { pl } from '@/shared/i18n/pl';
 import { EventAttendanceSection } from './EventAttendanceSection';
+import { EventHistorySection } from './EventHistorySection';
 import { CancelStudioEventModal } from './CancelStudioEventModal';
 import { EventAutoCancellationSection } from './EventAutoCancellationSection';
 import { EventReservationsSection } from './EventReservationsSection';
@@ -221,6 +222,7 @@ export function EventDetailsDrawer({
               <Text>{event.blockReason}</Text>
             </Detail>
           )}
+          <EventHistorySection key={event.id} eventId={event.id} timeZone={lookups.timeZone} />
           {event.kind !== 'BLOCK' && (
             <>
               <Divider />

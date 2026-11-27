@@ -184,7 +184,8 @@ class OwnScheduleController {
 					mediaType = "application/problem+json", schema = @Schema(implementation = ApiProblem.class)))
 	ScheduleEventResponse rescheduleOwnScheduleEvent(@PathVariable UUID eventId,
 			@Valid @RequestBody OwnRescheduleRequest request, Authentication authentication) {
-		return this.occurrenceChanges.rescheduleOwn(eventId, staffId(authentication), request);
+		return this.occurrenceChanges.rescheduleOwn(eventId, staffId(authentication), request,
+				CurrentAccount.of(authentication).id());
 	}
 
 	@PostMapping("/{eventId}/reschedule-preview")
