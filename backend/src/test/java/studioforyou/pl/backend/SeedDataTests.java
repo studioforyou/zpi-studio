@@ -467,6 +467,66 @@ class SeedDataTests {
 		assertThat(roles).containsExactly("CLIENT", "ADMIN", "TRAINER", "TRAINER", "CLIENT");
 	}
 
+	@Test
+	void trainerSettlementExamplesHaveCorrectOwnersBalancesAndSavedHours() throws Exception {
+		LocalDate month = LocalDate.now(ZoneId.of("Europe/Warsaw")).withDayOfMonth(1).minusMonths(1);
+		String token = seedToken(10);
+		String list = seedGet(token, "/api/v1/trainer-settlements?month=" + month.toString().substring(0, 7), false);
+		assertThat(JsonPath.<List<String>>read(list, "$[*].displayName"))
+			.containsExactlyInAnyOrder("Anna Kowalska", "Marek Nowak", "Ewa Wiśniewska", "Karolina Szymańska");
+		assertThat(JsonPath.<List<String>>read(list, "$[*].status")).contains("UNPAID", "PARTIAL", "PAID");
+		assertThat(JsonPath.<List<Integer>>read(list, "$[?(@.displayName=='Karolina Szymańska')].revision")).containsExactly(2);
+		assertThat(JsonPath.<List<Integer>>read(list, "$[?(@.displayName=='Karolina Szymańska')].remaining.amountMinor")).containsExactly(40000);
+		for (String id : JsonPath.<List<String>>read(list, "$[*].id")) {
+			String saved = seedGet(token, "/api/v1/trainer-settlements/" + id, false);
+			String staff = JsonPath.read(saved, "$.summary.staffId");
+			String live = seedGet(token, "/api/v1/reports/trainer-hours?from=" + month + "&to=" + month.plusMonths(1).minusDays(1) + "&staffId=" + staff, false);
+			assertThat(JsonPath.<Map<String, Object>>read(saved, "$.revisions[0].snapshot.report.totals"))
+				.isEqualTo(JsonPath.<Map<String, Object>>read(live, "$.totals"));
+		}
+	}
+
+	@Test
+	@Transactional
+	void settlementExamplesCoverOlderMonthsAndKeepLaterCorrectionsAndPayouts() throws Exception {
+		LocalDate month = LocalDate.now(ZoneId.of("Europe/Warsaw")).withDayOfMonth(1).minusMonths(2);
+		String token = seedToken(10);
+		String list = seedGet(token, "/api/v1/trainer-settlements?month=" + month.toString().substring(0, 7), false);
+		assertThat(JsonPath.<List<String>>read(list, "$[*].displayName"))
+			.containsExactlyInAnyOrder("Anna Kowalska", "Marek Nowak", "Ewa Wiśniewska", "Karolina Szymańska");
+		assertThat(JsonPath.<List<Integer>>read(list, "$[?(@.displayName=='Anna Kowalska')].paid.amountMinor")).containsExactly(100050);
+		assertThat(JsonPath.<List<Boolean>>read(list, "$[?(@.displayName=='Anna Kowalska')].includeUnconfirmed")).containsExactly(true);
+		assertThat(JsonPath.<List<Integer>>read(list, "$[?(@.displayName=='Marek Nowak')].amount.amountMinor")).containsExactly(0);
+		assertThat(JsonPath.<List<Integer>>read(list, "$[?(@.displayName=='Ewa Wiśniewska')].remaining.amountMinor")).containsExactly(37525);
+		assertThat(JsonPath.<List<String>>read(list, "$[?(@.displayName=='Karolina Szymańska')].status")).containsExactly("UNPAID");
+		String anna = seedGet(token, "/api/v1/trainer-settlements/33000000-0000-0000-0000-000000034005", false);
+		assertThat(JsonPath.<List<String>>read(anna, "$.payments[*].method")).containsExactlyInAnyOrder("CASH", "TRANSFER");
+		assertThat(JsonPath.<Integer>read(anna, "$.summary.unconfirmedSeconds")).isPositive();
+		assertThat(JsonPath.<Integer>read(anna, "$.summary.countedSeconds"))
+			.isEqualTo(JsonPath.<Integer>read(anna, "$.revisions[0].snapshot.report.totals.seconds"));
+
+		String path = "/api/v1/trainer-settlements/33000000-0000-0000-0000-000000034006";
+		mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post(path + "/revisions")
+			.header("Authorization", "Bearer " + token).contentType("application/json").content("""
+				{"operationId":"00000000-0000-0000-0000-000000301001","version":0,
+				 "amount":{"amountMinor":7500,"currency":"PLN"},"includeUnconfirmed":false,
+				 "reason":"Korekta uzgodniona przez testera","fingerprint":null}
+				""")).andExpect(status().isOk());
+		mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post(path + "/payouts")
+			.header("Authorization", "Bearer " + token).contentType("application/json").content("""
+				{"operationId":"00000000-0000-0000-0000-000000301002","version":1,
+				 "amount":{"amountMinor":7500,"currency":"PLN"},"paidOn":"%s",
+				 "method":"CASH","note":"Wypłata zapisana przez testera"}
+				""".formatted(LocalDate.now(ZoneId.of("Europe/Warsaw"))))).andExpect(status().isOk());
+		String changed = seedGet(token, path, false);
+		Map<String, Long> counts = rowCounts();
+		var script = new ResourceDatabasePopulator(new ClassPathResource("db/seed/R__seed_34_trainer_settlements.sql"));
+		script.execute(dataSource);
+		script.execute(dataSource);
+		assertThat(seedGet(token, path, false)).isEqualTo(changed);
+		assertThat(rowCounts()).isEqualTo(counts);
+	}
+
 	private String seedToken(int accountNo) {
 		String uid = jdbc.sql("SELECT external_uid FROM identity_link WHERE account_id = CAST(:id AS UUID) AND provider = 'FIREBASE'")
 			.param("id", "03000000-0000-0000-0000-" + "%012d".formatted(accountNo)).query(String.class).single();

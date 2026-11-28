@@ -38,6 +38,10 @@ public class StudioSettings {
 		return studios.findFirstBy().map(Studio::getCurrency).orElse(DEFAULT_CURRENCY);
 	}
 
+	public String name() {
+		return studios.findFirstBy().map(Studio::getName).orElse("Studio");
+	}
+
 	/** Time to report a discrepancy after the trainer confirms a personal session. */
 	public int personalTrainingDisputeHours() {
 		return studios.findFirstBy().map(Studio::getPersonalTrainingDisputeHours).orElse(24);

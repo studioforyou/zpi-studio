@@ -188,13 +188,26 @@ export function trainerHoursPdfDefinition(data: HoursExport): TDocumentDefinitio
 }
 
 export async function exportHoursPdf(data: HoursExport, printWindow?: Window) {
+  return exportPdfDocument(
+    trainerHoursPdfDefinition(data),
+    hoursExportFilename(data, 'pdf'),
+    printWindow,
+  );
+}
+
+/** Shared renderer for reports and saved settlements; both use the same bundled fonts. */
+export async function exportPdfDocument(
+  definition: TDocumentDefinitions,
+  filename: string,
+  printWindow?: Window,
+) {
   // Keep the PDF engine and its Polish-capable fonts out of the initial report bundle.
   const [{ default: pdfMake }, { default: fonts }] = await Promise.all([
     import('pdfmake/build/pdfmake'),
     import('pdfmake/build/vfs_fonts'),
   ]);
   pdfMake.addVirtualFileSystem(fonts);
-  const pdf = pdfMake.createPdf(trainerHoursPdfDefinition(data));
+  const pdf = pdfMake.createPdf(definition);
   if (printWindow) await pdf.print(printWindow);
-  else await pdf.download(hoursExportFilename(data, 'pdf'));
+  else await pdf.download(filename);
 }

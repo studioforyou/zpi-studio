@@ -62,9 +62,11 @@ export function trainerHoursCsv({ report, studioName, generatedAt }: HoursExport
       String(counts.events),
       generatedAt,
     ]);
-  return (
-    '\uFEFF' + [header, ...rows].map((row) => row.map(csvCell).join(';')).join('\r\n') + '\r\n'
-  );
+  return csvDocument([header, ...rows]);
+}
+
+export function csvDocument(rows: string[][]) {
+  return '\uFEFF' + rows.map((row) => row.map(csvCell).join(';')).join('\r\n') + '\r\n';
 }
 
 export function hoursExportFilename(data: HoursExport, extension: 'pdf' | 'csv') {
@@ -73,12 +75,14 @@ export function hoursExportFilename(data: HoursExport, extension: 'pdf' | 'csv')
 }
 
 export function downloadHoursCsv(data: HoursExport) {
-  const url = URL.createObjectURL(
-    new Blob([trainerHoursCsv(data)], { type: 'text/csv;charset=utf-8' }),
-  );
+  downloadCsv(trainerHoursCsv(data), hoursExportFilename(data, 'csv'));
+}
+
+export function downloadCsv(csv: string, filename: string) {
+  const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
   const link = document.createElement('a');
   link.href = url;
-  link.download = hoursExportFilename(data, 'csv');
+  link.download = filename;
   link.click();
   setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
