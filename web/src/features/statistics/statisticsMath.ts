@@ -33,6 +33,18 @@ export function formatNumber(value: number, fractionDigits = 0): string {
   });
 }
 
+/** Elapsed time, without rounding each session to a fraction of an hour. */
+export function formatWorkedTime(seconds: number): string {
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const remainder = seconds % 60;
+  const parts = [];
+  if (hours) parts.push(`${hours.toLocaleString('pl-PL')} h`);
+  if (minutes) parts.push(`${minutes} min`);
+  if (remainder) parts.push(`${remainder} s`);
+  return parts.join(' ') || '0 h';
+}
+
 /** Adds counts field by field. */
 export function addCounts<T extends Record<string, number>>(a: T, b: T): T {
   const sum = { ...a };

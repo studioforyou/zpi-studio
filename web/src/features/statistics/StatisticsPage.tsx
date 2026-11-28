@@ -12,6 +12,8 @@ import { LapsedCustomersPanel } from './LapsedCustomersPanel';
 import { OverviewPanel } from './OverviewPanel';
 import { SalesPanel } from './SalesPanel';
 import { StatisticsFilterBar } from './StatisticsFilterBar';
+import { TrainerHoursPanel } from './TrainerHoursPanel';
+import { TrainerSettlementsPanel } from './TrainerSettlementsPanel';
 import { defaultStatisticsTab, statisticsTabs, type StatisticsTab } from './statisticsTabs';
 import { useStatisticsFilters, type StatisticsFilters } from './useStatisticsFilters';
 
@@ -24,6 +26,8 @@ const panels: Record<StatisticsTab, (props: PanelProps) => ReactNode> = {
   overview: (props) => <OverviewPanel {...props} />,
   attendance: ({ filters }) => <ClassAttendancePanel filters={filters} />,
   outcomes: ({ filters }) => <BookingOutcomesPanel filters={filters} />,
+  hours: ({ filters }) => <TrainerHoursPanel filters={filters} />,
+  settlements: () => <TrainerSettlementsPanel />,
   customers: ({ filters }) => <CustomerActivityPanel filters={filters} />,
   lapsed: () => <LapsedCustomersPanel />,
   sales: ({ filters }) => <SalesPanel filters={filters} />,
@@ -60,8 +64,10 @@ export function StatisticsPage() {
   return (
     <Stack gap="lg">
       <Title order={2}>{texts.title}</Title>
-      {/* The lapsed customers list is as of today: neither the period nor the events apply. */}
-      {tab !== 'lapsed' && <StatisticsFilterBar filters={filters} />}
+      {/* Hours have their own event kinds, including consultations; lapsed customers are as of today. */}
+      {tab !== 'lapsed' && tab !== 'hours' && tab !== 'settlements' && (
+        <StatisticsFilterBar filters={filters} />
+      )}
       {/* Only the open tab is mounted, so only its reports are loaded. */}
       <Tabs value={tab} onChange={open} keepMounted={false}>
         <Tabs.List>

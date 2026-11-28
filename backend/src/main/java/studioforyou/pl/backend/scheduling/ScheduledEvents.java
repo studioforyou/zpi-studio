@@ -119,6 +119,38 @@ public class ScheduledEvents {
 	}
 
 	/**
+	 * Finished, non-cancelled events of the period, once per assigned staff member. Actual event
+	 * assignments are used, so a replacement gets the time, not the series' default instructor.
+	 * Room names are aggregated separately: shared rooms must not multiply a staff member's time.
+	 */
+	public List<StaffWork> findFinishedStaffWork(Instant from, Instant to, Instant now) {
+		return this.jdbc.sql("""
+				SELECT e.id, s.staff_id, s.role, e.kind, e.service_type_id, e.title, e.starts_at, e.ends_at,
+				       e.status = 'COMPLETED' AS confirmed,
+				       COALESCE((SELECT string_agg(DISTINCT r.name, ', ' ORDER BY r.name)
+				                 FROM event_resource er JOIN resource r ON r.id = er.resource_id
+				                 WHERE er.event_id = e.id AND r.kind = 'ROOM'), '') AS rooms
+				FROM schedule_event e JOIN event_staff s ON s.event_id = e.id
+				WHERE e.starts_at >= :from AND e.starts_at < :to AND e.ends_at <= :now
+				  AND e.status <> 'CANCELLED' AND e.kind IN ('CLASS','WORKSHOP','PERSONAL_TRAINING','CONSULTATION')
+				ORDER BY e.starts_at DESC, e.id, s.staff_id
+				""")
+			.param("from", OffsetDateTime.ofInstant(from, ZoneOffset.UTC))
+			.param("to", OffsetDateTime.ofInstant(to, ZoneOffset.UTC))
+			.param("now", OffsetDateTime.ofInstant(now, ZoneOffset.UTC))
+			.query((rs, row) -> new StaffWork(rs.getObject("id", UUID.class), rs.getObject("staff_id", UUID.class),
+					rs.getString("role"), rs.getString("kind"), rs.getObject("service_type_id", UUID.class),
+					rs.getString("title"), instant(rs, "starts_at"), instant(rs, "ends_at"),
+					rs.getBoolean("confirmed"), rs.getString("rooms")))
+			.list();
+	}
+
+	/** One staff member's time in an event; its full duration applies to both leading and assisting. */
+	public record StaffWork(UUID eventId, UUID staffId, String role, String kind, @Nullable UUID serviceTypeId,
+			@Nullable String title, Instant startsAt, Instant endsAt, boolean confirmed, String rooms) {
+	}
+
+	/**
 	 * Which events a report covers: an event matches when it is of one of the kinds and, for each
 	 * other collection that is not empty, has one of its values (its service type, its fixed group,
 	 * one of its staff members, one of its rooms). An empty collection other than {@code kinds}

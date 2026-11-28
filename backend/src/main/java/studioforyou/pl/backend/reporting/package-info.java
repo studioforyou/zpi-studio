@@ -1,5 +1,5 @@
 /**
- * Read-only business reports assembled through source modules' public read operations.
+ * Business reports and monthly trainer settlements, based on source modules' public read operations.
  */
 @org.springframework.modulith.ApplicationModule
 package studioforyou.pl.backend.reporting;

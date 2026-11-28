@@ -6,6 +6,8 @@ export const statisticsTabs = [
   'overview',
   'attendance',
   'outcomes',
+  'hours',
+  'settlements',
   'customers',
   'lapsed',
   'sales',

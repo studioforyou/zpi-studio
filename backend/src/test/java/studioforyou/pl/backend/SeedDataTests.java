@@ -110,6 +110,30 @@ class SeedDataTests {
 
 	@Test
 	@Transactional
+	void trainerHoursExamplesKeepEditedTimeAndAssignmentsOnRerun() {
+		UUID event = UUID.fromString("19000000-0000-0000-0000-000000033001");
+		assertThat(jdbc.sql("""
+				SELECT count(*) FROM schedule_event e JOIN event_resource er ON er.event_id=e.id
+				WHERE e.id BETWEEN '19000000-0000-0000-0000-000000033001' AND '19000000-0000-0000-0000-000000033008'
+				  AND e.service_type_id IS NOT NULL AND NOT EXISTS (
+				    SELECT 1 FROM service_type_resource allowed
+				    WHERE allowed.service_type_id=e.service_type_id AND allowed.resource_id=er.resource_id)
+				""").query(Integer.class).single()).isZero();
+		jdbc.sql("UPDATE schedule_event SET title='Zmieniony przykład',ends_at=starts_at+interval '45 minutes' WHERE id=:id")
+			.param("id",event).update();
+		jdbc.sql("DELETE FROM event_staff WHERE event_id=:id AND role='ASSISTANT'").param("id",event).update();
+		var counts = rowCounts();
+		new ResourceDatabasePopulator(new ClassPathResource("db/seed/R__seed_33_trainer_hours.sql")).execute(dataSource);
+		assertThat(rowCounts()).isEqualTo(counts);
+		assertThat(jdbc.sql("SELECT title FROM schedule_event WHERE id=:id").param("id",event).query(String.class).single())
+			.isEqualTo("Zmieniony przykład");
+		assertThat(jdbc.sql("SELECT extract(epoch FROM ends_at-starts_at)::int FROM schedule_event WHERE id=:id")
+			.param("id",event).query(Integer.class).single()).isEqualTo(2700);
+		assertThat(jdbc.sql("SELECT count(*) FROM event_staff WHERE event_id=:id").param("id",event).query(Integer.class).single()).isEqualTo(1);
+	}
+
+	@Test
+	@Transactional
 	void eventHistoryExamplesDoNotResetLaterEditsOrDuplicateHistoryOnRerun() {
 		UUID event = UUID.fromString("19000000-0000-0000-0000-000000024001");
 		assertThat(jdbc.sql("SELECT count(*) FROM audit_log WHERE entity_type='schedule_event' AND entity_id=:event")
@@ -441,6 +465,66 @@ class SeedDataTests {
 				"HEALTH_NOTE_ADDED");
 		List<String> roles = JsonPath.read(history, "$.items[*].actor.role");
 		assertThat(roles).containsExactly("CLIENT", "ADMIN", "TRAINER", "TRAINER", "CLIENT");
+	}
+
+	@Test
+	void trainerSettlementExamplesHaveCorrectOwnersBalancesAndSavedHours() throws Exception {
+		LocalDate month = LocalDate.now(ZoneId.of("Europe/Warsaw")).withDayOfMonth(1).minusMonths(1);
+		String token = seedToken(10);
+		String list = seedGet(token, "/api/v1/trainer-settlements?month=" + month.toString().substring(0, 7), false);
+		assertThat(JsonPath.<List<String>>read(list, "$[*].displayName"))
+			.containsExactlyInAnyOrder("Anna Kowalska", "Marek Nowak", "Ewa Wiśniewska", "Karolina Szymańska");
+		assertThat(JsonPath.<List<String>>read(list, "$[*].status")).contains("UNPAID", "PARTIAL", "PAID");
+		assertThat(JsonPath.<List<Integer>>read(list, "$[?(@.displayName=='Karolina Szymańska')].revision")).containsExactly(2);
+		assertThat(JsonPath.<List<Integer>>read(list, "$[?(@.displayName=='Karolina Szymańska')].remaining.amountMinor")).containsExactly(40000);
+		for (String id : JsonPath.<List<String>>read(list, "$[*].id")) {
+			String saved = seedGet(token, "/api/v1/trainer-settlements/" + id, false);
+			String staff = JsonPath.read(saved, "$.summary.staffId");
+			String live = seedGet(token, "/api/v1/reports/trainer-hours?from=" + month + "&to=" + month.plusMonths(1).minusDays(1) + "&staffId=" + staff, false);
+			assertThat(JsonPath.<Map<String, Object>>read(saved, "$.revisions[0].snapshot.report.totals"))
+				.isEqualTo(JsonPath.<Map<String, Object>>read(live, "$.totals"));
+		}
+	}
+
+	@Test
+	@Transactional
+	void settlementExamplesCoverOlderMonthsAndKeepLaterCorrectionsAndPayouts() throws Exception {
+		LocalDate month = LocalDate.now(ZoneId.of("Europe/Warsaw")).withDayOfMonth(1).minusMonths(2);
+		String token = seedToken(10);
+		String list = seedGet(token, "/api/v1/trainer-settlements?month=" + month.toString().substring(0, 7), false);
+		assertThat(JsonPath.<List<String>>read(list, "$[*].displayName"))
+			.containsExactlyInAnyOrder("Anna Kowalska", "Marek Nowak", "Ewa Wiśniewska", "Karolina Szymańska");
+		assertThat(JsonPath.<List<Integer>>read(list, "$[?(@.displayName=='Anna Kowalska')].paid.amountMinor")).containsExactly(100050);
+		assertThat(JsonPath.<List<Boolean>>read(list, "$[?(@.displayName=='Anna Kowalska')].includeUnconfirmed")).containsExactly(true);
+		assertThat(JsonPath.<List<Integer>>read(list, "$[?(@.displayName=='Marek Nowak')].amount.amountMinor")).containsExactly(0);
+		assertThat(JsonPath.<List<Integer>>read(list, "$[?(@.displayName=='Ewa Wiśniewska')].remaining.amountMinor")).containsExactly(37525);
+		assertThat(JsonPath.<List<String>>read(list, "$[?(@.displayName=='Karolina Szymańska')].status")).containsExactly("UNPAID");
+		String anna = seedGet(token, "/api/v1/trainer-settlements/33000000-0000-0000-0000-000000034005", false);
+		assertThat(JsonPath.<List<String>>read(anna, "$.payments[*].method")).containsExactlyInAnyOrder("CASH", "TRANSFER");
+		assertThat(JsonPath.<Integer>read(anna, "$.summary.unconfirmedSeconds")).isPositive();
+		assertThat(JsonPath.<Integer>read(anna, "$.summary.countedSeconds"))
+			.isEqualTo(JsonPath.<Integer>read(anna, "$.revisions[0].snapshot.report.totals.seconds"));
+
+		String path = "/api/v1/trainer-settlements/33000000-0000-0000-0000-000000034006";
+		mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post(path + "/revisions")
+			.header("Authorization", "Bearer " + token).contentType("application/json").content("""
+				{"operationId":"00000000-0000-0000-0000-000000301001","version":0,
+				 "amount":{"amountMinor":7500,"currency":"PLN"},"includeUnconfirmed":false,
+				 "reason":"Korekta uzgodniona przez testera","fingerprint":null}
+				""")).andExpect(status().isOk());
+		mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post(path + "/payouts")
+			.header("Authorization", "Bearer " + token).contentType("application/json").content("""
+				{"operationId":"00000000-0000-0000-0000-000000301002","version":1,
+				 "amount":{"amountMinor":7500,"currency":"PLN"},"paidOn":"%s",
+				 "method":"CASH","note":"Wypłata zapisana przez testera"}
+				""".formatted(LocalDate.now(ZoneId.of("Europe/Warsaw"))))).andExpect(status().isOk());
+		String changed = seedGet(token, path, false);
+		Map<String, Long> counts = rowCounts();
+		var script = new ResourceDatabasePopulator(new ClassPathResource("db/seed/R__seed_34_trainer_settlements.sql"));
+		script.execute(dataSource);
+		script.execute(dataSource);
+		assertThat(seedGet(token, path, false)).isEqualTo(changed);
+		assertThat(rowCounts()).isEqualTo(counts);
 	}
 
 	private String seedToken(int accountNo) {
